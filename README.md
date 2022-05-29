@@ -14,7 +14,7 @@
 > 6 兼容jdk1.6+；
 
 关于本json库与主流json库性能pk(原库名字叫light) <br>
-[https://my.oschina.net/u/5594123/blog/5398518](https://my.oschina.net/u/5594123/blog/5398518)
+[https://blog.csdn.net/wangych0112/article/details/122522193](https://blog.csdn.net/wangych0112/article/details/122522193)
 
 ## yaml模块
 
