@@ -11,7 +11,7 @@ import java.util.Arrays;
  * @Date: 2021/12/22 21:48
  * @Description:
  */
-class JSONWriter extends CharArrayWriter {
+public class JSONWriter extends CharArrayWriter {
 
 //    /**
 //     * 一级缓存本地线程 (L1 cache local thread)
@@ -47,6 +47,14 @@ class JSONWriter extends CharArrayWriter {
      * The current instance uses a cached instance
      */
     private CharBufferCache charBufferCache;
+
+    void setCharAt(int index, char c) {
+        buf[index] = c;
+    }
+
+    void getChars(int s, int len, char[] chars, int t) {
+        System.arraycopy(buf, s, chars, t, len);
+    }
 
     private static class CharBufferCache {
         final char[] cacheBuffers;

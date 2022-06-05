@@ -132,6 +132,9 @@ System.out.println(map);
 > 3、支持上下文查找；<br>
 > 4、支持在大文本json中提取部分内容作为解析结果（性能最高）,使用JSONNode.from(source, path, lazy?)  <br>
 > 5、支持对节点的属性修改，删除等，节点的JSON序列化回显；
+> 6、支持直接提取功能(v0.0.2+支持)
+
+使用'/'作为路径的分隔符，数组下标使用[n]访问支持[*], [n+], [n-],[n]等复合下标访问
 
 ```
   String json = "{\"name\": \"li lei\", \”properties\": {\"age\": 23}}";
@@ -154,6 +157,73 @@ System.out.println(map);
   // 局部解析懒加载(一般在获取某个数组的长度或者对象的keys等特别适用)
   JSONNode propertiesRoot = JSONNode.from(json, "/properties", true);
   propertiesRoot.keyNames();
+  
+  
+  String json2 = `{
+                      "store": {
+                        "book": [
+                          {
+                            "category": "reference",
+                            "author": "Nigel Rees",
+                            "title": "Sayings of the Century",
+                            "attr": {
+                              "pos": "p1"
+                            },
+                            "price": 8.95
+                          },
+                          {
+                            "category": "fiction",
+                            "author": "Evelyn Waugh",
+                            "title": "Sword of Honour",
+                            "attr": {
+                              "pos": "p2"
+                            },
+                            "price": 12.99
+                          },
+                          {
+                            "category": "fiction",
+                            "author": "Herman Melville",
+                            "title": "Moby Dick",
+                            "isbn": "0-553-21311-3",
+                            "attr": {
+                              "pos": "p3"
+                            },
+                            "price": 8.99
+                          },
+                          {
+                            "category": "fiction",
+                            "author": "J. R. R. Tolkien",
+                            "title": "The Lord of the Rings",
+                            "isbn": "0-395-19395-8",
+                            "attr": {
+                              "pos": "p4"
+                            },
+                            "price": 22.99
+                          }
+                        ],
+                        "bicycle": {
+                          "color": "red",
+                          "price": 19.95
+                        }
+                      },
+                      "expensive": 10
+                    }`
+;
+  
+  // 直接提取所有的author使用[*]
+  List authors = JSONNode.extract(json2, "/store/book/[*]/author");
+  
+  // 提取第2本书的作者author使用指定的下标[n]
+  String author = JSONNode.extract(json2, "/store/book/[1]/author").get(1);
+  （或者 JSONNode.from(json2, "/store/book/[1]/author").getStringValue();性能大体一致)
+  
+  // 提取前2本书的作者使用下标[n-]（包含n）
+  List authors = JSONNode.extract(json2, "/store/book/[1-]/author").get(1);
+  
+  // 提取从第2本书开始后面所有的作者使用下标[n+]（包含n）
+  List authors = JSONNode.extract(json2, "/store/book/[1+]/author");
+  
+  
 ```
 
 ### 9 SpringBoot(Spring MVC) 集成
@@ -334,18 +404,18 @@ varExpr.evaluate(map);     // 输出33
 <dependency>
     <groupId>io.github.wycst</groupId>
     <artifactId>wast</artifactId>
-    <version>0.0.1</version>
+    <version>0.0.2</version>
 </dependency>
 ```
 
 ## Groovy
 
 ```
-implementation 'io.github.wycst:wast:0.0.1'
+implementation 'io.github.wycst:wast:0.0.2'
 ```
 
 ## Kotlin
 
 ```
-implementation("io.github.wycst:wast:0.0.1")
+implementation("io.github.wycst:wast:0.0.2")
 ```

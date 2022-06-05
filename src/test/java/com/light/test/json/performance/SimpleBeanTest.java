@@ -63,23 +63,11 @@ public class SimpleBeanTest {
 //        JSON.read(new File("E:/tmp/a.json"), null);
         long begin = System.currentTimeMillis();
         for (int i = 0; i < count; i++) {
-//            json = JSON.toJsonString(simpleBean);
             result = JSON.parseObject(json, SimpleBean.class);
-
-//            FileInputStream fis = new FileInputStream(new File("E:/tmp/a.json"));
-//            InputStreamReader isr = new InputStreamReader(fis);
-//            char[] buf = new char[2048];
-//            int len = isr.read(buf);
-//            buf = Arrays.copyOfRange(buf, 0, len);
-//            result = (SimpleBean) JSON.parse(buf, SimpleBean.class);
-
-
-//            result = JSON.read(new File("E:/tmp/a.json"), SimpleBean.class);
-//            result = (SimpleBean) JSONReader.from(new File("E:/tmp/a.json")).readAsResult(SimpleBean.class);
         }
 
         long end = System.currentTimeMillis();
-        System.out.println(" serielize use " + (end - begin));
+        System.out.println(" deserielize use " + (end - begin));
 
     }
 

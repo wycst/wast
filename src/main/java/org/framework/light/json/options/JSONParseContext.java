@@ -1,5 +1,7 @@
 package org.framework.light.json.options;
 
+import org.framework.light.json.JSONWriter;
+
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -19,10 +21,10 @@ public class JSONParseContext {
     private final AtomicInteger endIndex = new AtomicInteger();
 
     /**
-     * 字符串构建
+     * JSON写入器
      * （Character builder）
      */
-    private final StringBuilder stringBuilder = new StringBuilder();
+    JSONWriter writer;
 
     /**
      * 禁用转义模式，已确定没有转义符场景下使用，能适当加速字符串解析
@@ -70,11 +72,6 @@ public class JSONParseContext {
      */
     private boolean useFields;
 
-    /**
-     * 根据path映射反序列类（Mapping inverse sequence classes according to path）
-     */
-    private Map<String, Class<?>> classReferenceOfPaths;
-
     public int getEndIndex() {
         return endIndex.get();
     }
@@ -83,9 +80,13 @@ public class JSONParseContext {
         endIndex.set(index);
     }
 
-    public StringBuilder getStringBuilder() {
-        stringBuilder.setLength(0);
-        return stringBuilder;
+    public void setContextWriter(JSONWriter writer) {
+        this.writer = writer;
+    }
+
+    public JSONWriter getContextWriter() {
+        writer.reset();
+        return writer;
     }
 
     public boolean isDisableEscapeMode() {
@@ -158,5 +159,11 @@ public class JSONParseContext {
 
     public void setUseFields(boolean useFields) {
         this.useFields = useFields;
+    }
+
+    public void clear() {
+        if(writer != null) {
+            writer.reset();
+        }
     }
 }

@@ -38,7 +38,7 @@ import java.util.*;
  * <br> the node data that is only concerned can be parsed on demand without parsing the complete JSON string
  * <li> 两种构建方式的区别(parse和from都是基于按需解析):
  * <br> parse: 扫描完整的json内容，但只对路径覆盖的节点进行解析，其他只做扫描和位置计算;只需要parse一次，并支持全局查找搜索；
- * <br> from: 扫描到路径指定节点的结束字符后直接返回，并对提取的内容进行解析生成根节点，效率比parse高(超大文本解析下优势明显)，但不支持全局查找;支持懒加载；
+ * <br> from: 扫描到路径指定节点的结束字符后直接返回，并对提取的内容进行解析生成根节点，效率比parse高(超大文本解析下优势明显)，但只支持局部查找;支持懒加载；
  * <li> 节点路径统一以'/'为分隔符，数组元素通过[n]下标访问，例如： '/students/[0]/name'.
  * <br> Node paths are uniformly separated by '/', and array elements are accessed through [n] subscripts, such as '/students/[0]/name'
  * <li> 支持json内容中存在注释(非json标准规范).
@@ -164,7 +164,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
     }
 
     /***
-     * 根据已解析属性数据构建数组根节点
+     * 根据已解析属性数据构建数组根节点(局部根)
      *
      * @param elementValues
      * @param buffers
@@ -187,7 +187,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
     }
 
     /***
-     * 根据已解析属性数据构建对象根节点
+     * 根据已解析属性数据构建对象根节点(局部根)
      *
      * @param fieldValues
      * @param buffers
@@ -209,7 +209,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
     }
 
     /***
-     * 根据已解析属性数据构建对象根节点
+     * 根据已解析属性数据构建对象根节点(局部根)
      *
      * @param leafValue
      * @param parseContext
@@ -248,7 +248,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
     }
 
     /**
-     * 解析源字符串生成根节点 （Parse source string to generate root node）
+     * 解析完整文档生成全局根节点 （Parse source string to generate root node）
      *
      * @param source
      * @return
@@ -258,7 +258,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
     }
 
     /**
-     * 解析源字符串生成根节点 （Parse source string to generate root node）
+     * 解析完整文档生成全局根节点 （Parse source string to generate root node）
      *
      * @param source
      * @return
@@ -268,7 +268,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
     }
 
     /**
-     * 解析并定位指定path节点
+     * 解析完整文档生成全局根节点并定位指定path节点
      *
      * @param source 标准JSON字符串
      * @param path   1 通过字符'/'访问根以及分割路径； 2 使用[n]访问数组下标；
@@ -281,7 +281,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
     }
 
     /***
-     * 根据指定path提取json片段生成根节点
+     * 根据指定path生成json根节点(局部根)
      *
      * @param source
      * @param path
@@ -293,7 +293,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
     }
 
     /***
-     * 根据指定path提取json片段生成根节点
+     * 根据指定path生成json根节点(局部根)
      *
      * @param source        数据
      * @param path          路径
@@ -305,21 +305,28 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
         return from(getChars(source), path, lazy, readOptions);
     }
 
-    public static JSONNode from(char[] buf, String path, ReadOption... readOptions) {
-        return from(buf, path, false, readOptions);
-    }
-
-    /***
-     * 根据指定path提取json片段生成根节点
+    /**
+     * 根据指定path生成json根节点(局部根)
      *
      * @param buf
      * @param path
      * @param readOptions
      * @return
      */
-    public static JSONNode from(char[] buf, String path, boolean lazy, ReadOption... readOptions) {
+    public static JSONNode from(char[] buf, String path, ReadOption... readOptions) {
+        return from(buf, path, false, readOptions);
+    }
 
-        // 上下文
+    /***
+     * 根据指定path生成json根节点(局部根)
+     *
+     * @param buf
+     * @param path
+     * @param lazy 延迟加载
+     * @param readOptions
+     * @return
+     */
+    public static JSONNode from(char[] buf, String path, boolean lazy, ReadOption... readOptions) {
         JSONNodeContext parseContext = new JSONNodeContext();
         Options.readOptions(readOptions, parseContext);
         parseContext.lazy = lazy;
@@ -334,6 +341,71 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
             path = "/" + path;
         }
 
+        return parseNode(buf, path, false, parseContext);
+    }
+
+    /**
+     * 提取指定路径的value,统一返回列表
+     *
+     * @param json
+     * @param path
+     * @param readOptions
+     * @return
+     */
+    public static List extract(String json, String path, ReadOption... readOptions) {
+        return extract(getChars(json), path, readOptions);
+    }
+
+    /**
+     * 提取指定路径的value,统一返回列表
+     *
+     * @param buf
+     * @param path
+     * @param readOptions
+     * @return
+     */
+    public static List extract(char[] buf, String path, ReadOption... readOptions) {
+        JSONNodeContext parseContext = new JSONNodeContext();
+        Options.readOptions(readOptions, parseContext);
+        parseContext.extract = true;
+        if (!path.startsWith("/")) {
+            path = "/" + path;
+        }
+        parseNode(buf, path, false, parseContext);
+        return parseContext.getExtractValues();
+    }
+
+
+    public static boolean validate(String json, ReadOption... readOptions) {
+        return validate(json, false, readOptions);
+    }
+
+    public static boolean validate(String json, boolean throwIfException, ReadOption... readOptions) {
+        return validate(getChars(json), throwIfException, readOptions);
+    }
+
+    public static boolean validate(char[] buf, ReadOption... readOptions) {
+        return validate(buf, false, readOptions);
+    }
+
+    public static boolean validate(char[] buf, boolean throwIfException, ReadOption... readOptions) {
+        try {
+            JSONNodeContext parseContext = new JSONNodeContext();
+            Options.readOptions(readOptions, parseContext);
+            // 校验模式
+            parseContext.validate = true;
+            parseNode(buf, null, true, parseContext);
+        } catch (JSONException exception) {
+            if (throwIfException) {
+                throw exception;
+            }
+            return false;
+        }
+        return true;
+    }
+
+    private static JSONNode parseNode(char[] buf, String path, boolean skipValue, JSONNodeContext parseContext) {
+        int toIndex = buf.length;
         JSONNode result;
         try {
             int fromIndex = 0;
@@ -350,20 +422,30 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
             if (allowComment && beginChar == '/') {
                 /** 去除声明在头部的注释*/
                 fromIndex = clearCommentAndWhiteSpaces(buf, fromIndex + 1, toIndex, parseContext);
+                beginChar = buf[fromIndex];
             }
 
             switch (beginChar) {
                 case '{':
-                    result = parseObjectPathNode(fromIndex, toIndex, buf, path, 0, false, parseContext);
+                    result = parseObjectPathNode(fromIndex, toIndex, buf, path, 0, skipValue, true, parseContext);
                     break;
                 case '[':
-                    result = parseArrayPathNode(fromIndex, toIndex, buf, path, 0, false, parseContext);
+                    result = parseArrayPathNode(fromIndex, toIndex, buf, path, 0, skipValue, true, parseContext);
                     break;
                 case '"':
-                    result = parseStringPathNode(fromIndex, toIndex, buf, false, parseContext);
+                    result = parseStringPathNode(fromIndex, toIndex, buf, skipValue, parseContext);
                     break;
                 default:
                     throw new UnsupportedOperationException("Unsupported for begin character with '" + beginChar + "'");
+            }
+
+            // validate
+            if (parseContext.validate) {
+                int endIndex = parseContext.getEndIndex();
+                if (endIndex != toIndex - 1) {
+                    int wordNum = Math.min(50, buf.length - endIndex - 1);
+                    throw new JSONException("Syntax error, extra characters found, '" + new String(buf, endIndex + 1, wordNum) + "', at pos " + endIndex);
+                }
             }
 
             return result;
@@ -376,6 +458,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
         }
     }
 
+
     /**
      * 解析对象，以{开始，直到遇到}结束 （Resolve the object, starting with '{', until '}' is encountered）
      *
@@ -386,7 +469,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
      * @return 对象（object）
      * @throws Exception 异常(Exception)
      */
-    private static JSONNode parseObjectPathNode(int fromIndex, int toIndex, char[] buffers, String path, int beginPathIndex, boolean skipValue, JSONNodeContext jsonParseContext) throws Exception {
+    private static JSONNode parseObjectPathNode(int fromIndex, int toIndex, char[] buffers, String path, int beginPathIndex, boolean skipValue, boolean returnIfMatched, JSONNodeContext jsonParseContext) throws Exception {
 
         int beginIndex = fromIndex + 1;
         char ch = '\0';
@@ -407,7 +490,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
             } else {
                 nextPathIndex = path.indexOf('/', beginPathIndex + 1);
                 // path以/结尾
-                isLastPathLevel = beginPathIndex == path.length() - 1;
+                isLastPathLevel = /*nextPathIndex == -1 ||*/ beginPathIndex == path.length() - 1;
             }
         }
 
@@ -420,7 +503,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
         // for loop to parse
         for (int i = beginIndex; i < toIndex; i++) {
             // clear white space characters
-            while (i < toIndex && (ch = buffers[i]) <= ' ') {
+            while ((ch = buffers[i]) <= ' ') {
                 i++;
             }
             if (jsonParseContext.isAllowComment()) {
@@ -434,15 +517,10 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
 
             // Standard JSON field name with "
             if (ch == '"') {
-                while (i + 1 < toIndex && buffers[++i] != '"') ;
+                while (i + 1 < toIndex && (buffers[++i] != '"' || buffers[i - 1] == '\\')) ;
                 empty = false;
                 i++;
             } else {
-                // 4种可能：（There are only four possibilities）
-                // 1 空对象（empty object）
-                // 2 语法错误，字符不为空，无效结束符号'}'（Syntax error, character is not empty, invalid closing symbol '}'）
-                // 3 单引号key
-                // 4 无引号key
                 if (ch == '}') {
                     if (!empty) {
                         throw new JSONException("Syntax error, the closing symbol '}' is not allowed at pos " + i);
@@ -471,7 +549,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
             }
 
             // clear white space characters
-            while (i < toIndex && (ch = buffers[i]) <= ' ') {
+            while ((ch = buffers[i]) <= ' ') {
                 i++;
             }
             // 清除注释前记录属性字段的token结束位置
@@ -496,7 +574,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                 }
 
                 // 清除空白字符（clear white space characters）
-                while (i + 1 < toIndex && (ch = buffers[++i]) <= ' ') ;
+                while ((ch = buffers[++i]) <= ' ') ;
                 if (allowComment) {
                     if (ch == '/') {
                         ch = buffers[i = clearCommentAndWhiteSpaces(buffers, i + 1, toIndex, jsonParseContext)];
@@ -516,7 +594,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                     if (lazyParseLastNode) {
                         isSkipValue = true;
                     }
-                    value = parseObjectPathNode(i, toIndex, buffers, path, nextPathIndex, isSkipValue, jsonParseContext);
+                    value = parseObjectPathNode(i, toIndex, buffers, path, nextPathIndex, isSkipValue, returnIfMatched, jsonParseContext);
                     if (lazyParseLastNode) {
                         // 构建懒加载节点
                         value = new JSONNode(buffers, i, jsonParseContext.getEndIndex() + 1, jsonParseContext);
@@ -528,7 +606,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                     }
                     // 2 [ array
                     // 解析集合或者数组 （Parse a collection or array）
-                    value = parseArrayPathNode(i, toIndex, buffers, path, nextPathIndex, isSkipValue, jsonParseContext);
+                    value = parseArrayPathNode(i, toIndex, buffers, path, nextPathIndex, isSkipValue, returnIfMatched, jsonParseContext);
                     if (lazyParseLastNode) {
                         // 构建懒加载节点
                         value = new JSONNode(buffers, i, jsonParseContext.getEndIndex() + 1, jsonParseContext);
@@ -566,7 +644,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                 }
 
                 // clear white space characters
-                while (i + 1 < toIndex && (ch = buffers[++i]) <= ' ') ;
+                while ((ch = buffers[++i]) <= ' ') ;
                 if (simpleToIndex == -1) {
                     simpleToIndex = i;
                 }
@@ -583,22 +661,36 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                     if (isLeafValue && nextPathIndex > -1) {
                         throw new JSONException(String.format("path '%s' error, '%s' is the last level, The following path '%s' does not exist ", path, path.substring(0, nextPathIndex), path.substring(nextPathIndex)));
                     }
-
                     if (!isSimpleValue) {
-                        // 如果匹配上返回
+                        // extractValue: string(isLeafValue), object(nextPathIndex == -1), array(nextPathIndex == -1)
+                        if ((isLastPathLevel || isLeafValue || nextPathIndex == -1) && jsonParseContext.extract) {
+                            jsonParseContext.extractValue(isLeafValue ? value.leafValue : value);
+                        }
                         jsonParseContext.setEndIndex(i);
-                        return value;
+
+                        // 立即返回标志
+                        if (returnIfMatched) {
+                            return value;
+                        }
                     }
                 }
 
                 // Check whether the next character is a comma or end symbol '}'. If yes, continue or break. If not, throw an exception
                 boolean isClosingSymbol = ch == '}';
                 if (ch == ',' || isClosingSymbol) {
-                    if (isSimpleValue && !skipValue) {
-                        value = parseSimpleNodeValue(splitIndex, simpleToIndex, buffers, jsonParseContext);
-                        if (matched) {
-                            jsonParseContext.setEndIndex(i);
-                            return value;
+
+                    if (isSimpleValue) {
+                        // 校验number, null, true or false
+                        if (!skipValue || jsonParseContext.validate) {
+                            value = parseSimpleNodeValue(splitIndex, simpleToIndex, buffers, jsonParseContext);
+                            if (matched) {
+                                // number, true/false, null
+                                if (jsonParseContext.extract) {
+                                    jsonParseContext.extractValue(value.leafValue);
+                                }
+                                jsonParseContext.setEndIndex(i);
+                                return value;
+                            }
                         }
                     }
 
@@ -631,7 +723,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
         return true;
     }
 
-    private static JSONNode parseArrayPathNode(int fromIndex, int toIndex, char[] buffers, String path, int beginPathIndex, boolean skipValue, JSONNodeContext jsonParseContext) throws Exception {
+    private static JSONNode parseArrayPathNode(int fromIndex, int toIndex, char[] buffers, String path, int beginPathIndex, boolean skipValue, boolean returnIfMatched, JSONNodeContext jsonParseContext) throws Exception {
 
         int beginIndex = fromIndex + 1;
         char ch = '\0';
@@ -644,23 +736,73 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
 
         int elementIndex = 0;
 
+        boolean fetchAllElement = false;
         boolean matched = false;
         boolean isLastPathLevel = false;
+        // 指定索引当匹配到立即返回value
+        boolean returnValueIfMathched = false;
 
         int targetElementIndex = -1;
+        final int EqualMode = 0, GtMode = 1, LtMode = -1, AllMode = 2;
+        int compareMode = EqualMode;
+
         int nextPathIndex = -1;
         if (!skipValue) {
             if (beginPathIndex == -1) {
                 isLastPathLevel = true;
+                matched = true;
+                fetchAllElement = true;
             } else {
                 nextPathIndex = path.indexOf('/', beginPathIndex + 1);
+                // 斜杠位置
                 int endPathIndex = nextPathIndex == -1 ? path.length() : nextPathIndex;
-                targetElementIndex = Integer.parseInt(path.substring(beginPathIndex + 1 + 1, endPathIndex - 1));
-                isLastPathLevel = beginPathIndex == path.length() - 1;
+                // 约定几种支持规则；
+                // 1 必须以[开始，以]结束
+                // 2 * 匹配所有；
+                // 3 n+ 索引号大于或者等于n;
+                // 4 n- 索引号小于或者等于n;
+                // 5 n  索引号等于n;
+                // 6 其他不支持抛出异常；
+                if (path.charAt(beginPathIndex + 1) != '[' || path.charAt(endPathIndex - 1) != ']') {
+                    throw new UnsupportedOperationException("Path error, array element access must use [n]");
+                }
+                int numBeginIndex = beginPathIndex + 2;
+                int numEndIndex = endPathIndex - 1;
+
+                int len = numEndIndex - numBeginIndex;
+                if (len == 0) {
+                    throw new UnsupportedOperationException("Path error, array element access must use [n]");
+                }
+                char endCharOfPath = path.charAt(endPathIndex - 2);
+
+                switch (endCharOfPath) {
+                    case '*':
+                        if (len == 1) {
+                            compareMode = AllMode;
+                            fetchAllElement = true;
+                            matched = true;
+                            break;
+                        } else {
+                            // not support ,use GtMode instead
+                        }
+                    case '+':
+                        compareMode = GtMode;
+                    case '-':
+                        if (compareMode == EqualMode) compareMode = LtMode;
+                        numEndIndex--;
+                    default:
+                        if (compareMode == EqualMode) {
+                            returnValueIfMathched = true;
+                        }
+                        targetElementIndex = Integer.parseInt(path.substring(numBeginIndex, numEndIndex));
+                }
+
+                isLastPathLevel = nextPathIndex == -1 || beginPathIndex == path.length() - 1;
             }
         }
 
-        if (isLastPathLevel) {
+        // 是否根据compareMode构建?
+        if (isLastPathLevel || !returnValueIfMathched) {
             elementValues = new ArrayList<JSONNode>();
         }
 
@@ -668,12 +810,28 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
         // for loop
         for (int i = beginIndex; i < toIndex; i++) {
 
-            if (!skipValue) {
-                matched = elementIndex++ == targetElementIndex;
+            boolean returnListIfMathched = false;
+            if (!skipValue && !fetchAllElement) {
+                int index = elementIndex++;
+                switch (compareMode) {
+                    case LtMode:
+                        matched = index <= targetElementIndex;
+                        returnListIfMathched = index == targetElementIndex;
+                        break;
+                    case EqualMode:
+                        matched = index == targetElementIndex;
+                        break;
+                    case GtMode:
+                        matched = index >= targetElementIndex;
+                        break;
+                    default:
+                        // AllMode
+                        matched = true;
+                }
             }
 
             // clear white space characters
-            while (i < toIndex && (ch = buffers[i]) <= ' ') {
+            while ((ch = buffers[i]) <= ' ') {
                 i++;
             }
             if (allowComment) {
@@ -700,18 +858,18 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
             // (is simple elements such as null, true or false or numeric or string)
             boolean isSimpleElement = false;
             boolean isLeafValue = false;
-            boolean isSkipValue = isLastPathLevel ? false : !matched || skipValue;
+            boolean isSkipValue = !matched || skipValue;
             JSONNode value = null;
             if (ch == '{') {
-                value = parseObjectPathNode(i, toIndex, buffers, path, nextPathIndex, isSkipValue, jsonParseContext);
-                if (elementValues != null) {
+                value = parseObjectPathNode(i, toIndex, buffers, path, nextPathIndex, isSkipValue, returnValueIfMathched, jsonParseContext);
+                if (matched && elementValues != null) {
                     elementValues.add(value);
                 }
                 i = jsonParseContext.getEndIndex();
             } else if (ch == '[') {
                 // 2 [ array
-                value = parseArrayPathNode(i, toIndex, buffers, path, nextPathIndex, isSkipValue, jsonParseContext);
-                if (elementValues != null) {
+                value = parseArrayPathNode(i, toIndex, buffers, path, nextPathIndex, isSkipValue, returnValueIfMathched, jsonParseContext);
+                if (matched && elementValues != null) {
                     elementValues.add(value);
                 }
                 i = jsonParseContext.getEndIndex();
@@ -720,7 +878,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                 // 3 string
                 // When there are escape characters, the escape character needs to be parsed
                 value = parseStringPathNode(i, toIndex, buffers, isSkipValue, jsonParseContext);
-                if (elementValues != null) {
+                if (matched && elementValues != null) {
                     elementValues.add(value);
                 }
                 i = jsonParseContext.getEndIndex();
@@ -768,8 +926,24 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                     throw new JSONException(String.format("path '%s' error, '%s' is the last level, The following path '%s' does not exist ", path, path.substring(0, nextPathIndex), path.substring(nextPathIndex)));
                 }
                 if (!isSimpleElement) {
-                    jsonParseContext.setEndIndex(i);
-                    return value;
+                    // extract
+                    if (isLastPathLevel && jsonParseContext.extract) {
+                        // continue find
+                        jsonParseContext.extractValue(value);
+                    }
+                    // if continue ?
+                    if (returnIfMatched && returnValueIfMathched) {
+                        return value;
+                    }
+
+                    // 匹配前几个元素的的场景提前返回 Match the first few scenarios and return in advance
+                    if(returnListIfMathched) {
+                        if (isLastPathLevel) {
+                            return new JSONNode(elementValues, buffers, fromIndex, i + 1, jsonParseContext);
+                        } else {
+                            return null;
+                        }
+                    }
                 }
             }
 
@@ -777,16 +951,20 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
             // （Check whether the next character is a comma or end symbol. If yes, continue or return . If not, throw an exception）
             boolean isEnd = ch == ']';
             if (ch == ',' || isEnd) {
-                if (isSimpleElement && !skipValue) {
-                    Serializable simpleValue = (Serializable) parseSimpleValue(simpleFromIndex, simpleToIndex, buffers, jsonParseContext);
-
-                    if (matched) {
-                        jsonParseContext.setEndIndex(i);
-                        return new JSONNode(simpleValue, buffers, simpleFromIndex, simpleToIndex, jsonParseContext);
-                    }
-
-                    if (elementValues != null) {
-                        elementValues.add(new JSONNode(simpleValue, buffers, simpleFromIndex, simpleToIndex, jsonParseContext));
+                if (isSimpleElement) {
+                    Serializable simpleValue = null;
+                    if (!skipValue || jsonParseContext.validate) {
+                        simpleValue = (Serializable) parseSimpleValue(simpleFromIndex, simpleToIndex, buffers, jsonParseContext);
+                        if (matched) {
+                            if (jsonParseContext.extract) {
+                                jsonParseContext.extractValue(simpleValue);
+                            }
+                            jsonParseContext.setEndIndex(i);
+                            return new JSONNode(simpleValue, buffers, simpleFromIndex, simpleToIndex, jsonParseContext);
+                        }
+                        if (matched && elementValues != null) {
+                            elementValues.add(new JSONNode(simpleValue, buffers, simpleFromIndex, simpleToIndex, jsonParseContext));
+                        }
                     }
                 }
 
@@ -1198,6 +1376,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
      * @param index     数组的下标
      * @return
      */
+    @Deprecated
     private JSONNode parseValue(String fieldName, int index) {
 
         // 双引号标记
@@ -2195,9 +2374,44 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
     }
 
     /**
+     * 返回集合元素中根据指定路径元素的值组成新的数组
+     *
+     * @param childPath
+     * @return
+     */
+    public List collect(String childPath) {
+        return collect(childPath, String.class);
+    }
+
+    /***
+     * 返回集合元素中根据指定路径元素的值映射为typeClass类型，组成新的数组
+     *
+     * @param childPath
+     * @param typeClass
+     * @return
+     */
+    public List collect(String childPath, Class typeClass) {
+        if (!isArray) {
+            throw new UnsupportedOperationException();
+        }
+        if (!this.completed) {
+            this.parseFullNode();
+        }
+        List result = new ArrayList();
+        for (int i = 0; i < length; i++) {
+            JSONNode jsonNode = elementValues[i];
+            result.add(jsonNode.getPathValue(childPath, typeClass));
+        }
+        return result;
+    }
+
+    /**
      * 设置叶子节点值
      */
     public void setLeafValue(Serializable value) {
+        if (value == this.leafValue) {
+            return;
+        }
         this.leafValue = value;
         this.updateType();
         this.handleChange();
@@ -2228,7 +2442,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
     }
 
     /***
-     * 将节点转化为json对象
+     * 将节点转化为json字符串
      *
      * @return
      */
@@ -2242,8 +2456,9 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
         return stringBuilder.toString();
     }
 
-    public String toString() {
-        return toJsonString();
-    }
+//  防止debug时直接调用序列化
+//    public String toString() {
+//        return toJsonString();
+//    }
 
 }

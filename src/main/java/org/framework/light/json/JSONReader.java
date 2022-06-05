@@ -101,7 +101,7 @@ public final class JSONReader extends JSONGeneral {
     private int count;
 
     /**
-     * 缓冲字符数组当前读取位置
+     * 缓冲字符数组当前读取位置(相对位置)
      */
     private int offset;
 
@@ -135,8 +135,9 @@ public final class JSONReader extends JSONGeneral {
     // 是否终止
     private boolean aborted;
 
-    // 临时
-    private final StringBuilder templatWriter = new StringBuilder();
+    // 临时字符串构建器
+    private final StringBuilder bufferWriter = new StringBuilder();
+    private int readingOffset = -1;
 
     // 锁(也可以使用CountDownLatch)
     private Object lock = new Object();
@@ -254,7 +255,14 @@ public final class JSONReader extends JSONGeneral {
      * <p> 返回result
      */
     public Object read() {
-        read(false);
+        try {
+            this.readBuffer();
+            this.defaultRead();
+        } catch (Exception e) {
+            throw new JSONException(e);
+        } finally {
+            this.close();
+        }
         return result;
     }
 
@@ -335,7 +343,7 @@ public final class JSONReader extends JSONGeneral {
     private void executeReadStream() {
         try {
             this.readBuffer();
-            this.beginRead();
+            this.beginReadWithType();
         } catch (Exception e) {
             throw new JSONException(e);
         } finally {
@@ -347,9 +355,16 @@ public final class JSONReader extends JSONGeneral {
     }
 
     private void readBuffer() throws IOException {
-        if(reader == null) return;
+        if (reader == null) return;
         if (buf == null) {
             buf = new char[DIRECT_READ_BUFFER_SIZE];
+        }
+        if (this.readingOffset > -1) {
+            if (DIRECT_READ_BUFFER_SIZE > this.readingOffset) {
+                this.bufferWriter.append(buf, this.readingOffset, DIRECT_READ_BUFFER_SIZE - this.readingOffset);
+            }
+            // reset
+            this.readingOffset = 0;
         }
         count = reader.read(buf);
         offset = 0;
@@ -378,7 +393,29 @@ public final class JSONReader extends JSONGeneral {
     /**
      * 开始读取
      */
-    private void beginRead() throws Exception {
+    private void defaultRead() throws Exception {
+        clearWhitespaces();
+        switch (current) {
+            case '{':
+                this.result = this.readObject();
+                break;
+            case '[':
+                this.result = this.readArray();
+                break;
+            default:
+                throw new UnsupportedOperationException("Character stream start character error. Only object({) or array([) parsing is supported");
+        }
+        // clear white space characters
+        clearWhitespaces();
+        if (current > -1) {
+            throw new JSONException("Syntax error, extra characters found, '" + (char) current + "', pos " + pos);
+        }
+    }
+
+    /**
+     * 开始读取
+     */
+    private void beginReadWithType() throws Exception {
         clearWhitespaces();
         switch (current) {
             case '{':
@@ -424,6 +461,128 @@ public final class JSONReader extends JSONGeneral {
         if (this.genericType == null) {
             this.genericType = GenericParameterizedType.actualType(LinkedHashMap.class);
         }
+    }
+
+    private Object readObject() throws Exception {
+        Map instance = new LinkedHashMap();
+        boolean empty = true;
+        for (; ; ) {
+            clearWhitespaces();
+            if (current == '}') {
+                if (!empty) {
+                    throw new JSONException("Syntax error, not allowed ',' followed by '}', pos " + pos);
+                }
+                return instance;
+            }
+            String key;
+            if (current == '"') {
+                empty = false;
+                // find next "
+                this.beginReadingToBuffer(0);
+                // 暂且不考虑key值中存在转义字符\
+                while (readNext() > -1 && current != '"') ;
+                this.endReadingToBuffer(-1);
+                key = bufferWriter.toString();
+
+                // 解析value
+                clearWhitespaces();
+                if (current == ':') {
+                    clearWhitespaces();
+                    Object value;
+                    boolean toBreakOrContinue = false;
+                    switch (current) {
+                        case '{':
+                            value = this.readObject();
+                            instance.put(key, value);
+                            break;
+                        case '[':
+                            value = this.readArray();
+                            instance.put(key, value);
+                            break;
+                        case '"':
+                            // 将字符串转化为指定类型
+                            value = this.readString();
+                            instance.put(key, value);
+                            break;
+                        default:
+                            // null, boolean, number
+                            value = this.readSimpleValue('}');
+                            toBreakOrContinue = true;
+                            instance.put(key, value);
+                            break;
+                    }
+                    if (!toBreakOrContinue) {
+                        clearWhitespaces();
+                    }
+                    // 是否为逗号或者}
+                    if (current == '}') {
+                        break;
+                    }
+                    if (current == ',') {
+                        continue;
+                    }
+                    if (current == -1) {
+                        throw new JSONException("Syntax error, the closing symbol '}' is not found, end pos: " + pos);
+                    }
+                    throwUnexpectedException();
+                } else {
+                    throwUnexpectedException();
+                }
+            } else {
+                throwUnexpectedException();
+            }
+        }
+        return instance;
+    }
+
+    private Object readArray() throws Exception {
+        Collection arrInstance = new ArrayList();
+        int elementIndex = 0;
+        for (; ; ) {
+            clearWhitespaces();
+            if (current == ']') {
+                if (elementIndex > 0) {
+                    throw new JSONException("Syntax error, not allowed ',' followed by ']', pos " + pos);
+                }
+                return arrInstance;
+            }
+            boolean toBreakOrContinue = false;
+            if (current == '{') {
+                Object value = this.readObject();
+                arrInstance.add(value);
+            } else if (current == '[') {
+                // 2 [ array
+                Object value = this.readArray();
+                arrInstance.add(value);
+            } else if (current == '"') {
+                // 3 string
+                String value = this.readString();
+                arrInstance.add(value);
+            } else {
+                // null, boolean, number
+                Object value = this.readSimpleValue(']');
+                toBreakOrContinue = true;
+                arrInstance.add(value);
+            }
+
+            elementIndex++;
+
+            if (!toBreakOrContinue) {
+                clearWhitespaces();
+            }
+            // 是否为逗号或者]
+            if (current == ']') {
+                break;
+            }
+            if (current == ',') {
+                continue;
+            }
+            if (current == -1) {
+                throw new JSONException("Syntax error, the closing symbol ']' is not found, end pos: " + pos);
+            }
+            throwUnexpectedException();
+        }
+        return arrInstance;
     }
 
     /**
@@ -478,19 +637,14 @@ public final class JSONReader extends JSONGeneral {
             String key;
             if (current == '"') {
                 empty = false;
-                // next "
-                templatWriter.setLength(0);
-                while (readNext() > -1) {
-                    if (current != '"') {
-                        templatWriter.append((char) current);
-                    } else {
-                        break;
-                    }
-                }
-                key = templatWriter.toString();
-                templatWriter.setLength(0);
+                // find next "
+                this.beginReadingToBuffer(0);
+                // 暂且不考虑key值中存在转义字符\
+                while (readNext() > -1 && current != '"') ;
+                this.endReadingToBuffer(-1);
+                key = bufferWriter.toString();
+
                 String nextPath = externalImpl ? path + "/" + key : null;
-//                callback.isParse();
 
                 // 解析value
                 clearWhitespaces();
@@ -564,6 +718,23 @@ public final class JSONReader extends JSONGeneral {
         }
 
         return instance;
+    }
+
+    private void beginReadingToBuffer(int n) {
+        bufferWriter.setLength(0);
+        this.readingOffset = offset + n;
+    }
+
+    private void endReadingToBuffer(int n) {
+        endReadingToBuffer(n, -1);
+    }
+
+    private void endReadingToBuffer(int n, int newOffset) {
+        int endIndex = offset + n;
+        if (endIndex > this.readingOffset) {
+            this.bufferWriter.append(buf, this.readingOffset, endIndex - this.readingOffset);
+        }
+        this.readingOffset = newOffset;
     }
 
     private Object parseSimpleValueTo(Object simpleValue, GenericParameterizedType valueType) {
@@ -787,29 +958,68 @@ public final class JSONReader extends JSONGeneral {
     }
 
     private Object readSimpleValue(char endSyntax) throws Exception {
-        templatWriter.setLength(0);
-        templatWriter.append((char) current);
+//        bufferWriter.setLength(0);
+//        bufferWriter.append((char) current);
+        char firstChar = (char) current;
+        this.beginReadingToBuffer(-1);
         Object value = null;
         boolean matchEnd = false;
         while (readNext() > -1) {
             if (current == ',' || current == endSyntax) {
-                String stringValue = templatWriter.toString().trim();
-                boolean ifTrue;
-                if (stringValue.equals("null")) {
-                    value = null;
-                } else if ((ifTrue = stringValue.equals("true")) || stringValue.equals("false")) {
-                    value = ifTrue;
-                } else {
-                    int len = stringValue.length();
-                    char[] digits = new char[len];
-                    templatWriter.getChars(0, len, digits, 0);
-                    value = parseNumber(digits, 0, len, parseContext.isUseBigDecimalAsDefault());
+                this.endReadingToBuffer(-1);
+                // 前置空白已清除
+                int len = bufferWriter.length();
+                // 去除后置空白
+                while (bufferWriter.charAt(len - 1) <= ' ') {
+                    len--;
+                }
+                switch (firstChar) {
+                    case 't': {
+                        if (len == 4
+                                && bufferWriter.charAt(1) == 'r'
+                                && bufferWriter.charAt(2) == 'u'
+                                && bufferWriter.charAt(3) == 'e') {
+                            value = true;
+                            break;
+                        } else {
+                            throwUnexpectedException();
+                        }
+                    }
+                    case 'f': {
+                        if (len == 5
+                                && bufferWriter.charAt(1) == 'a'
+                                && bufferWriter.charAt(2) == 'l'
+                                && bufferWriter.charAt(3) == 's'
+                                && bufferWriter.charAt(4) == 'e') {
+                            value = true;
+                            break;
+                        } else {
+                            throwUnexpectedException();
+                        }
+                    }
+                    case 'n': {
+                        if (len == 4
+                                && bufferWriter.charAt(1) == 'u'
+                                && bufferWriter.charAt(2) == 'l'
+                                && bufferWriter.charAt(3) == 'l') {
+                            value = null;
+                            break;
+                        } else {
+                            throwUnexpectedException();
+                        }
+                    }
+                    default: {
+                        char[] digits = new char[len];
+                        bufferWriter.getChars(0, len, digits, 0);
+                        value = parseNumber(digits, 0, len, parseContext.isUseBigDecimalAsDefault());
+                    }
                 }
                 matchEnd = true;
                 break;
-            } else {
-                templatWriter.append((char) current);
             }
+//            else {
+//                bufferWriter.append((char) current);
+//            }
         }
         if (!matchEnd) {
             throw new JSONException("Syntax error, the closing symbol '" + endSyntax + "' is not found, end pos: " + pos);
@@ -819,28 +1029,34 @@ public final class JSONReader extends JSONGeneral {
 
     private String readString() throws Exception {
         // reset
-        templatWriter.setLength(0);
+        this.beginReadingToBuffer(0);
         char prev = '\0';
         while (readNext() > -1) {
             if (prev == '\\') {
                 switch (current) {
                     case '"':
-                        templatWriter.append('\"');
+                        this.endReadingToBuffer(-2, offset);
+                        bufferWriter.append('\"');
                         break;
                     case 'n':
-                        templatWriter.append('\n');
+                        this.endReadingToBuffer(-2, offset);
+                        bufferWriter.append('\n');
                         break;
                     case 'r':
-                        templatWriter.append('\r');
+                        this.endReadingToBuffer(-2, offset);
+                        bufferWriter.append('\r');
                         break;
                     case 't':
-                        templatWriter.append('\t');
+                        this.endReadingToBuffer(-2, offset);
+                        bufferWriter.append('\t');
                         break;
                     case 'b':
-                        templatWriter.append('\b');
+                        this.endReadingToBuffer(-2, offset);
+                        bufferWriter.append('\b');
                         break;
                     case 'f':
-                        templatWriter.append('\f');
+                        this.endReadingToBuffer(-2, offset);
+                        bufferWriter.append('\f');
                         break;
                     case 'u':
                         // find next 4 character
@@ -849,25 +1065,27 @@ public final class JSONReader extends JSONGeneral {
                             hexDigits[i] = (char) readNext(true);
                         }
                         int c = parseInt(hexDigits, 0, 4, 16);
-                        templatWriter.append((char) c);
+                        this.endReadingToBuffer(-6, offset);
+                        bufferWriter.append((char) c);
                         break;
                     case '\\':
-                        templatWriter.append('\\');
+                        this.endReadingToBuffer(-2, offset);
+                        bufferWriter.append('\\');
                         break;
                 }
                 prev = '\0';
                 continue;
             }
             if (current == '"') {
-                return templatWriter.toString();
+                this.endReadingToBuffer(-1);
+                return bufferWriter.toString();
             }
-            templatWriter.append((char) current);
             prev = (char) current;
         }
 
         // maybe throw an exception
         throwUnexpectedException();
-        return null/*templatWriter.toString()*/;
+        return null/*bufferWriter.toString()*/;
     }
 
     private int readNext() throws Exception {
@@ -875,7 +1093,7 @@ public final class JSONReader extends JSONGeneral {
         if (offset < count) return current = buf[offset++];
 
         if (reader == null) {
-            return -1;
+            return current = -1;
         }
 
         if (count == DIRECT_READ_BUFFER_SIZE) {
@@ -948,7 +1166,7 @@ public final class JSONReader extends JSONGeneral {
                 reader.close();
                 this.closed = true;
             }
-            templatWriter.setLength(0);
+            bufferWriter.setLength(0);
         } catch (IOException e) {
             throw new UnsupportedOperationException(e);
         }

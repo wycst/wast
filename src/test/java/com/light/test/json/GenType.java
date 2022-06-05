@@ -4,7 +4,6 @@ import org.framework.light.json.JSON;
 
 /**
  * @Author: wangy
- * @Date: 2022/1/3 1:54
  * @Description:
  */
 public class GenType {

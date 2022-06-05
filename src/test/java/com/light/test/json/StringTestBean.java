@@ -2,7 +2,6 @@ package com.light.test.json;
 
 /**
  * @Author wangyunchao
- * @Date 2021/11/8 11:35
  */
 public class StringTestBean {
 

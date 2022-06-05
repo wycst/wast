@@ -8,6 +8,9 @@ import org.framework.light.json.exceptions.JSONException;
 import org.framework.light.json.options.JSONParseContext;
 import org.framework.light.json.options.ReadOption;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -861,6 +864,25 @@ class JSONGeneral {
         byte[] buffer = new byte[byteLength];
         System.arraycopy(bytes, 0, buffer, 0, byteLength);
         return buffer;
+    }
+
+    protected static char[] readInputStream(InputStream is, int maxLen) throws IOException {
+        try {
+            char[] buf = new char[maxLen];
+            InputStreamReader streamReader = new InputStreamReader(is);
+            int len = streamReader.read(buf);
+            streamReader.close();
+            if (len != maxLen) {
+                char[] tmp = new char[len];
+                System.arraycopy(buf, 0, tmp, 0, len);
+                buf = tmp;
+            }
+            return buf;
+        } catch (RuntimeException rx) {
+            throw rx;
+        } finally {
+            is.close();
+        }
     }
 
     /**
