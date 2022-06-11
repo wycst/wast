@@ -404,18 +404,18 @@ varExpr.evaluate(map);     // 输出33
 <dependency>
     <groupId>io.github.wycst</groupId>
     <artifactId>wast</artifactId>
-    <version>0.0.2</version>
+    <version>0.0.3</version>
 </dependency>
 ```
 
 ## Groovy
 
 ```
-implementation 'io.github.wycst:wast:0.0.2'
+implementation 'io.github.wycst:wast:0.0.3'
 ```
 
 ## Kotlin
 
 ```
-implementation("io.github.wycst:wast:0.0.2")
+implementation("io.github.wycst:wast:0.0.3")
 ```
