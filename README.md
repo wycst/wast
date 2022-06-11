@@ -4,6 +4,30 @@
 
 一个轻量级java库，包含json, yaml, common, clients,其他模块视情况陆续放出。
 
+
+## Maven
+
+```xml
+
+<dependency>
+    <groupId>io.github.wycst</groupId>
+    <artifactId>wast</artifactId>
+    <version>0.0.3</version>
+</dependency>
+```
+
+## Groovy
+
+```
+implementation 'io.github.wycst:wast:0.0.3'
+```
+
+## Kotlin
+
+```
+implementation("io.github.wycst:wast:0.0.3")
+```
+
 ## json模块
 
 > 1 java语言整体性能最快的json库之一；<br>
@@ -395,27 +419,4 @@ varExpr.evaluate(map);     // 输出33
         long end = System.currentTimeMillis();
         System.out.println(result);
         System.out.println(" use " + (end - begin));
-```
-
-## Maven
-
-```xml
-
-<dependency>
-    <groupId>io.github.wycst</groupId>
-    <artifactId>wast</artifactId>
-    <version>0.0.3</version>
-</dependency>
-```
-
-## Groovy
-
-```
-implementation 'io.github.wycst:wast:0.0.3'
-```
-
-## Kotlin
-
-```
-implementation("io.github.wycst:wast:0.0.3")
 ```
