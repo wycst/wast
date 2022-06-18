@@ -188,6 +188,15 @@ public class JSONValidator extends JSONGeneral {
                     }
                     i++;
                 }
+
+                if(i == toIndex - 1) {
+                    this.result = false;
+                    if (showMessage) {
+                        String errorContextTextAt = createErrorContextText(buf, i);
+                        setValidateMessage("Syntax error, util pos " + i + ", context text by '" + errorContextTextAt + "' token ',' or ']' not found ");
+                    }
+                    return;
+                }
             }
 
             if (!result) return;
@@ -242,6 +251,14 @@ public class JSONValidator extends JSONGeneral {
             // Standard JSON field name with "
             if (ch == '"') {
                 while (i + 1 < toIndex && (buf[++i] != '"' || buf[i - 1] == '\\')) ;
+                if(ch != '"') {
+                    result = false;
+                    if (showMessage) {
+                        String errorContextTextAt = createErrorContextText(buf, i);
+                        setValidateMessage("Syntax error, util pos " + i + ", context text by '" + errorContextTextAt + "' the closing symbol '\"' is not found ");
+                    }
+                    return;
+                }
                 empty = false;
                 i++;
             } else {
@@ -249,7 +266,8 @@ public class JSONValidator extends JSONGeneral {
                     if (!empty) {
                         result = false;
                         if (showMessage) {
-                            setValidateMessage("Syntax error, at pos " + i + ", the closing symbol '}' is not allowed here.");
+                            String errorContextTextAt = createErrorContextText(buf, i);
+                            setValidateMessage("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "' the closing symbol '}' is not allowed here.");
                         }
                         return;
                     }
@@ -266,7 +284,8 @@ public class JSONValidator extends JSONGeneral {
                     } else {
                         this.result = false;
                         if (showMessage) {
-                            setValidateMessage("Syntax error, at pos " + i + ", the single quote symbol ' is not allowed here.");
+                            String errorContextTextAt = createErrorContextText(buf, i);
+                            setValidateMessage("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', the single quote symbol ' is not allowed here.");
                         }
                         return;
                     }
@@ -332,6 +351,14 @@ public class JSONValidator extends JSONGeneral {
                             }
                             i++;
                         }
+                        if(i == toIndex - 1) {
+                            this.result = false;
+                            if (showMessage) {
+                                String errorContextTextAt = createErrorContextText(buf, i);
+                                setValidateMessage("Syntax error, util pos " + i + ", context text by '" + errorContextTextAt + "', token ',' or '}' not found ");
+                            }
+                            return;
+                        }
                         // Check whether post comments are appended
                     }
                 }
@@ -357,14 +384,16 @@ public class JSONValidator extends JSONGeneral {
                 } else {
                     this.result = false;
                     if (showMessage) {
-                        setValidateMessage("Syntax error, at pos " + i + ", unexpected token character '" + ch + "', expected ',' or '}'");
+                        String errorContextTextAt = createErrorContextText(buf, i);
+                        setValidateMessage("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', expected ',' or '}'");
                     }
                     return;
                 }
             } else {
                 this.result = false;
                 if (showMessage) {
-                    setValidateMessage("Syntax error, at pos " + i + ", unexpected token character '" + ch + "', Colon character ':' is expected.");
+                    String errorContextTextAt = createErrorContextText(buf, i);
+                    setValidateMessage("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', Colon character ':' is expected.");
                 }
                 return;
             }
@@ -484,27 +513,4 @@ public class JSONValidator extends JSONGeneral {
     public String getValidateMessage() {
         return this.message;
     }
-
-//    /**
-//     * @param from
-//     * @param to
-//     * @return
-//     */
-//    private boolean validateFieldKey(int from, int to) {
-//        char start = '"';
-//        while ((from < to) && ((start = buf[from]) <= ' ')) {
-//            from++;
-//        }
-//        char end = '"';
-//        while ((to > from) && ((end = buf[to - 1]) <= ' ')) {
-//            to--;
-//        }
-//        if (start == '"' && end == '"' || (start == '\'' && end == '\'')) {
-//            int len = to - from - 2;
-//            return
-//        }
-//        return new String(buf, from, to - from);
-//    }
-
-
 }

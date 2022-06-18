@@ -1,8 +1,6 @@
 package io.github.wycst.wast.json.options;
 
-import io.github.wycst.wast.json.JSONWriter;
-
-import java.util.concurrent.atomic.AtomicInteger;
+import io.github.wycst.wast.json.JSONStringWriter;
 
 /**
  * json解析上下文配置
@@ -24,7 +22,7 @@ public class JSONParseContext {
      * JSON写入器
      * （Character builder）
      */
-    JSONWriter writer;
+    JSONStringWriter writer;
 
     /**
      * 禁用转义模式，已确定没有转义符场景下使用，能适当加速字符串解析
@@ -80,11 +78,11 @@ public class JSONParseContext {
         endIndex = index;
     }
 
-    public void setContextWriter(JSONWriter writer) {
+    public void setContextWriter(JSONStringWriter writer) {
         this.writer = writer;
     }
 
-    public JSONWriter getContextWriter() {
+    public JSONStringWriter getContextWriter() {
         if(writer != null) {
             writer.reset();
         }

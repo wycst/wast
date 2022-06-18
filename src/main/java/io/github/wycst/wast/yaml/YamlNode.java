@@ -20,7 +20,9 @@ import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.SetterInfo;
 
+import java.io.IOException;
 import java.io.Serializable;
+import java.io.Writer;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -102,7 +104,7 @@ public class YamlNode extends YamlLine {
                 // 如果缩进小于根节点的缩进抛出异常
                 if (indent > prevIndent) {
                     if (prev.leaf) {
-                        throw new YamlParseException("indent value(" + indent + ") error, The indent value of the leaf node cannot be greater than the indent value(" + prevIndent + ") of the prev node, at lineNum " + yamlNode.lineNum);
+                        throw new YamlParseException("indent value(" + indent + ") error, The indent value of the leaf node cannot be greater than the indent value(" + prevIndent + ") of the prev node, at lineNum " + (yamlNode.lineNum + 1));
                     }
                     // prev即为父节点
                     setParent(yamlNode, prev);
@@ -133,7 +135,7 @@ public class YamlNode extends YamlLine {
                         int parentIndent = parent.indent;
                         if (indent > parentIndent) {
                             // 缩进值错误只能小于或者等于parentIndent，如果等于while结束
-                            throw new RuntimeException("indent " + indent + " error, at lineNum " + yamlNode.lineNum);
+                            throw new RuntimeException("indent value " + indent + " error, the indent should less than or equal to " + parentIndent + ", at lineNum " + (yamlNode.lineNum + 1));
                         }
                         parent = parent.parent;
                         if (indent == parentIndent) {
@@ -259,27 +261,31 @@ public class YamlNode extends YamlLine {
         for (Map.Entry<String, YamlNode> entry : fieldNodes.entrySet()) {
             String field = entry.getKey();
             YamlNode node = entry.getValue();
-            if (node.leaf) {
-                map.put(field, node.getValue());
+            putNodeValueOfMap(field, node, map);
+        }
+        return map;
+    }
+
+    private void putNodeValueOfMap(String field, YamlNode node, Map map) {
+        if (node.leaf) {
+            map.put(field, node.getValue());
+        } else {
+            String key = node.key;
+            YamlNode reference = node.reference;
+            if (reference != null) {
+                node = reference;
+            }
+            if (node.array) {
+                map.put(field, node.toList());
             } else {
-                String key = node.key;
-                YamlNode reference = node.reference;
-                if (reference != null) {
-                    node = reference;
-                }
-                if (node.array) {
-                    map.put(field, node.toList());
+                Map valueMap = node.toMap();
+                if ("<<".equals(field) && key.length() == 2) {
+                    map.putAll(valueMap);
                 } else {
-                    Map valueMap = node.toMap();
-                    if ("<<".equals(field) && key.length() == 2) {
-                        map.putAll(valueMap);
-                    } else {
-                        map.put(field, valueMap);
-                    }
+                    map.put(field, valueMap);
                 }
             }
         }
-        return map;
     }
 
     /**
@@ -349,13 +355,7 @@ public class YamlNode extends YamlLine {
             YamlNode yamlNode = fieldNodes.get(key);
             if (isMapInstance) {
                 Map map = (Map) instance;
-                Object value;
-                if (yamlNode.array) {
-                    value = yamlNode.toList();
-                } else {
-                    value = yamlNode.getValue();
-                }
-                map.put(key, value);
+                putNodeValueOfMap((String) key, yamlNode, map);
             } else {
                 String fieldName = key.toString();
                 SetterInfo setterInfo = classStructureWrapper.getSetterInfo(fieldName);
@@ -396,7 +396,7 @@ public class YamlNode extends YamlLine {
      * 日期对象
      */
     public Date getDate(Class<? extends Date> dateType) {
-        if(this.typeOfValue != null && this.typeOfValue instanceof Date) {
+        if (this.typeOfValue != null && this.typeOfValue instanceof Date) {
             return (Date) this.typeOfValue;
         }
         return parseDatetime(String.valueOf(value));
@@ -545,6 +545,7 @@ public class YamlNode extends YamlLine {
         int len = value.length(), to = len;
         int from = 0;
         String timezoneIdAt = null;
+        TimeZone timeZone = null;
         if (len > 23) {
             // yyyy-MM-ddTHH:mm:ss.SSS+XX:YY
             int j = len - 1, ch;
@@ -557,45 +558,42 @@ public class YamlNode extends YamlLine {
                     break;
                 }
             }
-
-            if (len == 19 || len == 21 || len == 22 || len == 23) {
-                try {
-//                    int year = Integer.parseInt(new String(buffers, from + 0, 4));
-//                    int month = Integer.parseInt(new String(buffers, from + 5, 2));
-//                    int day = Integer.parseInt(new String(buffers, from + 8, 2));
-//                    int hour = Integer.parseInt(new String(buffers, from + 11, 2));
-//                    int minute = Integer.parseInt(new String(buffers, from + 14, 2));
-//                    int second = Integer.parseInt(new String(buffers, from + 17, 2));
-//                    int millsecond = 0;
-//                    if (len > 20) {
-//                        millsecond = Integer.parseInt(new String(buffers, from + 20, len - 20));
-//                    }
-                    int year = parseInt(buffers, from + 0, 4, 10);
-                    int month = parseInt(buffers, from + 5, 2, 10);
-                    int day = parseInt(buffers, from + 8, 2, 10);
-                    int hour = parseInt(buffers, from + 11, 2, 10);
-                    int minute = parseInt(buffers, from + 14, 2, 10);
-                    int second = parseInt(buffers, from + 17, 2, 10);
-                    int millsecond = 0;
-                    if (len > 20) {
-                        millsecond = parseInt(buffers, from + 20, len - 20, 10);
-                    }
-                    TimeZone timeZone = null;
-                    if (timezoneIdAt != null) {
-                        if (timezoneIdAt.startsWith("GMT")) {
-                            timeZone = TimeZone.getTimeZone(timezoneIdAt);
-                        } else {
-                            timeZone = TimeZone.getTimeZone("GMT" + timezoneIdAt);
-                        }
-                    }
-                    io.github.wycst.wast.common.beans.Date date = new io.github.wycst.wast.common.beans.Date(year, month, day, hour, minute, second, millsecond, timeZone);
-                    return new Timestamp(date.getTime());
-                } catch (Throwable throwable) {
+            if (timezoneIdAt != null) {
+                if (timezoneIdAt.startsWith("GMT")) {
+                    timeZone = TimeZone.getTimeZone(timezoneIdAt);
+                } else {
+                    timeZone = TimeZone.getTimeZone("GMT" + timezoneIdAt);
                 }
             }
         }
 
+        long time = autoMatchDate(buffers, from, len, timeZone);
+        if (time > -1) {
+            return new Timestamp(time);
+        }
+
         return null;
+    }
+
+    private long autoMatchDate(char[] buf, int from, int len, TimeZone timeZone) {
+        if (len == 19 || len == 21 || len == 22 || len == 23) {
+            try {
+                int year = parseInt(buf, from + 0, 4, 10);
+                int month = parseInt(buf, from + 5, 2, 10);
+                int day = parseInt(buf, from + 8, 2, 10);
+                int hour = parseInt(buf, from + 11, 2, 10);
+                int minute = parseInt(buf, from + 14, 2, 10);
+                int second = parseInt(buf, from + 17, 2, 10);
+                int millsecond = 0;
+                if (len > 20) {
+                    millsecond = parseInt(buf, from + 20, len - 20, 10);
+                }
+                io.github.wycst.wast.common.beans.Date date = new io.github.wycst.wast.common.beans.Date(year, month, day, hour, minute, second, millsecond, timeZone);
+                return date.getTime();
+            } catch (Throwable throwable) {
+            }
+        }
+        return -1;
     }
 
     /**
@@ -659,4 +657,181 @@ public class YamlNode extends YamlLine {
     public boolean isArray() {
         return array;
     }
+
+    /***
+     * 将节点信息写入writer
+     * （保持缩进不变，原来文件中的注释会丢失）
+     * @param writer
+     */
+    public void writeTo(Writer writer) throws IOException {
+
+        writeIndent(writer);
+        if (this.key != null) {
+            writer.write(key);
+            writer.write(": ");
+            if (!leaf) {
+                writeNewLine(writer);
+            }
+        } else {
+            if (!leaf) {
+                if (arrayIndex > -1) {
+                    writer.write("- ");
+                    writeNewLine(writer);
+                }
+            } else {
+                //writeIndent(writer);
+            }
+        }
+
+        if (array) {
+            List<YamlNode> children = this.children;
+            if (children == null) {
+                children = reference.children;
+            }
+            int size = children.size();
+            int i = 0;
+            for (YamlNode yamlNode : children) {
+                yamlNode.writeTo(writer);
+                if (++i < size) {
+                    writeNewLine(writer);
+                }
+            }
+        } else {
+            if (leaf) {
+                writeLeafValue(writer);
+            } else {
+                Map<String, YamlNode> fieldNodes = this.fieldNodes;
+                if (fieldNodes == null) {
+                    fieldNodes = reference.fieldNodes;
+                }
+                int size = fieldNodes.size();
+                int i = 0;
+                for (Map.Entry<String, YamlNode> entry : fieldNodes.entrySet()) {
+                    YamlNode node = entry.getValue();
+                    node.writeTo(writer);
+                    if (++i < size) {
+                        writeNewLine(writer);
+                    }
+                }
+            }
+        }
+    }
+
+    private void writeLeafValue(Writer writer) throws IOException {
+        writeArrayToken(writer);
+        writeTypeToken(writer);
+
+        Object val = getValue();
+        String value;
+        if (val instanceof Map || val instanceof List) {
+            value = YamlJSON.stringify(val);
+        } else {
+            value = val.toString();
+            // 普通文本字符串添加单引号
+            if (valueType == 1 && !this.textBlock) {
+                value = "'" + value + "'";
+            }
+        }
+
+        if (this.textBlock) {
+            writeBlockToken(writer);
+            writeNewLine(writer);
+
+            String[] lines = value.split("\n");
+            int len = lines.length;
+            int i = 0;
+            for (String line : lines) {
+                writeIndent(writer, indent + 1);
+                writer.write(line);
+                if (++i < len) {
+                    writeNewLine(writer);
+                }
+            }
+        } else {
+            writer.write(value);
+        }
+    }
+
+    /**
+     * 获取指定路径的对象并类型转化
+     *
+     * @param childPath
+     * @param clazz
+     * @param <E>
+     * @return
+     */
+    public <E> E getPathValue(String childPath, Class<E> clazz) {
+        YamlNode yamlNode = get(childPath);
+        if (yamlNode == null)
+            return null;
+        if (yamlNode.leaf) {
+            return (E) yamlNode.getValue(clazz);
+        }
+        return yamlNode.toEntity(clazz);
+    }
+
+    /**
+     * 获取指定路径的节点对象
+     * <p>如果path为空将返回当前YamlNode节点对象 </p>
+     * <p>如果/开头表示从根节点开始查找 </p>
+     * <p>数组元素使用[n]</p>
+     *
+     * @param childPath 查找路径，以/作为级别分割线
+     * @return
+     */
+    public YamlNode get(String childPath) {
+        if (childPath == null || (childPath = childPath.trim()).length() == 0)
+            return this;
+        if (childPath.startsWith("/")) {
+            return root.get(childPath.substring(1));
+        }
+        if (leaf) {
+            return null;
+        }
+        int splitIndex = childPath.indexOf('/');
+        if (splitIndex == -1) {
+            return getChildNode(childPath);
+        } else {
+            String path = childPath.substring(0, splitIndex).trim();
+            YamlNode childNode = getChildNode(path);
+            if (childNode != null) {
+                String nextPath = childPath.substring(splitIndex + 1).trim();
+                return childNode.get(nextPath);
+            }
+        }
+        return null;
+    }
+
+    private YamlNode getChildNode(String path) {
+        YamlNode value = null;
+        if (array) {
+            if (path.startsWith("[") && path.endsWith("]")) {
+                int index = Integer.parseInt(path.substring(1, path.length() - 1));
+                return children.get(index);
+            } else {
+                throw new IllegalArgumentException("current JSONNode is an isArray type, path should like []");
+            }
+        } else {
+            // map获取属性
+            if (fieldNodes != null) {
+                value = fieldNodes.get(path);
+            }
+        }
+        return value;
+    }
+
+    /**
+     * 给指定路径节点设值
+     * <p> 只支持叶子节点
+     *
+     * @param path
+     * @param value
+     */
+    public void setPathValue(String path, Serializable value) {
+        YamlNode node = get(path);
+        if (node != null && node.leaf) {
+            node.typeOfValue = value;
+        }
+    }
+
 }

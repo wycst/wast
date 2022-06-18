@@ -49,6 +49,12 @@ public enum WriteOption {
     WriteDateAsTime,
 
     /**
+     * <p> 默认按name序列化枚举类，配置此项将按Ordinal值输出，适合枚举类固定场景使用。
+     * <p> 注：枚举类选项发生新增或者删除会影响反序列化结果，谨慎使用。
+     */
+    WriteEnumAsOrdinal,
+
+    /**
      * 默认情况下byte数组会输出为base64字符串，开启配置后将bytes数组输出为16进制字符串
      */
     BytesArrayToHex,
@@ -59,8 +65,9 @@ public enum WriteOption {
     BytesArrayToNative,
 
     /***
-     * 是否禁用转义符校验,再确保没有需要转义符的情况下使用，否则序列化结果不会带有\\等标记
-     * 换言之如果存在需要转义的信息如"，\n,\r等不要开启此配置
+     *
+     * <p> 是否禁用转义符校验,再确保没有需要转义符的情况下使用，可大幅度提高性能
+     * <p> 换言之如果存在需要转义的信息如"，\n,\r等不要开启此配置
      *
      */
     DisableEscapeValidate,
@@ -76,8 +83,8 @@ public enum WriteOption {
     KeepOpenStream,
 
     /**
-     * 默认情况下map的key统一加双引号输出
-     * 开启后将根据实际的key值类型序列化
+     * <p> 默认情况下map的key统一加双引号输出
+     * <p> 开启后将根据实际的key值类型序列化
      */
     AllowUnquotedMapKey,
 

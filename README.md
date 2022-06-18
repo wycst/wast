@@ -12,20 +12,20 @@
 <dependency>
     <groupId>io.github.wycst</groupId>
     <artifactId>wast</artifactId>
-    <version>0.0.3</version>
+    <version>0.0.4</version>
 </dependency>
 ```
 
 ## Groovy
 
 ```
-implementation 'io.github.wycst:wast:0.0.3'
+implementation 'io.github.wycst:wast:0.0.4'
 ```
 
 ## Kotlin
 
 ```
-implementation("io.github.wycst:wast:0.0.3")
+implementation("io.github.wycst:wast:0.0.4")
 ```
 
 ## json模块
@@ -45,11 +45,10 @@ implementation("io.github.wycst:wast:0.0.3")
 > 1 目前java语言解析yaml最快的库，性能大概是snakeyaml的5-20倍；<br>
 > 2 支持文件流，URL, 字符数组，字符串等解析；<br>
 > 3 支持常用yaml语法以及类型转换；<br>
-> 4 内置Yaml节点模型；<br>
-> 5 代码轻量，使用安全，没有漏洞风险；<br>
+> 4 内置Yaml节点模型，支持路径查找(v0.0.4+)；<br>
+> 5 支持yaml反向转换为字符串或者文件(v0.0.4+)；<br>
 > 6 兼容jdk1.6+；
 
-后续增加Yaml节点查找能力。
 
 ## 表达式引擎
 
@@ -133,7 +132,7 @@ System.out.println(map);
 
 ### 7 基于输入流的按需解析
 
-提供JSONReader类可按需解析一个输入流，自定义解析，可随时终止。
+提供JSONReader类可按需解析一个输入流，自定义解析，可随时终止(不用将整个文件流读完)。
 
 ```
         final JSONReader reader = JSONReader.from(new File(f));
@@ -152,13 +151,13 @@ System.out.println(map);
 ### 8 强大的JSONNode功能
 
 > 1、支持对大文本json的懒加载解析功能，即访问时解析，当需要读取一个大文本json中一个或多个属性值时非常有用。<br>
-> 2、支持按需解析；比如常规模式下完整解析需要耗时7-8秒左右，使用JSONNode可以在几百毫秒左右完成。<br>
+> 2、支持按需解析；<br>
 > 3、支持上下文查找；<br>
-> 4、支持在大文本json中提取部分内容作为解析结果（性能最高）,使用JSONNode.from(source, path, lazy?)  <br>
-> 5、支持对节点的属性修改，删除等，节点的JSON序列化回显；<br>
-> 6、支持直接提取功能(v0.0.2+支持)
+> 4、支持在大文本json中提取部分内容作为解析上下文结果,使用JSONNode.from(source, path, lazy?)  <br>
+> 5、支持对节点的属性修改，删除等，节点的JSON反向序列化；<br>
+> 6、支持直接提取功能(v0.0.2+支持)，参考JSONPath；
 
-使用'/'作为路径的分隔符，数组下标使用[n]访问支持[*], [n+], [n-],[n]等复合下标访问
+使用'/'作为路径的分隔符，数组下标使用[n]访问支持[*], [n+], [n-],[n]等复合下标访问，例如/store/book/[*]/author(注意不是/store/book[*]/author)
 
 ```
   String json = "{\"name\": \"li lei\", \”properties\": {\"age\": 23}}";
@@ -307,6 +306,8 @@ T t = doc.toEntity(T.class);
 
 // 直接解析返回类型
 T t = YamlDocument.parse(yamlStr, T.class);
+
+// 
 ```
 
 ## 表达式引擎使用

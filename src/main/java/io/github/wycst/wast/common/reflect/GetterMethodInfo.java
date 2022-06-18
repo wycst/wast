@@ -22,7 +22,7 @@ final class GetterMethodInfo extends GetterInfo {
     /**
      * 反射属性
      */
-    public Object invoke(Object target) {
+    public Object invokeObjectValue(Object target) {
         try {
             return method.invoke(target);
         } catch (Exception e) {

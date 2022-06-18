@@ -8,6 +8,7 @@ import java.util.*;
 
 /**
  * class序列化和反序列化结构包装
+ *
  * @author wangy
  */
 public final class ClassStructureWrapper {
@@ -270,7 +271,10 @@ public final class ClassStructureWrapper {
                         try {
                             // 属性
                             Field field = sourceClass.getDeclaredField(fieldName);
-                            getterInfo.setField(field);
+                            if (!Modifier.isStatic(field.getModifiers()) && !Modifier.isFinal(field.getModifiers())) {
+                                field.setAccessible(true);
+                                getterInfo.setField(field);
+                            }
                             addAnnotations(annotationMap, field.getAnnotations());
                         } catch (Exception e) {
                         }
@@ -312,9 +316,11 @@ public final class ClassStructureWrapper {
                         addAnnotations(annotationMap, methodAnnotations);
                         try {
                             Field field = sourceClass.getDeclaredField(setFieldName);
-                            field.setAccessible(true);
+                            if (!Modifier.isStatic(field.getModifiers()) && !Modifier.isFinal(field.getModifiers())) {
+                                field.setAccessible(true);
+                                setterInfo.setField(field);
+                            }
                             Annotation[] fieldAnnotations = field.getAnnotations();
-                            setterInfo.setField(field);
                             addAnnotations(annotationMap, fieldAnnotations);
                         } catch (Exception e) {
                         }
@@ -333,6 +339,12 @@ public final class ClassStructureWrapper {
 
                 // 计算setter的hash映射
                 wrapper.calculateHashMapping();
+                // 排序输出防止每次重启jvm后序列化顺序不一致
+                Collections.sort(getterInfos, new Comparator<GetterInfo>() {
+                    public int compare(GetterInfo o1, GetterInfo o2) {
+                        return o1.getFieldName().compareTo(o2.getFieldName());
+                    }
+                });
 
                 wrapper.getterInfos = Collections.unmodifiableList(getterInfos);
                 wrapper.setterInfos = Collections.unmodifiableMap(wrapper.setterInfos);
@@ -350,8 +362,8 @@ public final class ClassStructureWrapper {
             if (genericType instanceof ParameterizedType) {
                 ParameterizedType pt = (ParameterizedType) genericType;
                 Type type = pt.getActualTypeArguments()[0];
-                if(type instanceof Class<?>) {
-                    setterInfo.setActualTypeArgument((Class<?>)type);
+                if (type instanceof Class<?>) {
+                    setterInfo.setActualTypeArgument((Class<?>) type);
                 }
                 genericParameterizedType = GenericParameterizedType.genericCollectionType(parameterType, type);
             } else {

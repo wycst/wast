@@ -9,29 +9,32 @@ public class Options {
         if (jsonConfig != null) {
             switch (option) {
                 case FormatOut:
-                    jsonConfig.setWriteOptionFormatOut(true);
+                    jsonConfig.setFormatOut(true);
                     break;
                 case FullProperty:
-                    jsonConfig.setWriteOptionFullProperty(true);
+                    jsonConfig.setFullProperty(true);
                     break;
                 case DateFormat:
-                    jsonConfig.setWriteOptionDateFormat(true);
+                    jsonConfig.setDateFormat(true);
                     jsonConfig.setDateFormatPattern("yyyy-MM-dd HH:mm:ss");
                     break;
                 case WriteDateAsTime:
                     jsonConfig.setWriteDateAsTime(true);
                     break;
+                case WriteEnumAsOrdinal:
+                    jsonConfig.setWriteEnumAsOrdinal(true);
+                    break;
                 case SkipCircularReference:
-                    jsonConfig.setWriteOptionSkipCircularReference(true);
+                    jsonConfig.setSkipCircularReference(true);
                     break;
                 case BytesArrayToNative:
-                    jsonConfig.setWriteOptionBytesArrayToNative(true);
+                    jsonConfig.setBytesArrayToNative(true);
                     break;
                 case DisableEscapeValidate:
-                    jsonConfig.setWriteOptionDisableEscapeValidate(true);
+                    jsonConfig.setDisableEscapeValidate(true);
                     break;
                 case BytesArrayToHex:
-                    jsonConfig.setWriteOptionBytesArrayToHex(true);
+                    jsonConfig.setBytesArrayToHex(true);
                     break;
                 case SkipGetterOfNoneField:
                     jsonConfig.setSkipGetterOfNoneField(true);

@@ -35,6 +35,57 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class YamlJSON extends YamlGeneral {
 
     /***
+     * 序列化Map
+     *
+     * @param obj
+     * @return
+     */
+    public final static String stringify(Object obj) {
+        StringBuilder builder = new StringBuilder();
+        writeObjectTo(builder, obj);
+        return builder.toString();
+    }
+
+    private static void writeObjectTo(StringBuilder builder, Object obj) {
+        if (obj instanceof Map) {
+            writeMapTo(builder, (Map) obj);
+        } else if (obj instanceof List) {
+            writeListTo(builder, (List) obj);
+        } else {
+            builder.append(obj);
+        }
+    }
+
+    private static void writeMapTo(StringBuilder builder, Map obj) {
+        builder.append("{");
+        int size = obj.size();
+        int i = 0;
+        for (Object key : obj.keySet()) {
+            builder.append(key);
+            builder.append(":");
+            Object value = obj.get(key);
+            writeObjectTo(builder, value);
+            if (++i < size) {
+                builder.append(",");
+            }
+        }
+        builder.append("}");
+    }
+
+    private static void writeListTo(StringBuilder builder, List list) {
+        builder.append("[");
+        int size = list.size();
+        int i = 0;
+        for (Object value : list) {
+            writeObjectTo(builder, value);
+            if (++i < size) {
+                builder.append(",");
+            }
+        }
+        builder.append("]");
+    }
+
+    /***
      * 解析yaml文件中的内联json
      *
      * @param json
@@ -153,7 +204,7 @@ public class YamlJSON extends YamlGeneral {
                     return list;
                 }
             } else {
-                throw new YamlParseException("Syntax error, unexpected token character '" + ch + "', position " + i + ", Missing ',' or '}'");
+                throw new YamlParseException("Syntax error, unexpected token character '" + ch + "', position " + i + ", Missing ',' or ']'");
             }
         }
         throw new YamlParseException("Syntax error, the closing symbol ']' is not found ");

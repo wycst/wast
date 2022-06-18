@@ -12,6 +12,12 @@ import java.util.Map;
 public class SetterInfo {
 
     private Field field;
+    // field 偏移
+    private long fieldOffset = -1;
+    // 是否基本类型
+    private boolean fieldPrimitive;
+    // 基本类型类别
+    private ReflectConsts.PrimitiveType primitiveType;
 
     private String mappingName;
 
@@ -65,7 +71,19 @@ public class SetterInfo {
     /**
      * 反射设置
      */
-    public void invoke(Object target, Object value) {
+    public final void invoke(Object target, Object value) {
+        if (fieldOffset > -1) {
+            if(fieldPrimitive) {
+                UnsafeHelper.putPrimitiveValue(target, fieldOffset, value, primitiveType);
+            } else {
+                UnsafeHelper.putObjectValue(target, fieldOffset, value);
+            }
+            return;
+        }
+        invokeObjectValue(target, value);
+    }
+
+    protected void invokeObjectValue(Object target, Object value) {
         try {
             field.set(target, value);
         } catch (Exception e) {
@@ -131,6 +149,15 @@ public class SetterInfo {
 
     void setField(Field field) {
         this.field = field;
+        try {
+            this.fieldOffset = UnsafeHelper.objectFieldOffset(field);
+            this.fieldPrimitive = getFieldType().isPrimitive();
+            if(this.fieldPrimitive) {
+                this.primitiveType = ReflectConsts.PrimitiveType.typeOf(getFieldType());
+            }
+        } catch (Throwable throwable) {
+            this.fieldOffset = -1;
+        }
     }
 
     public Class<?> getFieldType() {

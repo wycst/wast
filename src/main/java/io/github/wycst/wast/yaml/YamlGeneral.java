@@ -1,14 +1,18 @@
 package io.github.wycst.wast.yaml;
 
-import java.io.Serializable;
 import java.lang.reflect.Field;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @Author wangyunchao
  */
 class YamlGeneral {
+
+    /**
+     * 是否window系统
+     */
+    public static final boolean IS_WINDOW_OS;
 
     /**
      * 空格字符
@@ -20,6 +24,7 @@ class YamlGeneral {
      */
     protected static final char SPLIT_CHAR = ':';
 
+    /** 类型映射 */
     protected static Map<String, Integer> typeValues = new HashMap<String, Integer>();
 
     static {
@@ -32,9 +37,10 @@ class YamlGeneral {
         typeValues.put("set", 7);
         typeValues.put("omap", 8);
         typeValues.put("pairs", 8);
-        typeValues.put("pairs", 8);
         typeValues.put("seq", 9);
         typeValues.put("map", 10);
+
+        IS_WINDOW_OS = System.getProperty("os.name").toLowerCase().contains("windows");
     }
 
     private final static Field stringToChars;

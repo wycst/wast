@@ -20,15 +20,14 @@ final class SetterMethodInfo extends SetterInfo {
     }
 
     /**
-     * 反射设置
+     * 反射调用
      */
-    public void invoke(Object target, Object value) {
+    public void invokeObjectValue(Object target, Object value) {
         try {
             method.invoke(target, value);
         } catch (Exception e) {
             throw new InvokeReflectException(e);
         }
     }
-
 
 }

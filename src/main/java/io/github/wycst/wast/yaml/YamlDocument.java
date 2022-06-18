@@ -69,16 +69,18 @@ public final class YamlDocument extends YamlParser {
      */
     public static YamlDocument parse(char[] source) {
 
-        // 最后以换行符结束
         int length = source.length;
         char lastChar = source[source.length - 1];
+        // 最后以换行符结束，可以避免越界检查
+        // todo 性能优化点
         if (lastChar != '\n') {
             source = Arrays.copyOf(source, length + 1);
             source[length] = '\n';
         }
 
         YamlDocument yamlDocument = new YamlDocument();
-        yamlDocument.parseYamlRoot(0, source);
+        yamlDocument.source = source;
+        yamlDocument.parseYamlRoot(0);
         return yamlDocument;
     }
 
@@ -99,7 +101,7 @@ public final class YamlDocument extends YamlParser {
             int len;
             while ((len = streamReader.read(buff)) > 0) {
                 if (source == null) {
-                    source = len == buffSize ? buff : Arrays.copyOf(buff, len);
+                    source = Arrays.copyOf(buff, len);
                 } else {
                     source = Arrays.copyOf(source, count + len);
                     System.arraycopy(buff, 0, source, count, len);
@@ -124,9 +126,8 @@ public final class YamlDocument extends YamlParser {
      * 解析根节点
      *
      * @param offset
-     * @param source
      */
-    protected void parseYamlRoot(int offset, char[] source) {
+    protected void parseYamlRoot(int offset) {
         YamlNode yamlRoot = new YamlNode();
         if (root == null) {
             root = yamlRoot;
@@ -139,7 +140,7 @@ public final class YamlDocument extends YamlParser {
             yamlNodeList.add(yamlRoot);
         }
         List<YamlNode> yamlNodes = new ArrayList<YamlNode>();
-        parseNodes(yamlNodes, source, offset, source.length, 0);
+        parseNodes(yamlNodes, offset, source.length);
         // 构建yaml树结构
         yamlRoot.buildYamlTree(yamlNodes);
     }
@@ -297,4 +298,75 @@ public final class YamlDocument extends YamlParser {
     public Properties toProperties() {
         return getRoot().toProperties();
     }
+
+    /**
+     * 写入文件
+     *
+     * @param file
+     * @throws IOException
+     */
+    public void writeTo(File file) throws IOException {
+        if (!file.exists()) {
+            file.createNewFile();
+        }
+        writeTo(new FileWriter(file));
+    }
+
+    /**
+     * 写入指定的输出流
+     *
+     * @param os
+     * @throws IOException
+     */
+    public void writeTo(OutputStream os) throws IOException {
+        writeTo(new OutputStreamWriter(os));
+    }
+
+    /**
+     * 写入指定的writer
+     *
+     * <p>简单模式下的yaml回写转化(如果包含&引用和*关联等语法时缩进会混乱，暂时不支持)</p>
+     *
+     * @param writer
+     * @throws IOException
+     */
+    public void writeTo(Writer writer) throws IOException {
+        try {
+            if (this.multiple) {
+                for (YamlNode rootNode : yamlNodeList) {
+                    rootNode.writeTo(writer);
+                    writer.write("---");
+                }
+            } else {
+                this.root.writeTo(writer);
+            }
+            writer.flush();
+        } finally {
+            writer.close();
+        }
+    }
+
+    /***
+     * 将文档转为yaml字符串
+     *
+     * @return
+     */
+    public String toYamlString() {
+        StringWriter writer = new StringWriter();
+        try {
+            writeTo(writer);
+        } catch (IOException e) {
+        }
+        return writer.toString();
+    }
+
+//    /***
+//     * 对象转化为yaml字符串
+//     * todo
+//     * @param obj
+//     * @return
+//     */
+//    public static String toYamlString(Object obj) {
+//        return null;
+//    }
 }

@@ -9,16 +9,27 @@ import java.util.List;
  */
 class YamlParser extends YamlGeneral {
 
+    // yaml source
+    protected char[] source;
+    // current pos
+    private int pos;
+    // 行数
+    private int lineNum;
+    // 根缩进数
+    private int rootIndent = -1;
+
+    // document split support
+    protected void parseYamlRoot(int i) {
+    }
+
     /**
      * 解析yaml核心实现
      *
      * @param yamlNodes
-     * @param source
      * @param offset
      * @param toIndex
-     * @param lineNum
      */
-    protected void parseNodes(List<YamlNode> yamlNodes, char[] source, int offset, int toIndex, int lineNum) {
+    protected void parseNodes(List<YamlNode> yamlNodes, int offset, int toIndex) {
 
         char ch, prevCh = '\0';
         for (int i = offset; i < toIndex; i++) {
@@ -41,9 +52,26 @@ class YamlParser extends YamlGeneral {
                 while (!isNewLineChar(source[i])) {
                     i++;
                 }
-                lineNum++;
                 continue;
-            } else if (ch == '-') {
+            } else if (isNewLineChar(ch)) {
+                continue;
+            }
+
+            // create node
+//            YamlNode yamlNode = new YamlNode();
+            // begin from 0
+            int lineIndex = this.lineNum;
+
+            if(rootIndent == -1) {
+                rootIndent = indent;
+            } else {
+                if(indent < rootIndent) {
+                    throw new YamlParseException("indent value " + indent + " error, cannot less then the root indent " + rootIndent + ", at lineNum " + (lineNum + 1));
+                }
+            }
+
+            // 数组（- -）/分片（---）
+            if (ch == '-') {
                 char append = source[i + 1];
                 boolean isAppendSpaceChar = append == SPACE_CHAR;
                 if (isAppendSpaceChar || isNewLineChar(append)) {
@@ -64,7 +92,7 @@ class YamlParser extends YamlGeneral {
                             isAppendSpaceChar = append == SPACE_CHAR;
                             if (isAppendSpaceChar || isNewLineChar(append)) {
                                 // 上一层数组token添加到list中，并更新indent
-                                addYamlNode(yamlNodes, indent, lineNum + 1, null, null, valueType, null, false, false, true, anchorKey, referenceKey);
+                                addYamlNode(yamlNodes, indent, lineIndex, null, null, valueType, null, false, false, true, anchorKey, referenceKey);
                                 // 更新下一个indent
                                 indent += j - i + 1;
                                 j++;
@@ -78,7 +106,8 @@ class YamlParser extends YamlGeneral {
                     }
 
                     // 查找是否存在键值分隔符（: ）
-                    // 如果存在分隔符，顺便解析，并将i定位到指定位置
+                    // 如果存在分隔符，解析并将i定位到指定位置
+                    // todo 优化点： 如果不存在分隔符，会将指针回退到开始位置（- 后面）重新解析集合的value(此处会存在性能损失)
                     int n = j - i;
                     j = i;
                     prevCh = '\0';
@@ -91,6 +120,7 @@ class YamlParser extends YamlGeneral {
                         splitIndex = j;
                         break;
                     }
+
                     if (splitIndex > -1) {
                         // key值
                         key = new String(source, i, j - i - 1).trim();
@@ -98,13 +128,18 @@ class YamlParser extends YamlGeneral {
                             throw new UnsupportedOperationException("empty key before ': ' at line " + ++lineNum);
                         }
                         // 添加Node
-                        addYamlNode(yamlNodes, indent, lineNum + 1, null, null, valueType, null, false, false, true, anchorKey, referenceKey);
+                        addYamlNode(yamlNodes, indent, lineIndex, null, null, valueType, null, false, false, true, anchorKey, referenceKey);
                         // 更新indent
                         indent += n + 1;
                         // 下一个键值对节点解析
                         arrayToken = false;
                         // 并将i定位到指定位置j
                         i = j;
+                    } else {
+                        // 遇到\n回退lineNum值
+                        if (ch == '\n') {
+                            lineNum--;
+                        }
                     }
                 } else {
                     // 判断是否结束标志： ---
@@ -114,14 +149,11 @@ class YamlParser extends YamlGeneral {
                         if (isNewLineChar(ch)) {
                             // --- yaml文档结束
                             // 解析下一个文档
-                            parseYamlRoot(k + 1, source);
+                            parseYamlRoot(k + 1);
                             break;
                         }
                     }
                 }
-            } else if (isNewLineChar(ch)) {
-                lineNum++;
-                continue;
             }
 
             j = i;
@@ -192,8 +224,11 @@ class YamlParser extends YamlGeneral {
                         }
                         i++;
                     }
+
                     if (!matchEndFlag) {
                         throw new RuntimeException("未找到结束字符 " + strChar + " , index " + i);
+                    } else {
+                        break;
                     }
 
                 } else if (ch == '|' || ch == '>') {
@@ -225,19 +260,42 @@ class YamlParser extends YamlGeneral {
                     while ((ch = source[i]) == SPACE_CHAR) {
                         i++;
                     }
-                    if (ch == '#') {
-                        // 注释处理
-                        i++;
-                        while (!isNewLineChar(source[i++])) ;
-                    } else if (isNewLineChar(ch)) {
-                        // 如果是换行符
-                        i++;
-                    } else {
-                        throw new RuntimeException("expected chomping or indentation indicators, but found " + ch + " in 'string', line " + lineNum + ", column n:");
+
+                    // 第一行的注释非内容区和换行
+//                    if (ch == '#') {
+//                        // 注释处理
+//                        i++;
+//                        while (source[i++] != '\n') ;
+//                        lineNum++;
+//                    } else if (ch == '\n') {
+//                        // 如果是换行符
+//                        i++;
+//                        lineNum++;
+//                    } else {
+//                        throw new RuntimeException("expected chomping or indentation indicators, but found " + ch + " in 'string', line " + lineNum + ", column n:");
+//                    }
+                    switch (ch) {
+                        case '#': {
+                            // 注释处理
+                            i++;
+                            while (source[i++] != '\n') ;
+                            lineNum++;
+                            break;
+                        }
+                        case '\r': {
+                            i++;
+                        }
+                        case '\n': {
+                            i++;
+                            lineNum++;
+                            break;
+                        }
+                        default:
+                            throw new RuntimeException("expected chomping or indentation indicators, but found " + ch + " in 'string', line " + (lineNum + 1) + ", column n:");
                     }
 
                     // 添加到line
-                    YamlLine blockYamlNode = addYamlNode(yamlNodes, indent, ++lineNum, key, value, valueType, typeOfValue, leaf, textBlock, arrayToken, anchorKey, referenceKey);
+                    YamlLine blockYamlNode = addYamlNode(yamlNodes, indent, lineIndex, key, value, valueType, typeOfValue, leaf, textBlock, arrayToken, anchorKey, referenceKey);
 
                     // 解析紧跟的文本内容直到文本块结束
                     StringBuilder blockValue = new StringBuilder();
@@ -251,6 +309,7 @@ class YamlParser extends YamlGeneral {
                         // 防越界处理
                         if (i >= toIndex) {
                             blockYamlNode.value = getBlockValue(blockValue, blockType, appendChar);
+                            blockYamlNode.blockType = blockType;
                             breakOutLoop = true;
                             break;
                         }
@@ -261,7 +320,6 @@ class YamlParser extends YamlGeneral {
                         if (ch != SPACE_CHAR) {
                             // 如果是换行符（空行）
                             blockValue.append(appendChar);
-                            lineNum++;
                             j = i;
                         }
                     } while (true);
@@ -271,9 +329,10 @@ class YamlParser extends YamlGeneral {
                     // 如果缩进数不大于minTextIndent则代表文本块结束
                     if (textIndent <= minTextIndent) {
                         blockYamlNode.value = getBlockValue(blockValue, blockType, appendChar);
+                        blockYamlNode.blockType = blockType;
                         // 回滚当前行
                         i = j;
-                        parseNodes(yamlNodes, source, i, toIndex, lineNum);
+                        parseNodes(yamlNodes, i, toIndex);
                         breakOutLoop = true;
                         break;
                     }
@@ -284,38 +343,45 @@ class YamlParser extends YamlGeneral {
                     while (i < toIndex) {
                         i++;
                         // 遇到换行终止
-                        while (!isNewLineChar(source[i])) {
+                        // \r\n需要剔除\r
+                        while (!isNewLineChar(ch = source[i])) {
                             i++;
                         }
 
                         int off = j + baseTextIndent;
 
-                        blockValue.append(source, off, i - off + 1);
-                        if (replaceAsSpace) {
-                            blockValue.setCharAt(blockValue.length() - 1, SPACE_CHAR);
+                        blockValue.append(source, off, i - off);
+                        blockValue.append(appendChar);
+
+                        // 遇到\r处理
+                        if(ch == '\r') {
+                            i++;
+                            lineNum++;
                         }
 
                         /** 如果读取到内容结束 */
                         if (i == toIndex - 1) {
                             blockYamlNode.value = getBlockValue(blockValue, blockType, appendChar);
+                            blockYamlNode.blockType = blockType;
                             breakOutLoop = true;
                             break;
                         }
 
-                        // 新的一行
-                        lineNum++;
                         j = i + 1;
-
                         // 去除空行或者空白字符，遇到非空字符终止，计算缩进信息
                         while ((ch = source[++i]) == SPACE_CHAR || isNewLineChar(ch)) {
                             if (ch != SPACE_CHAR) {
                                 // 空行
                                 blockValue.append(appendChar);
-                                lineNum++;
+                                if(ch == '\r') {
+                                    i++;
+                                    lineNum++;
+                                }
                                 j = i + 1;
                             }
                             if (i == toIndex - 1) {
                                 blockYamlNode.value = getBlockValue(blockValue, blockType, appendChar);
+                                blockYamlNode.blockType = blockType;
                                 breakOutLoop = true;
                                 break;
                             }
@@ -329,8 +395,9 @@ class YamlParser extends YamlGeneral {
                         if (textIndent <= minTextIndent) {
                             // 文本块结束
                             blockYamlNode.value = getBlockValue(blockValue, blockType, appendChar);
+                            blockYamlNode.blockType = blockType;
                             i = j;
-                            parseNodes(yamlNodes, source, i, toIndex, lineNum);
+                            parseNodes(yamlNodes, i, toIndex);
                             breakOutLoop = true;
                             break;
                         } else {
@@ -399,7 +466,7 @@ class YamlParser extends YamlGeneral {
                         j = i;
                         while ((ch = source[++i]) != SPACE_CHAR && !isNewLineChar(ch)) ;
 
-                        String typeName = null;
+                        String typeName;
                         if (ch == SPACE_CHAR) {
                             typeName = new String(source, j, i - j).trim();
                             if (typeValues.containsKey(typeName)) {
@@ -425,13 +492,22 @@ class YamlParser extends YamlGeneral {
                         i++;
                         pv = ch;
                     }
+
                     value = new String(source, j, (commentIndex > -1 ? commentIndex : i) - j).trim();
                     leaf = value.length() > 0;
 
                     if (json) {
                         // 解析JSON数据
-                        typeOfValue = YamlJSON.parse(value);
+                        try {
+                            typeOfValue = YamlJSON.parse(value);
+                        } catch (YamlParseException exception) {
+                            String message = exception.getMessage();
+                            message += ", at lineNum " + (lineNum + 1);
+                            throw new YamlParseException(message, exception);
+                        }
                     }
+
+                    break;
                 }
             }
 
@@ -448,17 +524,12 @@ class YamlParser extends YamlGeneral {
                 }
             }
 
-            // 换行处理
-            lineNum++;
             // 空行
             if (isEmpty) continue;
 
             // 添加到list
-            addYamlNode(yamlNodes, indent, lineNum, key, value, valueType, typeOfValue, leaf, textBlock, arrayToken, anchorKey, referenceKey);
+            addYamlNode(yamlNodes, indent, lineIndex, key, value, valueType, typeOfValue, leaf, textBlock, arrayToken, anchorKey, referenceKey);
         }
-    }
-
-    protected void parseYamlRoot(int i, char[] source) {
     }
 
     /**
@@ -502,7 +573,11 @@ class YamlParser extends YamlGeneral {
      * 如果是最后一个字符判定为true
      */
     private boolean isNewLineChar(char ch) {
-        return ch == '\n' /*|| ch == '\r'*/;
+        if (ch == '\n') {
+            lineNum++;
+            return true;
+        }
+        return ch == '\r';
     }
 
 }

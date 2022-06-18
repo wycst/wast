@@ -1,5 +1,6 @@
 package io.github.wycst.wast.json;
 
+import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import io.github.wycst.wast.json.annotations.JsonDeserialize;
 import io.github.wycst.wast.json.annotations.JsonSerialize;
 import io.github.wycst.wast.json.custom.JsonDeserializer;
@@ -25,6 +26,11 @@ import java.util.*;
  * @Date 2021/12/7 19:30
  */
 class JSONGeneral {
+
+    // null
+    protected final static char[] NULL = new char[]{'n', 'u', 'l', 'l'};
+    protected final static char[] EMPTY_ARRAY = new char[]{'[', ']'};
+    protected final static char[] EMPTY_OBJECT = new char[]{'{', '}'};
 
     // 转义字符与字符串映射（0-159）（序列化）
     protected final static String[] escapes = new String[160];
@@ -297,22 +303,7 @@ class JSONGeneral {
                 break;
             }
         }
-//        if (useDoubleParse) {
-//            return Double.parseDouble(new String(buffers, fromIndex, toIndex - fromIndex));
-//        }
         if (/*dotIndex > -1*/useDoubleParse) {
-            // max LONG 9223372036854775807（19位）
-//            if (dotIndex - fromIndex > 18) {
-//                return Double.parseDouble(new String(buffers, fromIndex, toIndex - fromIndex));
-//            }
-//            // to double
-//            long integerNum = parseLong(buffers, fromIndex, dotIndex);
-//            long dotNum = parseLong(buffers, dotIndex + 1, toIndex);
-//            long dotLen = toIndex - dotIndex - 1;
-//            double dotValue = dotNum / Math.pow(10, dotLen);
-//            boolean negative = buffers[fromIndex] == '-';
-//            return negative ? integerNum - dotValue : integerNum + dotValue;
-            // if use Double.parseDouble ？
             return parseDouble(buffers, fromIndex, toIndex);
         } else {
             // max LONG 9223372036854775807
@@ -1047,48 +1038,92 @@ class JSONGeneral {
         }
     }
 
-    protected static JSONWriter getContextWriter(JSONParseContext jsonParseContext) {
-        JSONWriter jsonWriter = jsonParseContext.getContextWriter();
-        if(jsonWriter == null) {
-            jsonParseContext.setContextWriter(jsonWriter = new JSONWriter());
+    /**
+     * 报错位置取前后9个字符，最多一共20个字符
+     */
+    protected static String createErrorContextText(char[] buf, int at) {
+        try {
+            int len = buf.length;
+            char[] text = new char[20];
+            int count;
+            int begin = Math.max(at - 9, 0);
+            System.arraycopy(buf, begin, text, 0, count = at - begin);
+            text[count++] = '^';
+            int end = Math.min(len, at + 9);
+            System.arraycopy(buf, at, text, count, end - at);
+            count += end - at;
+            return new String(text, 0, count);
+        } catch (Throwable throwable) {
+            return "";
+        }
+    }
+
+    protected static JSONStringWriter getContextWriter(JSONParseContext jsonParseContext) {
+        JSONStringWriter jsonWriter = jsonParseContext.getContextWriter();
+        if (jsonWriter == null) {
+            jsonParseContext.setContextWriter(jsonWriter = new JSONStringWriter());
         }
         return jsonWriter;
     }
 
-    private static Field stringToChars;
+    private static final Field stringToChars;
+    private static final long stringValueOffset;
 
     static {
         Field valueField;
+        long valueOffset = -1;
         try {
             valueField = String.class.getDeclaredField("value");
-            // jdk9+ not support setAccessible
-            // type is byte[]
+            // jdk9+ not support setAccessible and type is byte[] not char[]
             valueField.setAccessible(true);
+            // JDK_VERSION <= jdk8
+            valueOffset = UnsafeHelper.objectFieldOffset(valueField);
         } catch (Exception e) {
             valueField = null;
         }
         stringToChars = valueField;
+        stringValueOffset = valueOffset;
     }
 
-    public static char[] getChars(String json) {
+    /***
+     * jdk9+ use toCharArray
+     * jdk8- use unsafe
+     *
+     * @param json
+     * @return
+     */
+    protected static char[] getChars(String json) {
         if (stringToChars == null) {
-            // jdk9+
+            // jdk9+ stringToChars is null, use toCharArray
             return json.toCharArray();
         }
         try {
+            // note: jdk9+ value is byte[]
+            if (stringValueOffset > -1) {
+                return (char[]) UnsafeHelper.getObjectValue(json, stringValueOffset);
+            }
             return (char[]) stringToChars.get(json);
         } catch (IllegalAccessException e) {
             throw new JSONException(e);
         }
     }
 
-//    protected static String getString(char[] buffers) throws Exception {
+//    /** 根据字符数组构建字符串，减少一次字符数组的copy */
+//    public static String getString(char[] buf) throws Exception {
 //        if (stringToChars == null) {
-//            return new String(buffers);
+//            return new String(buf);
 //        }
-//        String result = new String();
-//        stringToChars.set(result, buffers);
-//        return result;
+//        try {
+//            String result = new String();
+//            if (stringValueOffset > -1) {
+//                UnsafeHelper.putObjectValue(result, stringValueOffset, buf);
+//                return result;
+//            }
+//            stringToChars.set(result, buf);
+//            return result;
+//        } catch (IllegalAccessException e) {
+//            throw new JSONException(e);
+//        }
 //    }
 
     /***

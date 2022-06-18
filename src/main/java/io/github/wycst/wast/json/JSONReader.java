@@ -76,7 +76,7 @@ import java.util.*;
  * @see JSONReader#JSONReader(Reader)
  * @see JSON
  * @see JSONNode
- * @see JSONWriter
+ * @see JSONStringWriter
  */
 public final class JSONReader extends JSONGeneral {
 

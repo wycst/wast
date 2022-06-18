@@ -1,6 +1,10 @@
 package io.github.wycst.wast.yaml;
 
 
+import java.io.IOException;
+import java.io.Writer;
+import java.util.Arrays;
+
 /**
  * 非空行结构信息
  *
@@ -76,6 +80,11 @@ class YamlLine extends YamlGeneral {
     protected boolean textBlock;
 
     /**
+     * 文本块类型
+     */
+    public int blockType;
+
+    /**
      * 是否数组token '-'
      */
     protected boolean arrayToken;
@@ -93,5 +102,71 @@ class YamlLine extends YamlGeneral {
     /**
      * 数组索引
      */
-    protected int arrayIndex;
+    protected int arrayIndex = -1;
+
+    protected void writeTypeToken(Writer writer) throws IOException {
+        if (valueType > 0) {
+            switch (valueType) {
+                case 1:
+//                    writer.write("!!str ");
+                    break;
+                case 2:
+                    writer.write("!!float ");
+                    break;
+                case 3:
+                    writer.write("!!int ");
+                    break;
+                case 4:
+                    writer.write("!!bool ");
+                    break;
+                case 5:
+                    writer.write("!!binary ");
+                    break;
+                case 6:
+                    writer.write("!!timestamp ");
+                    break;
+                case 7:
+                    writer.write("!!set ");
+                    break;
+                case 8:
+                    writer.write("!!omap ");
+                    break;
+                case 9:
+                    writer.write("!!seq ");
+                    break;
+                default:
+                    writer.write("!!map ");
+            }
+        }
+    }
+
+    protected void writeBlockToken(Writer writer) throws IOException {
+        writer.write("|");
+        if (blockType == 1) {
+            writer.write("+");
+        } else if (blockType == 2) {
+            writer.write("-");
+        }
+    }
+
+    protected void writeArrayToken(Writer writer) throws IOException {
+        if (arrayIndex > -1) {
+//            writeIndent(writer, indent - 2);
+            writer.write("- ");
+        }
+    }
+
+    protected void writeNewLine(Writer writer) throws IOException {
+        writer.write(IS_WINDOW_OS ? "\r\n" : "\n");
+    }
+
+    protected void writeIndent(Writer writer) throws IOException {
+        writeIndent(writer, indent);
+    }
+
+    protected void writeIndent(Writer writer, int indent) throws IOException {
+        char[] indents = new char[indent];
+        Arrays.fill(indents, ' ');
+        writer.write(indents);
+    }
 }

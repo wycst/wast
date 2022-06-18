@@ -90,7 +90,7 @@ import java.util.*;
  * @see JSONNode#toDate(Class, String)
  * @see JSON
  * @see JSONReader
- * @see JSONWriter
+ * @see JSONStringWriter
  */
 public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> {
 

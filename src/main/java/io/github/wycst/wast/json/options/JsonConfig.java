@@ -8,17 +8,17 @@ public class JsonConfig {
     /**
      * 格式化输出
      */
-    private boolean writeOptionFormatOut;
+    private boolean formatOut;
 
     /**
      * 输出全属性
      */
-    private boolean writeOptionFullProperty;
+    private boolean fullProperty;
 
     /**
      * 以yyyy-MM-dd HH:mm:ss 格式化日期对象
      */
-    private boolean writeOptionDateFormat;
+    private boolean dateFormat;
 
     /**
      * 是否序列化日期为时间戳
@@ -26,9 +26,14 @@ public class JsonConfig {
     private boolean writeDateAsTime;
 
     /**
+     * 是否序列化日期为时间戳
+     */
+    private boolean writeEnumAsOrdinal;
+
+    /**
      * 跳过循环序列化
      */
-    private boolean writeOptionSkipCircularReference;
+    private boolean skipCircularReference;
 
     /**
      * 日期格式默认： yyyy-MM-dd HH:mm:ss
@@ -39,17 +44,17 @@ public class JsonConfig {
      * 是否将byte[]数组按数组序列化
      * Serialize byte [] array to Base64
      */
-    private boolean writeOptionBytesArrayToNative;
+    private boolean bytesArrayToNative;
 
     /**
      * 是否将byte[]数组序列化为16进制字符串
      */
-    private boolean writeOptionBytesArrayToHex;
+    private boolean bytesArrayToHex;
 
     /**
      * 禁用转义符检查
      */
-    private boolean writeOptionDisableEscapeValidate;
+    private boolean disableEscapeValidate;
 
     /**
      * 跳过没有属性Field的getter方法序列化
@@ -81,7 +86,6 @@ public class JsonConfig {
      */
     private String timezone;
 
-    private Map<Integer, Integer> hashCodeStatus = new HashMap<Integer, Integer>();
     private static ThreadLocal<Map<Integer, Integer>> identityHashCodes = new ThreadLocal<Map<Integer, Integer>>();
 
     public JsonConfig() {
@@ -90,30 +94,6 @@ public class JsonConfig {
 
     public JsonConfig(WriteOption[] writeOptions) {
         Options.writeOptions(writeOptions, this);
-    }
-
-    public boolean isWriteOptionFormatOut() {
-        return writeOptionFormatOut;
-    }
-
-    public void setWriteOptionFormatOut(boolean writeOptionFormatOut) {
-        this.writeOptionFormatOut = writeOptionFormatOut;
-    }
-
-    public boolean isWriteOptionFullProperty() {
-        return writeOptionFullProperty;
-    }
-
-    public void setWriteOptionFullProperty(boolean writeOptionFullProperty) {
-        this.writeOptionFullProperty = writeOptionFullProperty;
-    }
-
-    public boolean isWriteOptionDateFormat() {
-        return writeOptionDateFormat;
-    }
-
-    public void setWriteOptionDateFormat(boolean writeOptionDateFormat) {
-        this.writeOptionDateFormat = writeOptionDateFormat;
     }
 
     public boolean isWriteDateAsTime() {
@@ -140,36 +120,60 @@ public class JsonConfig {
         this.timezone = timezone;
     }
 
-    public boolean isWriteOptionSkipCircularReference() {
-        return writeOptionSkipCircularReference;
+    public boolean isSkipCircularReference() {
+        return skipCircularReference;
     }
 
-    public void setWriteOptionSkipCircularReference(boolean writeOptionSkipCircularReference) {
-        this.writeOptionSkipCircularReference = writeOptionSkipCircularReference;
+    public void setSkipCircularReference(boolean skipCircularReference) {
+        this.skipCircularReference = skipCircularReference;
     }
 
-    public boolean isWriteOptionBytesArrayToNative() {
-        return writeOptionBytesArrayToNative;
+    public boolean isBytesArrayToNative() {
+        return bytesArrayToNative;
     }
 
-    public void setWriteOptionBytesArrayToNative(boolean writeOptionBytesArrayToNative) {
-        this.writeOptionBytesArrayToNative = writeOptionBytesArrayToNative;
+    public void setBytesArrayToNative(boolean bytesArrayToNative) {
+        this.bytesArrayToNative = bytesArrayToNative;
     }
 
-    public boolean isWriteOptionBytesArrayToHex() {
-        return writeOptionBytesArrayToHex;
+    public boolean isFormatOut() {
+        return formatOut;
     }
 
-    public void setWriteOptionBytesArrayToHex(boolean writeOptionBytesArrayToHex) {
-        this.writeOptionBytesArrayToHex = writeOptionBytesArrayToHex;
+    public void setFormatOut(boolean formatOut) {
+        this.formatOut = formatOut;
     }
 
-    public boolean isWriteOptionDisableEscapeValidate() {
-        return writeOptionDisableEscapeValidate;
+    public boolean isFullProperty() {
+        return fullProperty;
     }
 
-    public void setWriteOptionDisableEscapeValidate(boolean writeOptionDisableEscapeValidate) {
-        this.writeOptionDisableEscapeValidate = writeOptionDisableEscapeValidate;
+    public void setFullProperty(boolean fullProperty) {
+        this.fullProperty = fullProperty;
+    }
+
+    public boolean isDateFormat() {
+        return dateFormat;
+    }
+
+    public void setDateFormat(boolean dateFormat) {
+        this.dateFormat = dateFormat;
+    }
+
+    public boolean isBytesArrayToHex() {
+        return bytesArrayToHex;
+    }
+
+    public void setBytesArrayToHex(boolean bytesArrayToHex) {
+        this.bytesArrayToHex = bytesArrayToHex;
+    }
+
+    public boolean isDisableEscapeValidate() {
+        return disableEscapeValidate;
+    }
+
+    public void setDisableEscapeValidate(boolean disableEscapeValidate) {
+        this.disableEscapeValidate = disableEscapeValidate;
     }
 
     public boolean isSkipGetterOfNoneField() {
@@ -212,8 +216,16 @@ public class JsonConfig {
         this.camelCaseToUnderline = camelCaseToUnderline;
     }
 
+    public boolean isWriteEnumAsOrdinal() {
+        return writeEnumAsOrdinal;
+    }
+
+    public void setWriteEnumAsOrdinal(boolean writeEnumAsOrdinal) {
+        this.writeEnumAsOrdinal = writeEnumAsOrdinal;
+    }
+
     public void setStatus(int hashcode, int status) {
-        if (writeOptionSkipCircularReference) {
+        if (skipCircularReference) {
             Map<Integer, Integer> hashCodeStatus = getOrSetIdentityHashCodes();
             hashCodeStatus.put(hashcode, status);
         }
@@ -222,8 +234,8 @@ public class JsonConfig {
     private Map<Integer, Integer> getOrSetIdentityHashCodes() {
         Map<Integer, Integer> hashCodeStatus = identityHashCodes.get();
         if (hashCodeStatus == null) {
-            identityHashCodes.set(this.hashCodeStatus);
-            hashCodeStatus = this.hashCodeStatus;
+            hashCodeStatus = new HashMap<Integer, Integer>();
+            identityHashCodes.set(hashCodeStatus);
         }
         return hashCodeStatus;
     }
@@ -238,8 +250,6 @@ public class JsonConfig {
 
     public void clear() {
         identityHashCodes.remove();
-        hashCodeStatus.clear();
-        hashCodeStatus = null;
     }
 
 }

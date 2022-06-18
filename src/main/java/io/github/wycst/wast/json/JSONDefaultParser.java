@@ -137,6 +137,13 @@ class JSONDefaultParser extends JSONGeneral {
                 i++;
             }
 
+            // clear comment and whiteSpaces
+            if (jsonParseContext.isAllowComment()) {
+                if (ch == '/') {
+                    ch = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext)];
+                }
+            }
+
             // for simple element parse
             int simpleFromIndex = i, simpleToIndex = -1;
 
@@ -151,9 +158,6 @@ class JSONDefaultParser extends JSONGeneral {
                 jsonParseContext.setEndIndex(i);
                 return list;
             }
-            // 是否简单元素如null, true or false or numeric or string
-            // (is simple elements such as null, true or false or numeric or string)
-            boolean isSimpleElement = false;
             Object value;
 
             switch (ch) {
@@ -181,7 +185,7 @@ class JSONDefaultParser extends JSONGeneral {
                 }
                 default: {
                     // 简单元素（Simple element）
-                    isSimpleElement = true;
+                    // (simple elements such as null, true or false or numeric )
                     while (i + 1 < toIndex) {
                         ch = buf[i + 1];
                         if (ch == ',' || ch == ']') {
@@ -189,23 +193,31 @@ class JSONDefaultParser extends JSONGeneral {
                         }
                         i++;
                     }
+
+                    if(i == toIndex - 1) {
+                        String errorContextTextAt = createErrorContextText(buf, i);
+                        throw new JSONException("Syntax error, util pos " + i + ", context text by '" + errorContextTextAt + "', token ',' or ']' not found ");
+                    }
+
+                    Serializable simpleValue = (Serializable) parseSimpleValue(simpleFromIndex, i + 1, buf, jsonParseContext);
+                    list.add(simpleValue);
                 }
             }
 
             // 清除空白字符（clear white space characters）
             while ((ch = buf[++i]) <= ' ') ;
-            if (simpleToIndex == -1) {
-                simpleToIndex = i;
+
+            // clear comment and whiteSpaces
+            if (jsonParseContext.isAllowComment()) {
+                if (ch == '/') {
+                    ch = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext)];
+                }
             }
 
             // 检查下一个字符是逗号还是结束符号。如果是，继续或者终止。如果不是，则抛出异常
             // （Check whether the next character is a comma or end symbol. If yes, continue or return . If not, throw an exception）
             boolean isEnd = ch == ']';
             if (ch == ',' || isEnd) {
-                if (isSimpleElement) {
-                    Serializable simpleValue = (Serializable) parseSimpleValue(simpleFromIndex, simpleToIndex, buf, jsonParseContext);
-                    list.add(simpleValue);
-                }
                 if (isEnd) {
                     jsonParseContext.setEndIndex(i);
                     return list;
@@ -221,7 +233,7 @@ class JSONDefaultParser extends JSONGeneral {
         Map<String, Object> instance = new LinkedHashMap<String, Object>();
 
         int beginIndex = fromIndex + 1;
-        char ch = '\0';
+        char ch;
         String key;
 
         boolean empty = true;
@@ -232,6 +244,14 @@ class JSONDefaultParser extends JSONGeneral {
             while ((ch = buf[i]) <= ' ') {
                 i++;
             }
+
+            // clear comment and whiteSpaces
+            if (jsonParseContext.isAllowComment()) {
+                if (ch == '/') {
+                    ch = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext)];
+                }
+            }
+
             int fieldKeyFrom = i, fieldKeyTo, splitIndex, simpleToIndex = -1;
             // Standard JSON field name with "
             if (ch == '"') {
@@ -274,22 +294,33 @@ class JSONDefaultParser extends JSONGeneral {
             // 清除注释前记录属性字段的token结束位置
             fieldKeyTo = i;
 
+            // clear comment and whiteSpaces
+            if (jsonParseContext.isAllowComment()) {
+                if (ch == '/') {
+                    ch = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext)];
+                }
+            }
+
             // Standard JSON rules:
             // 1 if matched, it can only be followed by a colon, and all other symbols are wrong
             // 2 after the attribute value is parsed, it can only be followed by a comma(,) or end, and other symbols are wrong
             if (ch == ':') {
                 // Resolve key value pairs
-                key = parseFieldKey(fieldKeyFrom, fieldKeyTo, buf);
+                key = parseKeyOfMap(fieldKeyFrom, fieldKeyTo, buf);
                 // 清除空白字符（clear white space characters）
                 while ((ch = buf[++i]) <= ' ') ;
 
-                // 分割符位置,SimpleMode
+                // clear comment and whiteSpaces
+                if (jsonParseContext.isAllowComment()) {
+                    if (ch == '/') {
+                        ch = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext)];
+                    }
+                }
+
+                // i为冒号后面第一个非空字符位置，分割符位置,SimpleMode
                 splitIndex = i - 1;
 
-                // 空，布尔值，数字，或者字符串 （ null, true or false or numeric or string）
-                boolean isSimpleValue = false;
-                Object value = null;
-
+                Object value;
                 switch (ch) {
                     case '{': {
                         value = parseJSONObject(i, toIndex, buf, jsonParseContext);
@@ -313,8 +344,7 @@ class JSONDefaultParser extends JSONGeneral {
                         break;
                     }
                     default: {
-                        isSimpleValue = true;
-                        // 4 null, true or false or numeric
+                        // 空，布尔值，数字，或者字符串 （ null, true or false or numeric ）
                         // Find comma(,) or closing symbol(})
                         while (i + 1 < toIndex) {
                             ch = buf[i + 1];
@@ -323,23 +353,32 @@ class JSONDefaultParser extends JSONGeneral {
                             }
                             i++;
                         }
+
+                        if(i == toIndex - 1) {
+                            // 越界
+                            String errorContextTextAt = createErrorContextText(buf, i);
+                            throw new JSONException("Syntax error, util pos " + i + ", context text by '" + errorContextTextAt + "', token ',' or '}' not found ");
+                        }
+
                         // Check whether post comments are appended
+                        value = parseSimpleValue(splitIndex + 1, i + 1, buf, jsonParseContext);
+                        instance.put(key, value);
                     }
                 }
 
                 // clear white space characters
-                while ((ch = buf[++i]) <= ' ') ;
-                if (simpleToIndex == -1) {
-                    simpleToIndex = i;
+                while ((ch = buf[++i]) <= ' ');
+
+                // clear comment and whiteSpaces
+                if (jsonParseContext.isAllowComment()) {
+                    if (ch == '/') {
+                        ch = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext)];
+                    }
                 }
 
                 // Check whether the next character is a comma or end symbol '}'. If yes, continue or break. If not, throw an exception
                 boolean isClosingSymbol = ch == '}';
                 if (ch == ',' || isClosingSymbol) {
-                    if (isSimpleValue) {
-                        value = parseSimpleValue(splitIndex + 1, simpleToIndex, buf, jsonParseContext);
-                        instance.put(key, value);
-                    }
                     if (isClosingSymbol) {
                         jsonParseContext.setEndIndex(i);
                         return instance;
@@ -360,7 +399,7 @@ class JSONDefaultParser extends JSONGeneral {
         int i = beginIndex;
         int len;
 
-        JSONWriter writer = null;
+        JSONStringWriter writer = null;
         boolean escape = false;
 
         for (; i < toIndex; i++) {
@@ -466,31 +505,31 @@ class JSONDefaultParser extends JSONGeneral {
 
         int len = toIndex - fromIndex;
         switch (beginChar) {
-            case '"':
-                // 读取项设置禁用转义会出现，endChar一定是\”不用判断
-                return new String(buf, fromIndex + 1, len - 2);
+//            case '"':
+//                // 读取项设置禁用转义会出现，endChar一定是\”不用判断
+//                return new String(buf, fromIndex + 1, len - 2);
             case 't':
-                if (buf[fromIndex + 1] == 'r'
+                if (len == 4 && buf[fromIndex + 1] == 'r'
                         && buf[fromIndex + 2] == 'u'
                         && endChar == 'e') {
                     return true;
                 }
-                throw new JSONException("Syntax error, offset pos " + fromIndex + ", 't' is unexpected");
+                throw new JSONException("Syntax error, at pos " + fromIndex + ", expected 'true' because it starts with 't', but found text '" + new String(buf, fromIndex, Math.min(len, 4)) + "'");
             case 'f':
-                if (buf[fromIndex + 1] == 'a'
+                if (len == 5 && buf[fromIndex + 1] == 'a'
                         && buf[fromIndex + 2] == 'l'
                         && buf[fromIndex + 3] == 's'
                         && endChar == 'e') {
                     return false;
                 }
-                throw new JSONException("Syntax error, offset pos " + fromIndex + ", 'f' is unexpected");
+                throw new JSONException("Syntax error, at pos " + fromIndex + ", expected 'false' because it starts with 'f', but found text '" + new String(buf, fromIndex, Math.min(len, 5)) + "'");
             case 'n':
-                if (buf[fromIndex + 1] == 'u'
+                if (len == 4 && buf[fromIndex + 1] == 'u'
                         && buf[fromIndex + 2] == 'l'
                         && endChar == 'l') {
                     return null;
                 }
-                throw new JSONException("Syntax error, offset pos " + fromIndex + ", 'n' is unexpected");
+                throw new JSONException("Syntax error, at pos " + fromIndex + ", expected 'null' because it starts with 'n', but found text '" + new String(buf, fromIndex, Math.min(len, 4)) + "'");
             default:
                 return parseNumber(buf, fromIndex, toIndex, jsonParseContext.isUseBigDecimalAsDefault());
         }
@@ -503,7 +542,7 @@ class JSONDefaultParser extends JSONGeneral {
      * @param buf
      * @return
      */
-    private static String parseFieldKey(int from, int to, char[] buf) {
+    private static String parseKeyOfMap(int from, int to, char[] buf) {
         char start = '"';
         while ((from < to) && ((start = buf[from]) <= ' ')) {
             from++;
@@ -518,6 +557,4 @@ class JSONDefaultParser extends JSONGeneral {
         }
         return new String(buf, from, to - from);
     }
-
-
 }
