@@ -285,7 +285,16 @@ public final class GenericParameterizedType<T> {
             // 数组类型
             GenericArrayType genericArrayType = (GenericArrayType) genericType;
             Type genericComponentType = genericArrayType.getGenericComponentType();
-            genericParameterizedType.valueType = genericArrayType(genericComponentType);
+
+            // jdk6 char[]等基础数据的genericType依然是Type(数组加componentType)
+            // jdk7+ char[]等基础数据的enericType已经是一个数组类型(char[].class)
+            ReflectConsts.PrimitiveType primitiveType;
+            // jdk1.6 兼容处理
+            if(genericComponentType instanceof Class && (primitiveType = ReflectConsts.PrimitiveType.typeOf((Class)genericComponentType)) != null) {
+                genericParameterizedType.valueType = actualType(primitiveType.getGenericArrayType());
+            } else {
+                genericParameterizedType.valueType = genericArrayType(genericComponentType);
+            }
         } else if (genericType instanceof ParameterizedType) {
             // 两级泛型时如： List<Map<String,Object>>
             ParameterizedType ptType = (ParameterizedType) genericType;

@@ -282,6 +282,27 @@ public class ReflectConsts {
             }
             return null;
         }
+
+        public Class getGenericArrayType() {
+            switch (this) {
+                case Byte:
+                    return byte[].class;
+                case Short:
+                    return short[].class;
+                case Int:
+                    return int[].class;
+                case Float:
+                    return float[].class;
+                case Long:
+                    return long[].class;
+                case Double:
+                    return double[].class;
+                case Boolean:
+                    return boolean[].class;
+                default:
+                    return char[].class;
+            }
+        }
     }
 
 }
