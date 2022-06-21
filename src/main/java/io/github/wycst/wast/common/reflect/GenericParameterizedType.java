@@ -254,7 +254,7 @@ public final class GenericParameterizedType<T> {
         GenericParameterizedType genericParameterizedType = new GenericParameterizedType();
         genericParameterizedType.actualType = parameterType;
         genericParameterizedType.generic = true;
-        genericParameterizedType.mapKeyClass = key instanceof WildcardType ? Object.class : (Class<?>) key;
+        genericParameterizedType.mapKeyClass = (key instanceof WildcardType || !(key instanceof Class<?>)) ? Object.class : (Class<?>) key;
 
         parseValueType(genericParameterizedType, value);
         return genericParameterizedType;

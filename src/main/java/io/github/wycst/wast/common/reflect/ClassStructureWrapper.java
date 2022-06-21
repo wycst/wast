@@ -248,7 +248,7 @@ public final class ClassStructureWrapper {
 
                     boolean startsWithGet;
                     boolean isVoid = returnType == void.class;
-                    if (parameterTypes.length == 0 && (startsWithGet = methodName.startsWith("get") || methodName.startsWith("is"))
+                    if (parameterTypes.length == 0 && ((startsWithGet = methodName.startsWith("get")) || methodName.startsWith("is"))
                             && !isVoid) {
                         int startIndex = startsWithGet ? 3 : 2;
                         if (methodName.length() == startIndex)

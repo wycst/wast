@@ -68,6 +68,24 @@ public class SetterInfo {
      */
     private boolean fieldAgent;
 
+    // 分类
+    private ReflectConsts.ClassCategory classCategory;
+
+    /**
+     * 获取Getter类型分类
+     */
+    public ReflectConsts.ClassCategory getClassCategory() {
+        if (classCategory != null) {
+            return classCategory;
+        }
+        if (fieldOffset > -1) {
+            // field
+            return classCategory = ReflectConsts.getClassCategory(field.getType());
+        }
+        // getter method
+        return classCategory = ReflectConsts.getClassCategory(parameterType);
+    }
+
     /**
      * 反射设置
      */
