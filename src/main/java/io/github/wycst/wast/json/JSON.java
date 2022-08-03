@@ -151,7 +151,7 @@ public final class JSON extends JSONGeneral {
      * @param <T>         泛型
      * @return 类型对象
      */
-    public static <T> T parseObject(char[] buf, Class<T> actualType, ReadOption... readOptions) {
+    public static <T> T parseObject(char[] buf, final Class<T> actualType, ReadOption... readOptions) {
         return (T) deserialize(buf, new Deserializer() {
 
             Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
@@ -216,7 +216,7 @@ public final class JSON extends JSONGeneral {
      * @param <T>                      泛型类型
      * @return 对象或者数组
      */
-    public static <T> T parse(char[] buf, GenericParameterizedType<T> genericParameterizedType, ReadOption... readOptions) {
+    public static <T> T parse(char[] buf, final GenericParameterizedType<T> genericParameterizedType, ReadOption... readOptions) {
         return (T) deserialize(buf, new Deserializer() {
 
             Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
@@ -248,7 +248,7 @@ public final class JSON extends JSONGeneral {
      * @param <T>         泛型
      * @return
      */
-    public static <T> List<T> parseArray(char[] buf, Class<T> actualType, ReadOption... readOptions) {
+    public static <T> List<T> parseArray(char[] buf, final Class<T> actualType, ReadOption... readOptions) {
         return (List<T>) deserialize(buf, new Deserializer() {
             Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
                 return JSONTypeDeserializer.COLLECTION.deserialize(buf, fromIndex, toIndex, GenericParameterizedType.collectionType(ArrayList.class, actualType), null, '\0', jsonParseContext);
@@ -277,7 +277,7 @@ public final class JSON extends JSONGeneral {
      * @param readOptions  读取配置
      * @return 对象
      */
-    private static Object parse(char[] buf, Class<?> actualType, Object defaultValue, ReadOption... readOptions) {
+    private static Object parse(char[] buf, final Class<?> actualType, final Object defaultValue, ReadOption... readOptions) {
         return deserialize(buf, new Deserializer() {
 
             Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
@@ -306,7 +306,7 @@ public final class JSON extends JSONGeneral {
      * @param readOptions 解析配置项
      * @return instance 对象
      */
-    public static Object parseToObject(String json, Object instance, ReadOption... readOptions) {
+    public static Object parseToObject(String json, final Object instance, ReadOption... readOptions) {
         if (instance == null || json == null) {
             return null;
         }
@@ -331,7 +331,7 @@ public final class JSON extends JSONGeneral {
      * @param <E>         泛型
      * @return 集合
      */
-    public static <E> Object parseToList(String json, Collection instance, Class<E> actualType, ReadOption... readOptions) {
+    public static <E> Object parseToList(String json, final Collection instance, final Class<E> actualType, ReadOption... readOptions) {
         if (instance == null || json == null) {
             return null;
         }

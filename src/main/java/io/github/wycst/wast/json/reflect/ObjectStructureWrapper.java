@@ -99,7 +99,7 @@ public class ObjectStructureWrapper {
             }
         }
 
-        AtomicBoolean atomicBoolean = new AtomicBoolean();
+        final AtomicBoolean atomicBoolean = new AtomicBoolean();
         Collections.sort(fieldDeserializers, new Comparator<FieldDeserializer>() {
             @Override
             public int compare(FieldDeserializer o1, FieldDeserializer o2) {
