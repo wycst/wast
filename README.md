@@ -12,20 +12,20 @@
 <dependency>
     <groupId>io.github.wycst</groupId>
     <artifactId>wast</artifactId>
-    <version>0.0.4</version>
+    <version>0.0.5</version>
 </dependency>
 ```
 
 ## Groovy
 
 ```
-implementation 'io.github.wycst:wast:0.0.4'
+implementation 'io.github.wycst:wast:0.0.5'
 ```
 
 ## Kotlin
 
 ```
-implementation("io.github.wycst:wast:0.0.4")
+implementation("io.github.wycst:wast:0.0.5")
 ```
 
 ## json模块
@@ -33,7 +33,7 @@ implementation("io.github.wycst:wast:0.0.4")
 > 1 java语言整体性能最快的json库之一；<br>
 > 2 功能全面，支持IO流文件读写，JSON节点树按需解析， 局部解析，序列化格式化，驼峰下划线自动转换；<br>
 > 3 源码实现简单易懂，阅读调试都很容易；<br>
-> 4 基本上无缓存，内存占用少，不会内存溢出；<br>
+> 4 基本上无缓存，内存占用少；<br>
 > 5 代码轻量，使用安全，没有漏洞风险；<br>
 > 6 兼容jdk1.6+；
 

@@ -1,25 +1,22 @@
 package io.github.wycst.wast.json;
 
+import io.github.wycst.wast.common.beans.DateTemplate;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
-import io.github.wycst.wast.json.annotations.JsonDeserialize;
-import io.github.wycst.wast.json.annotations.JsonSerialize;
-import io.github.wycst.wast.json.custom.JsonDeserializer;
-import io.github.wycst.wast.json.custom.JsonSerializer;
+import io.github.wycst.wast.common.utils.NumberUtils;
 import io.github.wycst.wast.json.exceptions.JSONException;
 import io.github.wycst.wast.json.options.JSONParseContext;
+import io.github.wycst.wast.json.options.Options;
 import io.github.wycst.wast.json.options.ReadOption;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Writer;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.sql.Time;
-import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @Author wangyunchao
@@ -45,20 +42,43 @@ class JSONGeneral {
             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
     };
 
+    final static char[] DigitOnes = {
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+    };
+
+    final static char[] DigitTens = {
+            '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
+            '1', '1', '1', '1', '1', '1', '1', '1', '1', '1',
+            '2', '2', '2', '2', '2', '2', '2', '2', '2', '2',
+            '3', '3', '3', '3', '3', '3', '3', '3', '3', '3',
+            '4', '4', '4', '4', '4', '4', '4', '4', '4', '4',
+            '5', '5', '5', '5', '5', '5', '5', '5', '5', '5',
+            '6', '6', '6', '6', '6', '6', '6', '6', '6', '6',
+            '7', '7', '7', '7', '7', '7', '7', '7', '7', '7',
+            '8', '8', '8', '8', '8', '8', '8', '8', '8', '8',
+            '9', '9', '9', '9', '9', '9', '9', '9', '9', '9',
+    };
+
+    // Double.MAX_VALUE 1.7976931348623157e+308
+    final static double[] PositiveDecimalPower = new double[310];
+
     protected final static int DIRECT_READ_BUFFER_SIZE = 8192;
 
     // 时间钟加入缓存
-    protected final static Map<String, TimeZone> GMT_TIME_ZONE_MAP = new HashMap<String, TimeZone>();
-
+    protected final static Map<String, TimeZone> GMT_TIME_ZONE_MAP = new ConcurrentHashMap<String, TimeZone>();
 
     public static String toEscapeString(int ch) {
         return String.format("\\u%04x", ch);
     }
-
-    // 序列化单例缓存
-    private final static Map<Class<? extends JsonSerializer>, JsonSerializer> serializers = new HashMap<Class<? extends JsonSerializer>, JsonSerializer>();
-    // 反序列化单例缓存
-    private final static Map<Class<? extends JsonDeserializer>, JsonDeserializer> deserializers = new HashMap<Class<? extends JsonDeserializer>, JsonDeserializer>();
 
     static {
         for (int i = 0; i < escapes.length; i++) {
@@ -110,6 +130,11 @@ class JSONGeneral {
             FORMAT_DIGITS[i] = new char[]{'0', Character.forDigit(i, 10)};
         }
 
+        // e0 ~ e360(e306)
+        for (int i = 0, len = PositiveDecimalPower.length; i < len; i++) {
+            PositiveDecimalPower[i] = Math.pow(10, i);
+        }
+
         String[] availableIDs = TimeZone.getAvailableIDs();
         for (String availableID : availableIDs) {
             GMT_TIME_ZONE_MAP.put(availableID, TimeZone.getTimeZone(availableID));
@@ -124,214 +149,239 @@ class JSONGeneral {
         GMT_TIME_ZONE_MAP.put("GMT+08:00", timeZone);
     }
 
-    /***
-     * 以10进制解析double数
-     * 一般与Double.parseDouble(String)的结果一致（a.b{n}当n的值不大于15时）
-     * 当小数位数n超过15位（double精度）时有几率和Double.parseDouble(String)的结果存在误差
+    protected double getDecimalPowerValue(int expValue) {
+        if (expValue < PositiveDecimalPower.length) {
+            return PositiveDecimalPower[expValue];
+        }
+        return Math.pow(10, expValue);
+    }
+
+    /**
+     * 转化为4位int数字
      *
-     * <p> 性能大约是Double.parseDouble的2-3+倍,
-     * <p> 此解析代码无任何依赖，感兴趣的可以将代码摘出去测试。
+     * @param buf
+     * @param fromIndex
+     * @return
+     */
+    protected final static int parseInt4(char[] buf, int fromIndex)
+            throws NumberFormatException {
+        return NumberUtils.parseInt4(buf, fromIndex);
+    }
+
+    /**
+     * n 位数字（ 0 < n < 5）
      *
-     * @param chars
+     * @param buf
+     * @param fromIndex
+     * @param n
+     * @return
+     * @throws NumberFormatException
+     */
+    protected final static int parseIntWithin5(char[] buf, int fromIndex, int n)
+            throws NumberFormatException {
+        return NumberUtils.parseIntWithin5(buf, fromIndex, n);
+    }
+
+    /**
+     * escape next
+     *
+     * @param buf
+     * @param next
+     * @param i
      * @param beginIndex
-     * @param endIndex
-     * @return
-     *
-     * <p>
-     * 注：小数点后超过15位会精度丢失,比如以下两个字符串使用Double.parseDouble解析的值是相等的
-     * 113.232310000033344343323323231313311111
-     * 113.232310000033344343323323231313311
-     *
-     * @author wangyunchao
-     * @see Double#parseDouble(String)
-     */
-    protected static double parseDouble(char[] chars, int beginIndex, int endIndex) {
-        int i = beginIndex, len = endIndex - beginIndex;
-        // 考虑到精度问题，实际指数值 = E指数值 - 小数点的位数
-        double value = 0;
-        // 10进制, 如果要支持16进制解析，需要判断是否以0x开头，然后将radix重置为16
-        // 但16进制的一般出现在整型场景下，这里只做浮点数的解析暂时不做处理
-        int radix = 10;
-        // 小数位数
-        int decimalCount = 0;
-        char ch = chars[beginIndex];
-        boolean negative = false;
-        // 负数
-        if (ch == '-') {
-            // 检查第一个字符是否为符号位
-            negative = true;
-            i++;
-        }
-        // 模式
-        int mode = 0;
-        // 指数值（以radix为底数）
-        int expValue = 0;
-        boolean expNegative = false;
-        for (; i < endIndex; i++) {
-            ch = chars[i];
-            if (ch == '.') {
-                if (mode != 0) {
-                    throw new NumberFormatException("For input string: \"" + new String(chars, beginIndex, len) + "\"");
-                }
-                // 小数点模式
-                mode = 1;
-                if (++i < endIndex) {
-                    ch = chars[i];
-                }
-            } else if (ch == 'E') {
-                if (mode == 2) {
-                    throw new NumberFormatException("For input string: \"" + new String(chars, beginIndex, len) + "\"");
-                }
-                // 科学计数法
-                mode = 2;
-                if (++i < endIndex) {
-                    ch = chars[i];
-                }
-                if (ch == '-') {
-                    expNegative = true;
-                    if (++i < endIndex) {
-                        ch = chars[i];
-                    }
-                }
-            }
-            int digit = Character.digit(ch, radix);
-            if (digit == -1) {
-                if ((ch != 'd' && ch != 'D') || i < endIndex - 1) {
-                    throw new NumberFormatException("For input string: \"" + new String(chars, beginIndex, len) + "\"");
-                }
-            }
-            switch (mode) {
-                case 0:
-                    value *= radix;
-                    value += digit;
-                    break;
-                case 1:
-                    value *= radix;
-                    value += digit;
-                    decimalCount++;
-                    break;
-                case 2:
-                    expValue *= 10;
-                    expValue += digit;
-                    break;
-            }
-        }
-        expValue = expNegative ? -expValue - decimalCount : expValue - decimalCount;
-//        double powValue = Math.pow(radix, expValue);
-//        value *= powValue;
-        if (expValue > 0) {
-            double powValue = Math.pow(radix, expValue);
-            value *= powValue;
-        } else if (expValue < 0) {
-            double powValue = Math.pow(radix, -expValue);
-            value /= powValue;
-        }
-        return negative ? -value : value;
-    }
-
-    /**
-     * 转化为int数字
-     *
-     * @param buffers
-     * @param fromIndex
-     * @param toIndex
+     * @param writer
+     * @param jsonParseContext
      * @return
      */
-    protected final static int parseInt(char[] buffers, int fromIndex, int toIndex)
-            throws NumberFormatException {
-        return parseInt(buffers, fromIndex, toIndex, 10);
-    }
-
-    /**
-     * 转化为int数字
-     *
-     * @param buffers
-     * @param fromIndex
-     * @param toIndex
-     * @return
-     */
-    protected final static int parseInt(char[] buffers, int fromIndex, int toIndex, int radix)
-            throws NumberFormatException {
-        try {
-            return doParseInt(buffers, fromIndex, toIndex, radix);
-        } catch (Throwable throwable) {
-            String str = new String(buffers, fromIndex, toIndex - fromIndex);
-            throw new NumberFormatException("For input string: \"" + str + "\"");
-        }
-    }
-
-    /**
-     * 转化为long数字
-     *
-     * @param buffers
-     * @param fromIndex
-     * @param toIndex
-     * @return
-     */
-    protected final static long parseLong(char[] buffers, int fromIndex, int toIndex) {
-        return parseLong(buffers, fromIndex, toIndex, 10);
-    }
-
-    /**
-     * 转化为long数字
-     *
-     * @param buffers
-     * @param fromIndex
-     * @param toIndex
-     * @return
-     */
-    protected final static long parseLong(char[] buffers, int fromIndex, int toIndex, int radix) {
-        try {
-            return doParseLong(buffers, fromIndex, toIndex, radix);
-        } catch (Throwable throwable) {
-            String str = new String(buffers, fromIndex, toIndex - fromIndex);
-            throw new NumberFormatException("For input string: \"" + str + "\"");
-        }
-    }
-
-    protected static Number parseNumber(char[] buffers, int fromIndex, int toIndex, boolean useBigDecimal) {
-        if (useBigDecimal) {
-            return new BigDecimal(buffers, fromIndex, toIndex - fromIndex);
-        }
-        int ch;
-        boolean useDoubleParse = false;
-        for (int i = fromIndex; i < toIndex; i++) {
-            ch = buffers[i];
-            if (ch == '.' || ch == 'E') {
-//                dotIndex = i;
-                useDoubleParse = true;
+    protected final static int escapeNext(char[] buf, char next, int i, int beginIndex, JSONStringWriter writer, JSONParseContext jsonParseContext) {
+        int len;
+        switch (next) {
+            case '\'':
+            case '"':
+                if (i > beginIndex) {
+                    writer.write(buf, beginIndex, i - beginIndex + 1);
+                    writer.setCharAt(writer.size() - 1, next);
+                } else {
+                    writer.append(next);
+                }
+                beginIndex = ++i + 1;
                 break;
+            case 'n':
+                len = i - beginIndex;
+                writer.write(buf, beginIndex, len + 1);
+                writer.setCharAt(writer.size() - 1, '\n');
+                beginIndex = ++i + 1;
+                break;
+            case 'r':
+                len = i - beginIndex;
+                writer.write(buf, beginIndex, len + 1);
+                writer.setCharAt(writer.size() - 1, '\r');
+                beginIndex = ++i + 1;
+                break;
+            case 't':
+                len = i - beginIndex;
+                writer.write(buf, beginIndex, len + 1);
+                writer.setCharAt(writer.size() - 1, '\t');
+                beginIndex = ++i + 1;
+                break;
+            case 'b':
+                len = i - beginIndex;
+                writer.write(buf, beginIndex, len + 1);
+                writer.setCharAt(writer.size() - 1, '\b');
+                beginIndex = ++i + 1;
+                break;
+            case 'f':
+                len = i - beginIndex;
+                writer.write(buf, beginIndex, len + 1);
+                writer.setCharAt(writer.size() - 1, '\f');
+                beginIndex = ++i + 1;
+                break;
+            case 'u':
+                len = i - beginIndex;
+                writer.write(buf, beginIndex, len + 1);
+                int c = hex4(buf, i + 2);
+                writer.setCharAt(writer.size() - 1, (char) c);
+                i += 4;
+                beginIndex = ++i + 1;
+                break;
+            default: {
+                // other case delete char '\\'
+                len = i - beginIndex;
+                writer.write(buf, beginIndex, len + 1);
+                writer.setCharAt(writer.size() - 1, next);
+                beginIndex = ++i + 1;
             }
         }
-        if (/*dotIndex > -1*/useDoubleParse) {
-            return parseDouble(buffers, fromIndex, toIndex);
-        } else {
-            // max LONG 9223372036854775807
-            if (toIndex - fromIndex > 18) {
-                return new BigInteger(new String(buffers, fromIndex, toIndex - fromIndex));
-            }
-            long longValue = parseLong(buffers, fromIndex, toIndex);
-            if (longValue < (long) Integer.MAX_VALUE && longValue > (long) Integer.MIN_VALUE) {
-                return (int) longValue;
-            } else {
-                return longValue;
-            }
+        jsonParseContext.setEndIndex(i);
+        return beginIndex;
+    }
+
+    /**
+     * 转化为3位int数字
+     *
+     * @param buf
+     * @param fromIndex
+     * @return
+     */
+    protected final static int parseInt3(char[] buf, int fromIndex)
+            throws NumberFormatException {
+        return NumberUtils.parseInt3(buf, fromIndex);
+    }
+
+    /**
+     * 转化为2位int数字
+     *
+     * @param buf
+     * @param fromIndex
+     * @return
+     */
+    protected final static int parseInt2(char[] buf, int fromIndex)
+            throws NumberFormatException {
+        return NumberUtils.parseInt2(buf, fromIndex);
+    }
+
+//    /**
+//     * 转化为1位int数字
+//     *
+//     * @param buf
+//     * @param fromIndex
+//     * @return
+//     */
+//    protected final static int parseInt1(char[] buf, int fromIndex)
+//            throws NumberFormatException {
+//        return NumberUtils.parseInt1(buf, fromIndex);
+//    }
+
+    /**
+     * 将\\u后面的4个16进制字符转化为int值
+     *
+     * @param i1
+     * @param i2
+     * @param i3
+     * @param i4
+     * @return
+     */
+    protected final static int hex4(int i1, int i2, int i3, int i4) {
+        return (hex(i1) << 12) | (hex(i2) << 8) | (hex(i3) << 4) | hex(i4);
+    }
+
+    protected static int hex(int c) {
+        switch (c) {
+            case '0':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9':
+                return c - 48;
+            case 'a':
+            case 'b':
+            case 'c':
+            case 'd':
+            case 'e':
+            case 'f':
+                return c - 'a' + 10;
+            case 'A':
+            case 'B':
+            case 'C':
+            case 'D':
+            case 'E':
+            case 'F':
+                return c - 'A' + 10;
+            default:
+                throw new IllegalArgumentException("invalid character: '" + (char) c + "', expected character in '0123456789abcdef(ABCDEF)'");
         }
+    }
+
+    /**
+     * 将\\u后面的4个16进制字符转化为int值
+     *
+     * @param buf
+     * @param fromIndex \\u位置后一位
+     * @return
+     */
+    protected static int hex4(char[] buf, int fromIndex) {
+        int j = fromIndex;
+        try {
+            int c1 = hex(buf[j++]);
+            int c2 = hex(buf[j++]);
+            int c3 = hex(buf[j++]);
+            int c4 = hex(buf[j++]);
+            return (c1 << 12) | (c2 << 8) | (c3 << 4) | c4;
+        } catch (Throwable throwable) {
+            // \\u parse error
+            String errorContextTextAt = createErrorContextText(buf, j - 1);
+            throw new JSONException("Syntax error, from pos " + fromIndex + ", context text by '" + errorContextTextAt + "', " + throwable.getMessage());
+        }
+    }
+
+    /**
+     * 十进制字符转数字
+     *
+     * @param ch
+     * @return
+     */
+    protected static int digitDecimal(char ch) {
+        return NumberUtils.digitDecimal(ch);
     }
 
     /***
      * 查找字符索引（Find character index）
      *
-     * @param buffers
+     * @param buf
      * @param ch
      * @param beginIndex
      * @param toIndex
      * @return
      */
-    protected final static int indexOf(char[] buffers, char ch, int beginIndex, int toIndex) {
-        if (buffers == null) return -1;
+    protected final static int indexOf(char[] buf, char ch, int beginIndex, int toIndex) {
+        if (buf == null) return -1;
         for (int i = beginIndex; i < toIndex; i++) {
-            if (buffers[i] == ch) {
+            if (buf[i] == ch) {
                 return i;
             }
         }
@@ -357,146 +407,15 @@ class JSONGeneral {
     }
 
     /**
-     * 解析整数
+     * 匹配日期
      *
-     * @param buffers
-     * @param fromIndex
-     * @param toIndex
-     * @return
-     * @throws NumberFormatException
-     * @see Integer#parseInt(String, int)
-     */
-    private final static int doParseInt(char[] buffers, int fromIndex, int toIndex, int radix)
-            throws NumberFormatException {
-
-        if (buffers == null) {
-            throw new NumberFormatException("null");
-        }
-        int result = 0;
-        boolean negative = false;
-        int i = 0, len = toIndex - fromIndex;
-        int limit = -Integer.MAX_VALUE;
-        int multmin;
-        int digit;
-
-        if (len > 0) {
-            char firstChar = buffers[fromIndex];
-            if (firstChar < '0') { // Possible leading "+" or "-"
-                if (firstChar == '-') {
-                    negative = true;
-                    limit = Integer.MIN_VALUE;
-                } else if (firstChar != '+') {
-                    return 1 / 0;
-                }
-                if (len == 1) {
-                    return 1 / 0;
-                }
-                i++;
-            }
-            multmin = limit / radix;
-            while (i < len) {
-                // Accumulating negatively avoids surprises near MAX_VALUE
-                digit = Character.digit(buffers[fromIndex + i++], radix);
-                if (digit < 0) {
-                    return 1 / 0;
-                }
-                if (result < multmin) {
-                    return 1 / 0;
-                }
-                result *= radix;
-                if (result < limit + digit) {
-                    return 1 / 0;
-                }
-                result -= digit;
-            }
-        } else {
-            return 0;
-        }
-        return negative ? result : -result;
-    }
-
-    /**
-     * 转化为long, 支持字符数组
-     *
-     * @param buffers
-     * @param fromIndex
-     * @param toIndex
-     * @return
-     * @throws NumberFormatException
-     * @see Long#parseLong(String, int)
-     */
-    private final static long doParseLong(char[] buffers, int fromIndex, int toIndex, int radix)
-            throws NumberFormatException {
-
-        if (buffers == null) {
-            throw new RuntimeException();
-        }
-        long result = 0;
-        boolean negative = false;
-        int i = 0, len = toIndex - fromIndex;
-        long limit = -Long.MAX_VALUE;
-        long multmin;
-        int digit;
-        if (len > 0) {
-            char firstChar = buffers[fromIndex];
-            if (firstChar < '0') { // Possible leading "+" or "-"
-                if (firstChar == '-') {
-                    negative = true;
-                    limit = Long.MIN_VALUE;
-                } else if (firstChar != '+') {
-                    return 1 / 0;
-                }
-
-                if (len == 1) {
-                    return 1 / 0;
-                }
-                i++;
-            }
-
-            multmin = limit / radix;
-            while (i < len) {
-                // Accumulating negatively avoids surprises near MAX_VALUE
-                digit = Character.digit(buffers[fromIndex + i++], radix);
-                if (digit < 0) {
-                    return 1 / 0;
-                }
-                if (result < multmin) {
-                    return 1 / 0;
-                }
-                result *= radix;
-                if (result < limit + digit) {
-                    return 1 / 0;
-                }
-                result -= digit;
-            }
-        } else {
-            return 0;
-        }
-        return negative ? result : -result;
-    }
-
-    /**
-     * 解析日期
-     *
-     * @param dateStr
-     * @param dateCls
-     * @return
-     */
-    public final static Date parseDate(String dateStr, Class<? extends Date> dateCls) {
-        char[] buf = getChars(dateStr);
-        return autoMatchDate(buf, 0, dateStr.length(), null, dateCls);
-    }
-
-    /**
-     * 解析日期
-     *
-     * @param buffers
+     * @param buf
      * @param from
      * @param to
      * @param dateCls
      * @return
      */
-    private final static Date autoMatchDate(char[] buffers, int from, int to, String timezone, Class<? extends Date> dateCls) {
+    final static Date matchDate(char[] buf, int from, int to, String timezone, Class<? extends Date> dateCls) {
 
         int len = to - from;
         String timezoneIdAt = timezone;
@@ -506,96 +425,263 @@ class JSONGeneral {
             while (j > from) {
                 // Check whether the time zone ID exists in the date
                 // Check for '+' or '-' or 'Z'
-                if ((ch = buffers[--j]) == '.') break;
+                if ((ch = buf[--j]) == '.') break;
                 if (ch == '+' || ch == '-' || ch == 'Z') {
-                    timezoneIdAt = new String(buffers, j, to - j);
+                    timezoneIdAt = new String(buf, j, to - j);
                     to = j;
                     len = to - from;
                     break;
                 }
             }
         }
-        if (len == 28) {
-            /***
-             * dow mon dd hh:mm:ss zzz yyyy 28位
-             * example Sun Jan 02 21:51:14 CST 2020
-             * @see Date#toString()
-             */
-            try {
-                int year = parseInt(buffers, from + 24, from + 28);
-                String monthAbbr = new String(buffers, from + 4, 3);
-                int month = getMonthAbbrIndex(monthAbbr) + 1;
-                int day = parseInt(buffers, from + 8, from + 10);
-                int hour = parseInt(buffers, from + 11, from + 13);
-                int minute = parseInt(buffers, from + 14, from + 16);
-                int second = parseInt(buffers, from + 17, from + 19);
-                return parseDate(year, month, day, hour, minute, second, 0, timezoneIdAt, dateCls);
-            } catch (Throwable throwable) {
-            }
-        } else if (len == 19 || len == 23 || len == 22 || len == 21) {
-            // yyyy-MM-dd HH:mm:ss yyyy/MM/dd HH:mm:ss 19位
-            // yyyy-MM-dd HH:mm:ss.SSS? yyyy/MM/dd HH:mm:ss.SSS? 23位
-            // \\d{4}[-/]\\d{2}[-/]\\d{2} \\d{2}:\\d{2}:\\d{2}
-            try {
-                int year = parseInt(buffers, from, from + 4);
-                int month = parseInt(buffers, from + 5, from + 7);
-                int day = parseInt(buffers, from + 8, from + 10);
-                int hour = parseInt(buffers, from + 11, from + 13);
-                int minute = parseInt(buffers, from + 14, from + 16);
-                int second = parseInt(buffers, from + 17, from + 19);
-                int millsecond = 0;
-                if (len > 20) {
-                    millsecond = parseInt(buffers, from + 20, from + len);
+        switch (len) {
+            case 8: {
+                // yyyyMMdd
+                // HH:mm:ss
+                try {
+                    if (dateCls != null && Time.class.isAssignableFrom(dateCls)) {
+                        int hour = parseInt2(buf, from);
+                        int minute = parseInt2(buf, from + 3);
+                        int second = parseInt2(buf, from + 6);
+                        return parseDate(1970, 1, 1, hour, minute, second, 0, timezoneIdAt, dateCls);
+                    } else {
+                        int year = parseInt4(buf, from);
+                        int month = parseInt2(buf, from + 4);
+                        int day = parseInt2(buf, from + 6);
+                        return parseDate(year, month, day, 0, 0, 0, 0, timezoneIdAt, dateCls);
+                    }
+                } catch (Throwable throwable) {
                 }
-                return parseDate(year, month, day, hour, minute, second, millsecond, timezoneIdAt, dateCls);
-            } catch (Throwable throwable) {
+                return null;
             }
-        } else if (len == 14 || len == 17) {
-            // yyyyMMddHHmmss or yyyyMMddhhmmssSSS
-            try {
-                int year = parseInt(buffers, from, from + 4);
-                int month = parseInt(buffers, from + 4, from + 6);
-                int day = parseInt(buffers, from + 6, from + 8);
-                int hour = parseInt(buffers, from + 8, from + 10);
-                int minute = parseInt(buffers, from + 10, from + 12);
-                int second = parseInt(buffers, from + 12, from + 14);
-                int millsecond = 0;
-                if (len == 17) {
-                    millsecond = parseInt(buffers, from + 14, from + 17);
+            case 10: {
+                // yyyy-MM-dd yyyy/MM/dd
+                // \d{4}[-/]\d{2}[-/]\d{2}
+                try {
+                    int year = parseInt4(buf, from);
+                    int month = parseInt2(buf, from + 5);
+                    int day = parseInt2(buf, from + 8);
+                    return parseDate(year, month, day, 0, 0, 0, 0, timezoneIdAt, dateCls);
+                } catch (Throwable throwable) {
                 }
-                return parseDate(year, month, day, hour, minute, second, millsecond, timezoneIdAt, dateCls);
-            } catch (Throwable throwable) {
+                return null;
             }
-        } else if (len == 10) {
-            // yyyy-MM-dd yyyy/MM/dd
-            // \d{4}[-/]\d{2}[-/]\d{2}
-            try {
-                int year = parseInt(buffers, from, from + 4);
-                int month = parseInt(buffers, from + 5, from + 7);
-                int day = parseInt(buffers, from + 8, from + 10);
-                return parseDate(year, month, day, 0, 0, 0, 0, timezoneIdAt, dateCls);
-            } catch (Throwable throwable) {
+            case 14:
+            case 15:
+            case 16:
+            case 17: {
+                // yyyyMMddHHmmss or yyyyMMddhhmmssSSS
+                try {
+                    int year = parseInt4(buf, from);
+                    int month = parseInt2(buf, from + 4);
+                    int day = parseInt2(buf, from + 6);
+                    int hour = parseInt2(buf, from + 8);
+                    int minute = parseInt2(buf, from + 10);
+                    int second = parseInt2(buf, from + 12);
+                    int millsecond = 0;
+                    if (len > 14) {
+                        millsecond = parseIntWithin5(buf, from + 14, len - 14);
+                    }
+                    return parseDate(year, month, day, hour, minute, second, millsecond, timezoneIdAt, dateCls);
+                } catch (Throwable throwable) {
+                }
+                return null;
             }
-        } else if (len == 8) {
-            // yyyyMMdd
-            // HH:mm:ss
-            // "\\d{8}"
-            try {
-                if (dateCls != null && Time.class.isAssignableFrom(dateCls)) {
-                    int hour = parseInt(buffers, from, from + 2);
-                    int minute = parseInt(buffers, from + 3, from + 5);
-                    int second = parseInt(buffers, from + 6, from + 8);
-                    return parseDate(1970, 1, 1, hour, minute, second, 0, timezoneIdAt, dateCls);
-                } else {
-                    int year = parseInt(buffers, from, from + 4);
-                    int month = parseInt(buffers, from + 4, from + 6);
-                    int day = parseInt(buffers, from + 6, from + 8);
+            case 19:
+            case 21:
+            case 22:
+            case 23: {
+                // yyyy-MM-dd HH:mm:ss yyyy/MM/dd HH:mm:ss 19位
+                // yyyy-MM-dd HH:mm:ss.SSS? yyyy/MM/dd HH:mm:ss.SSS? 23位
+                // \\d{4}[-/]\\d{2}[-/]\\d{2} \\d{2}:\\d{2}:\\d{2}
+                try {
+                    int year = parseInt4(buf, from);
+                    int month = parseInt2(buf, from + 5);
+                    int day = parseInt2(buf, from + 8);
+                    int hour = parseInt2(buf, from + 11);
+                    int minute = parseInt2(buf, from + 14);
+                    int second = parseInt2(buf, from + 17);
+                    int millsecond = 0;
+                    if (len > 20) {
+                        millsecond = parseIntWithin5(buf, from + 20, len - 20);
+                    }
+                    return parseDate(year, month, day, hour, minute, second, millsecond, timezoneIdAt, dateCls);
+                } catch (Throwable throwable) {
+                }
+                return null;
+            }
+            case 28: {
+                /***
+                 * dow mon dd hh:mm:ss zzz yyyy 28位
+                 * example Sun Jan 02 21:51:14 CST 2020
+                 * @see Date#toString()
+                 */
+                try {
+                    int year = parseInt4(buf, from + 24);
+                    String monthAbbr = new String(buf, from + 4, 3);
+                    int month = getMonthAbbrIndex(monthAbbr) + 1;
+                    int day = parseInt2(buf, from + 8);
+                    int hour = parseInt2(buf, from + 11);
+                    int minute = parseInt2(buf, from + 14);
+                    int second = parseInt2(buf, from + 17);
+                    return parseDate(year, month, day, hour, minute, second, 0, timezoneIdAt, dateCls);
+                } catch (Throwable throwable) {
+                }
+                return null;
+            }
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * 字符串转日期
+     *
+     * @param buf
+     * @param from         开始引号位置
+     * @param to           结束引号位置后一位
+     * @param pattern      日期格式
+     * @param patternType  格式分类
+     * @param dateTemplate 日期模板
+     * @param timezone     时间钟
+     * @param dateCls      日期类型
+     * @return
+     */
+    protected static Object parseDateValueOfString(char[] buf, int from, int to, String pattern, int patternType, DateTemplate dateTemplate, String timezone,
+                                                   Class<? extends Date> dateCls) {
+        int realFrom = from;
+        String timezoneIdAt = timezone;
+        try {
+            switch (patternType) {
+                case 0: {
+                    return matchDate(buf, from + 1, to - 1, timezone, dateCls);
+                }
+                case 1: {
+                    // yyyy-MM-dd HH:mm:ss or yyyy/MM/dd HH:mm:ss
+//                int len = to - from - 2;
+//                if (len == 19) {
+//                    int i, j;
+//                    boolean error = false;
+//                    for (i = from + 1, j = 0; i < to - 1; i++, j++) {
+//                        char ch = buf[i];
+//                        if (j == 4 || j == 7) {
+//                            if (ch != '-' && ch != '/') {
+//                                error = true;
+//                                break;
+//                            }
+//                        } else if (j == 10) {
+//                            if (ch != ' ') {
+//                                error = true;
+//                                break;
+//                            }
+//                        } else if (j == 13 || j == 16) {
+//                            if (ch != ':') {
+//                                error = true;
+//                                break;
+//                            }
+//                        } else {
+//                            if (digitDecimal(ch) == -1) {
+//                                error = true;
+//                                break;
+//                            }
+//                        }
+//                    }
+//                    if (error) {
+//                        throw new JSONException("fromIndex " + realFrom + ", toIndex " + realTo + " str " + new String(buf, from + 1, to - from - 2) + " pattern " + pattern + ", parse error !");
+//                    }
+//                } else {
+//                    throw new JSONException("fromIndex " + realFrom + ", toIndex " + realTo + " str " + new String(buf, from + 1, to - from - 2) + " pattern " + pattern + ", parse error !");
+//                }
+                    int year = parseInt4(buf, from + 1);
+                    int month = parseInt2(buf, from + 6);
+                    int day = parseInt2(buf, from + 9);
+                    int hour = parseInt2(buf, from + 12);
+                    int minute = parseInt2(buf, from + 15);
+                    int second = parseInt2(buf, from + 18);
+                    return parseDate(year, month, day, hour, minute, second, 0, timezoneIdAt, dateCls);
+                }
+                case 2: {
+                    // yyyy-MM-dd yyyy/MM/dd
+//                int len = to - from - 2;
+//                if (len == 10) {
+//                    int i, j;
+//                    boolean error = false;
+//                    for (i = from + 1, j = 0; i < to - 1; i++, j++) {
+//                        char ch = buf[i];
+//                        if (j == 4 || j == 7) {
+//                            if (ch != '-' && ch != '/') {
+//                                error = true;
+//                                break;
+//                            }
+//                        } else {
+//                            if (digitDecimal(ch) == -1) {
+//                                error = true;
+//                                break;
+//                            }
+//                        }
+//                    }
+//                    if (error) {
+//                        throw new JSONException("fromIndex " + realFrom + ", toIndex " + realTo + " str " + new String(buf, from + 1, to - from - 2) + " pattern " + pattern + ", parse error !");
+//                    }
+//                } else {
+//                    throw new JSONException("fromIndex " + realFrom + ", toIndex " + realTo + " str " + new String(buf, from + 1, to - from - 2) + " pattern " + pattern + ", parse error !");
+//                }
+                    int year = parseInt4(buf, from + 1);
+                    int month = parseInt2(buf, from + 6);
+                    int day = parseInt2(buf, from + 9);
                     return parseDate(year, month, day, 0, 0, 0, 0, timezoneIdAt, dateCls);
                 }
-            } catch (Throwable throwable) {
+                case 3: {
+                    // yyyyMMddHHmmss
+//                int len = to - from - 2;
+//                if (len == 14) {
+//                    int i;
+//                    boolean error = false;
+//                    for (i = from + 1; i < to - 1; i++) {
+//                        char ch = buf[i];
+//                        if (digitDecimal(ch) == -1) {
+//                            error = true;
+//                            break;
+//                        }
+//                    }
+//                    if (error) {
+//                        throw new JSONException("fromIndex " + realFrom + ", toIndex " + realTo + " str " + new String(buf, from + 1, to - from - 2) + " pattern " + pattern + ", parse error !");
+//                    }
+//                } else {
+//                    throw new JSONException("fromIndex " + realFrom + ", toIndex " + realTo + " str " + new String(buf, from + 1, to - from - 2) + " pattern " + pattern + ", parse error !");
+//                }
+                    int year = parseInt4(buf, from + 1);
+                    int month = parseInt2(buf, from + 5);
+                    int day = parseInt2(buf, from + 7);
+                    int hour = parseInt2(buf, from + 9);
+                    int minute = parseInt2(buf, from + 11);
+                    int second = parseInt2(buf, from + 13);
+                    return parseDate(year, month, day, hour, minute, second, 0, timezoneIdAt, dateCls);
+                }
+                default: {
+                    io.github.wycst.wast.common.beans.Date date = io.github.wycst.wast.common.beans.Date.parse(buf, from + 1, to - from - 2, dateTemplate);
+                    if (timezoneIdAt != null) {
+                        date.setTimeZone(TimeZone.getTimeZone(timezoneIdAt));
+                    }
+                    if (dateCls == Date.class) {
+                        return new Date(date.getTime());
+                    }
+                    Constructor<? extends Date> constructor = dateCls.getConstructor(long.class);
+                    constructor.setAccessible(true);
+                    return constructor.newInstance(date.getTime());
+                }
+            }
+        } catch (Throwable throwable) {
+            if (throwable instanceof JSONException) {
+                throw (JSONException) throwable;
+            }
+            String dateSource = new String(buf, from + 1, to - from - 2);
+            if (patternType > 0) {
+                throw new JSONException("Syntax error, at pos " + realFrom + ", dateStr " + dateSource + " mismatch date pattern '" + pattern + "'");
+            } else {
+                throw new JSONException("Syntax error, at pos " + realFrom + ", dateStr " + dateSource + " mismatch any date format.");
             }
         }
-        return null;
     }
 
     /***
@@ -603,159 +689,34 @@ class JSONGeneral {
      *
      * @param from     开始位置（双引号或者数字首位置）
      * @param to       结束位置(逗号或者括号位置)
-     * @param buffers  字符数组
+     * @param buf  字符数组
      * @param pattern  日期格式
      * @param timezone 时区
      * @param dateCls  日期类型
      * @return 日期对象
      */
-    protected static Object parseDateValue(int from, int to, char[] buffers, String pattern, String timezone,
+    protected static Object parseDateValue(int from, int to, char[] buf, String pattern, String timezone,
                                            Class<? extends Date> dateCls) {
         int realFrom = from;
         int realTo = to;
         // 去除前后空格
         char start = '"';
-        while ((from < to) && ((start = buffers[from]) <= ' ')) {
+        while ((from < to) && ((start = buf[from]) <= ' ')) {
             from++;
         }
         char end = '"';
-        while ((to > from) && ((end = buffers[to - 1]) <= ' ')) {
+        while ((to > from) && ((end = buf[to - 1]) <= ' ')) {
             to--;
         }
-        String timezoneIdAt = timezone;
         if (start == '"' && end == '"') {
-            if (pattern == null) {
-                // from为双引号位置+1为日期开始
-                // to为逗号或者}位置，-1为日期结束位置（不包含）
-                return autoMatchDate(buffers, from + 1, to - 1, timezone, dateCls);
-            } else {
-                if (pattern.equals("yyyy-MM-dd HH:mm:ss") || pattern.equals("yyyy/MM/dd HH:mm:ss")) {
-                    // 判断格式是否正确
-                    // 判断长度 = 19 ，[4] = -,/ [7] = -,/ [10] = ' ' []
-                    int len = to - from - 2;
-                    if (len == 19) {
-                        int i, j;
-                        boolean error = false;
-                        for (i = from + 1, j = 0; i < to - 1; i++, j++) {
-                            char ch = buffers[i];
-                            if (j == 4 || j == 7) {
-                                if (ch != '-' && ch != '/') {
-                                    error = true;
-                                    break;
-                                }
-                            } else if (j == 10) {
-                                if (ch != ' ') {
-                                    error = true;
-                                    break;
-                                }
-                            } else if (j == 13 || j == 16) {
-                                if (ch != ':') {
-                                    error = true;
-                                    break;
-                                }
-                            } else {
-                                if (!Character.isDigit(ch)) {
-                                    error = true;
-                                    break;
-                                }
-                            }
-                        }
-                        if (error) {
-                            throw new JSONException("fromIndex " + realFrom + ", toIndex " + realTo + " str " + new String(buffers, from + 1, to - from - 2) + " pattern " + pattern + ", parse error !");
-                        }
-                    } else {
-                        throw new JSONException("fromIndex " + realFrom + ", toIndex " + realTo + " str " + new String(buffers, from + 1, to - from - 2) + " pattern " + pattern + ", parse error !");
-                    }
-                    int year = parseInt(buffers, from + 1, from + 5);
-                    int month = parseInt(buffers, from + 6, from + 8);
-                    int day = parseInt(buffers, from + 9, from + 11);
-                    int hour = parseInt(buffers, from + 12, from + 14);
-                    int minute = parseInt(buffers, from + 15, from + 17);
-                    int second = parseInt(buffers, from + 18, from + 20);
-                    return parseDate(year, month, day, hour, minute, second, 0, timezoneIdAt, dateCls);
-                } else if (pattern.equals("yyyy-MM-dd") || pattern.equals("yyyy/MM/dd")) {
-                    // 判断格式是否正确
-                    // 判断长度 = 19 ，[4] = -,/ [7] = -,/ [10] = ' ' []
-                    int len = to - from - 2;
-                    if (len == 10) {
-                        int i, j;
-                        boolean error = false;
-                        for (i = from + 1, j = 0; i < to - 1; i++, j++) {
-                            char ch = buffers[i];
-                            if (j == 4 || j == 7) {
-                                if (ch != '-' && ch != '/') {
-                                    error = true;
-                                    break;
-                                }
-                            } else {
-                                if (!Character.isDigit(ch)) {
-                                    error = true;
-                                    break;
-                                }
-                            }
-                        }
-                        if (error) {
-                            throw new JSONException("fromIndex " + realFrom + ", toIndex " + realTo + " str " + new String(buffers, from + 1, to - from - 2) + " pattern " + pattern + ", parse error !");
-                        }
-                    } else {
-                        throw new JSONException("fromIndex " + realFrom + ", toIndex " + realTo + " str " + new String(buffers, from + 1, to - from - 2) + " pattern " + pattern + ", parse error !");
-                    }
-                    int year = parseInt(buffers, from + 1, from + 5);
-                    int month = parseInt(buffers, from + 6, from + 8);
-                    int day = parseInt(buffers, from + 9, from + 11);
-                    return parseDate(year, month, day, 0, 0, 0, 0, timezoneIdAt, dateCls);
-                } else if (pattern.equals("yyyyMMddHHmmss")) {
-                    int len = to - from - 2;
-                    if (len == 14) {
-                        int i;
-                        boolean error = false;
-                        for (i = from + 1; i < to - 1; i++) {
-                            char ch = buffers[i];
-                            if (!Character.isDigit(ch)) {
-                                error = true;
-                                break;
-                            }
-                        }
-                        if (error) {
-                            throw new JSONException("fromIndex " + realFrom + ", toIndex " + realTo + " str " + new String(buffers, from + 1, to - from - 2) + " pattern " + pattern + ", parse error !");
-                        }
-                    } else {
-                        throw new JSONException("fromIndex " + realFrom + ", toIndex " + realTo + " str " + new String(buffers, from + 1, to - from - 2) + " pattern " + pattern + ", parse error !");
-                    }
-
-                    int year = parseInt(buffers, from + 1, from + 5);
-                    int month = parseInt(buffers, from + 5, from + 7);
-                    int day = parseInt(buffers, from + 7, from + 9);
-                    int hour = parseInt(buffers, from + 9, from + 11);
-                    int minute = parseInt(buffers, from + 11, from + 13);
-                    int second = parseInt(buffers, from + 13, from + 15);
-                    return parseDate(year, month, day, hour, minute, second, 0, timezoneIdAt, dateCls);
-                } else {
-                    // SimpleDateFormat
-                    String dateSource = new String(buffers, from + 1, to - from - 2);
-                    try {
-                        SimpleDateFormat simpleDateFormat = new SimpleDateFormat(pattern);
-                        if (timezoneIdAt != null) {
-                            simpleDateFormat.setTimeZone(TimeZone.getTimeZone(timezoneIdAt));
-                        }
-                        Date temp = simpleDateFormat.parse(dateSource);
-                        if (dateCls == Date.class)
-                            return temp;
-                        Constructor<? extends Date> constructor = dateCls.getConstructor(long.class);
-                        constructor.setAccessible(true);
-                        return constructor.newInstance(temp.getTime());
-                    } catch (Exception e) {
-                        throw new JSONException("fromIndex " + realFrom + ", toIndex " + realTo + " str " + dateSource + " error !");
-                    }
-                }
-            }
+            return parseDateValueOfString(buf, from, to, pattern, pattern == null ? 0 : 4, pattern == null ? null : new DateTemplate(pattern), timezone, dateCls);
         } else {
             // If it is a long time rub, it has nothing to do with the time zone
             try {
-                long timestamp = parseLong(buffers, from, to);
+                long timestamp = Long.parseLong(new String(buf, from, to - from));
                 return parseDate(timestamp, dateCls);
             } catch (Exception e) {
-                String timestampStr = new String(buffers, from, to - from);
+                String timestampStr = new String(buf, from, to - from);
                 throw new JSONException("fromIndex " + realFrom + ", toIndex " + realTo + " str " + timestampStr + " error !");
             }
         }
@@ -765,39 +726,39 @@ class JSONGeneral {
      * 清除注释和空白,返回第一个非空字符 （Clear comments and whitespace and return the first non empty character）
      * 开启注释支持后，支持//.*\n 和 /* *\/ （After enabling comment support, support / /* \N and / **\/）
      *
-     * @param buffers
+     * @param buf
      * @param beginIndex       开始位置
      * @param toIndex          最大允许结束位置
      * @param jsonParseContext 上下文配置
      * @return 去掉注释后的第一个非空字符位置（Non empty character position after removing comments）
      * @see ReadOption#AllowComment
      */
-    protected static int clearCommentAndWhiteSpaces(char[] buffers, int beginIndex, int toIndex, JSONParseContext jsonParseContext) {
+    protected final static int clearCommentAndWhiteSpaces(char[] buf, int beginIndex, int toIndex, JSONParseContext jsonParseContext) {
         int i = beginIndex;
         if (i >= toIndex) {
             throw new JSONException("Syntax error, unexpected token character '/', position " + (beginIndex - 1));
         }
         // 注释和 /*注释
         // / or *
-        char ch = buffers[beginIndex];
+        char ch = buf[beginIndex];
         if (ch == '/') {
             // End with newline \ n
-            while (i < toIndex && buffers[i] != '\n') {
+            while (i < toIndex && buf[i] != '\n') {
                 i++;
             }
             // continue clear WhiteSpaces
             ch = '\0';
-            while (i + 1 < toIndex && (ch = buffers[++i]) <= ' ') ;
+            while (i + 1 < toIndex && (ch = buf[++i]) <= ' ') ;
             if (ch == '/') {
                 // 递归清除
-                i = clearCommentAndWhiteSpaces(buffers, i + 1, toIndex, jsonParseContext);
+                i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext);
             }
         } else if (ch == '*') {
             // End with */
             char prev = '\0';
             boolean matched = false;
             while (i + 1 < toIndex) {
-                ch = buffers[++i];
+                ch = buf[++i];
                 if (ch == '/' && prev == '*') {
                     matched = true;
                     break;
@@ -809,10 +770,10 @@ class JSONGeneral {
             }
             // continue clear WhiteSpaces
             ch = '\0';
-            while (i + 1 < toIndex && (ch = buffers[++i]) <= ' ') ;
+            while (i + 1 < toIndex && (ch = buf[++i]) <= ' ') ;
             if (ch == '/') {
                 // 递归清除
-                i = clearCommentAndWhiteSpaces(buffers, i + 1, toIndex, jsonParseContext);
+                i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext);
             }
         } else {
             throw new JSONException("Syntax error, unexpected token character '" + ch + "', position " + beginIndex);
@@ -820,6 +781,31 @@ class JSONGeneral {
         return i;
     }
 
+    /**
+     * 格式化缩进
+     *
+     * @param content
+     * @param level
+     * @param formatOut
+     * @throws IOException
+     */
+    protected final static void writeFormatSymbolOut(Writer content, int level, boolean formatOut) throws IOException {
+        if (formatOut && level > -1) {
+            String symbol = Options.writeFormatOutSymbol;
+            int symbolLen = 11;
+            if (symbolLen - 1 > level) {
+                content.write(symbol, 0, level + 1);
+            } else {
+                // 全部的symbol
+                content.append(symbol);
+                // 补齐差的\t个数
+                int appendTabLen = level - symbolLen + 1;
+                while (appendTabLen-- > 0) {
+                    content.append('\t');
+                }
+            }
+        }
+    }
 
     private static int getMonthAbbrIndex(String monthAbbr) {
         for (int i = 0, len = MONTH_ABBR.length; i < len; i++) {
@@ -851,7 +837,7 @@ class JSONGeneral {
         return parseDate(timeInMillis, dateCls);
     }
 
-    private static Date parseDate(long timeInMillis, Class<? extends Date> dateCls) {
+    protected static Date parseDate(long timeInMillis, Class<? extends Date> dateCls) {
         if (dateCls == Date.class) {
             return new Date(timeInMillis);
         } else if (dateCls == java.sql.Date.class) {
@@ -930,12 +916,7 @@ class JSONGeneral {
     }
 
     /***
-     * 读取UTF-8编码的字节数组
-     *
-     * 一个字节 0000 0000-0000 007F | 0xxxxxxx
-     * 二个字节 0000 0080-0000 07FF | 110xxxxx 10xxxxxx
-     * 三个字节 0000 0800-0000 FFFF | 1110xxxx 10xxxxxx 10xxxxxx
-     * 四个字节 0001 0000-0010 FFFF | 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+     * 读取UTF-8编码的字节数组转化为字符数组
      *
      * @param bytes
      * @return
@@ -944,6 +925,28 @@ class JSONGeneral {
         if (bytes == null) return null;
         int len = bytes.length;
         char[] chars = new char[len];
+        int charLen = readUTF8Bytes(bytes, chars);
+        if (charLen != len) {
+            chars = Arrays.copyOf(chars, charLen);
+        }
+        return chars;
+    }
+
+    /***
+     * 读取UTF-8编码的字节到指定字符数组，请确保字符数组长度
+     *
+     * 一个字节 0000 0000-0000 007F | 0xxxxxxx
+     * 二个字节 0000 0080-0000 07FF | 110xxxxx 10xxxxxx
+     * 三个字节 0000 0800-0000 FFFF | 1110xxxx 10xxxxxx 10xxxxxx
+     * 四个字节 0001 0000-0010 FFFF | 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+     *
+     * @param bytes
+     * @param chars 目标字符
+     * @return 字符数组长度
+     */
+    public static int readUTF8Bytes(byte[] bytes, char[] chars) {
+        if (bytes == null) return 0;
+        int len = bytes.length;
         int charLen = 0;
 
         for (int j = 0; j < len; j++) {
@@ -962,8 +965,14 @@ class JSONGeneral {
                         byte b1 = bytes[++j];
                         byte b2 = bytes[++j];
                         byte b3 = bytes[++j];
-                        int a = ((b & 0x7) << 18) + ((b1 & 0x3f) << 12) + ((b2 & 0x3f) << 6) + (b3 & 0x3f);
-                        chars[charLen++] = (char) a;
+                        int a = ((b & 0x7) << 18) | ((b1 & 0x3f) << 12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f);
+                        if (Character.isSupplementaryCodePoint(a)) {
+                            chars[charLen++] = (char) ((a >>> 10)
+                                    + (Character.MIN_HIGH_SURROGATE - (Character.MIN_SUPPLEMENTARY_CODE_POINT >>> 10)));
+                            chars[charLen++] = (char) ((a & 0x3ff) + Character.MIN_LOW_SURROGATE);
+                        } else {
+                            chars[charLen++] = (char) a;
+                        }
                         break;
                     } else {
                         throw new UnsupportedOperationException("utf-8 character error ");
@@ -974,7 +983,7 @@ class JSONGeneral {
                         // 第1个字节的后4位 + 第2个字节的后6位 + 第3个字节的后6位
                         byte b1 = bytes[++j];
                         byte b2 = bytes[++j];
-                        int a = ((b & 0xf) << 12) + ((b1 & 0x3f) << 6) + (b2 & 0x3f);
+                        int a = ((b & 0xf) << 12) | ((b1 & 0x3f) << 6) | (b2 & 0x3f);
                         chars[charLen++] = (char) a;
                         break;
                     } else {
@@ -986,7 +995,7 @@ class JSONGeneral {
                     // 1100 2个字节
                     if (j < len - 1) {
                         byte b1 = bytes[++j];
-                        int a = ((b & 0x1f) << 6) + (b1 & 0x3f);
+                        int a = ((b & 0x1f) << 6) | (b1 & 0x3f);
                         chars[charLen++] = (char) a;
                         break;
                     } else {
@@ -996,11 +1005,9 @@ class JSONGeneral {
                     throw new UnsupportedOperationException("utf-8 character error ");
             }
         }
-        if (charLen != len) {
-            chars = Arrays.copyOf(chars, charLen);
-        }
-        return chars;
+        return charLen;
     }
+
 
     /**
      * 将集合类型转化为数组类型 (Convert collection type to array type)
@@ -1020,15 +1027,17 @@ class JSONGeneral {
 
     protected static Collection createCollectionInstance(Class<?> collectionCls) throws Exception {
         if (collectionCls.isInterface()) {
-            if (Set.class.isAssignableFrom(collectionCls)) {
-                return new LinkedHashSet<Object>();
-            } else if (List.class.isAssignableFrom(collectionCls)) {
+            if (collectionCls == List.class || collectionCls == Collection.class) {
                 return new ArrayList<Object>();
+            } else if (collectionCls == Set.class) {
+                return new HashSet<Object>();
             } else {
                 throw new UnsupportedOperationException("Unsupported for collection type '" + collectionCls + "', Please specify an implementation class");
             }
         } else {
-            if (collectionCls == HashSet.class) {
+            if (collectionCls == ArrayList.class || collectionCls == Object.class) {
+                return new HashSet<Object>();
+            } else if (collectionCls == HashSet.class) {
                 return new HashSet<Object>();
             } else if (collectionCls == Vector.class) {
                 return new Vector<Object>();
@@ -1039,17 +1048,17 @@ class JSONGeneral {
     }
 
     /**
-     * 报错位置取前后9个字符，最多一共20个字符
+     * 报错位置取前后18个字符，最多一共40个字符
      */
     protected static String createErrorContextText(char[] buf, int at) {
         try {
             int len = buf.length;
-            char[] text = new char[20];
+            char[] text = new char[40];
             int count;
-            int begin = Math.max(at - 9, 0);
+            int begin = Math.max(at - 18, 0);
             System.arraycopy(buf, begin, text, 0, count = at - begin);
             text[count++] = '^';
-            int end = Math.min(len, at + 9);
+            int end = Math.min(len, at + 18);
             System.arraycopy(buf, at, text, count, end - at);
             count += end - at;
             return new String(text, 0, count);
@@ -1066,106 +1075,13 @@ class JSONGeneral {
         return jsonWriter;
     }
 
-    private static final Field stringToChars;
-    private static final long stringValueOffset;
-
-    static {
-        Field valueField;
-        long valueOffset = -1;
-        try {
-            valueField = String.class.getDeclaredField("value");
-            // jdk9+ not support setAccessible and type is byte[] not char[]
-            valueField.setAccessible(true);
-            // JDK_VERSION <= jdk8
-            valueOffset = UnsafeHelper.objectFieldOffset(valueField);
-        } catch (Exception e) {
-            valueField = null;
-        }
-        stringToChars = valueField;
-        stringValueOffset = valueOffset;
-    }
-
     /***
-     * jdk9+ use toCharArray
-     * jdk8- use unsafe
+     * get char[]
      *
-     * @param json
+     * @param value
      * @return
      */
-    protected static char[] getChars(String json) {
-        if (stringToChars == null) {
-            // jdk9+ stringToChars is null, use toCharArray
-            return json.toCharArray();
-        }
-        try {
-            // note: jdk9+ value is byte[]
-            if (stringValueOffset > -1) {
-                return (char[]) UnsafeHelper.getObjectValue(json, stringValueOffset);
-            }
-            return (char[]) stringToChars.get(json);
-        } catch (IllegalAccessException e) {
-            throw new JSONException(e);
-        }
+    protected static char[] getChars(String value) {
+        return UnsafeHelper.getChars(value);
     }
-
-//    /** 根据字符数组构建字符串，减少一次字符数组的copy */
-//    public static String getString(char[] buf) throws Exception {
-//        if (stringToChars == null) {
-//            return new String(buf);
-//        }
-//        try {
-//            String result = new String();
-//            if (stringValueOffset > -1) {
-//                UnsafeHelper.putObjectValue(result, stringValueOffset, buf);
-//                return result;
-//            }
-//            stringToChars.set(result, buf);
-//            return result;
-//        } catch (IllegalAccessException e) {
-//            throw new JSONException(e);
-//        }
-//    }
-
-    /***
-     * 获取自定义序列化实例
-     *
-     * @param jsonSerialize 序列化注解实例
-     * @return
-     */
-    protected static JsonSerializer getJsonSerializer(JsonSerialize jsonSerialize) throws Exception {
-        boolean singleton = jsonSerialize.singleton();
-        Class<? extends JsonSerializer> serializerClass = jsonSerialize.value();
-        if (singleton) {
-            JsonSerializer jsonSerializer = serializers.get(serializerClass);
-            if (jsonSerializer == null) {
-                jsonSerializer = serializerClass.newInstance();
-                serializers.put(serializerClass, jsonSerializer);
-            }
-            return jsonSerializer;
-        } else {
-            return serializerClass.newInstance();
-        }
-    }
-
-    /***
-     * 获取自定义反序列化实例
-     *
-     * @param jsonDeserialize 反序列化注解实例
-     * @return
-     */
-    protected static JsonDeserializer getJsonDeserializer(JsonDeserialize jsonDeserialize) throws IllegalAccessException, InstantiationException {
-        boolean singleton = jsonDeserialize.singleton();
-        Class<? extends JsonDeserializer> deserializerClass = jsonDeserialize.value();
-        if (singleton) {
-            JsonDeserializer jsonDeserializer = deserializers.get(deserializerClass);
-            if (jsonDeserializer == null) {
-                jsonDeserializer = deserializerClass.newInstance();
-                deserializers.put(deserializerClass, jsonDeserializer);
-            }
-            return jsonDeserializer;
-        } else {
-            return deserializerClass.newInstance();
-        }
-    }
-
 }

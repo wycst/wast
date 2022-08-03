@@ -88,8 +88,9 @@ public class JsonConfig {
 
     private static ThreadLocal<Map<Integer, Integer>> identityHashCodes = new ThreadLocal<Map<Integer, Integer>>();
 
-    public JsonConfig() {
+    private char[] contextChars;
 
+    public JsonConfig() {
     }
 
     public JsonConfig(WriteOption[] writeOptions) {
@@ -252,4 +253,10 @@ public class JsonConfig {
         identityHashCodes.remove();
     }
 
+    public char[] getContextChars() {
+        if (contextChars == null) {
+            contextChars = new char[20];
+        }
+        return contextChars;
+    }
 }

@@ -1,10 +1,12 @@
 package io.github.wycst.wast.common.reflect;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -23,18 +25,19 @@ public class ReflectConsts {
 
     // 基本类型，number类型，布尔值类型统一归纳为CLASS_TYPE_NUMBER
     public static final int CLASS_TYPE_NUMBER = 100;
-    public static final int CLASS_TYPE_NUMBER_INTEGER = 101;
-    public static final int CLASS_TYPE_NUMBER_FLOAT = 102;
-    public static final int CLASS_TYPE_NUMBER_LONG = 103;
-    public static final int CLASS_TYPE_NUMBER_DOUBLE = 104;
-    public static final int CLASS_TYPE_NUMBER_BOOLEAN = 105;
-    public static final int CLASS_TYPE_NUMBER_BIGDECIMAL = 106;
-    public static final int CLASS_TYPE_NUMBER_BYTE = 107;
-    public static final int CLASS_TYPE_NUMBER_CHARACTER = 108;
-    public static final int CLASS_TYPE_NUMBER_ATOMIC_INTEGER = 109;
-    public static final int CLASS_TYPE_NUMBER_ATOMIC_LONG = 110;
-    public static final int CLASS_TYPE_NUMBER_ATOMIC_BOOLEAN = 111;
-    public static final int CLASS_TYPE_NUMBER_BIG_INTEGER = 112;
+    public static final int CLASS_TYPE_NUMBER_BYTE = 101;
+    public static final int CLASS_TYPE_NUMBER_SHORT = 102;
+    public static final int CLASS_TYPE_NUMBER_INTEGER = 103;
+    public static final int CLASS_TYPE_NUMBER_LONG = 104;
+    public static final int CLASS_TYPE_NUMBER_FLOAT = 105;
+    public static final int CLASS_TYPE_NUMBER_DOUBLE = 106;
+    public static final int CLASS_TYPE_NUMBER_ATOMIC_INTEGER = 107;
+    public static final int CLASS_TYPE_NUMBER_ATOMIC_LONG = 108;
+    public static final int CLASS_TYPE_NUMBER_BIGDECIMAL = 109;
+    public static final int CLASS_TYPE_NUMBER_BIG_INTEGER = 110;
+    public static final int CLASS_TYPE_NUMBER_CHARACTER = 111;
+    public static final int CLASS_TYPE_NUMBER_BOOLEAN = 112;
+    public static final int CLASS_TYPE_NUMBER_ATOMIC_BOOLEAN = 113;
 
     public static final int CLASS_TYPE_STRING = 200;
     public static final int CLASS_TYPE_STRING_BUFFER = 201;
@@ -90,6 +93,8 @@ public class ReflectConsts {
                 return CLASS_TYPE_NUMBER_BIGDECIMAL;
             } else if (clazz == byte.class || clazz == Byte.class) {
                 return CLASS_TYPE_NUMBER_BYTE;
+            } else if (clazz == short.class || clazz == Short.class) {
+                return CLASS_TYPE_NUMBER_SHORT;
             } else if (clazz == char.class || clazz == Character.class) {
                 return CLASS_TYPE_NUMBER_CHARACTER;
             } else if (clazz == AtomicInteger.class) {
@@ -106,34 +111,38 @@ public class ReflectConsts {
     }
 
     /**
-     * 缓存类型class分类
+     * Cache type class classification
      */
-    private final static Map<Class, ClassCategory> classClassCategoryMap = new HashMap<Class, ClassCategory>();
+    private final static Map<Class, ClassCategory> classClassCategoryMap = new ConcurrentHashMap<Class, ClassCategory>();
 
     static {
 
-        // 字节数组（特殊的数组）
-        putAllType(ClassCategory.Binary, byte[].class, Byte[].class);
+        // 字节数组(将Byte除去)
+        putAllType(ClassCategory.Binary, byte[].class/*, Byte[].class*/);
 
         /** 预置常用集合类型 */
-        putAllType(ClassCategory.Collection, ArrayList.class, HashSet.class);
+        putAllType(ClassCategory.CollectionCategory, ArrayList.class, HashSet.class);
 
         /** 预置常用Map类型 */
-        putAllType(ClassCategory.Map, HashMap.class, LinkedHashMap.class);
+        putAllType(ClassCategory.MapCategory, HashMap.class, LinkedHashMap.class);
 
         /** 预置常用CharSequence类型 */
         putAllType(ClassCategory.CharSequence, String.class, char[].class, StringBuilder.class, StringBuffer.class, char.class, Character.class);
 
         /** 预置常用Number类型 */
-        putAllType(ClassCategory.Number, BigDecimal.class, BigInteger.class, int.class, Integer.class, byte.class, Byte.class, short.class, Short.class, float.class, Float.class, long.class, Long.class, double.class, Double.class);
+        putAllType(ClassCategory.NumberCategory, BigDecimal.class, BigInteger.class, int.class, Integer.class, byte.class, Byte.class, short.class, Short.class, float.class, Float.class, long.class, Long.class, double.class, Double.class);
 
         /** boolean */
-        putAllType(ClassCategory.Bool, boolean.class, Boolean.class);
+        putAllType(ClassCategory.BoolCategory, boolean.class, Boolean.class);
 
         /** Date */
-        putAllType(ClassCategory.Date, Date.class, Timestamp.class, java.sql.Date.class);
+        putAllType(ClassCategory.DateCategory, Date.class, Timestamp.class, java.sql.Date.class);
+
+        /** 任意类型 */
+        putAllType(ClassCategory.ANY, Object.class);
     }
 
+    // Batch put
     private static void putAllType(ClassCategory classCategory, Class<?>... classList) {
         for (Class cls : classList) {
             classClassCategoryMap.put(cls, classCategory);
@@ -141,30 +150,15 @@ public class ReflectConsts {
     }
 
     private synchronized static void putType(Class<?> cls, ClassCategory classCategory) {
-        // 防止意外动态类
+        // Prevent accidental explosion
         if (classClassCategoryMap.size() >= 1 << 12) return;
         classClassCategoryMap.put(cls, classCategory);
     }
 
     public static ClassCategory getClassCategory(Class cls) {
+        if (cls == null) return ClassCategory.ANY;
         ClassCategory classCategory = classClassCategoryMap.get(cls);
         if (classCategory != null) {
-            return classCategory;
-        }
-        if (cls.isArray()) {
-            putType(cls, classCategory = ClassCategory.Array);
-            return classCategory;
-        }
-        if (cls.isEnum()) {
-            putType(cls, classCategory = ClassCategory.Enum);
-            return classCategory;
-        }
-        if (Collection.class.isAssignableFrom(cls)) {
-            putType(cls, classCategory = ClassCategory.Collection);
-            return classCategory;
-        }
-        if (Map.class.isAssignableFrom(cls)) {
-            putType(cls, classCategory = ClassCategory.Map);
             return classCategory;
         }
         if (CharSequence.class.isAssignableFrom(cls)) {
@@ -172,31 +166,47 @@ public class ReflectConsts {
             return classCategory;
         }
         if (Number.class.isAssignableFrom(cls)) {
-            putType(cls, classCategory = ClassCategory.Number);
+            putType(cls, classCategory = ClassCategory.NumberCategory);
             return classCategory;
         }
         if (Date.class.isAssignableFrom(cls)) {
-            putType(cls, classCategory = ClassCategory.Date);
+            putType(cls, classCategory = ClassCategory.DateCategory);
+            return classCategory;
+        }
+        if (cls.isEnum()) {
+            putType(cls, classCategory = ClassCategory.EnumCategory);
+            return classCategory;
+        }
+        if (Collection.class.isAssignableFrom(cls)) {
+            putType(cls, classCategory = ClassCategory.CollectionCategory);
+            return classCategory;
+        }
+        if (Map.class.isAssignableFrom(cls)) {
+            putType(cls, classCategory = ClassCategory.MapCategory);
+            return classCategory;
+        }
+        if (cls.isArray()) {
+            putType(cls, classCategory = ClassCategory.ArrayCategory);
             return classCategory;
         }
         if (Class.class.isAssignableFrom(cls)) {
-            putType(cls, classCategory = ClassCategory.Class);
+            putType(cls, classCategory = ClassCategory.ClassCategory);
             return classCategory;
         }
         if (Annotation.class.isAssignableFrom(cls)) {
-            putType(cls, classCategory = ClassCategory.Annotation);
+            putType(cls, classCategory = ClassCategory.AnnotationCategory);
             return classCategory;
         }
-        if (Annotation.class.isAssignableFrom(cls)) {
-            putType(cls, classCategory = ClassCategory.Annotation);
+        if (cls.isInterface() || Modifier.isAbstract(cls.getModifiers())) {
+            putType(cls, classCategory = ClassCategory.NonInstance);
             return classCategory;
         }
-        putType(cls, classCategory = ClassCategory.Object);
+        putType(cls, classCategory = ClassCategory.ObjectCategory);
         return classCategory;
     }
 
     /**
-     * class分类
+     * class类别
      */
     public enum ClassCategory {
         /**
@@ -206,27 +216,27 @@ public class ReflectConsts {
         /**
          * 数字类型
          */
-        Number,
+        NumberCategory,
         /**
          * boolean类型（boolean, Boolean）
          */
-        Bool,
+        BoolCategory,
         /**
          * 日期类型
          */
-        Date,
+        DateCategory,
         /**
          * 类类型
          */
-        Class,
+        ClassCategory,
         /**
-         * 枚举实例
+         * 枚举类型
          */
-        Enum,
+        EnumCategory,
         /**
          * 注释类型
          */
-        Annotation,
+        AnnotationCategory,
         /**
          * 二进制数组
          */
@@ -234,70 +244,78 @@ public class ReflectConsts {
         /**
          * 数组类型
          */
-        Array,
+        ArrayCategory,
         /**
          * 集合类型(Set,List)
          */
-        Collection,
+        CollectionCategory,
         /**
          * Map类型(Map,HashMap,LinkHashMap...)
          */
-        Map,
+        MapCategory,
         /**
          * 实体对象类型
          */
-        Object
+        ObjectCategory,
+        /**
+         * 任意类型
+         */
+        ANY,
+        /**
+         * 不可实例化类型（接口和抽象类，不包括基础类型）
+         */
+        NonInstance
     }
 
     /***
      * 基本类型枚举
      */
     enum PrimitiveType {
-        Byte,
-        Short,
-        Int,
-        Float,
-        Long,
-        Double,
-        Boolean,
-        Character;
+        PrimitiveByte,
+        PrimitiveShort,
+        PrimitiveInt,
+        PrimitiveFloat,
+        PrimitiveLong,
+        PrimitiveDouble,
+        PrimitiveBoolean,
+        PrimitiveCharacter;
 
         public static PrimitiveType typeOf(Class<?> fieldType) {
             if (fieldType == int.class) {
-                return Int;
+                return PrimitiveInt;
             } else if (fieldType == long.class) {
-                return Long;
+                return PrimitiveLong;
             } else if (fieldType == float.class) {
-                return Float;
+                return PrimitiveFloat;
             } else if (fieldType == double.class) {
-                return Double;
+                return PrimitiveDouble;
             } else if (fieldType == boolean.class) {
-                return Boolean;
+                return PrimitiveBoolean;
             } else if (fieldType == short.class) {
-                return Short;
+                return PrimitiveShort;
             } else if (fieldType == char.class) {
-                return Character;
+                return PrimitiveCharacter;
             } else if (fieldType == byte.class) {
-                return Byte;
+                return PrimitiveByte;
             }
             return null;
         }
 
         public Class getGenericArrayType() {
             switch (this) {
-                case Byte:
+                case PrimitiveByte:
                     return byte[].class;
-                case Short:
+                case PrimitiveShort:
                     return short[].class;
-                case Int:
+                case PrimitiveInt:
                     return int[].class;
-                case Float:
+                case PrimitiveFloat:
                     return float[].class;
-                case Long:
+                case PrimitiveLong:
                     return long[].class;
-                case Double:
+                case PrimitiveDouble:
                     return double[].class;
-                case Boolean:
+                case PrimitiveBoolean:
                     return boolean[].class;
                 default:
                     return char[].class;

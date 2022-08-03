@@ -16,26 +16,15 @@
  */
 package io.github.wycst.wast.json;
 
-import io.github.wycst.wast.common.annotations.Property;
-import io.github.wycst.wast.common.reflect.*;
-import io.github.wycst.wast.common.tools.Base64;
-import io.github.wycst.wast.json.annotations.JsonDeserialize;
-import io.github.wycst.wast.json.annotations.JsonSerialize;
-import io.github.wycst.wast.json.custom.JsonDeserializer;
+import io.github.wycst.wast.common.reflect.GenericParameterizedType;
+import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.json.exceptions.JSONException;
 import io.github.wycst.wast.json.options.*;
 
 import java.io.*;
-import java.lang.reflect.Array;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.*;
-import java.util.Map.Entry;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * JSON serialization and deserialization tools
@@ -75,7 +64,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * </pre>
  *
- * @Author wangyunchao
+ * @author wangyunchao
  * @see JSON#toJsonString(Object)
  * @see JSON#toJsonString(Object, WriteOption...)
  * @see JSON#toJsonString(Object, JsonConfig)
@@ -89,27 +78,35 @@ import java.util.concurrent.atomic.AtomicLong;
  * @see JSON#parse(char[], Class, ReadOption...)
  * <p>
  * for more ...
- * @see Property
  * @see JSONNode
  * @see JSONReader
  * @see JSONStringWriter
  * @see GenericParameterizedType
  */
+@SuppressWarnings("rawtypes")
 public final class JSON extends JSONGeneral {
 
     /**
      * 将json字符串转为对象或者数组(Convert JSON strings to objects or arrays)
-     *
-     * <p> 如果以{开头的json将解析为LinkHashMap实例 (If the JSON starts with {, it will resolve to a LinkHashMap instance)
-     * <p> 如果以[开头的json将解析为ArrayList实例  (If the JSON starts with [, it will resolve to a ArrayList instance)
-     * <p> 如果以"开头的json将解析为字符串对象 (If the JSON starts with ", it will resolve to a String )
      *
      * @param json        source
      * @param readOptions 解析配置项
      * @return object/array/string
      */
     public static Object parse(String json, ReadOption... readOptions) {
+        if (json == null) return null;
         return JSONDefaultParser.parse(json, readOptions);
+    }
+
+    /**
+     * 将json字符数组转为对象或者数组(Convert JSON strings to objects or arrays)
+     *
+     * @param buf         字符数组
+     * @param readOptions 配置项
+     * @return
+     */
+    public static Object parse(char[] buf, ReadOption... readOptions) {
+        return JSONDefaultParser.parse(buf, readOptions);
     }
 
     /**
@@ -117,7 +114,7 @@ public final class JSON extends JSONGeneral {
      * <p>
      * 源字符串json是{}则返回clazz该类的对象，
      * <p>
-     * 如果是[]集合,则返回集合，范型是clazz
+     * 如果是[]集合,则返回元素类型为clazz的集合
      *
      * @param json        json字符串
      * @param actualType  类型（type）
@@ -127,19 +124,12 @@ public final class JSON extends JSONGeneral {
     public static Object parse(String json, Class<?> actualType, ReadOption... readOptions) {
         if (json == null)
             return null;
-        try {
-            char[] buf = getChars(json);
-            return parseBuf(buf, null, actualType, null, readOptions);
-        } catch (Exception ex) {
-            if (ex instanceof JSONException) {
-                throw (JSONException) ex;
-            }
-            throw new JSONException("Error: " + ex.getMessage(), ex);
-        }
+        return parse(getChars(json), actualType, null, readOptions);
     }
 
     /**
-     * 将json字符串转化为指定class的实例
+     * 将json字符串（{}）转化为指定class的实例
+     * <p> 去除不可见字符后以{开始
      *
      * @param json        源字符串
      * @param actualType  类型
@@ -147,10 +137,61 @@ public final class JSON extends JSONGeneral {
      * @return T对象
      */
     public static <T> T parseObject(String json, Class<T> actualType, ReadOption... readOptions) {
-        if (actualType == null || actualType == Map.class || actualType == LinkedHashMap.class) {
-            return (T) JSONDefaultParser.parse(json, readOptions);
-        }
-        return (T) parse(json, actualType, readOptions);
+        if (json == null) return null;
+        return parseObject(getChars(json), actualType, readOptions);
+    }
+
+    /**
+     * 将字符数组转化为指定class的实例
+     * <p> 去除不可见字符后以字符{开始
+     *
+     * @param buf         字符数组
+     * @param actualType  类型
+     * @param readOptions 读取配置
+     * @param <T>         泛型
+     * @return 类型对象
+     */
+    public static <T> T parseObject(char[] buf, Class<T> actualType, ReadOption... readOptions) {
+        return (T) deserialize(buf, new Deserializer() {
+
+            Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
+                JSONTypeDeserializer typeDeserializer = JSONTypeDeserializer.getTypeDeserializer(actualType);
+                GenericParameterizedType<T> genericParameterizedType = typeDeserializer.getGenericParameterizedType();
+                if (genericParameterizedType == null) {
+                    genericParameterizedType = GenericParameterizedType.actualType(actualType);
+                }
+                return typeDeserializer.deserialize(buf, fromIndex, toIndex, genericParameterizedType, null, '\0', jsonParseContext);
+            }
+        }, readOptions);
+    }
+
+    /**
+     * 将JSON字符串转化为指定Type的实例
+     * <p> 去除不可见字符后以字符{开始
+     *
+     * @param json                     JSON字符串
+     * @param genericParameterizedType 泛型结构
+     * @param readOptions              读取配置
+     * @param <T>                      泛型类型
+     * @return 对象
+     */
+    public static <T> T parseObject(String json, GenericParameterizedType<T> genericParameterizedType, ReadOption... readOptions) {
+        if (json == null) return null;
+        return parseObject(getChars(json), genericParameterizedType, readOptions);
+    }
+
+    /**
+     * 将字符数组转化为指定class的实例
+     * <p> 去除不可见字符后以字符{开始
+     *
+     * @param buf                      json字符数组
+     * @param genericParameterizedType 泛型结构
+     * @param readOptions              读取配置
+     * @param <T>                      泛型类型
+     * @return 对象
+     */
+    public static <T> T parseObject(char[] buf, final GenericParameterizedType<T> genericParameterizedType, ReadOption... readOptions) {
+        return parse(buf, genericParameterizedType, readOptions);
     }
 
     /**
@@ -162,7 +203,224 @@ public final class JSON extends JSONGeneral {
      * @return T对象
      */
     public static <T> T parse(String json, GenericParameterizedType<T> genericParameterizedType, ReadOption... readOptions) {
-        return (T) parseBuf(getChars(json), genericParameterizedType, null, readOptions);
+        if (json == null) return null;
+        return parse(getChars(json), genericParameterizedType, readOptions);
+    }
+
+    /**
+     * 根据输入genericType选择对应的序列化器进行序列化
+     *
+     * @param buf                      json字符数组
+     * @param genericParameterizedType 泛型结构
+     * @param readOptions              读取配置
+     * @param <T>                      泛型类型
+     * @return 对象或者数组
+     */
+    public static <T> T parse(char[] buf, GenericParameterizedType<T> genericParameterizedType, ReadOption... readOptions) {
+        return (T) deserialize(buf, new Deserializer() {
+
+            Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
+                ReflectConsts.ClassCategory classCategory = genericParameterizedType.getActualClassCategory();
+                return JSONTypeDeserializer.TYPE_DESERIALIZERS[classCategory.ordinal()].deserialize(buf, fromIndex, toIndex, genericParameterizedType, null, '\0', jsonParseContext);
+            }
+        }, readOptions);
+    }
+
+    /**
+     * 解析集合
+     *
+     * @param json        源字符串
+     * @param actualType  类型
+     * @param readOptions 解析配置项
+     * @return 集合
+     */
+    public static <T> List<T> parseArray(String json, Class<T> actualType, ReadOption... readOptions) {
+        if (json == null) return null;
+        return parseArray(getChars(json), actualType, readOptions);
+    }
+
+    /**
+     * 解析集合
+     *
+     * @param buf         字符数组
+     * @param actualType  类型
+     * @param readOptions 读取配置
+     * @param <T>         泛型
+     * @return
+     */
+    public static <T> List<T> parseArray(char[] buf, Class<T> actualType, ReadOption... readOptions) {
+        return (List<T>) deserialize(buf, new Deserializer() {
+            Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
+                return JSONTypeDeserializer.COLLECTION.deserialize(buf, fromIndex, toIndex, GenericParameterizedType.collectionType(ArrayList.class, actualType), null, '\0', jsonParseContext);
+            }
+        }, readOptions);
+    }
+
+    /**
+     * 解析buf字符数组，返回对象或者集合类型
+     *
+     * @param buf         字符数组
+     * @param actualType  类型
+     * @param readOptions 读取配置
+     * @return
+     */
+    public static Object parse(char[] buf, Class<?> actualType, ReadOption... readOptions) {
+        return parse(buf, actualType, null, readOptions);
+    }
+
+    /**
+     * 解析buf字符数组，返回对象或者集合类型
+     *
+     * @param buf          字符数组
+     * @param actualType   类型
+     * @param defaultValue 默认值
+     * @param readOptions  读取配置
+     * @return 对象
+     */
+    private static Object parse(char[] buf, Class<?> actualType, Object defaultValue, ReadOption... readOptions) {
+        return deserialize(buf, new Deserializer() {
+
+            Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
+                char beginChar = buf[fromIndex];
+                switch (beginChar) {
+                    case '[':
+                        return JSONTypeDeserializer.COLLECTION.deserializeCollection(buf, fromIndex, toIndex, GenericParameterizedType.collectionType(ArrayList.class, actualType), defaultValue == null ? new ArrayList() : defaultValue, jsonParseContext);
+                    default: {
+                        JSONTypeDeserializer typeDeserializer = JSONTypeDeserializer.getTypeDeserializer(actualType);
+                        GenericParameterizedType type = typeDeserializer.getGenericParameterizedType();
+                        if (type == null) {
+                            type = GenericParameterizedType.actualType(actualType);
+                        }
+                        return typeDeserializer.deserialize(buf, fromIndex, toIndex, type, defaultValue, '\0', jsonParseContext);
+                    }
+                }
+            }
+        }, readOptions);
+    }
+
+    /**
+     * 将json解析到指定实例对象中
+     *
+     * @param json        json字符串
+     * @param instance    在外部构造的实例对象中（避免创建对象的反射开销）
+     * @param readOptions 解析配置项
+     * @return instance 对象
+     */
+    public static Object parseToObject(String json, Object instance, ReadOption... readOptions) {
+        if (instance == null || json == null) {
+            return null;
+        }
+        return deserialize(getChars(json), new Deserializer() {
+
+            Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
+                if (instance instanceof Map) {
+                    return JSONTypeDeserializer.MAP.deserialize(buf, fromIndex, toIndex, GenericParameterizedType.DefaultMap, instance, '\0', jsonParseContext);
+                }
+                return JSONTypeDeserializer.OBJECT.deserializeObject(buf, fromIndex, toIndex, GenericParameterizedType.actualType(instance.getClass()), instance, jsonParseContext);
+            }
+        }, readOptions);
+    }
+
+    /**
+     * 解析目标json到指定泛型类型的集合对象
+     *
+     * @param json        json字符串
+     * @param instance    集合类型
+     * @param actualType  泛型类型
+     * @param readOptions 解析配置项
+     * @param <E>         泛型
+     * @return 集合
+     */
+    public static <E> Object parseToList(String json, Collection instance, Class<E> actualType, ReadOption... readOptions) {
+        if (instance == null || json == null) {
+            return null;
+        }
+        return deserialize(getChars(json), new Deserializer() {
+            Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
+                return JSONTypeDeserializer.COLLECTION.deserializeCollection(buf, fromIndex, toIndex, GenericParameterizedType.collectionType(instance.getClass(), actualType), instance, jsonParseContext);
+            }
+        }, readOptions);
+    }
+
+    /***
+     * 本地反序列化器提取代码
+     */
+    abstract static class Deserializer {
+        abstract Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception;
+    }
+
+    /***
+     * 提取重复代码
+     *
+     * @param buf
+     * @param deserializer
+     * @param readOptions
+     * @return
+     */
+    private static Object deserialize(char[] buf, Deserializer deserializer, ReadOption... readOptions) {
+        int fromIndex = 0;
+        int toIndex = buf.length;
+        // Trim remove white space characters
+        char beginChar = '\0';
+        while ((fromIndex < toIndex) && (beginChar = buf[fromIndex]) <= ' ') {
+            fromIndex++;
+        }
+        while ((toIndex > fromIndex) && buf[toIndex - 1] <= ' ') {
+            toIndex--;
+        }
+
+        JSONParseContext jsonParseContext = new JSONParseContext();
+        Options.readOptions(readOptions, jsonParseContext);
+        try {
+            boolean allowComment = jsonParseContext.isAllowComment();
+            if (allowComment && beginChar == '/') {
+                /** 去除声明在头部的注释*/
+                fromIndex = clearCommentAndWhiteSpaces(buf, fromIndex + 1, toIndex, jsonParseContext);
+            }
+            Object result = deserializer.deserialize(buf, fromIndex, toIndex, jsonParseContext);
+            int endIndex = jsonParseContext.getEndIndex();
+            if (allowComment) {
+                /** 去除声明在尾部的注释*/
+                if (endIndex < toIndex - 1) {
+                    char commentStart = '\0';
+                    while (endIndex + 1 < toIndex && (commentStart = buf[++endIndex]) <= ' ') ;
+                    if (commentStart == '/') {
+                        endIndex = clearCommentAndWhiteSpaces(buf, endIndex + 1, toIndex, jsonParseContext);
+                    }
+                }
+            }
+
+            if (endIndex != toIndex - 1) {
+                int wordNum = Math.min(50, buf.length - endIndex);
+                throw new JSONException("Syntax error, at pos " + endIndex + " extra characters found, '" + new String(buf, endIndex, wordNum) + " ...'");
+            }
+
+            return result;
+        } catch (Exception ex) {
+            if (ex instanceof JSONException) {
+                throw (JSONException) ex;
+            }
+            // There is only one possibility to control out of bounds exceptions when indexing toindex
+            if (ex instanceof IndexOutOfBoundsException) {
+                String errorContextTextAt = createErrorContextText(buf, toIndex);
+                throw new JSONException("Syntax error, context text by '" + errorContextTextAt + "', JSON format error, and the end token may be missing, such as '\"' or ', ' or '}' or ']'.");
+            }
+            throw new JSONException("Error: " + ex.getMessage(), ex);
+        } finally {
+            jsonParseContext.clear();
+        }
+    }
+
+    /**
+     * 解析日期
+     *
+     * @param dateStr
+     * @param dateCls
+     * @return
+     */
+    public final static Date parseDate(String dateStr, Class<? extends Date> dateCls) {
+        char[] buf = getChars(dateStr);
+        return matchDate(buf, 0, dateStr.length(), null, dateCls);
     }
 
     /***
@@ -200,7 +458,7 @@ public final class JSON extends JSONGeneral {
         if (size <= 0) size = is.available();
         if (size <= DIRECT_READ_BUFFER_SIZE) {
             char[] buf = readInputStream(is, (int) size);
-            return JSONDefaultParser.parse(buf, readOptions);
+            return parse(buf, readOptions);
         } else {
             JSONReader jsonReader = new JSONReader(is);
             jsonReader.setOptions(readOptions);
@@ -301,1322 +559,31 @@ public final class JSON extends JSONGeneral {
     }
 
     /**
-     * 返回集合
+     * 读取json文件转化为指定class的实例
      *
-     * @param json        源字符串
-     * @param actualType  类型
+     * @param file        文件
+     * @param genericType 泛型模型
      * @param readOptions 解析配置项
-     * @return 集合
+     * @return T对象
      */
-    public static <T> List<T> parseArray(String json, Class<T> actualType, ReadOption... readOptions) {
-        return (List<T>) parse(json, actualType, readOptions);
+    public static <T> T read(File file, GenericParameterizedType<T> genericType, ReadOption... readOptions) throws IOException {
+        JSONReader jsonReader = JSONReader.from(file);
+        jsonReader.setOptions(readOptions);
+        return jsonReader.readAsResult(genericType);
     }
 
     /**
-     * 解析buf字符数组，返回对象或者集合类型
+     * 读取json文件转化为指定class的实例
      *
-     * @param buf         字符数组
-     * @param actualType  类型
+     * @param is          io流
+     * @param genericType 泛型模型
      * @param readOptions 解析配置项
-     * @return 对象或集合
+     * @return T对象
      */
-    public static Object parse(char[] buf, Class<?> actualType, ReadOption... readOptions) {
-        if (buf == null || buf.length == 0)
-            return null;
-        return parseBuf(buf, null, actualType, null, readOptions);
-    }
-
-    /**
-     * 将json解析到指定实例对象中
-     *
-     * @param json        json字符串
-     * @param instance    在外部构造的实例对象中（避免创建对象的反射开销）
-     * @param readOptions 解析配置项
-     * @return instance 返回
-     */
-    public static Object parseToObject(String json, Object instance, ReadOption... readOptions) {
-        if (instance == null) {
-            return null;
-        }
-        parseBuf(getChars(json), null, instance.getClass(), instance, readOptions);
-        return instance;
-    }
-
-    /**
-     * 解析目标json到指定泛型类型的集合对象
-     *
-     * @param json        json字符串
-     * @param instance    集合类型
-     * @param actualType  泛型类型
-     * @param readOptions 解析配置项
-     * @param <E>
-     * @return
-     */
-    public static <E> Object parseToList(String json, Collection instance, Class<E> actualType, ReadOption... readOptions) {
-        if (instance == null) {
-            return null;
-        }
-        parseBuf(getChars(json), instance.getClass(), actualType, instance, readOptions);
-        return instance;
-    }
-
-    private static Object parseBuf(char[] buf, final GenericParameterizedType genericParameterizedType, final Object instance, ReadOption... readOptions) {
-        return executeParseBuffers(buf, new LocalBufferParser() {
-
-            public Object parse(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
-                Object result;
-                char beginChar = buf[fromIndex];
-                switch (beginChar) {
-                    case '{':
-                        result = parseObjectOfBuf(fromIndex, toIndex, buf, genericParameterizedType, instance, true, jsonParseContext);
-                        break;
-                    case '[':
-                        result = parseArrayOfBuf(fromIndex, toIndex, buf, genericParameterizedType, instance, true, jsonParseContext);
-                        break;
-                    case '"':
-                        result = parseStringOfBuf(fromIndex, toIndex, buf, genericParameterizedType, jsonParseContext);
-                        break;
-                    default:
-                        throw new UnsupportedOperationException("Unsupported for begin character with '" + beginChar + "'");
-                }
-                return result;
-            }
-        }, readOptions);
-    }
-
-    private static Object executeParseBuffers(char[] buf, LocalBufferParser parser, ReadOption... readOptions) {
-        int fromIndex = 0;
-        int toIndex = buf.length;
-        // Trim remove white space characters
-        char beginChar = '\0';
-        while ((fromIndex < toIndex) && (beginChar = buf[fromIndex]) <= ' ') {
-            fromIndex++;
-        }
-        while ((toIndex > fromIndex) && buf[toIndex - 1] <= ' ') {
-            toIndex--;
-        }
-
-        JSONParseContext jsonParseContext = new JSONParseContext();
-        Options.readOptions(readOptions, jsonParseContext);
-        try {
-
-            boolean allowComment = jsonParseContext.isAllowComment();
-            if (allowComment && beginChar == '/') {
-                /** 去除声明在头部的注释*/
-                fromIndex = clearCommentAndWhiteSpaces(buf, fromIndex + 1, toIndex, jsonParseContext);
-            }
-
-            Object result = parser.parse(buf, fromIndex, toIndex, jsonParseContext);
-            int endIndex = jsonParseContext.getEndIndex();
-
-            if (allowComment) {
-                /** 去除声明在尾部的注释*/
-                if (endIndex < toIndex - 1) {
-                    char commentStart = '\0';
-                    while (endIndex + 1 < toIndex && (commentStart = buf[++endIndex]) <= ' ') ;
-                    if (commentStart == '/') {
-                        endIndex = clearCommentAndWhiteSpaces(buf, endIndex + 1, toIndex, jsonParseContext);
-                    }
-                }
-            }
-
-            if (endIndex != toIndex - 1) {
-                int wordNum = Math.min(50, buf.length - endIndex);
-                throw new JSONException("Syntax error, at pos " + endIndex + " extra characters found, '" + new String(buf, endIndex, wordNum) + " ...'");
-            }
-            return result;
-        } catch (Exception ex) {
-            if (ex instanceof JSONException) {
-                throw (JSONException) ex;
-            }
-            throw new JSONException("Error: " + ex.getMessage(), ex);
-        } finally {
-            jsonParseContext.clear();
-        }
-    }
-
-    private static Object parseBuf(char[] buf, final Class<? extends Collection> collectionCls, final Class<?> clazz, final Object instance, ReadOption... readOptions) {
-        return executeParseBuffers(buf, new LocalBufferParser() {
-            @Override
-            public Object parse(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
-                Object result;
-                char beginChar = buf[fromIndex];
-                switch (beginChar) {
-                    case '{':
-                        result = parseObjectOfBuf(fromIndex, toIndex, buf, GenericParameterizedType.actualType(clazz), instance, true, jsonParseContext);
-                        break;
-                    case '[':
-                        result = parseArrayOfBuf(fromIndex, toIndex, buf, GenericParameterizedType.collectionType(collectionCls, clazz), instance, true, jsonParseContext);
-                        break;
-                    case '"':
-                        Class<?> actualType = clazz == null ? String.class : clazz;
-                        result = parseStringOfBuf(fromIndex, toIndex, buf, GenericParameterizedType.actualType(actualType), jsonParseContext);
-                        break;
-                    default:
-                        throw new UnsupportedOperationException("Unsupported for begin character with '" + beginChar + "'");
-                }
-                return result;
-            }
-        }, readOptions);
-    }
-
-    /**
-     * 解析对象，以{开始，直到遇到}结束 （Resolve the object, starting with '{', until '}' is encountered）
-     *
-     * @param fromIndex                开始位置（Start index of '{'）
-     * @param toIndex                  最大索引位置（Maximum end index）
-     * @param buf                      缓冲数组（char[]）
-     * @param genericParameterizedType 类型结构
-     * @param instance                 实例对象（Entity Class）
-     * @param deserialize              是否反序列化
-     * @param jsonParseContext         上下文配置（context config）
-     * @param <T>                      泛型类型（actualType）
-     * @return 对象（object）
-     * @throws Exception 异常(Exception)
-     */
-    private static <T> T parseObjectOfBuf(int fromIndex, int toIndex, char[] buf, GenericParameterizedType genericParameterizedType, Object instance, boolean deserialize, JSONParseContext jsonParseContext) throws Exception {
-
-        int beginIndex = fromIndex + 1;
-        char ch = '\0';
-        Object key = null;
-        boolean assignableFromMap = true;
-        SetterInfo setterInfo = null;
-        ClassStructureWrapper classStructureWrapper = null;
-        Class clazz = genericParameterizedType == null ? null : genericParameterizedType.getActualType();
-        if (instance != null) {
-            if (!(instance instanceof Map)) {
-                classStructureWrapper = ClassStructureWrapper.get(clazz);
-                assignableFromMap = false;
-            }
-        } else {
-            if (clazz == null || clazz == Object.class
-                    || clazz == Map.class || clazz == LinkedHashMap.class) {
-                instance = new LinkedHashMap<String, Object>();
-            } else if (clazz == HashMap.class) {
-                instance = new HashMap<String, Object>();
-            } else {
-                classStructureWrapper = ClassStructureWrapper.get(clazz);
-                assignableFromMap = classStructureWrapper == null ? false : classStructureWrapper.isAssignableFromMap();
-                if (deserialize) {
-                    if (!assignableFromMap) {
-                        instance = classStructureWrapper.newInstance();
-                    } else {
-                        instance = clazz.newInstance();
-                    }
-                }
-            }
-        }
-
-        boolean empty = true;
-        boolean allowComment = jsonParseContext.isAllowComment();
-
-        // for loop to parse
-        for (int i = beginIndex; i < toIndex; i++) {
-            // clear white space characters
-            while ((ch = buf[i]) <= ' ') {
-                i++;
-            }
-            if (jsonParseContext.isAllowComment()) {
-                if (ch == '/') {
-                    ch = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext)];
-                }
-            }
-
-            int fieldKeyFrom = i, fieldKeyTo, splitIndex, simpleToIndex = -1;
-            boolean isUnquotedFieldName = false;
-            JsonDeserialize jsonDeserialize = null;
-            boolean skipValue = !deserialize;
-
-            // Standard JSON field name with "
-            if (ch == '"') {
-                while (i + 1 < toIndex && ((ch = buf[++i]) != '"' || buf[i - 1] == '\\')) ;
-                empty = false;
-                if(ch != '"') {
-                    String errorContextTextAt = createErrorContextText(buf, i);
-                    throw new JSONException("Syntax error, util pos " + i + ", context text by '" + errorContextTextAt + "' the closing symbol '\"' is not found ");
-                }
-                i++;
-            } else {
-                // 4种可能：（There are only four possibilities）
-                // 1 空对象（empty object）
-                // 2 语法错误，字符不为空，无效结束符号'}'（Syntax error, character is not empty, invalid closing symbol '}'）
-                // 3 单引号key
-                // 4 无引号key
-                if (ch == '}') {
-                    if (!empty) {
-                        String errorContextTextAt = createErrorContextText(buf, i);
-                        throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "' the closing symbol '}' is not allowed here.");
-                    }
-                    jsonParseContext.setEndIndex(i);
-                    return (T) instance;
-                }
-                if (ch == '\'') {
-                    if (jsonParseContext.isAllowSingleQuotes()) {
-                        while (i + 1 < toIndex && buf[++i] != '\'') ;
-                        empty = false;
-                        i++;
-                    } else {
-                        String errorContextTextAt = createErrorContextText(buf, i);
-                        throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "' the single quote symbol ' is not allowed here.");
-                    }
-                } else {
-                    if (jsonParseContext.isAllowUnquotedFieldNames()) {
-                        // 无引号key处理
-                        // 直接锁定冒号（:）位置
-                        while (i + 1 < toIndex && buf[++i] != ':') ;
-                        empty = false;
-                        isUnquotedFieldName = true;
-                    }
-                }
-            }
-
-            // clear white space characters
-            while ((ch = buf[i]) <= ' ') {
-                i++;
-            }
-            // 清除注释前记录属性字段的token结束位置
-            fieldKeyTo = i;
-            if (allowComment) {
-                if (ch == '/') {
-                    ch = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext)];
-                }
-            }
-
-            // Standard JSON rules:
-            // 1 if matched, it can only be followed by a colon, and all other symbols are wrong
-            // 2 after the attribute value is parsed, it can only be followed by a comma(,) or end, and other symbols are wrong
-            if (ch == ':') {
-                // Resolve key value pairs
-                if (assignableFromMap) {
-                    // 如果是map类型直接解析出key (If it is a map type, directly resolve the key)
-                    Class mapKeyClass = genericParameterizedType == null ? null : genericParameterizedType.getMapKeyClass();
-                    key = parseKeyOfMap(fieldKeyFrom, fieldKeyTo, buf, mapKeyClass, jsonParseContext);
-                } else {
-                    // 如果是实体对象，通过匹配key查找setter信息 （If it is an entity object, find the setter information by matching the key）
-                    if (deserialize) {
-                        setterInfo = getSetterMethodInfo(classStructureWrapper, buf, fieldKeyFrom, fieldKeyTo, isUnquotedFieldName);
-
-                        // Custom deserialization
-                        if (setterInfo != null) {
-                            // Whether to consider setterMethodInfo.isDeserialize() ?
-                            jsonDeserialize = (JsonDeserialize) setterInfo.getDeserializeAnnotation(JsonDeserialize.class);
-                        } else {
-                            skipValue = true;
-                        }
-                    }
-                }
-
-                // 清除空白字符（clear white space characters）
-                while ((ch = buf[++i]) <= ' ') ;
-                if (allowComment) {
-                    if (ch == '/') {
-                        ch = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext)];
-                    }
-                }
-                // 分割符位置,SimpleMode
-                splitIndex = i - 1;
-
-                // 空，布尔值，数字，或者字符串 （ null, true or false or numeric or string）
-                boolean isSimpleValue = false;
-                // 是否反序列
-                boolean isDeserialize = deserialize;
-
-                // custom Deserializer
-                if (jsonDeserialize != null) {
-                    JsonDeserializer jsonDeserializer = getJsonDeserializer(jsonDeserialize);
-                    // Parse value part
-                    // Get the end position according to the match (comma or})
-                    Object deserializableValue = parseDeserializableValue(splitIndex + 1, toIndex, buf, jsonDeserialize.useSource(), jsonParseContext);
-                    Object value = jsonDeserializer.deserialize(deserializableValue, null, jsonParseContext);
-                    doDeserializeInvokeValue(false, instance, key, value, setterInfo);
-                    i = jsonParseContext.getEndIndex();
-                } else {
-                    if (deserialize && setterInfo != null) {
-                        isDeserialize = setterInfo.isDeserialize();
-                    }
-
-                    switch (ch) {
-                        case '{': {
-                            GenericParameterizedType valueType = null;
-                            Object defaultValue = null;
-                            if (!assignableFromMap && setterInfo != null) {
-                                valueType = setterInfo.getGenericParameterizedType();
-                                boolean nonInstanceType = setterInfo.isNonInstanceType();
-                                if (nonInstanceType) {
-                                    if (jsonParseContext.isUseDefaultFieldInstance()) {
-                                        defaultValue = setterInfo.getDefaultFieldValue(instance);
-                                        if (defaultValue != null) {
-                                            valueType = valueType.copyAndReplaceActualType(defaultValue.getClass());
-                                        }
-                                    } else {
-                                        isDeserialize = false;
-                                    }
-                                } else {
-                                    if (valueType.isCamouflage() && genericParameterizedType != null) {
-                                        // 根据入参指定获取伪泛型的实际类型
-                                        Class<?> actualType = genericParameterizedType.getGenericClass(valueType.getGenericName());
-                                        valueType = GenericParameterizedType.actualType(actualType);
-                                    }
-                                }
-                            } else {
-                                valueType = genericParameterizedType == null ? null : genericParameterizedType.getValueType();
-                            }
-                            Object value = parseObjectOfBuf(i, toIndex, buf, valueType, defaultValue, isDeserialize, jsonParseContext);
-                            if (isDeserialize) {
-                                doDeserializeInvokeValue(assignableFromMap, instance, key, value, setterInfo);
-                            }
-                            i = jsonParseContext.getEndIndex();
-                            break;
-                        }
-                        case '[': {
-                            // 2 [ array
-                            GenericParameterizedType valueType = getGenericValueType(assignableFromMap, setterInfo, genericParameterizedType);
-                            // 解析集合或者数组 （Parse a collection or array）
-                            Object value = parseArrayOfBuf(i, toIndex, buf, valueType, null, isDeserialize, jsonParseContext);
-                            if (isDeserialize) {
-                                doDeserializeInvokeValue(assignableFromMap, instance, key, value, setterInfo);
-                            }
-                            i = jsonParseContext.getEndIndex();
-                            break;
-                        }
-                        case '"': {
-                            // 3 string
-                            GenericParameterizedType valueType = getGenericValueType(assignableFromMap, setterInfo, genericParameterizedType);
-                            // parse string
-                            Object value = parseStringOfBuf(i, toIndex, buf, skipValue, valueType, jsonParseContext);
-                            if (isDeserialize) {
-                                doDeserializeInvokeValue(assignableFromMap, instance, key, value, setterInfo);
-                            }
-                            i = jsonParseContext.getEndIndex();
-                            break;
-                        }
-                        default: {
-                            isSimpleValue = true;
-                            // 4 null, true or false or numeric
-                            // Find comma(,) or closing symbol(})
-                            while (i + 1 < toIndex) {
-                                ch = buf[i + 1];
-                                if (allowComment) {
-                                    // '/' in simple mode must be a comment, otherwise an exception will be thrown
-                                    if (ch == '/') {
-                                        simpleToIndex = i + 1;
-                                        int j = clearCommentAndWhiteSpaces(buf, ++i + 1, toIndex, jsonParseContext);
-                                        ch = buf[j];
-                                        // Make sure the I position precedes ',' or '}'
-                                        i = j - 1;
-                                    }
-                                }
-                                if (ch == ',' || ch == '}') {
-                                    break;
-                                }
-                                i++;
-                            }
-
-                            if(i == toIndex - 1) {
-                                // 越界
-                                String errorContextTextAt = createErrorContextText(buf, i);
-                                throw new JSONException("Syntax error, util pos " + i + ", context text by '" + errorContextTextAt + "', token ',' or '}' not found ");
-                            }
-                        }
-                    }
-                }
-
-                // clear white space characters
-                while ((ch = buf[++i]) <= ' ') ;
-                if (simpleToIndex == -1) {
-                    simpleToIndex = i;
-                }
-
-                if (allowComment) {
-                    // clearComment and append whiteSpaces
-                    if (ch == '/') {
-                        ch = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext)];
-                    }
-                }
-
-                // Check whether the next character is a comma or end symbol '}'. If yes, continue or break. If not, throw an exception
-                boolean isClosingSymbol = ch == '}';
-                if (ch == ',' || isClosingSymbol) {
-                    if (isSimpleValue && isDeserialize) {
-                        GenericParameterizedType valueType = getGenericValueType(assignableFromMap, setterInfo, genericParameterizedType);
-                        parseSimpleValue(assignableFromMap, instance, setterInfo, valueType, key, splitIndex, simpleToIndex, buf, jsonParseContext);
-                    }
-                    if (isClosingSymbol) {
-                        jsonParseContext.setEndIndex(i);
-                        return (T) instance;
-                    }
-                } else {
-                    String errorContextTextAt = createErrorContextText(buf, i);
-                    throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', expected ',' or '}'");
-                }
-            } else {
-                String errorContextTextAt = createErrorContextText(buf, i);
-                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', Colon character ':' is expected.");
-            }
-        }
-        throw new JSONException("Syntax error, the closing symbol '}' is not found ");
-    }
-
-    private static GenericParameterizedType getGenericValueType(boolean assignableFromMap, SetterInfo setterInfo, GenericParameterizedType hostParameterizedType) {
-        GenericParameterizedType valueType;
-        if (!assignableFromMap && setterInfo != null) {
-            valueType = setterInfo.getGenericParameterizedType();
-            if (valueType.isCamouflage() && hostParameterizedType != null) {
-                Class<?> actualType = hostParameterizedType.getGenericClass(valueType.getGenericName());
-                valueType = GenericParameterizedType.actualType(actualType);
-            }
-        } else {
-            valueType = hostParameterizedType == null ? null : hostParameterizedType.getValueType();
-        }
-        return valueType;
-    }
-
-    /**
-     * 解析自定义反序列内容
-     *
-     * @param beginIndex       开始位置
-     * @param toIndex          最大结束位置
-     * @param buf              json内容
-     * @param useSource        是否使用源字符串（暂时不支持）
-     * @param jsonParseContext 解析配置
-     * @return Number，String， Map(LinkHashMap), List(ArrayList)
-     */
-    private static Object parseDeserializableValue(int beginIndex, int toIndex, char[] buf, boolean useSource, JSONParseContext jsonParseContext) throws Exception {
-        char startCh = buf[beginIndex], ch;
-        switch (startCh) {
-            case '{':
-                return parseObjectOfBuf(beginIndex, toIndex, buf, GenericParameterizedType.actualType(Map.class), null, true, jsonParseContext);
-            case '[':
-                return parseArrayOfBuf(beginIndex, toIndex, buf, GenericParameterizedType.collectionType(List.class, (Class) null), null, true, jsonParseContext);
-            case '"':
-                return parseStringOfBuf(beginIndex, toIndex, buf, GenericParameterizedType.actualType(String.class), jsonParseContext);
-            default:
-                // 数字，null, true/false
-                // 是否考虑清除注释？
-                int i = beginIndex;
-                int endIndex = -1;
-                boolean allowComment = jsonParseContext.isAllowComment();
-                while (i + 1 < toIndex) {
-                    ch = buf[i + 1];
-                    if (allowComment) {
-                        if (ch == '/') {
-                            endIndex = i + 1;
-                            int j = clearCommentAndWhiteSpaces(buf, ++i + 1, toIndex, jsonParseContext);
-                            ch = buf[j];
-                            i = j - 1;
-                        }
-                    }
-                    if (ch == ',' || ch == '}') {
-                        break;
-                    }
-                    i++;
-                }
-                jsonParseContext.setEndIndex(i);
-                if (endIndex == -1) {
-                    endIndex = i + 1;
-                }
-                // clear end WhiteSpaces
-                while (endIndex > beginIndex && buf[endIndex - 1] <= ' ') {
-                    endIndex--;
-                }
-                int len = endIndex - beginIndex;
-                if (len == 4) {
-                    if (startCh == 'n'
-                            && buf[beginIndex + 1] == 'u'
-                            && buf[beginIndex + 2] == 'l'
-                            && buf[beginIndex + 3] == 'l') {
-                        return null;
-                    }
-                    if (startCh == 't'
-                            && buf[beginIndex + 1] == 'r'
-                            && buf[beginIndex + 2] == 'u'
-                            && buf[beginIndex + 3] == 'e') {
-                        return true;
-                    }
-                }
-                if (len == 5 &&
-                        startCh == 'f'
-                        && buf[beginIndex + 1] == 'a'
-                        && buf[beginIndex + 2] == 'l'
-                        && buf[beginIndex + 3] == 's'
-                        && buf[beginIndex + 4] == 'e') {
-                    return false;
-                }
-                return parseNumber(buf, beginIndex, endIndex, jsonParseContext.isUseBigDecimalAsDefault());
-        }
-    }
-
-    private static void doDeserializeInvokeValue(boolean assignableFromMap, Object instance, Object key, Object value, SetterInfo setterInfo) {
-        if (assignableFromMap) {
-            Map<Object, Object> mapInstance = (Map<Object, Object>) instance;
-            mapInstance.put(key, value);
-        } else {
-            if (setterInfo != null)
-                setterInfo.invoke(instance, value);
-        }
-    }
-
-    private static Object parseArrayOfBuf(int fromIndex, int toIndex, char[] buf, GenericParameterizedType parameterizedType, Object instance, boolean deserialize, JSONParseContext jsonParseContext) throws Exception {
-
-        int beginIndex = fromIndex + 1;
-        char ch = '\0';
-
-        Collection<Object> collection;
-        boolean isArrayCls = false;
-
-        Class<?> collectionCls = null;
-        GenericParameterizedType valueType = null;
-        Class actualType = null;
-
-        if (parameterizedType != null) {
-            collectionCls = parameterizedType.getActualType();
-            valueType = parameterizedType.getValueType();
-            actualType = valueType == null ? null : valueType.getActualType();
-        }
-
-        if (instance != null) {
-            if (instance instanceof Collection) {
-                collection = (Collection) instance;
-            } else {
-                isArrayCls = collectionCls.isArray();
-                if (isArrayCls) {
-                    collection = new ArrayList<Object>();
-                    actualType = collectionCls.getComponentType();
-                    if (valueType == null) {
-                        valueType = GenericParameterizedType.actualType(actualType);
-                    }
-                } else {
-                    throw new UnsupportedOperationException("Unsupported for collection type '" + collectionCls + "'");
-                }
-            }
-
-        } else {
-            if (collectionCls == null || collectionCls == ArrayList.class) {
-                collection = new ArrayList<Object>();
-            } else {
-                isArrayCls = collectionCls.isArray();
-                if (isArrayCls) {
-                    // arr用list先封装数据再转化为数组
-                    collection = new ArrayList<Object>();
-                    actualType = collectionCls.getComponentType();
-                    if (valueType == null) {
-                        valueType = GenericParameterizedType.actualType(actualType);
-                    }
-                } else {
-                    collection = createCollectionInstance(collectionCls);
-                }
-            }
-        }
-
-        // 允许注释
-        boolean allowComment = jsonParseContext.isAllowComment();
-
-        // 集合数组核心token是逗号（The core token of the collection array is a comma）
-        // for loop
-        for (int i = beginIndex; i < toIndex; i++) {
-            // clear white space characters
-            while ((ch = buf[i]) <= ' ') {
-                i++;
-            }
-            if (allowComment) {
-                if (ch == '/') {
-                    ch = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext)];
-                }
-            }
-
-            // for simple element parse
-            int simpleFromIndex = i, simpleToIndex = -1;
-
-            // 如果提前遇到字符']'，说明是空集合
-            //  （If the character ']' is encountered in advance, it indicates that it is an empty set）
-            // 另一种可能性(语法错误): 非空集合，发生在空逗号后接结束字符']'直接抛出异常
-            //  (Another possibility(Syntax error): whether the empty comma followed by the closing character ']' throws an exception)
-            if (ch == ']') {
-                if (collection.size() > 0) {
-                    String errorContextTextAt = createErrorContextText(buf, i);
-                    throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "' the closing symbol ']' is not allowed here.");
-                }
-                jsonParseContext.setEndIndex(i);
-                if (isArrayCls) {
-                    return Array.newInstance(valueType == null ? Object.class : valueType.getActualType(), 0);
-                }
-                return collection;
-            }
-            // 是否简单元素如null, true or false or numeric or string
-            // (is simple elements such as null, true or false or numeric or string)
-            boolean isSimpleElement = false;
-            boolean skipValue = !deserialize;
-            switch (ch) {
-                case '{': {
-                    Object value = parseObjectOfBuf(i, toIndex, buf, valueType, null, deserialize, jsonParseContext);
-                    if (deserialize) {
-                        collection.add(value);
-                    }
-                    i = jsonParseContext.getEndIndex();
-                    break;
-                }
-                case '[': {
-                    // 2 [ array
-                    Object value = parseArrayOfBuf(i, toIndex, buf, valueType, null, deserialize, jsonParseContext);
-                    collection.add(value);
-                    i = jsonParseContext.getEndIndex();
-                    break;
-                }
-                case '"': {
-                    // 3 string
-                    // When there are escape characters, the escape character needs to be parsed
-                    Object value = null;
-                    if (actualType == byte[].class) {
-                        value = parseBytesOfBuf(i, toIndex, buf, jsonParseContext);
-                    } else {
-                        value = parseStringOfBuf(i, toIndex, buf, skipValue, valueType, jsonParseContext);
-                        if (actualType == char[].class && value instanceof String) {
-                            value = getChars((String) value);
-                        }
-                    }
-                    collection.add(value);
-                    i = jsonParseContext.getEndIndex();
-                    break;
-                }
-                default: {
-                    // 简单元素（Simple element）
-                    isSimpleElement = true;
-                    // 查找逗号或者结束字符']' (Find comma or closing character ']')
-                    // 注： 查找后i的位置在逗号或者']'之前(i pos before index of ',' or ']')
-                    while (i + 1 < toIndex) {
-                        ch = buf[i + 1];
-                        if (allowComment) {
-                            // '/' in simple mode must be a comment, otherwise an exception will be thrown
-                            if (ch == '/') {
-                                simpleToIndex = i + 1;
-                                int j = clearCommentAndWhiteSpaces(buf, ++i + 1, toIndex, jsonParseContext);
-                                ch = buf[j];
-                                // Make sure the I position precedes', 'or'} '
-                                i = j - 1;
-                            }
-                        }
-                        if (ch == ',' || ch == ']') {
-                            break;
-                        }
-                        i++;
-                    }
-
-                    if(i == toIndex - 1) {
-                        String errorContextTextAt = createErrorContextText(buf, i);
-                        throw new JSONException("Syntax error, util pos " + i + ", context text by '" + errorContextTextAt + "', the token ',' or ']' not found ");
-                    }
-                }
-            }
-
-            // 清除空白字符（clear white space characters）
-            while ((ch = buf[++i]) <= ' ') ;
-            if (simpleToIndex == -1) {
-                simpleToIndex = i;
-            }
-
-            if (allowComment) {
-                if (ch == '/') {
-                    ch = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext)];
-                }
-            }
-
-            // 检查下一个字符是逗号还是结束符号。如果是，继续或者终止。如果不是，则抛出异常
-            // （Check whether the next character is a comma or end symbol. If yes, continue or return . If not, throw an exception）
-            boolean isEnd = ch == ']';
-            if (ch == ',' || isEnd) {
-                if (isSimpleElement) {
-                    Object value;
-                    int paramClassType = ReflectConsts.getParamClassType(actualType);
-
-                    switch (paramClassType) {
-                        case ReflectConsts.CLASS_TYPE_DATE:
-                            value = parseDateValue(simpleFromIndex, simpleToIndex, buf, null, null, (Class<? extends Date>) actualType);
-                            break;
-                        case ReflectConsts.CLASS_TYPE_NUMBER:
-                            value = parseNumberValue(simpleFromIndex, simpleToIndex, buf, ReflectConsts.getParamClassNumberType(actualType));
-                            break;
-                        case ReflectConsts.CLASS_TYPE_STRING:
-                            value = parseStringValue(simpleFromIndex, simpleToIndex, buf);
-                            break;
-                        case ReflectConsts.CLASS_TYPE_CHAR_ARRAY:
-                            value = parseStringValue(simpleFromIndex, simpleToIndex, buf).toCharArray();
-                            break;
-                        case ReflectConsts.CLASS_TYPE_BYTE_ARRAY:
-                            value = parseBytesOfBuf0(buf, simpleFromIndex, simpleToIndex, jsonParseContext);
-                            break;
-                        default:
-                            value = parseOtherTypeValue(simpleFromIndex, simpleToIndex, buf, actualType, jsonParseContext);
-                            break;
-                    }
-                    collection.add(value);
-                }
-                if (isEnd) {
-                    jsonParseContext.setEndIndex(i);
-                    // 如果是数组类型转化为数组（If it is an array type, convert it to an array）
-                    if (isArrayCls) {
-                        return collectionToArray(collection, actualType == null ? Object.class : actualType);
-                    }
-                    // 返回集合类型（Return collection type）
-                    return collection;
-                }
-            } else {
-                String errorContextTextAt = createErrorContextText(buf, i);
-                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', expected ',' or ']'");
-            }
-        }
-        throw new JSONException("Syntax error, cannot find closing symbol ']' matching '['");
-    }
-
-    private static Object parseStringOfBuf(int fromIndex, int toIndex, char[] buf, boolean skipValue, GenericParameterizedType parameterizedType, JSONParseContext jsonParseContext) throws Exception {
-
-        if (skipValue) {
-            char prev = '\0', ch = '\0';
-            int i = fromIndex + 1;
-            while (i < toIndex && (ch = buf[i]) != '"' || prev == '\\') {
-                i++;
-                prev = ch;
-            }
-            jsonParseContext.setEndIndex(i);
-            return null;
-        }
-
-        return parseStringOfBuf(fromIndex, toIndex, buf, parameterizedType, jsonParseContext);
-    }
-
-    private static Object parseStringOfBuf(int fromIndex, int toIndex, char[] buf, GenericParameterizedType parameterizedType, JSONParseContext jsonParseContext) throws Exception {
-
-        int paramClassType, beginIndex = fromIndex + 1;
-        boolean isCharArray = false;
-        Class<?> actualType = null;
-        boolean isStringType = parameterizedType == null || (actualType = parameterizedType.getActualType()) == String.class || actualType == Object.class;
-        if (isStringType
-                || (paramClassType = parameterizedType.getParamClassType()) == ReflectConsts.CLASS_TYPE_STRING
-                || (isCharArray = paramClassType == ReflectConsts.CLASS_TYPE_CHAR_ARRAY)) {
-            // String可能存在转义字符，单独处理（String may have escape characters, which should be handled separately）
-            char ch = '\0', next = '\0';
-            int i = beginIndex;
-            int len;
-
-            JSONStringWriter writer = null;
-            boolean escape = false;
-
-            for (; i < toIndex; i++) {
-                while (i < toIndex && (ch = buf[i]) != '\\' && ch != '"') {
-                    i++;
-                }
-
-                // ch is \\ or "
-                if (ch == '\\') {
-                    if (i < toIndex - 1) {
-                        next = buf[i + 1];
-                    }
-                    if (writer == null) {
-                        writer = getContextWriter(jsonParseContext);
-                    }
-                    escape = true;
-
-                    switch (next) {
-                        case '"':
-                            // add len
-                            if (i > beginIndex) {
-                                writer.write(buf, beginIndex, i - beginIndex + 1);
-                                writer.setCharAt(writer.size() - 1, '"');
-//                                stringBuilder.setCharAt(stringBuilder.length() - 1, '"');
-                            } else {
-                                writer.append('"');
-                            }
-                            beginIndex = ++i + 1;
-                            break;
-                        case 'n':
-                            len = i - beginIndex;
-                            writer.write(buf, beginIndex, len + 1);
-                            writer.setCharAt(writer.size() - 1, '\n');
-                            beginIndex = ++i + 1;
-                            break;
-                        case 'r':
-                            len = i - beginIndex;
-                            writer.write(buf, beginIndex, len + 1);
-                            writer.setCharAt(writer.size() - 1, '\r');
-                            beginIndex = ++i + 1;
-                            break;
-                        case 't':
-                            len = i - beginIndex;
-                            writer.write(buf, beginIndex, len + 1);
-                            writer.setCharAt(writer.size() - 1, '\t');
-                            beginIndex = ++i + 1;
-                            break;
-                        case 'b':
-                            len = i - beginIndex;
-                            writer.write(buf, beginIndex, len + 1);
-                            writer.setCharAt(writer.size() - 1, '\b');
-                            beginIndex = ++i + 1;
-                            break;
-                        case 'f':
-                            len = i - beginIndex;
-                            writer.write(buf, beginIndex, len + 1);
-                            writer.setCharAt(writer.size() - 1, '\f');
-                            beginIndex = ++i + 1;
-                            break;
-                        case 'u':
-                            len = i - beginIndex;
-                            writer.write(buf, beginIndex, len + 1);
-                            int c = parseInt(buf, i + 2, i + 6, 16);
-                            writer.setCharAt(writer.size() - 1, (char) c);
-                            i += 4;
-                            beginIndex = ++i + 1;
-                            break;
-                        case '\\':
-//                            len = i - beginIndex;
-                            if (i > beginIndex) {
-                                writer.write(buf, beginIndex, i - beginIndex + 1);
-                                writer.setCharAt(writer.size() - 1, '\\');
-                            } else {
-                                writer.append('\\');
-                            }
-                            beginIndex = ++i + 1;
-                            break;
-                    }
-                } else {
-                    jsonParseContext.setEndIndex(i);
-                    len = i - beginIndex;
-                    if (escape) {
-                        writer.write(buf, beginIndex, len);
-                        if (isCharArray) {
-                            int charLen = writer.size();
-                            char[] chars = new char[charLen];
-                            writer.getChars(0, charLen, chars, 0);
-                            return chars;
-                        }
-                        return writer.toString();
-                    } else {
-                        if (isCharArray) {
-                            char[] chars = new char[len];
-                            System.arraycopy(buf, beginIndex, chars, 0, len);
-//                            return Arrays.copyOfRange(buf, beginIndex, beginIndex + len);
-                            return chars;
-                        }
-                        return len == 0 ? "" : new String(buf, beginIndex, len);
-                    }
-                }
-            }
-            throw new JSONException("Syntax error, from pos " + beginIndex + ", the closing symbol '\"' is not found ");
-        }
-
-        // Other types ignore escape
-        int endStringIndex = indexOf(buf, '"', beginIndex, toIndex);
-        if (endStringIndex == -1) {
-            throw new JSONException("Syntax error, from pos " + beginIndex + ", the closing symbol '\"' is not found ");
-        }
-
-        // End position
-        jsonParseContext.setEndIndex(endStringIndex);
-        switch (paramClassType) {
-            case ReflectConsts.CLASS_TYPE_DATE:
-                // date type
-                Class<? extends Date> dateCls = (Class<? extends Date>) actualType;
-                return parseDateValue(fromIndex, endStringIndex + 1, buf, parameterizedType.getDatePattern(), parameterizedType.getDateTimezone(), dateCls);
-            case ReflectConsts.CLASS_TYPE_NUMBER:
-                return parseNumberValue(fromIndex, endStringIndex + 1, buf, parameterizedType.getParamClassNumberType());
-            case ReflectConsts.CLASS_TYPE_BYTE_ARRAY:
-                return parseBytesOfBuf0(fromIndex, endStringIndex - fromIndex - 1, buf, jsonParseContext);
-            default: {
-                return parseOtherTypeValue(fromIndex, endStringIndex + 1, buf, actualType, jsonParseContext);
-            }
-        }
-    }
-
-    private static byte[] parseBytesOfBuf(int fromIndex, int toIndex, char[] buf, JSONParseContext jsonParseContext) {
-        int endStringIndex = indexOf(buf, '"', fromIndex + 1, toIndex);
-        if (endStringIndex == -1) {
-            throw new JSONException("Syntax error, from pos " + (fromIndex + 1) + ", the closing symbol '\"' is not found ");
-        }
-        jsonParseContext.setEndIndex(endStringIndex);
-        int len = endStringIndex - fromIndex - 1;
-        return parseBytesOfBuf0(fromIndex, len, buf, jsonParseContext);
-    }
-
-    private static byte[] parseBytesOfBuf0(char[] buf, int fromIndex, int splitIndex, JSONParseContext jsonParseContext) {
-        while ((fromIndex < splitIndex) && buf[fromIndex] <= ' ') {
-            fromIndex++;
-        }
-        while ((splitIndex > fromIndex) && buf[splitIndex - 1] <= ' ') {
-            splitIndex--;
-        }
-        return parseBytesOfBuf0(fromIndex, splitIndex - fromIndex - 2, buf, jsonParseContext);
-    }
-
-    private static byte[] parseBytesOfBuf0(int fromIndex, int len, char[] buf, JSONParseContext jsonParseContext) {
-        if (jsonParseContext.isByteArrayFromHexString()) {
-            return hexString2Bytes(buf, fromIndex + 1, len);
-        } else {
-            byte[] bytes = new byte[len];
-            int offset = fromIndex + 1;
-            for (int i = 0; i < len; i++) {
-                bytes[i] = (byte) buf[offset + i];
-            }
-            return io.github.wycst.wast.common.tools.Base64.getDecoder().decode(bytes);
-        }
-    }
-
-    /**
-     * @param assignableFromMap 是否map类型
-     * @param instance          实例对象
-     * @param setterInfo        setter方法
-     * @param key               map的key
-     * @param fromIndex         一般为冒号位置
-     * @param splitIndex        逗号或者}位置
-     * @param buf
-     * @param jsonParseContext
-     * @throws Exception
-     */
-    private static void parseSimpleValue(boolean assignableFromMap, Object instance, SetterInfo setterInfo, GenericParameterizedType valueType, Object key, int fromIndex, int splitIndex, char[] buf, JSONParseContext jsonParseContext) throws Exception {
-        if (assignableFromMap) {
-            Object propertyValue = parseOtherTypeValue(fromIndex + 1, splitIndex, buf, null, jsonParseContext);
-            Map<Object, Object> instMap = (Map<Object, Object>) instance;
-            instMap.put(key, propertyValue);
-        } else {
-            if (setterInfo == null) {
-                /** 如果没有命中setterInfo,不能直接return，否则会缺少对简单value的校验 */
-                parseOtherTypeValue(fromIndex + 1, splitIndex, buf, null, jsonParseContext);
-                return;
-            }
-            Class<?> parameterType = valueType.getActualType();
-            int paramClassType = valueType.getParamClassType();
-
-            Object value;
-            switch (paramClassType) {
-                case ReflectConsts.CLASS_TYPE_DATE:
-                    // 日期类型
-                    Class<? extends Date> dateCls = (Class<? extends Date>) parameterType;
-                    value = parseDateValue(fromIndex + 1, splitIndex, buf, setterInfo.getPattern(), setterInfo.getTimezone(), dateCls);
-                    setterInfo.invoke(instance, value);
-                    break;
-                case ReflectConsts.CLASS_TYPE_NUMBER:
-                    value = parseNumberValue(fromIndex + 1, splitIndex, buf, valueType.getParamClassNumberType());
-                    setterInfo.invoke(instance, value);
-                    break;
-                case ReflectConsts.CLASS_TYPE_STRING:
-                    value = parseStringValue(fromIndex + 1, splitIndex, buf);
-                    setterInfo.invoke(instance, value);
-                    break;
-                case ReflectConsts.CLASS_TYPE_CHAR_ARRAY:
-                    value = parseStringValue(fromIndex + 1, splitIndex, buf).toCharArray();
-                    setterInfo.invoke(instance, value);
-                    break;
-                case ReflectConsts.CLASS_TYPE_BYTE_ARRAY:
-                    value = parseBytesOfBuf0(buf, fromIndex + 1, splitIndex, jsonParseContext);
-                    setterInfo.invoke(instance, value);
-                    break;
-                default: {
-                    value = parseOtherTypeValue(fromIndex + 1, splitIndex, buf, parameterType, jsonParseContext);
-                    setterInfo.invoke(instance, value);
-                    break;
-                }
-            }
-        }
-    }
-
-    private static String parseStringValue(int fromIndex, int toIndex, char[] buf) {
-        // 初始位置
-        int pos = fromIndex;
-        char beginChar = '\0';
-        char endChar = '\0';
-
-        while ((fromIndex < toIndex) && ((beginChar = buf[fromIndex]) <= ' ')) {
-            fromIndex++;
-        }
-        while ((toIndex > fromIndex) && ((endChar = buf[toIndex - 1]) <= ' ')) {
-            toIndex--;
-        }
-
-        int len = toIndex - fromIndex;
-        if (beginChar == '"' && endChar == '"') {
-            return new String(buf, fromIndex + 1, len - 2);
-        }
-
-        if (len == 4
-                && beginChar == 'n'
-                && buf[fromIndex + 1] == 'u'
-                && buf[fromIndex + 2] == 'l'
-                && endChar == 'l') {
-            return null;
-        }
-        throw new JSONException("Syntax error, at pos " + pos + ", source: '" + new String(buf, fromIndex, len) + " ...' missing front and back double quotes(\").");
-    }
-
-    private static Object parseOtherTypeValue(int fromIndex, int toIndex, char[] buf, Class<?> clazz, JSONParseContext jsonParseContext) throws Exception {
-        // 初始位置
-        int pos = fromIndex;
-
-        char beginChar = '\0';
-        char endChar = '\0';
-
-        while ((fromIndex < toIndex) && ((beginChar = buf[fromIndex]) <= ' ')) {
-            fromIndex++;
-        }
-        while ((toIndex > fromIndex) && ((endChar = buf[toIndex - 1]) <= ' ')) {
-            toIndex--;
-        }
-
-        int len = toIndex - fromIndex;
-        if (clazz != null) {
-            if (len == 4
-                    && beginChar == 'n'
-                    && buf[fromIndex + 1] == 'u'
-                    && buf[fromIndex + 2] == 'l'
-                    && endChar == 'l') {
-                return null;
-            }
-            if (clazz == StringBuffer.class) {
-                if (beginChar == '"' && endChar == '"') {
-                    StringBuffer buffer = new StringBuffer(len);
-                    buffer.append(buf, fromIndex + 1, len - 2);
-                    return buffer;
-                } else {
-                    throw new JSONException("Syntax error, at pos " + pos + ", source: '" + new String(buf, fromIndex, len) + " ...' cannot convert to StringBuffer.");
-                }
-            } else if (clazz == StringBuilder.class) {
-                if (beginChar == '"' && endChar == '"') {
-                    StringBuilder stringBuilder = new StringBuilder(len);
-                    stringBuilder.append(buf, fromIndex + 1, len - 2);
-                    return stringBuilder;
-                } else {
-                    throw new JSONException("Syntax error, at pos " + pos + ", source: '" + new String(buf, fromIndex, len) + " ...' cannot convert to StringBuilder.");
-                }
-            } else if (Enum.class.isAssignableFrom(clazz)) {
-                if (beginChar == '"' && endChar == '"') {
-                    Class cls = clazz;
-                    try {
-                        return Enum.valueOf(cls, new String(buf, fromIndex + 1, len - 2));
-                    } catch (RuntimeException exception) {
-                        if (jsonParseContext.isUnknownEnumAsNull()) {
-                            return null;
-                        } else {
-                            throw exception;
-                        }
-                    }
-                } else {
-                    try {
-                        int ordinal = parseInt(buf, fromIndex, toIndex);
-                        Enum[] values = (Enum[]) clazz.getEnumConstants();
-                        if (values != null && ordinal < values.length)
-                            return values[ordinal];
-                    } catch (Throwable throwable) {
-                    }
-                    throw new JSONException("Syntax error, at pos " + pos + ",source: '" + new String(buf, fromIndex, len) + " ...' cannot convert to Enum " + clazz + "");
-                }
-            } else if (clazz == Class.class) {
-                if (beginChar == '"' && endChar == '"') {
-                    return Class.forName(new String(buf, fromIndex + 1, len - 2));
-                } else {
-                    throw new JSONException("Syntax error, at pos " + pos + ",source: '" + new String(buf, fromIndex, len) + " ...' cannot convert to Class " + clazz + "");
-                }
-            } else {
-                // Type not supported
-                if (beginChar != '"') {
-                    throw new JSONException("Syntax error, at pos " + pos + ",source: '" + new String(buf, fromIndex, len) + " ...' cannot convert to Class " + clazz + "");
-                }
-                return null;
-            }
-        } else {
-
-            switch (beginChar) {
-                case 't':
-                    if (len == 4 && buf[fromIndex + 1] == 'r'
-                            && buf[fromIndex + 2] == 'u'
-                            && endChar == 'e') {
-                        return true;
-                    }
-                    throw new JSONException("Syntax error, at pos " + fromIndex + ", expected 'true' because it starts with 't', but found text '" + new String(buf, fromIndex, Math.min(len, 4)) + "'");
-                case 'f':
-                    if (len == 5 && buf[fromIndex + 1] == 'a'
-                            && buf[fromIndex + 2] == 'l'
-                            && buf[fromIndex + 3] == 's'
-                            && endChar == 'e') {
-                        return false;
-                    }
-                    throw new JSONException("Syntax error, at pos " + fromIndex + ", expected 'false' because it starts with 'f', but found text '" + new String(buf, fromIndex, Math.min(len, 5)) + "'");
-                case 'n':
-                    if (len == 4 && buf[fromIndex + 1] == 'u'
-                            && buf[fromIndex + 2] == 'l'
-                            && endChar == 'l') {
-                        return null;
-                    }
-                    throw new JSONException("Syntax error, at pos " + fromIndex + ", expected 'null' because it starts with 'n', but found text '" + new String(buf, fromIndex, Math.min(len, 4)) + "'");
-                default:
-                    return parseNumber(buf, fromIndex, toIndex, jsonParseContext.isUseBigDecimalAsDefault());
-            }
-        }
-    }
-
-    private static Object parseNumberValue(int fromIndex, int toIndex, char[] buf, int numberType) {
-
-        // 去除前后的空白字符 参考String.trim()
-        // 去除非打印字符如换行\n,制表符\t等
-        char beginChar = '\0';
-        char endChar = '\0';
-
-        while ((fromIndex < toIndex) && ((beginChar = buf[fromIndex]) <= ' ')) {
-            fromIndex++;
-        }
-        while ((toIndex > fromIndex) && ((endChar = buf[toIndex - 1]) <= ' ')) {
-            toIndex--;
-        }
-
-        int len = toIndex - fromIndex;
-        if (len == 4 &&
-                buf[0] == 'n' &&
-                buf[1] == 'u' &&
-                buf[2] == 'l' &&
-                buf[3] == 'l') {
-            return null;
-        }
-        switch (numberType) {
-            case ReflectConsts.CLASS_TYPE_NUMBER_INTEGER:
-                return parseInt(buf, fromIndex, toIndex);
-            case ReflectConsts.CLASS_TYPE_NUMBER_FLOAT:
-                return parseNumber(buf, fromIndex, toIndex, false).floatValue();
-            case ReflectConsts.CLASS_TYPE_NUMBER_LONG:
-                return parseLong(buf, fromIndex, toIndex);
-            case ReflectConsts.CLASS_TYPE_NUMBER_DOUBLE:
-                return parseNumber(buf, fromIndex, toIndex, false).doubleValue();
-            case ReflectConsts.CLASS_TYPE_NUMBER_BOOLEAN: {
-                if (len == 4
-                        && beginChar == 't'
-                        && buf[fromIndex + 1] == 'r'
-                        && buf[fromIndex + 2] == 'u'
-                        && buf[fromIndex + 3] == 'e') {
-                    return true;
-                } else if (len == 5
-                        && beginChar == 'f'
-                        && buf[fromIndex + 1] == 'a'
-                        && buf[fromIndex + 2] == 'l'
-                        && buf[fromIndex + 3] == 's'
-                        && buf[fromIndex + 4] == 'e') {
-                    return false;
-                } else if (len == 1 && beginChar == '0') {
-                    return false;
-                } else if (len == 1 && beginChar == '1') {
-                    return true;
-                } else {
-                    throw new JSONException("Syntax error, at pos " + fromIndex + ", '" + new String(buf, fromIndex, len) + "' cannot convert to boolean ");
-                }
-            }
-            case ReflectConsts.CLASS_TYPE_NUMBER_BIGDECIMAL:
-                return new BigDecimal(buf, fromIndex, len);
-            case ReflectConsts.CLASS_TYPE_NUMBER_BYTE:
-                return (byte) parseInt(buf, fromIndex, toIndex);
-            case ReflectConsts.CLASS_TYPE_NUMBER_CHARACTER: {
-                if (beginChar == '\'' && endChar == '\'') {
-                    if (len == 2)
-                        return '\0';
-                    if (len == 3) {
-                        return buf[fromIndex + 1];
-                    }
-                }
-                throw new JSONException("Syntax error,  pos " + fromIndex + ", '" + new String(buf, fromIndex, len) + "' cannot convert to char ");
-            }
-            case ReflectConsts.CLASS_TYPE_NUMBER_ATOMIC_INTEGER: {
-                return new AtomicInteger(parseInt(buf, fromIndex, toIndex));
-            }
-            case ReflectConsts.CLASS_TYPE_NUMBER_ATOMIC_LONG: {
-                return new AtomicLong(parseLong(buf, fromIndex, toIndex));
-            }
-            case ReflectConsts.CLASS_TYPE_NUMBER_ATOMIC_BOOLEAN: {
-                boolean flag;
-                if (len == 4
-                        && beginChar == 't'
-                        && buf[fromIndex + 1] == 'r'
-                        && buf[fromIndex + 2] == 'u'
-                        && buf[fromIndex + 3] == 'e') {
-                    flag = true;
-                } else if (len == 5
-                        && beginChar == 'f'
-                        && buf[fromIndex + 1] == 'a'
-                        && buf[fromIndex + 2] == 'l'
-                        && buf[fromIndex + 3] == 's'
-                        && buf[fromIndex + 4] == 'e') {
-                    flag = false;
-                } else if (len == 1 && beginChar == '0') {
-                    flag = false;
-                } else if (len == 1 && beginChar == '1') {
-                    flag = true;
-                } else {
-                    throw new JSONException("Syntax error,  pos " + fromIndex + ", '" + new String(buf, fromIndex, len) + "' cannot convert to AtomicBoolean ");
-                }
-                return new AtomicBoolean(flag);
-            }
-            case ReflectConsts.CLASS_TYPE_NUMBER_BIG_INTEGER: {
-                return new BigInteger(new String(buf, fromIndex, len));
-            }
-        }
-        return null;
-    }
-
-    /**
-     * 双引号中间内容，去除前后空格 eg : , "name" : "tom" , == > "name" :
-     *
-     * @param from
-     * @param to
-     * @param buf
-     * @param keyType 支持简单类型key
-     * @return
-     */
-    private static Object parseKeyOfMap(int from, int to, char[] buf, Class<?> keyType, JSONParseContext jsonParseContext) {
-        char start = '"';
-        while ((from < to) && ((start = buf[from]) <= ' ')) {
-            from++;
-        }
-        char end = '"';
-        while ((to > from) && ((end = buf[to - 1]) <= ' ')) {
-            to--;
-        }
-        if (start == '"' && end == '"' || (start == '\'' && end == '\'')) {
-            int len = to - from - 2;
-            if (keyType == null || keyType == String.class) {
-                return new String(buf, from + 1, len);
-            }
-            if (keyType == StringBuffer.class) {
-                StringBuffer buffer = new StringBuffer();
-                buffer.append(buf, from + 1, len);
-                return buffer;
-            } else if (keyType == StringBuilder.class) {
-                StringBuilder builder = new StringBuilder();
-                builder.append(buf, from + 1, len);
-                return builder;
-            } else if (Number.class.isAssignableFrom(keyType)) {
-                return parseNumberValue(from + 1, to - 1, buf, ReflectConsts.getParamClassNumberType(keyType));
-            } else {
-                throw new UnsupportedOperationException("Not Supported type '" + keyType + "' for map key ");
-            }
-        } else {
-            if (keyType == null) {
-                return parseNumber(buf, from, to, jsonParseContext.isUseBigDecimalAsDefault());
-            } else {
-                if (ReflectConsts.isNumberType(keyType)) {
-                    return parseNumberValue(from, to, buf, ReflectConsts.getParamClassNumberType(keyType));
-                }
-            }
-        }
-        throw new JSONException("Syntax error,  pos " + from + ", '" + new String(buf, from, to - from) + "' is Invalid key ");
-    }
-
-    private static SetterInfo getSetterMethodInfo(ClassStructureWrapper classStructureWrapper, char[] buf, int from, int to, boolean isUnquotedFieldName) {
-        char start = '"';
-        while ((from < to) && ((start = buf[from]) <= ' ')) {
-            from++;
-        }
-        char end = '"';
-        while ((to > from) && ((end = buf[to - 1]) <= ' ')) {
-            to--;
-        }
-        if (start == '"' && end == '"' || (start == '\'' && end == '\'')) {
-            return classStructureWrapper.getSetterInfo(buf, from + 1, to - 1);
-        }
-        if (isUnquotedFieldName) {
-            return classStructureWrapper.getSetterInfo(buf, from, to);
-        }
-        throw new JSONException("Syntax error,  pos " + from + ", '" + new String(buf, from, to - from) + "' is an Invalid key ");
+    public static <T> T read(InputStream is, GenericParameterizedType<T> genericType, ReadOption... readOptions) throws IOException {
+        JSONReader jsonReader = JSONReader.from(is);
+        jsonReader.setOptions(readOptions);
+        return jsonReader.readAsResult(genericType);
     }
 
     /**
@@ -1711,6 +678,10 @@ public final class JSON extends JSONGeneral {
      */
     public static void writeJsonTo(Object object, File file, WriteOption... options) {
         try {
+            File parent = file.getParentFile();
+            if (!parent.exists()) {
+                parent.mkdirs();
+            }
             writeJsonTo(object, new FileOutputStream(file), options);
         } catch (FileNotFoundException e) {
             e.printStackTrace();
@@ -1763,278 +734,28 @@ public final class JSON extends JSONGeneral {
 
     // obj is not null
     static void stringify(Object obj, Writer content, JsonConfig jsonConfig, int indentLevel) throws Exception {
-        Class<?> clazz = obj.getClass();
-        ReflectConsts.ClassCategory classCategory = ReflectConsts.getClassCategory(clazz);
-
-        int ordinal = classCategory.ordinal();
-        if(ordinal < JSONTypeSerializer.LENGTH) {
-            JSONTypeSerializer.TYPE_SERIALIZERS[ordinal].serialize(obj, content, null, jsonConfig, indentLevel);
-            return;
-        }
-
-        int hashcode = -1;
-        if (jsonConfig.isSkipCircularReference()) {
-            // 如果发现循环引用跳过,还是特殊标记？
-            if (jsonConfig.getStatus(hashcode = System.identityHashCode(obj)) == 0) {
-                // 循环引用
-                content.write(NULL);
-                return;
-            }
-            jsonConfig.setStatus(hashcode, 0);
-        }
-
-        switch (classCategory) {
-            case Binary: {
-                // byte数组
-                writeBinaryValue(obj, content, jsonConfig, indentLevel);
-                break;
-            }
-            case Array: {
-                writeArrayValue(obj, content, jsonConfig, indentLevel);
-                break;
-            }
-            case Collection: {
-                writeCollectionValue(obj, content, jsonConfig, indentLevel);
-                break;
-            }
-            case Map: {
-                writeMapValue(obj, content, jsonConfig, indentLevel);
-                break;
-            }
-            default: {
-
-                boolean writeFullProperty = jsonConfig.isFullProperty();
-                boolean formatOut = jsonConfig.isFormatOut();
-
-                // Object 其他类型调用 get方法或field反射获取
-                content.append('{');
-                ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(clazz);
-                boolean isFirstKey = true;
-                List<GetterInfo> getterInfos = classStructureWrapper.getGetterInfos(jsonConfig.isUseFields());
-
-                boolean skipGetterOfNoExistField = jsonConfig.isSkipGetterOfNoneField();
-                boolean camelCaseToUnderline = jsonConfig.isCamelCaseToUnderline();
-                for (GetterInfo getterInfo : getterInfos) {
-
-                    if (!getterInfo.isSerialize())
-                        continue;
-
-                    if (!getterInfo.existField() && skipGetterOfNoExistField) {
-                        continue;
-                    }
-
-                    Object value = getterInfo.invoke(obj);
-                    if (value == null && !writeFullProperty)
-                        continue;
-
-                    char[] quotBuffers = getterInfo.getFixedQuotBuffers();
-                    if (isFirstKey) {
-                        isFirstKey = false;
-                    } else {
-                        content.append(",");
-                    }
-                    writeFormatSymbolOut(content, indentLevel + 1, formatOut);
-                    if (value == null) {
-                        if (camelCaseToUnderline) {
-                            content.append('"').append(getterInfo.getUnderlineName()).append("\":null");
-                        } else {
-                            content.write(quotBuffers, 1, quotBuffers.length - 2);
-                        }
-                    } else {
-                        if (camelCaseToUnderline) {
-                            content.append('"').append(getterInfo.getUnderlineName()).append("\":");
-                        } else {
-                            content.write(quotBuffers, 1, quotBuffers.length - 6);
-                        }
-                        // Custom serialization
-                        JsonSerialize jsonSerialize = (JsonSerialize) getterInfo.getSerializeAnnotation(JsonSerialize.class);
-                        if (jsonSerialize != null) {
-                            getJsonSerializer(jsonSerialize).serialize(content, value, indentLevel + 1, jsonConfig);
-                        } else {
-                            writeFieldValue(value, content, getterInfo, jsonConfig, formatOut ? indentLevel + 1 : -1);
-                        }
-                    }
-                }
-                writeFormatSymbolOut(content, indentLevel, formatOut);
-                content.append('}');
-            }
-        }
-        jsonConfig.setStatus(hashcode, -1);
+        JSONTypeSerializer.getValueSerializer(obj).serialize(obj, content, jsonConfig, indentLevel);
     }
 
-    private static void writeMapValue(Object obj, Writer content, JsonConfig jsonConfig, int indentLevel) throws Exception {
-        boolean formatOut = jsonConfig.isFormatOut();
-        // map类 调用get获取
-        Map<Object, Object> map = (Map<Object, Object>) obj;
-        if (map.size() == 0) {
-            content.write(EMPTY_OBJECT);
-        } else {
-            content.write('{');
-            // 遍历map
-            Iterator<Entry<Object, Object>> iterator = map.entrySet().iterator();
-            boolean isFirstKey = true;
-            while (iterator.hasNext()) {
-                Entry<Object, Object> entry = iterator.next();
-                Object key = entry.getKey();
-                Object value = entry.getValue();
-
-                if (isFirstKey) {
-                    isFirstKey = false;
-                } else {
-                    content.append(',');
-                }
-                writeFormatSymbolOut(content, indentLevel + 1, formatOut);
-
-                if (jsonConfig.isAllowUnquotedMapKey() && (key == null || key instanceof Number)) {
-                    content.append(String.valueOf(key)).append(':');
-                } else {
-                    content.append('"').append(key.toString()).append('"').append(':');
-                }
-
-                if (value != null) {
-                    stringify(value, content, jsonConfig, formatOut ? indentLevel + 1 : -1);
-                } else {
-                    content.write(NULL);
-                }
-            }
-            writeFormatSymbolOut(content, indentLevel, formatOut);
-            content.write('}');
-        }
-    }
-
-    private static void writeArrayValue(Object obj, Writer content, JsonConfig jsonConfig, int indentLevel) throws Exception {
-        boolean formatOut = jsonConfig.isFormatOut();
-        int length = Array.getLength(obj);
-        if (length == 0) {
-            content.write(EMPTY_ARRAY);
-        } else {
-            // 数组类
-            content.write('[');
-            int lastLevel = indentLevel;
-            boolean isFirstKey = true;
-            for (int i = 0; i < length; i++) {
-                if (isFirstKey) {
-                    isFirstKey = false;
-                } else {
-                    content.append(",");
-                }
-                writeFormatSymbolOut(content, lastLevel = indentLevel + 1, formatOut);
-                Object value = Array.get(obj, i);
-                if (value == null) {
-                    content.write(NULL);
-                } else {
-                    stringify(value, content, jsonConfig, formatOut ? indentLevel + 1 : -1);
-                }
-            }
-            if (lastLevel > indentLevel) {
-                writeFormatSymbolOut(content, indentLevel, formatOut);
-            }
-            content.append(']');
-        }
-    }
-
-    private static void writeCollectionValue(Object obj, Writer content, JsonConfig jsonConfig, int indentLevel) throws Exception {
-        boolean formatOut = jsonConfig.isFormatOut();
-        Collection<?> collect = (Collection<?>) obj;
-        if (collect.size() == 0) {
-            content.write(EMPTY_ARRAY);
-        } else {
-            // 集合类
-            content.write('[');
-            int lastLevel = indentLevel;
-            boolean isFirstKey = true;
-            for (Object value : collect) {
-                if (isFirstKey) {
-                    isFirstKey = false;
-                } else {
-                    content.write(',');
-                }
-                writeFormatSymbolOut(content, lastLevel = indentLevel + 1, formatOut);
-                if (value == null) {
-                    content.write(NULL);
-                } else {
-                    stringify(value, content, jsonConfig, formatOut ? indentLevel + 1 : -1);
-                }
-            }
-            // 如果最后一个元素是基本类型则 lastLevel > level
-            // 否则 lastLevel = level，由最后一个元素{}决定是否缩进
-            if (lastLevel > indentLevel) {
-                writeFormatSymbolOut(content, indentLevel, formatOut);
-            }
-            content.append(']');
-        }
-    }
-
-    private static void writeBinaryValue(Object value, Writer content, JsonConfig jsonConfig, int indentLevel) throws Exception {
-        // byte数组
-        if (jsonConfig.isBytesArrayToNative()) {
-            writeArrayValue(value, content, jsonConfig, indentLevel);
-        } else {
-            byte[] bytes = (byte[]) value;
-            if (jsonConfig.isBytesArrayToHex()) {
-                content.append('"').append(printHexString(bytes, (char) 0)).append('"');
-            } else {
-                // use Base64 encoding
-                content.append('"').append(Base64.getEncoder().encodeToString(bytes)).append('"');
-            }
-        }
-    }
-
-    private static void writeFieldValue(Object value, Writer content, GetterInfo getterInfo, JsonConfig jsonConfig, int indentLevel) throws Exception {
-
-        ReflectConsts.ClassCategory classCategory = getterInfo.getClassCategory();
-        int ordinal = classCategory.ordinal();
-        if(ordinal < JSONTypeSerializer.LENGTH) {
-            JSONTypeSerializer.TYPE_SERIALIZERS[ordinal].serialize(value, content, getterInfo, jsonConfig, indentLevel);
-        } else {
-            stringify(value, content, jsonConfig, indentLevel);
-        }
-    }
-
-    private static void writeFormatSymbolOut(Writer content, int level, boolean formatOut) throws IOException {
-        // 0位是换行符
-        // level = \t的个数
-        if (formatOut && level > -1) {
-            String symbol = Options.writeFormatOutSymbol;
-            int symbolLen = 11;
-            if (symbolLen - 1 > level) {
-                content.write(symbol, 0, level + 1);
-            } else {
-                // 全部的symbol
-                content.append(symbol);
-                // 补齐差的\t个数
-                int appendTabLen = level - symbolLen + 1;
-//                char[] t = new char[appendTabLen];
-//                Arrays.fill(t, '\t');
-//                content.write(t);
-                while (appendTabLen-- > 0) {
-                    content.append('\t');
-                }
-            }
-        }
-    }
-
-    /**
-     * 校验字符串是否为正确（标准）的json结构
-     *
-     * @param json
-     * @param readOptions
-     * @return
-     */
     public static boolean validate(String json, ReadOption... readOptions) {
-        return validate(getChars(json), readOptions);
+        return validate(json, false, readOptions);
     }
 
-    /**
-     * 校验字符数组是否为正确（标准）的json结构
-     *
-     * @param buf
-     * @param readOptions
-     * @return
-     */
+    public static boolean validate(String json, boolean printIfException, ReadOption... readOptions) {
+        if (json == null) return false;
+        return validate(getChars(json), printIfException, readOptions);
+    }
+
     public static boolean validate(char[] buf, ReadOption... readOptions) {
+        return validate(buf, false, readOptions);
+    }
+
+    public static boolean validate(char[] buf, boolean printIfException, ReadOption... readOptions) {
         JSONValidator jsonValidator = new JSONValidator(buf);
-        return jsonValidator.validate(readOptions);
+        boolean result = jsonValidator.validate(readOptions);
+        if (printIfException) {
+        }
+        return result;
     }
 
     /**
@@ -2045,6 +766,7 @@ public final class JSON extends JSONGeneral {
      * @return <p> 如果正确，返回null; 否则返回错误信息
      */
     public static String validateMessage(String json, ReadOption... readOptions) {
+        if (json == null) return "Exception: java.lang.NullPointerException";
         return validateMessage(getChars(json), readOptions);
     }
 
@@ -2059,10 +781,6 @@ public final class JSON extends JSONGeneral {
         JSONValidator jsonValidator = new JSONValidator(buf);
         jsonValidator.validate(true, readOptions);
         return jsonValidator.getValidateMessage();
-    }
-
-    abstract static class LocalBufferParser {
-        abstract Object parse(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception;
     }
 
 }

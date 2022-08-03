@@ -5,6 +5,7 @@ import io.github.wycst.wast.common.utils.StringUtils;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * class序列化和反序列化结构包装
@@ -17,7 +18,17 @@ public final class ClassStructureWrapper {
     }
 
     // cache
-    private static Map<Class<?>, ClassStructureWrapper> classStructureWarppers = new HashMap<Class<?>, ClassStructureWrapper>();
+    private static Map<Class<?>, ClassStructureWrapper> classStructureWarppers = new ConcurrentHashMap<Class<?>, ClassStructureWrapper>();
+
+    // 内置类默认使用field序列化，可维护名称列表控制使用getter method
+    private static String[] USE_GETTER_METHOD_TYPE_NAME_LIST = {
+    };
+
+    // 内置类默认使用field序列化，可维护超类列表控制使用getter method
+    private static Class[] USE_GETTER_METHOD_TYPE_LIST = {
+            Throwable.class,
+            Error.class
+    };
 
     /**
      * 最大类结构缓存数（计划使用）
@@ -27,13 +38,21 @@ public final class ClassStructureWrapper {
     // jdk invoke
     private Class<?> sourceClass;
 
+    // is built in module
+    private boolean javaBuiltInModule;
+
+    // force use fields
+    private boolean forceUseFields;
+
+    // is record(jdk14+)
+    private boolean record;
+
+    private int fieldCount;
+
     private boolean assignableFromMap;
 
     // setter的属性和SetterMethodInfo映射
-    private Map<String, SetterInfo> setterInfos = new HashMap<String, SetterInfo>();
-
-    // 以数组+链表存储（setter）
-    private SetterNode[] setterNodes;
+    private Map<String, SetterInfo> setterInfos = new LinkedHashMap<String, SetterInfo>();
 
     /**
      * getter方法有序集合
@@ -43,7 +62,7 @@ public final class ClassStructureWrapper {
     /**
      * fieldAgent方法
      */
-    private List<GetterInfo> fieldAgentGetterFieldInfos;
+    private List<GetterInfo> getterInfoOfFields;
 
     /**
      * 构造方法参数
@@ -66,15 +85,12 @@ public final class ClassStructureWrapper {
      * 获取使用属性代理的所有GetterMethodInfo信息
      */
     public List<GetterInfo> getGetterInfos(boolean fieldAgent) {
-        if (!fieldAgent) {
-            return getterInfos;
+        if (fieldAgent || javaBuiltInModule) {
+            return getterInfoOfFields;
         }
-        return fieldAgentGetterFieldInfos;
+        return getterInfos;
     }
 
-    //    public Map<String, SetterInfo> getSetterInfos() {
-//        return Collections.unmodifiableMap(setterInfos);
-//    }
     public SetterInfo getSetterInfo(String name) {
         return setterInfos.get(name);
     }
@@ -87,7 +103,11 @@ public final class ClassStructureWrapper {
         return sourceClass;
     }
 
-    public Object newInstance() throws IllegalArgumentException, InstantiationException, IllegalAccessException, InvocationTargetException {
+    public Object newInstance() throws Exception {
+        return defaultConstructor.newInstance(constructorArgs);
+    }
+
+    public Object newInstance(Object[] constructorArgs) throws Exception {
         return defaultConstructor.newInstance(constructorArgs);
     }
 
@@ -95,50 +115,25 @@ public final class ClassStructureWrapper {
         return assignableFromMap;
     }
 
-    public SetterInfo getSetterInfo(char[] buffers, int beginIndex, int endIndex) {
-        int len = endIndex - beginIndex;
-        int hashValue = hash(buffers, beginIndex, len);
-        int capacity = setterNodes.length;
-        int index = hashValue & capacity - 1;
-        SetterNode setterNode = setterNodes[index];
-        if (setterNode == null) {
-            return null;
-        }
-        while (!matchKey(buffers, beginIndex, len, setterNode.key)) {
-            setterNode = setterNode.next;
-            if (setterNode == null) {
-                return null;
-            }
-        }
-        return setterNode.value;
+    public boolean isRecord() {
+        return record;
     }
 
-    /**
-     * ~自定义hash算法
-     *
-     * @param buffers
-     * @param offset
-     * @param len
-     * @return
-     * @see String#hashCode()
-     */
-    public static int hash(char[] buffers, int offset, int len) {
-        int h = 0;
-        int off = offset;
-        for (int i = 0; i < len; i++) {
-            h = 31 * h + buffers[off++];
-        }
-        return h;
+    public int getFieldCount() {
+        return fieldCount;
     }
 
-    private static boolean matchKey(char[] buffers, int offset, int len, char[] key) {
-        if (len != key.length) return false;
-        for (int j = 0; j < len; j++) {
-            if (buffers[offset + j] != key[j]) return false;
-        }
-        return true;
+    public boolean isForceUseFields() {
+        return forceUseFields;
     }
 
+    public Object[] createConstructorArgs() {
+        Object[] constructorArgs = new Object[fieldCount];
+        for (int i = 0; i < fieldCount; i++) {
+            constructorArgs[i] = this.constructorArgs[i];
+        }
+        return constructorArgs;
+    }
 
     public static ClassStructureWrapper get(Class<?> sourceClass) {
         if (sourceClass == null) {
@@ -178,45 +173,9 @@ public final class ClassStructureWrapper {
                 wrapper = new ClassStructureWrapper();
                 wrapper.sourceClass = sourceClass;
                 wrapper.assignableFromMap = Map.class.isAssignableFrom(sourceClass);
+                wrapper.checkClassStructure();
 
-                /** 获取构造方法参数最少的作为默认构造方法 */
-                Constructor<?>[] constructors = sourceClass.getDeclaredConstructors();
-
-                Constructor<?> defaultConstructor = null;
-                int minParameterCount = -1;
-                Class<?>[] constructorParameterTypes = null;
-                for (Constructor<?> constructor : constructors) {
-                    constructorParameterTypes = constructor.getParameterTypes();
-                    int parameterCount = constructorParameterTypes.length;
-                    if (minParameterCount == -1 || minParameterCount > parameterCount) {
-                        minParameterCount = parameterCount;
-                        defaultConstructor = constructor;
-                    }
-                    if (minParameterCount == 0) {
-                        break;
-                    }
-                }
-
-                defaultConstructor.setAccessible(true);
-                Object[] args = new Object[minParameterCount];
-                for (int i = 0; i < minParameterCount; i++) {
-                    Class<?> type = constructorParameterTypes[i];
-                    // 除了基本类型或boolean类型，默认每个参数都是null
-                    if (type == boolean.class) {
-                        args[i] = false;
-                    } else if (type.isPrimitive()) {
-                        args[i] = 0;
-                    } else if (type == String.class) {
-                        // 兼容 kotlin
-                        args[i] = "";
-                    }
-                }
-
-                wrapper.defaultConstructor = defaultConstructor;
-                wrapper.constructorArgs = args;
-
-                List<GetterInfo> getterInfos = new ArrayList<GetterInfo>();
-
+                // parse genericClass
                 Type genericSuperclass = sourceClass.getGenericSuperclass();
                 Map<String, Class<?>> superGenericClassMap = new HashMap<String, Class<?>>();
                 if (genericSuperclass instanceof ParameterizedType) {
@@ -234,125 +193,279 @@ public final class ClassStructureWrapper {
                     }
                 }
 
-                // public methods
-                Method[] methods = sourceClass.getMethods();
-                for (Method method : methods) {
-
-                    Class<?> declaringClass = method.getDeclaringClass();
-                    if (declaringClass == Object.class)
-                        continue;
-
-                    String methodName = method.getName();
-                    Class<?> returnType = method.getReturnType();
-                    Class<?>[] parameterTypes = method.getParameterTypes();
-
-                    boolean startsWithGet;
-                    boolean isVoid = returnType == void.class;
-                    if (parameterTypes.length == 0 && ((startsWithGet = methodName.startsWith("get")) || methodName.startsWith("is"))
-                            && !isVoid) {
-                        int startIndex = startsWithGet ? 3 : 2;
-                        if (methodName.length() == startIndex)
-                            continue;
-
-                        // getter方法
-                        method.setAccessible(true);
-                        GetterMethodInfo getterInfo = new GetterMethodInfo(method);
-
-                        String fieldName = methodName.substring(startIndex, startIndex + 1).toLowerCase()
-                                + methodName.substring(startIndex + 1);
-
-                        getterInfo.setMappingName(fieldName);
-                        getterInfo.setUnderlineName(StringUtils.camelCaseToSymbol(fieldName));
-                        getterInfo.setReturnType(returnType);
-
-                        // 加载注解
-                        Map<Class<? extends Annotation>, Annotation> annotationMap = new HashMap<Class<? extends Annotation>, Annotation>();
-                        addAnnotations(annotationMap, method.getAnnotations());
-                        try {
-                            // 属性
-                            Field field = sourceClass.getDeclaredField(fieldName);
-                            if (!Modifier.isStatic(field.getModifiers()) && !Modifier.isFinal(field.getModifiers())) {
-                                field.setAccessible(true);
-                                getterInfo.setField(field);
-                            }
-                            addAnnotations(annotationMap, field.getAnnotations());
-                        } catch (Exception e) {
-                        }
-                        getterInfo.setAnnotations(annotationMap);
-                        getterInfo.fixed();
-                        getterInfos.add(getterInfo);
-
-                    } else if (parameterTypes.length == 1 && methodName.startsWith("set")
-                            && isVoid) {
-
-                        if (methodName.length() == 3)
-                            continue;
-
-                        // setter方法
-                        method.setAccessible(true);
-                        SetterMethodInfo setterInfo = new SetterMethodInfo(method);
-
-                        String setFieldName = methodName.substring(3, 4).toLowerCase() + methodName.substring(4);
-                        wrapper.setterInfos.put(setFieldName, setterInfo);
-                        // Support underline to camelCase
-                        String underlineName = StringUtils.camelCaseToSymbol(setFieldName);
-                        wrapper.setterInfos.put(underlineName, setterInfo);
-
-                        setterInfo.setMappingName(setFieldName);
-
-                        Class<?> parameterType = parameterTypes[0];
-                        setterInfo.setParameterType(parameterType);
-
-                        Type genericType = method.getGenericParameterTypes()[0];
-                        parseSetterGenericType(superGenericClassMap, sourceClass, declaringClass, setterInfo, genericType, parameterType);
-
-                        // 当确定parameterType和genericClazz后再调用
-                        setterInfo.initParamClassType();
-
-                        // 解析setter和field注解集合
-                        Map<Class<? extends Annotation>, Annotation> annotationMap = new HashMap<Class<? extends Annotation>, Annotation>();
-
-                        Annotation[] methodAnnotations = method.getAnnotations();
-                        addAnnotations(annotationMap, methodAnnotations);
-                        try {
-                            Field field = sourceClass.getDeclaredField(setFieldName);
-                            if (!Modifier.isStatic(field.getModifiers()) && !Modifier.isFinal(field.getModifiers())) {
-                                field.setAccessible(true);
-                                setterInfo.setField(field);
-                            }
-                            Annotation[] fieldAnnotations = field.getAnnotations();
-                            addAnnotations(annotationMap, fieldAnnotations);
-                        } catch (Exception e) {
-                        }
-                        // 注解集合
-                        setterInfo.setAnnotations(annotationMap);
-                        String mappingName = setterInfo.getMappingName();
-                        if (!setFieldName.equals(mappingName)) {
-                            // 复制
-                            wrapper.setterInfos.put(mappingName, setterInfo);
-                        }
-                    }
+                if (wrapper.record) {
+                    // 通过构造信息初始化wrapper
+                    wrapperWithRecordConstructor(wrapper, superGenericClassMap);
+                } else {
+                    // 通过pojo或者javabean的规范（公约）即method或者field初始化wrapper
+                    wrapperWithMethodAndField(wrapper, superGenericClassMap);
                 }
-
-                // 解析所有字段
-                parseWrapperFields(wrapper, sourceClass, superGenericClassMap);
-
-                // 计算setter的hash映射
-                wrapper.calculateHashMapping();
-                // 排序输出防止每次重启jvm后序列化顺序不一致
-                Collections.sort(getterInfos, new Comparator<GetterInfo>() {
-                    public int compare(GetterInfo o1, GetterInfo o2) {
-                        return o1.getFieldName().compareTo(o2.getFieldName());
-                    }
-                });
-
-                wrapper.getterInfos = Collections.unmodifiableList(getterInfos);
-                wrapper.setterInfos = Collections.unmodifiableMap(wrapper.setterInfos);
 
                 classStructureWarppers.put(sourceClass, wrapper);
             }
         }
         return wrapper;
+    }
+
+    private static void wrapperWithRecordConstructor(ClassStructureWrapper wrapper, Map<String, Class<?>> superGenericClassMap) {
+        // sourceClass
+        Class<?> sourceClass = wrapper.sourceClass;
+        Constructor<?>[] constructors = sourceClass.getDeclaredConstructors();
+        if (constructors.length == 0) return;
+        Constructor<?> constructor = constructors[0];
+        wrapper.defaultConstructor = constructor;
+
+        List<GetterInfo> getterInfoOfFields = new ArrayList<GetterInfo>();
+        wrapper.getterInfoOfFields = getterInfoOfFields;
+        wrapper.getterInfos = getterInfoOfFields;
+        try {
+            // parameters数组
+            Object parameters = getParametersMethod.invoke(constructor);
+            int len = Array.getLength(parameters);
+            wrapper.fieldCount = len;
+            Method parameterNameMethod = null;
+            Type[] genericParameterTypes = constructor.getGenericParameterTypes();
+
+            Object[] constructorArgs = new Object[len];
+            wrapper.constructorArgs = constructorArgs;
+            for (int i = 0; i < len; i++) {
+                Object parameter = Array.get(parameters, i);
+                if (parameterNameMethod == null) {
+                    parameterNameMethod = parameter.getClass().getMethod("getName");
+                    setAccessible(parameterNameMethod);
+                }
+                // invoke name
+                String name = (String) parameterNameMethod.invoke(parameter);
+
+                Field nameField = sourceClass.getDeclaredField(name);
+                Method nameMethod = sourceClass.getDeclaredMethod(name);
+                setAccessible(nameField);
+                setAccessible(nameMethod);
+
+                Class<?> fieldType = nameField.getType();
+                constructorArgs[i] = defaulTypeValue(fieldType);
+
+                // 构建getter
+                GetterInfo getterInfo = new GetterInfo();
+                getterInfo.setField(nameField);
+
+                getterInfo.setName(name);
+
+                Map<Class<? extends Annotation>, Annotation> annotationMap = new HashMap<Class<? extends Annotation>, Annotation>();
+                addAnnotations(annotationMap, nameMethod.getAnnotations());
+
+                getterInfo.setAnnotations(annotationMap);
+                getterInfoOfFields.add(getterInfo);
+
+                // 构建setter
+                SetterInfo setterInfo = new SetterInfo();
+                setterInfo.setName(name);
+                setterInfo.setField(nameField);
+                setterInfo.setParameterType(fieldType);
+                setterInfo.setIndex(i);
+                Type genericType = genericParameterTypes[i];
+                Class<?> declaringClass = nameField.getDeclaringClass();
+                // parse
+                parseSetterGenericType(superGenericClassMap, sourceClass, declaringClass, setterInfo, genericType, fieldType);
+                setterInfo.setAnnotations(annotationMap);
+                // put to setterInfos
+                wrapper.setterInfos.put(name, setterInfo);
+            }
+        } catch (Throwable throwable) {
+        }
+
+    }
+
+    private static void wrapperWithMethodAndField(ClassStructureWrapper wrapper, Map<String, Class<?>> superGenericClassMap) {
+        // sourceClass
+        Class<?> sourceClass = wrapper.sourceClass;
+
+        /** 获取构造方法参数最少的作为默认构造方法 */
+        Constructor<?>[] constructors = sourceClass.getDeclaredConstructors();
+        Constructor<?> defaultConstructor = null;
+        int minParamCount = -1;
+        Class<?>[] constructorParameterTypes = null;
+        for (Constructor<?> constructor : constructors) {
+            Class<?>[] parameterTypes = constructor.getParameterTypes();
+            int parameterCount = parameterTypes.length;
+            if (minParamCount == -1 || minParamCount > parameterCount) {
+                minParamCount = parameterCount;
+                defaultConstructor = constructor;
+                constructorParameterTypes = parameterTypes;
+            }
+            if (minParamCount == 0) {
+                break;
+            }
+            if (minParamCount == parameterCount) {
+                // 优先使用基本类型构造，防止在构造函数中出现NPE
+                for (int i = 0; i < parameterCount; i++) {
+                    if (parameterTypes[i].isPrimitive() && !constructorParameterTypes[i].isPrimitive()) {
+                        defaultConstructor = constructor;
+                        constructorParameterTypes = parameterTypes;
+                        break;
+                    }
+                }
+            }
+        }
+
+        setAccessible(defaultConstructor);
+        Object[] args = new Object[minParamCount];
+        for (int i = 0; i < minParamCount; i++) {
+            Class<?> type = constructorParameterTypes[i];
+            args[i] = defaulTypeValue(type);
+        }
+
+        wrapper.defaultConstructor = defaultConstructor;
+        wrapper.constructorArgs = args;
+
+        List<GetterInfo> getterInfos = new ArrayList<GetterInfo>();
+
+        // public methods
+        Method[] methods = sourceClass.getMethods();
+        for (Method method : methods) {
+
+            Class<?> declaringClass = method.getDeclaringClass();
+            if (declaringClass == Object.class)
+                continue;
+
+            String methodName = method.getName();
+            Class<?> returnType = method.getReturnType();
+            Class<?>[] parameterTypes = method.getParameterTypes();
+
+            boolean startsWithGet;
+            boolean isVoid = returnType == void.class;
+            if (parameterTypes.length == 0 && ((startsWithGet = methodName.startsWith("get")) || methodName.startsWith("is"))
+                    && !isVoid) {
+                int startIndex = startsWithGet ? 3 : 2;
+                if (methodName.length() == startIndex)
+                    continue;
+
+                // getter方法
+                setAccessible(method);
+                GetterMethodInfo getterInfo = new GetterMethodInfo(method);
+
+                String fieldName = methodName.substring(startIndex, startIndex + 1).toLowerCase()
+                        + methodName.substring(startIndex + 1);
+
+                getterInfo.setName(fieldName);
+                getterInfo.setUnderlineName(StringUtils.camelCaseToSymbol(fieldName));
+
+                // load annotations
+                Map<Class<? extends Annotation>, Annotation> annotationMap = new HashMap<Class<? extends Annotation>, Annotation>();
+                addAnnotations(annotationMap, method.getAnnotations());
+                try {
+                    // 属性
+                    Field field = sourceClass.getDeclaredField(fieldName);
+                    if (!Modifier.isStatic(field.getModifiers()) && !Modifier.isFinal(field.getModifiers())) {
+                        if (setAccessible(field)) {
+                            getterInfo.setField(field);
+                        }
+                    }
+                    addAnnotations(annotationMap, field.getAnnotations());
+                } catch (Exception e) {
+                }
+                getterInfo.setAnnotations(annotationMap);
+                getterInfos.add(getterInfo);
+
+            } else if (parameterTypes.length == 1 && methodName.startsWith("set")
+                    && isVoid) {
+
+                if (methodName.length() == 3)
+                    continue;
+
+                // setter方法
+                setAccessible(method);
+                SetterMethodInfo setterInfo = new SetterMethodInfo(method);
+
+                String setFieldName = methodName.substring(3, 4).toLowerCase() + methodName.substring(4);
+                wrapper.setterInfos.put(setFieldName, setterInfo);
+                // Support underline to camelCase
+                String underlineName = StringUtils.camelCaseToSymbol(setFieldName);
+                wrapper.setterInfos.put(underlineName, setterInfo);
+
+                setterInfo.setName(setFieldName);
+                Class<?> parameterType = parameterTypes[0];
+                setterInfo.setParameterType(parameterType);
+
+                Type genericType = method.getGenericParameterTypes()[0];
+                parseSetterGenericType(superGenericClassMap, sourceClass, declaringClass, setterInfo, genericType, parameterType);
+
+                // 解析setter和field注解集合
+                Map<Class<? extends Annotation>, Annotation> annotationMap = new HashMap<Class<? extends Annotation>, Annotation>();
+
+                Annotation[] methodAnnotations = method.getAnnotations();
+                addAnnotations(annotationMap, methodAnnotations);
+                try {
+                    Field field = sourceClass.getDeclaredField(setFieldName);
+                    if (!Modifier.isStatic(field.getModifiers()) && !Modifier.isFinal(field.getModifiers())) {
+                        if (setAccessible(field)) {
+                            setterInfo.setField(field);
+                        }
+                    }
+                    Annotation[] fieldAnnotations = field.getAnnotations();
+                    addAnnotations(annotationMap, fieldAnnotations);
+                } catch (Exception e) {
+                }
+                // 注解集合
+                setterInfo.setAnnotations(annotationMap);
+            }
+        }
+
+        // 解析所有字段
+        parseWrapperFields(wrapper, sourceClass, superGenericClassMap);
+
+        // 排序输出防止每次重启jvm后序列化顺序不一致
+        Collections.sort(getterInfos, new Comparator<GetterInfo>() {
+            public int compare(GetterInfo o1, GetterInfo o2) {
+                return o1.getName().compareTo(o2.getName());
+            }
+        });
+
+        wrapper.getterInfos = Collections.unmodifiableList(getterInfos);
+        wrapper.setterInfos = Collections.unmodifiableMap(wrapper.setterInfos);
+    }
+
+    private static Object defaulTypeValue(Class<?> type) {
+        if (type == boolean.class) {
+            return false;
+        } else if (type.isPrimitive()) {
+            if (type == char.class) {
+                return (char) 0;
+            } else if (type == byte.class) {
+                return (byte) 0;
+            } else if (type == short.class) {
+                return (short) 0;
+            }
+            return 0;
+        } else if (type == String.class) {
+            return "";
+        } else if (type.isArray()) {
+            return Array.newInstance(type.getComponentType(), 0);
+        } else {
+            return null;
+        }
+    }
+
+    private void checkClassStructure() {
+        String pckName = sourceClass.getPackage().getName();
+        if (pckName.startsWith("java.") || pckName.startsWith("sun.")) {
+            this.javaBuiltInModule = true;
+        }
+        // jdk17 java.lang.Record
+        if (sourceClass.getSuperclass().getName().equals("java.lang.Record")) {
+            this.record = true;
+            this.javaBuiltInModule = true;
+        }
+
+        if(javaBuiltInModule) {
+            forceUseFields = true;
+            for (Class superClass : USE_GETTER_METHOD_TYPE_LIST) {
+                if(superClass.isAssignableFrom(sourceClass)) {
+                    forceUseFields = false;
+                    break;
+                }
+            }
+        }
     }
 
     private static void parseSetterGenericType(Map<String, Class<?>> superGenericClassMap, Class<?> sourceClass, Class<?> declaringClass, SetterInfo setterInfo, Type genericType, Class<?> parameterType) {
@@ -368,7 +481,7 @@ public final class ClassStructureWrapper {
                 genericParameterizedType = GenericParameterizedType.genericCollectionType(parameterType, type);
             } else {
                 // 没有泛型将集合视作普通实体类创建泛型结构
-                genericParameterizedType = GenericParameterizedType.actualType(parameterType);
+                genericParameterizedType = GenericParameterizedType.newActualType(parameterType);
             }
         } else if (parameterType.isArray()) {
             Class<?> componentType = parameterType.getComponentType();
@@ -389,13 +502,16 @@ public final class ClassStructureWrapper {
                 }
             } else {
                 // 没有泛型创建普通实体类泛型结构
-                genericParameterizedType = GenericParameterizedType.actualType(parameterType);
+                genericParameterizedType = GenericParameterizedType.newActualType(parameterType);
             }
         } else {
             if (parameterType.isInterface() || Modifier.isAbstract(parameterType.getModifiers())) {
                 // Map(LinkHashMap, HashMap)和Collection(ArayList)都有缺省实现类，其他接口或者抽象类,无法通过newInstance反射创建实例
                 // 可以根据设置属性默认值来获取实际实例化的类型
-                setterInfo.setNonInstanceType(true);
+                // 基本类型需要排除
+                if (!parameterType.isPrimitive()) {
+                    setterInfo.setNonInstanceType(true);
+                }
             }
             if (genericType instanceof TypeVariable) {
                 // 伪泛型
@@ -404,7 +520,7 @@ public final class ClassStructureWrapper {
                 if (declaringClass != sourceClass) {
                     // maybe parent method
                     Class<?> superGenericClass = superGenericClassMap.get(name);
-                    genericParameterizedType = GenericParameterizedType.actualType(superGenericClass);
+                    genericParameterizedType = GenericParameterizedType.newActualType(superGenericClass);
                 } else {
                     genericParameterizedType = GenericParameterizedType.genericEntityType(parameterType, typeVariable.getName());
                 }
@@ -417,7 +533,7 @@ public final class ClassStructureWrapper {
                     if (actualTypeArgument instanceof Class) {
                         genericParameterizedType = GenericParameterizedType.entityType(parameterType, (Class<?>) actualTypeArgument);
                     } else {
-                        genericParameterizedType = GenericParameterizedType.actualType(parameterType);
+                        genericParameterizedType = GenericParameterizedType.newActualType(parameterType);
                     }
                 } else {
                     TypeVariable[] typeParameters = parameterType.getTypeParameters();
@@ -434,13 +550,12 @@ public final class ClassStructureWrapper {
                 }
 
             } else {
-                genericParameterizedType = GenericParameterizedType.actualType(parameterType);
+                genericParameterizedType = GenericParameterizedType.newActualType(parameterType);
             }
         }
 
         if (genericParameterizedType != null) {
             setterInfo.setGenericParameterizedType(genericParameterizedType);
-            genericParameterizedType.ownerInfo = setterInfo;
         }
     }
 
@@ -450,7 +565,7 @@ public final class ClassStructureWrapper {
     private static void parseWrapperFields(ClassStructureWrapper wrapper, Class<?> sourceClass, Map<String, Class<?>> superGenericClassMap) {
         Class<?> target = sourceClass;
         Set<String> fieldNames = new HashSet<String>();
-        List<GetterInfo> fieldAgentGetterFieldInfos = new ArrayList<GetterInfo>();
+        List<GetterInfo> getterInfoOfFields = new ArrayList<GetterInfo>();
         while (target != Object.class) {
             Field[] fields = target.getDeclaredFields();
             for (Field field : fields) {
@@ -459,94 +574,97 @@ public final class ClassStructureWrapper {
                 if (Modifier.isTransient(field.getModifiers())) continue;
                 String fieldName = field.getName();
                 if (fieldNames.add(fieldName)) {
-                    field.setAccessible(true);
+                    setAccessible(field);
+                    clearFinalModifiers(field);
+
                     Class<?> fieldType = field.getType();
                     // 构建getter
                     GetterInfo getterInfo = new GetterInfo();
                     getterInfo.setField(field);
-
-                    getterInfo.setMappingName(fieldName);
-                    getterInfo.setReturnType(fieldType);
+                    getterInfo.setName(fieldName);
 
                     Map<Class<? extends Annotation>, Annotation> annotationMap = new HashMap<Class<? extends Annotation>, Annotation>();
                     addAnnotations(annotationMap, field.getAnnotations());
 
                     getterInfo.setAnnotations(annotationMap);
-                    getterInfo.fixed();
-                    fieldAgentGetterFieldInfos.add(getterInfo);
+                    getterInfoOfFields.add(getterInfo);
 
-                    // 构建setter
+                    // create setter
                     SetterInfo setterInfo = new SetterInfo();
-                    setterInfo.setMappingName(fieldName);
+                    setterInfo.setName(fieldName);
                     setterInfo.setField(field);
                     setterInfo.setParameterType(fieldType);
 
                     Type genericType = field.getGenericType();
                     Class<?> declaringClass = field.getDeclaringClass();
-                    // 解析泛型结构
+                    // parse Generic Type
                     parseSetterGenericType(superGenericClassMap, sourceClass, declaringClass, setterInfo, genericType, fieldType);
-
-                    setterInfo.initParamClassType();
                     setterInfo.setAnnotations(annotationMap);
 
-                    String mappingName = setterInfo.getMappingName();
-                    if (!wrapper.setterInfos.containsKey(mappingName)) {
-                        wrapper.setterInfos.put(mappingName, setterInfo);
-                    }
+                    wrapper.setterInfos.put(fieldName, setterInfo);
                 }
             }
             target = target.getSuperclass();
         }
-        wrapper.fieldAgentGetterFieldInfos = Collections.unmodifiableList(fieldAgentGetterFieldInfos);
+        wrapper.getterInfoOfFields = Collections.unmodifiableList(getterInfoOfFields);
     }
 
-    // 内置链表结构
-    static class SetterNode {
-        public SetterNode(char[] key, SetterInfo value) {
-            this.key = key;
-            this.value = value;
-        }
+    static final Field modifierField;
+    static final Method getParametersMethod;
 
-        char[] key;
-        SetterInfo value;
-        SetterNode next;
+    static {
+        Field field = null;
+        try {
+            field = Field.class.getDeclaredField("modifiers");
+            setAccessible(field);
+        } catch (Exception e) {
+        }
+        modifierField = field;
+
+        // jdk8+ supported
+        Method parametersMethod = null;
+        try {
+            parametersMethod = Method.class.getMethod("getParameters");
+            parametersMethod.setAccessible(true);
+            setAccessible(parametersMethod);
+        } catch (Exception e) {
+        }
+        getParametersMethod = parametersMethod;
+    }
+
+    private static void clearFinalModifiers(Field field) {
+        if (modifierField != null) {
+            try {
+                modifierField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
+            } catch (Exception e) {
+            }
+        }
+    }
+
+    private static boolean setAccessible(AccessibleObject accessibleObject) {
+
+        try {
+            boolean accessible = UnsafeHelper.setAccessible(accessibleObject);
+            if (accessible) {
+                return true;
+            }
+        } catch (Throwable e1) {
+        }
+        try {
+            accessibleObject.setAccessible(true);
+            return true;
+        } catch (Throwable e) {
+        }
+        return false;
     }
 
     /**
-     * @param cap
+     * 获取所有setter信息的名称set
+     *
      * @return
-     * @See java.util.HashMap#tableSizeFor(int)
      */
-    static int tableSizeFor(int cap) {
-        int n = cap - 1;
-        n |= n >>> 1;
-        n |= n >>> 2;
-        n |= n >>> 4;
-        n |= n >>> 8;
-        n |= n >>> 16;
-        return (n < 0) ? 1 : (n >= 1 << 30) ? 1 << 30 : n + 1;
-    }
-
-    private void calculateHashMapping() {
-
-        // calculate capacity
-        int capacity = Math.max(tableSizeFor(setterInfos.size()), 1 << 6);
-        setterNodes = new SetterNode[capacity];
-
-        Set<String> setterKeys = setterInfos.keySet();
-        for (String key : setterKeys) {
-            SetterInfo setterInfo = setterInfos.get(key);
-            int keyHash = key.hashCode();
-            int index = keyHash & capacity - 1;
-
-            SetterNode setterNode = new SetterNode(key.toCharArray(), setterInfo);
-            SetterNode oldNode = setterNodes[index];
-            setterNodes[index] = setterNode;
-            if (oldNode != null) {
-                // hash冲突或者索引冲突
-                setterNode.next = oldNode;
-            }
-        }
+    public Set<String> setterNames() {
+        return setterInfos.keySet();
     }
 
     private static void addAnnotations(Map<Class<? extends Annotation>, Annotation> annotationMap,

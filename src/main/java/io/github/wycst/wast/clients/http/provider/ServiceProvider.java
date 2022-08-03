@@ -63,4 +63,9 @@ public interface ServiceProvider {
      * @param doms
      */
     void clearIfNotExist(List<String> doms);
+
+    /**
+     * 组件销毁
+     */
+    public void destroy();
 }

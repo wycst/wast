@@ -16,6 +16,7 @@
  */
 package io.github.wycst.wast.common.expression;
 
+import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import io.github.wycst.wast.common.utils.ObjectUtils;
 
 import java.lang.reflect.Array;
@@ -842,28 +843,8 @@ public class ExprParser extends Expression {
         this.count = count;
     }
 
-    private static Field stringToChars;
-
-    static {
-        Field valueField ;
-        try {
-            valueField = String.class.getDeclaredField("value");
-            valueField.setAccessible(true);
-        } catch (Exception e) {
-            valueField = null;
-        }
-        stringToChars = valueField;
-    }
-
     protected final static char[] getChars(String value) {
-        if (stringToChars == null) {
-            return value.toCharArray();
-        }
-        try {
-            return (char[]) stringToChars.get(value);
-        } catch (IllegalAccessException e) {
-            throw new IllegalArgumentException(e);
-        }
+        return UnsafeHelper.getChars(value);
     }
 
     /**

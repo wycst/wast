@@ -3,8 +3,6 @@ package io.github.wycst.wast.clients.http;
 import io.github.wycst.wast.clients.http.consts.HttpHeaderValues;
 import io.github.wycst.wast.clients.http.definition.*;
 import io.github.wycst.wast.clients.http.impl.*;
-import io.github.wycst.wast.clients.http.definition.*;
-import io.github.wycst.wast.clients.http.impl.*;
 
 import java.net.URLEncoder;
 import java.util.Map;
@@ -58,8 +56,8 @@ public class HttpClient extends AbstractHttpClient {
      * @param url
      * @return
      */
-    public String get(String url) {
-        return get(url, String.class);
+    public HttpClientResponse get(String url) {
+        return get(url, HttpClientResponse.class);
     }
 
     /**
@@ -133,8 +131,8 @@ public class HttpClient extends AbstractHttpClient {
         return httpResponse.getEntity(rtnType);
     }
 
-    public String post(String url) {
-        return post(url, String.class);
+    public HttpClientResponse post(String url) {
+        return post(url, HttpClientResponse.class);
     }
 
     /**
@@ -149,6 +147,17 @@ public class HttpClient extends AbstractHttpClient {
         HttpClientRequest httpRequest = new HttpClientPost(url);
         HttpClientResponse httpResponse = executeRequest(httpRequest);
         return httpResponse.getEntity(rtnType);
+    }
+
+    /**
+     * post请求
+     *
+     * @param url
+     * @param requestConfig
+     * @return
+     */
+    public HttpClientResponse post(String url, HttpClientConfig requestConfig) {
+        return post(url, HttpClientResponse.class, requestConfig);
     }
 
     /**
@@ -173,8 +182,8 @@ public class HttpClient extends AbstractHttpClient {
      * @param requestConfig
      * @return
      */
-    public String upload(String url, HttpClientConfig requestConfig) {
-        return upload(url, String.class, requestConfig);
+    public HttpClientResponse upload(String url, HttpClientConfig requestConfig) {
+        return upload(url, HttpClientResponse.class, requestConfig);
     }
 
     /**
@@ -222,6 +231,17 @@ public class HttpClient extends AbstractHttpClient {
         HttpClientRequest httpRequest = new HttpClientPut(url);
         HttpClientResponse httpResponse = executeRequest(httpRequest);
         return httpResponse.getEntity(rtnType);
+    }
+
+    /**
+     * put请求
+     *
+     * @param url
+     * @param requestConfig
+     * @return
+     */
+    public HttpClientResponse put(String url, HttpClientConfig requestConfig) {
+        return put(url, HttpClientResponse.class, requestConfig);
     }
 
     /**
@@ -274,6 +294,19 @@ public class HttpClient extends AbstractHttpClient {
 //    }
 
     /**
+     * post json 请求
+     *
+     * <p> 返回响应结果
+     *
+     * @param url
+     * @param entity
+     * @return
+     */
+    public HttpClientResponse postJson(String url, Object entity) {
+        return postJson(url, HttpClientResponse.class, entity);
+    }
+
+    /**
      * post json请求
      *
      * @param url
@@ -288,6 +321,19 @@ public class HttpClient extends AbstractHttpClient {
         HttpClientRequest httpRequest = new HttpClientPost(url, requestConfig);
         HttpClientResponse httpResponse = executeRequest(httpRequest);
         return httpResponse.getEntity(rtnType);
+    }
+
+    /**
+     * put json 请求
+     *
+     * <p> 返回响应结果
+     *
+     * @param url
+     * @param entity
+     * @return
+     */
+    public HttpClientResponse putJson(String url, Object entity) {
+        return putJson(url, HttpClientResponse.class, entity);
     }
 
     /**
@@ -313,8 +359,8 @@ public class HttpClient extends AbstractHttpClient {
      * @param url
      * @return
      */
-    public String delete(String url) {
-        return delete(url, String.class);
+    public HttpClientResponse delete(String url) {
+        return delete(url, HttpClientResponse.class);
     }
 
     /**

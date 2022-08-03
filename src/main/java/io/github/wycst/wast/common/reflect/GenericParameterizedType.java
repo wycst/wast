@@ -1,11 +1,8 @@
 package io.github.wycst.wast.common.reflect;
 
-import java.lang.reflect.GenericArrayType;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.lang.reflect.WildcardType;
-import java.util.Collection;
-import java.util.Map;
+import java.lang.reflect.*;
+import java.math.BigDecimal;
+import java.util.*;
 
 /**
  * 解决多层泛型类型解析
@@ -15,8 +12,44 @@ import java.util.Map;
  */
 public final class GenericParameterizedType<T> {
 
-    GenericParameterizedType() {
+    private GenericParameterizedType() {
     }
+
+    // cache
+    private static final Map<Class, GenericParameterizedType> GENERIC_PARAMETERIZED_TYPE_MAP = new HashMap<Class, GenericParameterizedType>();
+
+    /**
+     * 字符串类型
+     */
+    public static final GenericParameterizedType StringType = GenericParameterizedType.actualType(String.class);
+    /**
+     * 默认Map类型
+     */
+    public static final GenericParameterizedType DefaultMap = GenericParameterizedType.actualType(LinkedHashMap.class);
+    /**
+     * 默认Collection类型
+     */
+    public static final GenericParameterizedType DefaultCollection = GenericParameterizedType.collectionType(ArrayList.class, Object.class);
+
+    /***
+     * int类型
+     */
+    public static final GenericParameterizedType<Integer> IntType = GenericParameterizedType.actualType(int.class);
+
+    /***
+     * long类型
+     */
+    public static final GenericParameterizedType<Long> LongType = GenericParameterizedType.actualType(long.class);
+
+    /***
+     * BigDecimalType类型
+     */
+    public static final GenericParameterizedType<BigDecimal> BigDecimalType = GenericParameterizedType.actualType(BigDecimal.class);
+
+    /**
+     * AnyType类型
+     */
+    public static GenericParameterizedType AnyType = GenericParameterizedType.actualType(Object.class);
 
     /**
      * 是否数组类型，数组无对应的class
@@ -27,6 +60,19 @@ public final class GenericParameterizedType<T> {
      * 实际类型： Map类型(key和value两个泛型)/Collection类型（value一个泛型）/其他实体类（0-n个）
      */
     Class<?> actualType;
+
+    /**
+     * 类型编号
+     */
+    private int paramClassType;
+
+    /**
+     * 类型
+     */
+    private int paramClassNumberType;
+
+    // ClassCategory
+    ReflectConsts.ClassCategory actualClassCategory;
 
     /**
      * map类型的泛型key类型
@@ -64,20 +110,40 @@ public final class GenericParameterizedType<T> {
     String genericName;
 
     /**
-     * 所属宿主setter
-     */
-    SetterInfo ownerInfo;
-
-    /**
      * 根据实际类型构建泛型结构对象
      *
      * @param actualType
      * @return
      */
     public static <T> GenericParameterizedType<T> actualType(Class<T> actualType) {
-        GenericParameterizedType genericParameterizedType = new GenericParameterizedType();
-        genericParameterizedType.actualType = actualType;
+        GenericParameterizedType genericParameterizedType = GENERIC_PARAMETERIZED_TYPE_MAP.get(actualType);
+        if (genericParameterizedType == null) {
+            genericParameterizedType = new GenericParameterizedType();
+            genericParameterizedType.setActualType(actualType);
+            genericParameterizedType.actualClassCategory = ReflectConsts.getClassCategory(actualType);
+            genericParameterizedType.initParamClassType();
+            GENERIC_PARAMETERIZED_TYPE_MAP.put(actualType, genericParameterizedType);
+        }
         return genericParameterizedType;
+    }
+
+    /**
+     * 通过new构建,场景需要隔离时使用
+     *
+     * @param actualType
+     * @param <T>
+     * @return
+     */
+    static <T> GenericParameterizedType<T> newActualType(Class<T> actualType) {
+        GenericParameterizedType genericParameterizedType = new GenericParameterizedType();
+        genericParameterizedType.setActualType(actualType);
+        genericParameterizedType.actualClassCategory = ReflectConsts.getClassCategory(actualType);
+        genericParameterizedType.initParamClassType();
+        return genericParameterizedType;
+    }
+
+    private <T> void setActualType(Class<T> actualType) {
+        this.actualType = actualType;
     }
 
     /**
@@ -91,13 +157,15 @@ public final class GenericParameterizedType<T> {
     public static GenericParameterizedType mapType(Class<? extends Map> mapClass, Class<?> mapKeyClass, Class<?> valueActualType) {
         GenericParameterizedType parameterizedType = new GenericParameterizedType();
         parameterizedType.generic = true;
-        parameterizedType.actualType = mapClass;
+        parameterizedType.setActualType(mapClass);
+
         parameterizedType.mapKeyClass = mapKeyClass;
 
         GenericParameterizedType valueType = new GenericParameterizedType();
-        valueType.actualType = valueActualType;
-        parameterizedType.valueType = valueType;
+//        valueType.actualType = valueActualType;
+        valueType.setActualType(valueActualType);
 
+        parameterizedType.valueType = valueType;
         return parameterizedType;
     }
 
@@ -112,7 +180,7 @@ public final class GenericParameterizedType<T> {
     public static GenericParameterizedType mapType(Class<? extends Map> mapClass, Class<?> mapKeyClass, GenericParameterizedType valueType) {
         GenericParameterizedType parameterizedType = new GenericParameterizedType();
         parameterizedType.generic = true;
-        parameterizedType.actualType = mapClass;
+        parameterizedType.setActualType(mapClass);
         parameterizedType.mapKeyClass = mapKeyClass;
 
         parameterizedType.valueType = valueType;
@@ -127,28 +195,29 @@ public final class GenericParameterizedType<T> {
      */
     public static GenericParameterizedType arrayType(Class<?> componentType) {
         GenericParameterizedType parameterizedType = new GenericParameterizedType();
+        parameterizedType.actualType = Array.newInstance(componentType, 0).getClass();
         parameterizedType.generic = true;
         parameterizedType.array = true;
 
         GenericParameterizedType valueType = new GenericParameterizedType();
-        valueType.actualType = componentType;
+        valueType.setActualType(componentType);
         parameterizedType.valueType = valueType;
         return parameterizedType;
     }
 
-    /**
-     * 构建数组类型的泛型结构，元素为可嵌套类型
-     *
-     * @param valueType 数组元素泛型结构
-     * @return
-     */
-    public static GenericParameterizedType arrayType(GenericParameterizedType valueType) {
-        GenericParameterizedType parameterizedType = new GenericParameterizedType();
-        parameterizedType.generic = true;
-        parameterizedType.array = true;
-        parameterizedType.valueType = valueType;
-        return parameterizedType;
-    }
+//    /**
+//     * 构建数组类型的泛型结构，元素为可嵌套类型
+//     *
+//     * @param valueType 数组元素泛型结构
+//     * @return
+//     */
+//    public static GenericParameterizedType arrayType(GenericParameterizedType valueType) {
+//        GenericParameterizedType parameterizedType = new GenericParameterizedType();
+//        parameterizedType.generic = true;
+//        parameterizedType.array = true;
+//        parameterizedType.valueType = valueType;
+//        return parameterizedType;
+//    }
 
     /**
      * 构建Collection类型的泛型结构，元素为简单类型
@@ -158,12 +227,13 @@ public final class GenericParameterizedType<T> {
      * @return
      */
     public static <E> GenericParameterizedType<E> collectionType(Class<E> collectionClass, Class<?> valueActualType) {
+
         GenericParameterizedType parameterizedType = new GenericParameterizedType();
         parameterizedType.generic = true;
-        parameterizedType.actualType = collectionClass;
+        parameterizedType.setActualType(collectionClass == null ? ArrayList.class : collectionClass);
 
         GenericParameterizedType valueType = new GenericParameterizedType();
-        valueType.actualType = valueActualType;
+        valueType.setActualType(valueActualType);
         parameterizedType.valueType = valueType;
         return parameterizedType;
     }
@@ -178,7 +248,7 @@ public final class GenericParameterizedType<T> {
     public static <E> GenericParameterizedType<E> collectionType(Class<E> collectionClass, GenericParameterizedType valueType) {
         GenericParameterizedType parameterizedType = new GenericParameterizedType();
         parameterizedType.generic = true;
-        parameterizedType.actualType = collectionClass;
+        parameterizedType.setActualType(collectionClass);
         parameterizedType.valueType = valueType;
         return parameterizedType;
     }
@@ -193,7 +263,7 @@ public final class GenericParameterizedType<T> {
      */
     public static <E> GenericParameterizedType<E> entityType(Class<E> entityClass, Class<?> genericClass) {
         GenericParameterizedType<E> parameterizedType = new GenericParameterizedType<E>();
-        parameterizedType.actualType = entityClass;
+        parameterizedType.setActualType(entityClass);
         parameterizedType.generic = true;
         parameterizedType.genericClass = genericClass;
         // If it is an array type, it needs to be handled separately ?
@@ -210,7 +280,7 @@ public final class GenericParameterizedType<T> {
      */
     public static <E> GenericParameterizedType<E> entityType(Class<E> entityClass, Map<String, Class<?>> genericClassMap) {
         GenericParameterizedType parameterizedType = new GenericParameterizedType();
-        parameterizedType.actualType = entityClass;
+        parameterizedType.setActualType(entityClass);
         parameterizedType.genericClassMap = genericClassMap;
         return parameterizedType;
     }
@@ -224,7 +294,7 @@ public final class GenericParameterizedType<T> {
      */
     static GenericParameterizedType genericCollectionType(Class<?> parameterType, Type genericType) {
         GenericParameterizedType genericParameterizedType = new GenericParameterizedType();
-        genericParameterizedType.actualType = parameterType;
+        genericParameterizedType.setActualType(parameterType);
         genericParameterizedType.generic = true;
         parseValueType(genericParameterizedType, genericType);
         return genericParameterizedType;
@@ -252,7 +322,7 @@ public final class GenericParameterizedType<T> {
      */
     static GenericParameterizedType genericMapType(Class<?> parameterType, Type key, Type value) {
         GenericParameterizedType genericParameterizedType = new GenericParameterizedType();
-        genericParameterizedType.actualType = parameterType;
+        genericParameterizedType.setActualType(parameterType);
         genericParameterizedType.generic = true;
         genericParameterizedType.mapKeyClass = (key instanceof WildcardType || !(key instanceof Class<?>)) ? Object.class : (Class<?>) key;
 
@@ -269,7 +339,7 @@ public final class GenericParameterizedType<T> {
      */
     static GenericParameterizedType genericEntityType(Class<?> parameterType, String genericName) {
         GenericParameterizedType genericParameterizedType = new GenericParameterizedType();
-        genericParameterizedType.actualType = parameterType;
+        genericParameterizedType.setActualType(parameterType);
         genericParameterizedType.genericName = genericName;
         genericParameterizedType.camouflage = true;
 
@@ -290,7 +360,7 @@ public final class GenericParameterizedType<T> {
             // jdk7+ char[]等基础数据的enericType已经是一个数组类型(char[].class)
             ReflectConsts.PrimitiveType primitiveType;
             // jdk1.6 兼容处理
-            if(genericComponentType instanceof Class && (primitiveType = ReflectConsts.PrimitiveType.typeOf((Class)genericComponentType)) != null) {
+            if (genericComponentType instanceof Class && (primitiveType = ReflectConsts.PrimitiveType.typeOf((Class) genericComponentType)) != null) {
                 genericParameterizedType.valueType = actualType(primitiveType.getGenericArrayType());
             } else {
                 genericParameterizedType.valueType = genericArrayType(genericComponentType);
@@ -336,7 +406,7 @@ public final class GenericParameterizedType<T> {
      */
     public GenericParameterizedType copyAndReplaceActualType(Class<?> actualType) {
         GenericParameterizedType genericParameterizedType = new GenericParameterizedType();
-        genericParameterizedType.actualType = actualType;
+        genericParameterizedType.setActualType(actualType);
         genericParameterizedType.valueType = this.valueType;
         genericParameterizedType.mapKeyClass = this.mapKeyClass;
         genericParameterizedType.genericClass = this.genericClass;
@@ -373,34 +443,18 @@ public final class GenericParameterizedType<T> {
         return generic;
     }
 
-    public String getDatePattern() {
-        return ownerInfo == null ? null : ownerInfo.getPattern();
-    }
-
-    public String getDateTimezone() {
-        return ownerInfo == null ? null : ownerInfo.getTimezone();
+    void initParamClassType() {
+        this.paramClassType = ReflectConsts.getParamClassType(actualType);
+        this.paramClassNumberType = ReflectConsts.getParamClassNumberType(actualType);
     }
 
     public int getParamClassType() {
-        if (ownerInfo != null) {
-            return ownerInfo.getParamClassType();
-        }
-        return ReflectConsts.getParamClassType(actualType);
+        return paramClassType;
     }
-//    public int getParamClassType() {
-//        return ownerInfo == null ? 0 : ownerInfo.getParamClassType();
-//    }
 
     public int getParamClassNumberType() {
-        if (ownerInfo != null) {
-            return ownerInfo.getParamClassNumberType();
-        }
-        return ReflectConsts.getParamClassNumberType(actualType);
+        return paramClassNumberType;
     }
-
-//    public int getParamClassNumberType() {
-//        return ownerInfo == null ? 0 : ownerInfo.getParamClassNumberType();
-//    }
 
     public boolean isCamouflage() {
         return camouflage;
@@ -408,5 +462,31 @@ public final class GenericParameterizedType<T> {
 
     public String getGenericName() {
         return genericName;
+    }
+
+    public ReflectConsts.ClassCategory getActualClassCategory() {
+        if (actualClassCategory != null) {
+            return actualClassCategory;
+        }
+        return actualClassCategory = ReflectConsts.getClassCategory(actualType);
+    }
+
+    private String datePattern;
+    private String dateTimezone;
+
+    public void setDatePattern(String datePattern) {
+        this.datePattern = datePattern;
+    }
+
+    public String getDatePattern() {
+        return datePattern;
+    }
+
+    public String getDateTimezone() {
+        return dateTimezone;
+    }
+
+    public void setDateTimezone(String dateTimezone) {
+        this.dateTimezone = dateTimezone;
     }
 }

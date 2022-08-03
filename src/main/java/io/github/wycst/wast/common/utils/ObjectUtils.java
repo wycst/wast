@@ -23,7 +23,7 @@ public class ObjectUtils {
             ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(target.getClass());
             List<GetterInfo> getterInfos = classStructureWrapper.getGetterInfos();
             for (GetterInfo getterInfo : getterInfos) {
-                if (getterInfo.getFieldName().equals(key.trim())) {
+                if (getterInfo.getName().equals(key.trim())) {
                     return true;
                 }
             }
@@ -111,7 +111,7 @@ public class ObjectUtils {
                     ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(target.getClass());
                     List<GetterInfo> getterInfos = classStructureWrapper.getGetterInfos();
                     for (GetterInfo getterInfo : getterInfos) {
-                        if (getterInfo.getFieldName().equals(key.trim())) {
+                        if (getterInfo.getName().equals(key.trim())) {
                             return getterInfo.invoke(target);
                         }
                     }
@@ -224,7 +224,7 @@ public class ObjectUtils {
         ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(target.getClass());
         List<GetterInfo> getterInfos = classStructureWrapper.getGetterInfos();
         for (GetterInfo getterInfo : getterInfos) {
-            map.put(getterInfo.getFieldName(), getterInfo.invoke(target));
+            map.put(getterInfo.getName(), getterInfo.invoke(target));
         }
 
         return map;
@@ -254,7 +254,7 @@ public class ObjectUtils {
             for (GetterInfo getterInfo : getterInfos) {
                 Object val = getterInfo.invoke(target);
                 if (val != null && !val.equals("") && !val.toString().equals("0")) {
-                    fields.add(getterInfo.getFieldName());
+                    fields.add(getterInfo.getName());
                 }
             }
         }

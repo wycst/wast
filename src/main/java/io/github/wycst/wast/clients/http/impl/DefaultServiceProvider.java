@@ -39,36 +39,17 @@ public class DefaultServiceProvider implements ServiceProvider {
         this.loadBalanceStrategy = new PollingLoadBalanceStrategy();
     }
 
-    public void setLoadBalanceStrategy(LoadBalanceStrategy loadBalanceStrategy) {
+    public final void setLoadBalanceStrategy(LoadBalanceStrategy loadBalanceStrategy) {
         this.loadBalanceStrategy = loadBalanceStrategy;
     }
 
     @Override
-    public void registerServer(ServerZone serverZone) {
+    public final void registerServer(ServerZone serverZone) {
         servers.put(serverZone.getServerName(), serverZone);
     }
 
-//    @Override
-//    public URL fromRequest(HttpClientRequest httpRequest) throws MalformedURLException {
-//        // Resolving domain name information
-//
-//        URL url = httpRequest.getURL();
-//        if (!httpRequest.isUseDefaultPort()) {
-//            return url;
-//        }
-//        String hostname = url.getHost();
-//        if (ifExist(hostname)) {
-//            ServiceInstance serviceInstance = loadBalanceStrategy.select(getServer(hostname));
-//            String baseUrl = serviceInstance.getBaseUrl();
-//            String newUrl = url.getProtocol() + "://" + baseUrl + url.getFile();
-//            return new URL(newUrl);
-//        }
-//
-//        return httpRequest.getURL();
-//    }
-
     @Override
-    public ServiceInstance getServiceInstance(HttpClientRequest httpRequest) throws MalformedURLException {
+    public final ServiceInstance getServiceInstance(HttpClientRequest httpRequest) throws MalformedURLException {
         URL url = httpRequest.getURL();
         if (!httpRequest.isUseDefaultPort()) {
             return null;
@@ -82,22 +63,22 @@ public class DefaultServiceProvider implements ServiceProvider {
     }
 
     @Override
-    public ServerZone getServer(String serviceName) {
+    public final ServerZone getServer(String serviceName) {
         return servers.get(serviceName);
     }
 
     @Override
-    public void clear() {
+    public final void clear() {
         servers.clear();
     }
 
     @Override
-    public void clearIfNotExist(List<String> doms) {
+    public final void clearIfNotExist(List<String> doms) {
         List<String> serviceList = new ArrayList<String>(servers.keySet());
         for (String serviceName : serviceList) {
-            if(!doms.contains(serviceName)) {
+            if (!doms.contains(serviceName)) {
                 ServerZone serverZone = servers.get(serviceName);
-                if(!serverZone.isStaticServer()) {
+                if (!serverZone.isStaticServer()) {
                     servers.remove(serviceName);
                 }
             }
@@ -108,4 +89,7 @@ public class DefaultServiceProvider implements ServiceProvider {
         return servers.containsKey(serverName);
     }
 
+    public void destroy() {
+        this.clear();
+    }
 }

@@ -3,6 +3,7 @@ package io.github.wycst.wast.common.reflect;
 import io.github.wycst.wast.common.exceptions.InvokeReflectException;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 
 /**
  * 使用setter方法反射
@@ -30,4 +31,13 @@ final class SetterMethodInfo extends SetterInfo {
         }
     }
 
+    // 是否通过setter方法
+    public boolean isMethod() {
+        return true;
+    }
+
+    // 是否private私有方法
+    public boolean isPrivate() {
+        return Modifier.isPrivate(method.getModifiers());
+    }
 }

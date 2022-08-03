@@ -11,11 +11,9 @@ import io.github.wycst.wast.json.JSONStringWriter;
  */
 public class JSONParseContext {
 
-    /**
-     * 原子number对象，上下文使用，只创建一次
-     * (Atomic number object, context use)
+    /***
+     * 解析上下文结束位置
      */
-//    private final AtomicInteger endIndex = new AtomicInteger();
     private int endIndex;
 
     /**
@@ -28,6 +26,7 @@ public class JSONParseContext {
      * 禁用转义模式，已确定没有转义符场景下使用，能适当加速字符串解析
      * （The escape mode is disabled. It has been determined that it can be used in scenarios without escape characters, which can appropriately speed up string parsing）
      */
+    @Deprecated
     private boolean disableEscapeMode;
 
     /**
@@ -66,9 +65,19 @@ public class JSONParseContext {
     private boolean useBigDecimalAsDefault;
 
     /**
+     * 使用Double.parse来处理声明为double类型的属性的解析操作
+     */
+    private boolean useNativeDoubleParser;
+
+    /**
      * 使用字段反序列化
      */
     private boolean useFields;
+
+    /**
+     * 禁用cache key
+     */
+    private boolean disableCacheMapKey;
 
     public int getEndIndex() {
         return endIndex;
@@ -83,7 +92,7 @@ public class JSONParseContext {
     }
 
     public JSONStringWriter getContextWriter() {
-        if(writer != null) {
+        if (writer != null) {
             writer.reset();
         }
         return writer;
@@ -159,6 +168,26 @@ public class JSONParseContext {
 
     public void setUseFields(boolean useFields) {
         this.useFields = useFields;
+    }
+
+    public boolean isUseNativeDoubleParser() {
+        return useNativeDoubleParser;
+    }
+
+    public void setUseNativeDoubleParser(boolean useNativeDoubleParser) {
+        this.useNativeDoubleParser = useNativeDoubleParser;
+    }
+
+    public boolean isDisableCacheMapKey() {
+        return disableCacheMapKey;
+    }
+
+    public void setDisableCacheMapKey(boolean disableCacheMapKey) {
+        this.disableCacheMapKey = disableCacheMapKey;
+    }
+
+    public final String getCacheKey(char[] buf, int offset, int len, int hashCode) {
+        return Options.getCacheKey(buf, offset, len, hashCode);
     }
 
     public void clear() {

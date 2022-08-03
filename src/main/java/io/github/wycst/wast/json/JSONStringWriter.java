@@ -200,6 +200,18 @@ public class JSONStringWriter extends CharArrayWriter {
         count = newcount;
     }
 
+    StringBuffer toStringBuffer() {
+        StringBuffer stringBuffer = new StringBuffer(count);
+        stringBuffer.append(buf, 0, count);
+        return stringBuffer;
+    }
+
+    StringBuilder toStringBuilder() {
+        StringBuilder stringBuilder = new StringBuilder(count);
+        stringBuilder.append(buf, 0, count);
+        return stringBuilder;
+    }
+
     @Override
     public String toString() {
         return new String(buf, 0, count);

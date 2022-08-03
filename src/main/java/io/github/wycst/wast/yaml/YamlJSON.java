@@ -404,10 +404,10 @@ public class YamlJSON extends YamlGeneral {
                         i += 4;
                         beginIndex = ++i + 1;
                         break;
-                    case '\\':
+                    default:
                         len = i - beginIndex;
                         stringBuilder.append(buf, beginIndex, len + 1);
-                        stringBuilder.setCharAt(stringBuilder.length() - 1, '\\');
+                        stringBuilder.setCharAt(stringBuilder.length() - 1, next);
                         beginIndex = ++i + 1;
                         break;
                 }

@@ -1,29 +1,30 @@
 package io.github.wycst.wast.common.reflect;
 
-import io.github.wycst.wast.common.annotations.Deserialize;
-import io.github.wycst.wast.common.annotations.Property;
 import io.github.wycst.wast.common.exceptions.InvokeReflectException;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
-import java.util.Date;
+import java.lang.reflect.Modifier;
 import java.util.Map;
 
 public class SetterInfo {
 
+    // field of class
     private Field field;
-    // field 偏移
+    // field memory offset
     private long fieldOffset = -1;
-    // 是否基本类型
+    // is primitive
     private boolean fieldPrimitive;
-    // 基本类型类别
+    // primitive type
     private ReflectConsts.PrimitiveType primitiveType;
 
-    private String mappingName;
-
+    private String name;
     private Class<?> parameterType;
 
     private Class<?> actualTypeArgument;
+
+    // 索引位置, 当宿主类型为record时或者通过构造方法设置对象的属性值时使用
+    private int index;
 
     /**
      * 泛型信息
@@ -37,61 +38,18 @@ public class SetterInfo {
      */
     private boolean nonInstanceType;
 
-    /**
-     * 是否反序列化
-     */
-    private boolean deserialize = true;
-
-    /**
-     * 反序列化注解
-     */
-    private Annotation deserializeAnnotation;
-
-    /**
-     * 日期序列化格式
-     */
-    private String pattern;
-
-    /**
-     * 时区
-     */
-    private String timezone;
-
     // 注解集合
     private Map<Class<? extends Annotation>, Annotation> annotations;
 
     // 是否存在默认值
-    private Boolean hasDefaultValue;
+    private Boolean existDefault;
 
     /**
-     * 代理字段
-     */
-    private boolean fieldAgent;
-
-    // 分类
-    private ReflectConsts.ClassCategory classCategory;
-
-    /**
-     * 获取Getter类型分类
-     */
-    public ReflectConsts.ClassCategory getClassCategory() {
-        if (classCategory != null) {
-            return classCategory;
-        }
-        if (fieldOffset > -1) {
-            // field
-            return classCategory = ReflectConsts.getClassCategory(field.getType());
-        }
-        // getter method
-        return classCategory = ReflectConsts.getClassCategory(parameterType);
-    }
-
-    /**
-     * 反射设置
+     * 反射动作
      */
     public final void invoke(Object target, Object value) {
         if (fieldOffset > -1) {
-            if(fieldPrimitive) {
+            if (fieldPrimitive) {
                 UnsafeHelper.putPrimitiveValue(target, fieldOffset, value, primitiveType);
             } else {
                 UnsafeHelper.putObjectValue(target, fieldOffset, value);
@@ -109,12 +67,12 @@ public class SetterInfo {
         }
     }
 
-    public String getMappingName() {
-        return mappingName;
+    public String getName() {
+        return name;
     }
 
-    void setMappingName(String mappingName) {
-        this.mappingName = mappingName;
+    void setName(String name) {
+        this.name = name;
     }
 
     public Class<?> getParameterType() {
@@ -141,28 +99,12 @@ public class SetterInfo {
         this.nonInstanceType = nonInstanceType;
     }
 
-    public boolean isDeserialize() {
-        return deserialize;
-    }
-
-    public String getPattern() {
-        return pattern;
-    }
-
-    public String getTimezone() {
-        return timezone;
-    }
-
     public Map<Class<? extends Annotation>, Annotation> getAnnotations() {
         return annotations;
     }
 
     void setAnnotations(Map<Class<? extends Annotation>, Annotation> annotations) {
         this.annotations = annotations;
-        // 反序列Property
-        parsePropertyAnnotation((Property) annotations.get(Property.class));
-        // 检查是否配置了自定义反序列化
-        checkDeserializer();
     }
 
     void setField(Field field) {
@@ -170,7 +112,7 @@ public class SetterInfo {
         try {
             this.fieldOffset = UnsafeHelper.objectFieldOffset(field);
             this.fieldPrimitive = getFieldType().isPrimitive();
-            if(this.fieldPrimitive) {
+            if (this.fieldPrimitive) {
                 this.primitiveType = ReflectConsts.PrimitiveType.typeOf(getFieldType());
             }
         } catch (Throwable throwable) {
@@ -194,80 +136,48 @@ public class SetterInfo {
      * 获取默认值
      */
     public Object getDefaultFieldValue(Object instance) {
+        if (field == null) return null;
         try {
-            if (hasDefaultValue == Boolean.FALSE) {
+            if (existDefault == Boolean.FALSE) {
                 return null;
             }
             Object fieldValue = field.get(instance);
-            this.hasDefaultValue = fieldValue != null;
+            this.existDefault = fieldValue != null;
             if (fieldValue != null) {
                 return fieldValue;
             }
         } catch (Exception e) {
-            hasDefaultValue = Boolean.FALSE;
+            existDefault = Boolean.FALSE;
         }
         return null;
-    }
-
-    private void parsePropertyAnnotation(Property property) {
-
-        if (property == null)
-            return;
-
-        String name = property.name();
-        if (name != null && name.length() > 0) {
-            mappingName = name.trim();
-        }
-        // 是否序列化
-        this.deserialize = property.deserialize();
-
-        // 日期格式序列化
-        if (parameterType != null && Date.class.isAssignableFrom(parameterType)) {
-            String pattern = property.pattern();
-            if (pattern != null && pattern.trim().length() > 0) {
-                this.pattern = pattern;
-            }
-
-            String timezone = property.timezone();
-            if (timezone != null && timezone.trim().length() > 0) {
-                this.timezone = timezone;
-            }
-        }
-    }
-
-    private void checkDeserializer() {
-        for (Class<? extends Annotation> annotationType : annotations.keySet()) {
-            if (annotationType.isAnnotationPresent(Deserialize.class)) {
-                Annotation annotation = annotations.get(annotationType);
-                this.deserializeAnnotation = annotation;
-                break;
-            }
-        }
-    }
-
-    public Annotation getDeserializeAnnotation(Class<? extends Annotation> annotationType) {
-        if (deserializeAnnotation == null) return null;
-        return annotationType.isInstance(this.deserializeAnnotation) ? deserializeAnnotation : null;
     }
 
     public Annotation getAnnotation(Class<? extends Annotation> annotationType) {
         return annotations.get(annotationType);
     }
 
-    private int paramClassType;
-    private int paramClassNumberType;
-
     public int getParamClassType() {
-        return paramClassType;
+        return genericParameterizedType.getParamClassType();
     }
 
     public int getParamClassNumberType() {
-        return paramClassNumberType;
+        return genericParameterizedType.getParamClassNumberType();
     }
 
-    void initParamClassType() {
-        this.paramClassType = ReflectConsts.getParamClassType(parameterType);
-        this.paramClassNumberType = ReflectConsts.getParamClassNumberType(parameterType);
+    public boolean isMethod() {
+        return false;
+    }
+
+    public boolean isPrimate() {
+        return Modifier.isPrivate(field.getModifiers());
+    }
+
+    public int getIndex() {
+        return index;
+    }
+
+    void setIndex(int index) {
+        this.index = index;
     }
 }
 

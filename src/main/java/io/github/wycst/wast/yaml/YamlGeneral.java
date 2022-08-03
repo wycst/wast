@@ -1,8 +1,10 @@
 package io.github.wycst.wast.yaml;
 
-import java.lang.reflect.Field;
+import io.github.wycst.wast.common.reflect.UnsafeHelper;
+
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @Author wangyunchao
@@ -25,7 +27,7 @@ class YamlGeneral {
     protected static final char SPLIT_CHAR = ':';
 
     /** 类型映射 */
-    protected static Map<String, Integer> typeValues = new HashMap<String, Integer>();
+    protected static Map<String, Integer> typeValues = new ConcurrentHashMap<String, Integer>();
 
     static {
         typeValues.put("str", 1);
@@ -43,28 +45,8 @@ class YamlGeneral {
         IS_WINDOW_OS = System.getProperty("os.name").toLowerCase().contains("windows");
     }
 
-    private final static Field stringToChars;
-
-    static {
-        Field field;
-        try {
-            field = String.class.getDeclaredField("value");
-            field.setAccessible(true);
-        } catch (Exception e) {
-            field = null;
-        }
-        stringToChars = field;
-    }
-
     protected final static char[] getChars(String value) {
-        if (stringToChars == null) {
-            return value.toCharArray();
-        }
-        try {
-            return (char[]) stringToChars.get(value);
-        } catch (IllegalAccessException e) {
-            throw new IllegalArgumentException(e);
-        }
+        return UnsafeHelper.getChars(value);
     }
 
     /**

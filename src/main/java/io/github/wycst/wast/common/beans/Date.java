@@ -16,6 +16,8 @@
  */
 package io.github.wycst.wast.common.beans;
 
+import io.github.wycst.wast.common.utils.NumberUtils;
+
 import java.util.TimeZone;
 
 /**
@@ -46,6 +48,7 @@ import java.util.TimeZone;
  * 至此按365.24219的精度来算误差已经没了，即40万年可能是一个完整的闰年周期。
  *
  * @author wangyunchao
+ * @see java.util.Calendar
  */
 public class Date implements java.io.Serializable, Comparable<Date> {
 
@@ -55,6 +58,7 @@ public class Date implements java.io.Serializable, Comparable<Date> {
     public static final int HOURS = 4;
     public static final int MINUTE = 5;
     public static final int SECOND = 6;
+    public static final int MILLISECOND = 7;
 
     protected int year;
     protected int month;
@@ -69,6 +73,10 @@ public class Date implements java.io.Serializable, Comparable<Date> {
     protected int daysOfYear;
     // 星期
     protected int dayOfWeek;
+    // 当月第几个星期
+    protected int weekOfMonth;
+    // 当年第几个星期
+    protected int weekOfYear;
     // 是否闰年
     protected boolean leapYear;
     // 距离1970.1.1 毫秒数
@@ -83,13 +91,17 @@ public class Date implements java.io.Serializable, Comparable<Date> {
     public static final int DEFAULT_OFFSET;
     // 可变时差
     protected int currentOffset;
+    private TimeZone timeZone;
 
-    // 以下2个属性后续放在LightDate中
-    // 以2019年24节气中时刻（毫秒数）作为参考
-    // 从小寒开始，冬至结束
-    public final static long[] SOLAR_TERMS_2019 = new long[24];
-    // 地球公转一周年毫秒数
-    public final static long YEAR_TIMEMILLS = 31556925216l;
+    protected final static String[] FORMAT_DIGITS = {"00", "01", "02", "03", "04", "05", "06", "07", "08", "09"};
+    protected final static String[] WEEK_DAYS = {"星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"};
+
+//    // 以下2个属性后续放在LunarDate中
+//    // 以2019年24节气中时刻（毫秒数）作为参考
+//    // 从小寒开始，冬至结束
+//    public final static long[] SOLAR_TERMS_2019 = new long[24];
+//    // 地球公转一周年毫秒数
+//    public final static long YEAR_TIMEMILLS = 31556925216l;
 
     // 闰年算法： 0~1582之前按每4年一润  1582-？ 按最新算法
     // 删除1582年 10月5日至14日共 10天
@@ -116,9 +128,11 @@ public class Date implements java.io.Serializable, Comparable<Date> {
 
     public Date(long timeMills, TimeZone timeZone) {
         if (timeZone != null) {
+            this.timeZone = timeZone;
             this.currentOffset = timeZone.getRawOffset();
         } else {
             this.currentOffset = DEFAULT_OFFSET;
+            this.timeZone = TimeZone.getDefault();
         }
         setTime(timeMills);
     }
@@ -147,19 +161,20 @@ public class Date implements java.io.Serializable, Comparable<Date> {
     public static Date parse(String dateStr) {
         dateStr.getClass();
         int length = dateStr.length();
+        char[] dateBuf = dateStr.toCharArray();
         int year, month, day, hour = 0, minute = 0, second = 0;
         try {
             if (length == 10) {
-                year = Integer.parseInt(dateStr.substring(0, 4));
-                month = Integer.parseInt(dateStr.substring(5, 7));
-                day = Integer.parseInt(dateStr.substring(8, 10));
+                year = NumberUtils.parseInt4(dateBuf, 0);
+                month = NumberUtils.parseInt2(dateBuf, 5);
+                day = NumberUtils.parseInt2(dateBuf, 8);
             } else if (length == 19) {
-                year = Integer.parseInt(dateStr.substring(0, 4));
-                month = Integer.parseInt(dateStr.substring(5, 7));
-                day = Integer.parseInt(dateStr.substring(8, 10));
-                hour = Integer.parseInt(dateStr.substring(11, 13));
-                minute = Integer.parseInt(dateStr.substring(14, 16));
-                second = Integer.parseInt(dateStr.substring(17, 19));
+                year = NumberUtils.parseInt4(dateBuf, 0);
+                month = NumberUtils.parseInt2(dateBuf, 5);
+                day = NumberUtils.parseInt2(dateBuf, 8);
+                hour = NumberUtils.parseInt2(dateBuf, 11);
+                minute = NumberUtils.parseInt2(dateBuf, 14);
+                second = NumberUtils.parseInt2(dateBuf, 17);
             } else {
                 throw new UnsupportedOperationException(" Date Format Error, only supported 'yyyy-MM-dd' or 'yyyy-MM-dd HH:mm:ss'");
             }
@@ -176,93 +191,32 @@ public class Date implements java.io.Serializable, Comparable<Date> {
      * @param dateStr
      * @param template
      * @return
+     * @see Date#format(String)
      */
     public static Date parse(String dateStr, String template) {
         if (template == null)
             return parse(dateStr);
+        char[] dateBuf = dateStr.toCharArray();
+        return parse(dateBuf, 0, dateBuf.length, template);
+    }
 
-        // 18:03 12/01/2021  ->H:m M/d/Y
-        // 解析模板中每个指标（年月日时分秒）位置得索引
-        int yearIndex = -1, fullYearIndex = -1, monthIndex = -1, dayIndex = -1, hourIndex = -1, minuteIndex = -1, secondIndex = -1, millisecondIndex = -1;
-        int year, month, day, hour = 0, minute = 0, second = 0, millisecond = 0;
+    /**
+     * 提取日期字符转化为日期对象
+     *
+     * @param buf
+     * @param offset
+     * @param len
+     * @param template
+     * @return
+     */
+    public static Date parse(char[] buf, int offset, int len, String template) {
+        DateTemplate dateTemplate = new DateTemplate(template);
+        return parse(buf, offset, len, dateTemplate);
+    }
 
-        int length = template.length();
-        int count = 0;
-        for (int i = 0; i < length; i++) {
-            char ch = template.charAt(i);
-            switch (ch) {
-                case 'Y':
-                    fullYearIndex = i + count;
-                    count += 3;
-                    continue;
-                case 'y':
-                    yearIndex = i + count;
-                    count++;
-                    continue;
-                case 'M':
-                    monthIndex = i + count;
-                    count++;
-                    continue;
-                case 'd':
-                    dayIndex = i + count;
-                    count++;
-                    continue;
-                case 'H':
-                    hourIndex = i + count;
-                    count++;
-                    continue;
-                case 'm':
-                    minuteIndex = i + count;
-                    count++;
-                    continue;
-                case 's':
-                    secondIndex = i + count;
-                    count++;
-                    continue;
-                case 'S':
-                    millisecondIndex = i + count;
-                    count += 2;
-                    continue;
-                default:
-//                    count++;
-                    continue;
-            }
-        }
-
-        if (fullYearIndex > -1) {
-            year = Integer.parseInt(dateStr.substring(fullYearIndex, fullYearIndex + 4));
-        } else if (yearIndex > -1) {
-            // 年份
-            year = Integer.parseInt(dateStr.substring(yearIndex, yearIndex + 2));
-            year += new Date().getYear() / 100 * 100;
-        } else {
-            throw new UnsupportedOperationException(" Date Format Error, 'Y' or 'y' for year is not found ");
-        }
-        if (monthIndex > -1) {
-            month = Integer.parseInt(dateStr.substring(monthIndex, monthIndex + 2));
-        } else {
-            throw new UnsupportedOperationException(" Date Format Error, 'M' for month is not found ");
-        }
-        if (dayIndex > -1) {
-            day = Integer.parseInt(dateStr.substring(dayIndex, dayIndex + 2));
-        } else {
-            throw new UnsupportedOperationException(" Date Format Error, 'd' for day is not found ");
-        }
-
-        if (hourIndex > -1) {
-            hour = Integer.parseInt(dateStr.substring(hourIndex, hourIndex + 2));
-        }
-        if (minuteIndex > -1) {
-            minute = Integer.parseInt(dateStr.substring(minuteIndex, minuteIndex + 2));
-        }
-        if (secondIndex > -1) {
-            second = Integer.parseInt(dateStr.substring(secondIndex, secondIndex + 2));
-        }
-        if (millisecondIndex > -1) {
-            millisecond = Integer.parseInt(dateStr.substring(millisecondIndex, millisecondIndex + 2));
-        }
-
-        return new Date(year, month, day, hour, minute, second, millisecond);
+    public static Date parse(char[] buf, int offset, int len, DateTemplate dateTemplate) {
+        dateTemplate.getClass();
+        return dateTemplate.parse(buf, offset, len);
     }
 
     /**
@@ -312,6 +266,7 @@ public class Date implements java.io.Serializable, Comparable<Date> {
      * @return
      */
     public Date setTimeZone(TimeZone timeZone) {
+        this.timeZone = timeZone;
         int rawOffset = timeZone.getRawOffset();
         if (this.currentOffset != rawOffset) {
             this.currentOffset = rawOffset;
@@ -347,8 +302,10 @@ public class Date implements java.io.Serializable, Comparable<Date> {
     public Date set(int year, int month, int day, int hour, int minute, int second,
                     int millisecond, TimeZone timeZone) {
         if (timeZone != null) {
+            this.timeZone = timeZone;
             this.currentOffset = timeZone.getRawOffset();
         } else {
+            this.timeZone = TimeZone.getDefault();
             this.currentOffset = DEFAULT_OFFSET;
         }
         this.year = year;
@@ -435,6 +392,10 @@ public class Date implements java.io.Serializable, Comparable<Date> {
         this.daysOfYear = daysOfYear;
         // 星期
         this.dayOfWeek = dayOfWeek;
+        // 当月第几个星期
+        this.weekOfMonth = dayOfMonth % 7 == 0 ? dayOfMonth / 7 : dayOfMonth / 7 + 1;
+        // 当年第几个星期
+        this.weekOfYear = daysOfYear % 7 == 0 ? daysOfYear / 7 : daysOfYear / 7 + 1;
         // 当前时间毫秒数（距离1970.1.1)
         this.timeMills = seconds * 1000 + millisecond - this.currentOffset - RELATIVE_MILLS;
         // 是否闰年
@@ -485,73 +446,80 @@ public class Date implements java.io.Serializable, Comparable<Date> {
         return year;
     }
 
-    public void setYear(int year) {
+    public Date setYear(int year) {
         if (this.year == year) {
-            return;
+            return this;
         }
         this.year = year;
         this.updateTime();
+        return this;
     }
 
     public int getMonth() {
         return month;
     }
 
-    public void setMonth(int month) {
+    public Date setMonth(int month) {
         if (this.month == month)
-            return;
+            return this;
         this.month = month;
         updateTime();
+        return this;
     }
 
     public int getDay() {
         return dayOfMonth;
     }
 
-    public void setDay(int day) {
-        if (this.dayOfMonth == day) return;
+    public Date setDay(int day) {
+        if (this.dayOfMonth == day) return this;
         this.dayOfMonth = day;
         updateTime();
+        return this;
     }
 
     public int getHourOfDay() {
         return hourOfDay;
     }
 
-    public void setHourOfDay(int hourOfDay) {
-        if (this.hourOfDay == hourOfDay) return;
+    public Date setHourOfDay(int hourOfDay) {
+        if (this.hourOfDay == hourOfDay) return this;
         this.hourOfDay = hourOfDay;
         updateTime();
+        return this;
     }
 
     public int getMinute() {
         return minute;
     }
 
-    public void setMinute(int minute) {
-        if (this.minute == minute) return;
+    public Date setMinute(int minute) {
+        if (this.minute == minute) return this;
         this.minute = minute;
         updateTime();
+        return this;
     }
 
     public int getSecond() {
         return second;
     }
 
-    public void setSecond(int second) {
-        if (this.second == second) return;
+    public Date setSecond(int second) {
+        if (this.second == second) return this;
         this.second = second;
         updateTime();
+        return this;
     }
 
     public int getMillisecond() {
         return millisecond;
     }
 
-    public void setMillisecond(int millisecond) {
-        if (this.millisecond == millisecond) return;
+    public Date setMillisecond(int millisecond) {
+        if (this.millisecond == millisecond) return this;
         this.millisecond = millisecond;
         updateTime();
+        return this;
     }
 
     public int getDaysOfYear() {
@@ -724,7 +692,8 @@ public class Date implements java.io.Serializable, Comparable<Date> {
 
         this.daysOfYear = daysOfYear;
         this.dayOfWeek = dayOfWeek;
-
+        this.weekOfMonth = dayOfMonth % 7 == 0 ? dayOfMonth / 7 : dayOfMonth / 7 + 1;
+        this.weekOfYear = daysOfYear % 7 == 0 ? daysOfYear / 7 : daysOfYear / 7 + 1;
         this.leapYear = isLeapYear;
 
         this.afterDateChange();
@@ -825,95 +794,202 @@ public class Date implements java.io.Serializable, Comparable<Date> {
     }
 
     /**
-     * Y 4位数年份
-     * y 2位年份
-     * M 格式化2位月份
-     * d 格式化2位天
-     * H 格式化24制小时数
-     * m 格式化2位分钟
-     * s 格式化2位秒
-     * S 格式化3位毫秒
+     * <p> Y 4位数年份
+     * <p> y 2位年份
+     * <p> M 格式化2位月份
+     * <p> d 格式化2位天
+     * <p> H 格式化24制小时数
+     * <p> m 格式化2位分钟
+     * <p> s 格式化2位秒
+     * <p> S 格式化3位毫秒
+     * <p> a 上午/下午
      *
      * @param template
      * @return
      */
     public String format(String template) {
-
-        if (template == null) return null;
+        if (template == null) return format();
         StringBuilder writer = new StringBuilder();
-        int length = template.length();
-        int beginIndex = 0;
-        for (int i = 0; i < length; i++) {
-            char ch = template.charAt(i);
-            switch (ch) {
-                case 'Y':
-                    writer.append(template, beginIndex, i);
-                    writer.append(year);
-                    beginIndex = i + 1;
-                    continue;
-                case 'y':
-                    writer.append(template, beginIndex, i);
-                    writer.append(year % 100);
-                    beginIndex = i + 1;
-                    continue;
-                case 'M':
-                    writer.append(template, beginIndex, i);
-                    if (month < 10) {
-                        writer.append("0");
-                    }
-                    writer.append(month);
-                    beginIndex = i + 1;
-                    continue;
-                case 'd':
-                    writer.append(template, beginIndex, i);
-                    if (dayOfMonth < 10) {
-                        writer.append("0");
-                    }
-                    writer.append(dayOfMonth);
-                    beginIndex = i + 1;
-                    continue;
-                case 'H':
-                    writer.append(template, beginIndex, i);
-                    if (hourOfDay < 10) {
-                        writer.append("0");
-                    }
-                    writer.append(hourOfDay);
-                    beginIndex = i + 1;
-                    continue;
-                case 'm':
-                    writer.append(template, beginIndex, i);
-                    if (minute < 10) {
-                        writer.append("0");
-                    }
-                    writer.append(minute);
-                    beginIndex = i + 1;
-                    continue;
-                case 's':
-                    writer.append(template, beginIndex, i);
-                    if (second < 10) {
-                        writer.append("0");
-                    }
-                    writer.append(second);
-                    beginIndex = i + 1;
-                    continue;
-                case 'S':
-                    writer.append(template, beginIndex, i);
-                    if (millisecond < 10) {
-                        writer.append("00");
-                    } else if (millisecond < 100) {
-                        writer.append("0");
-                    }
-                    writer.append(millisecond);
-                    beginIndex = i + 1;
-                    continue;
-                default:
-                    continue;
-            }
-        }
-
-        writer.append(template, beginIndex, length);
-
+        formatTo(template, writer);
         return writer.toString();
+    }
+
+    public void formatTo(String template, Appendable builder) {
+        try {
+            String pattern = template.trim();
+            int len = pattern.length();
+            char prevChar = '\0';
+            int count = 0;
+            // 增加一位虚拟字符进行遍历
+            for (int i = 0; i <= len; i++) {
+                char ch = '\0';
+                if (i < len)
+                    ch = pattern.charAt(i);
+                if (ch == 'Y')
+                    ch = 'y';
+
+                if (prevChar == ch) {
+                    count++;
+                } else {
+                    // switch & case
+                    switch (prevChar) {
+                        case 'y': {
+                            // 年份
+                            if (count == 2) {
+                                // 输出2位数年份
+                                int j = year % 100;
+                                if (j < 10) {
+                                    builder.append(FORMAT_DIGITS[j]);
+                                } else {
+                                    builder.append(String.valueOf(j));
+                                }
+                            } else {
+                                // 输出完整的年份
+                                builder.append(String.valueOf(year));
+                            }
+                            break;
+                        }
+                        case 'M': {
+                            // 月份
+                            if (month >= 10) {
+                                // 输出实际month
+                                builder.append(String.valueOf(month));
+                            } else {
+                                // 输出完整的month
+                                builder.append(FORMAT_DIGITS[month]);
+                            }
+                            break;
+                        }
+                        case 'd': {
+                            if (dayOfMonth >= 10) {
+                                // 输出实际day
+                                builder.append(String.valueOf(dayOfMonth));
+                            } else {
+                                // 输出完整的day
+                                builder.append(FORMAT_DIGITS[dayOfMonth]);
+                            }
+                            break;
+                        }
+                        case 'A':
+                        case 'a': {
+                            // 上午/下午
+                            if (isAm()) {
+                                builder.append("上午");
+                            } else {
+                                builder.append("下午");
+                            }
+                            break;
+                        }
+                        case 'H': {
+                            // 0-23
+                            if (hourOfDay >= 10) {
+                                // 输出实际hourOfDay
+                                builder.append(String.valueOf(hourOfDay));
+                            } else {
+                                // 输出完整的hourOfDay
+                                builder.append(FORMAT_DIGITS[hourOfDay]);
+                            }
+                            break;
+                        }
+                        case 'h': {
+                            // 1-12 小时格式
+                            int h = hourOfDay % 12;
+                            if (h == 0)
+                                h = 12;
+                            if (h >= 10) {
+                                // 输出实际h
+                                builder.append(String.valueOf(h));
+                            } else {
+                                // 输出完整的h
+                                builder.append(FORMAT_DIGITS[h]);
+                            }
+                            break;
+                        }
+                        case 'm': {
+                            // 分钟 0-59
+                            if (minute >= 10) {
+                                // 输出实际分钟
+                                builder.append(String.valueOf(minute));
+                            } else {
+                                // 输出2位分钟数
+                                builder.append(FORMAT_DIGITS[minute]);
+                            }
+                            break;
+                        }
+                        case 's': {
+                            // 秒 0-59
+                            if (second >= 10) {
+                                // 输出实际秒
+                                builder.append(String.valueOf(second));
+                            } else {
+                                // 输出2位秒
+                                builder.append(FORMAT_DIGITS[second]);
+                            }
+                            break;
+                        }
+                        case 'S': {
+                            // 统一3位毫秒
+                            String millisecondStr = String.valueOf(millisecond + 1000);
+                            builder.append(millisecondStr, 1, 4);
+                            break;
+                        }
+                        case 'E': {
+                            // 星期
+                            builder.append(WEEK_DAYS[(dayOfWeek - 1) & 7]);
+                            break;
+                        }
+                        case 'D': {
+                            // daysOfYear
+                            builder.append(String.valueOf(daysOfYear));
+                            break;
+                        }
+                        case 'F': {
+                            // weekOfMonth
+                            builder.append(String.valueOf(weekOfMonth));
+                            break;
+                        }
+                        case 'W': {
+                            // actualWeekOfMonth: weekOfMonth or weekOfMonth + 1
+                            // 当天星期数如果小于当月第一天星期数时需要+1，否则直接为weekOfMonth
+                            int firstDayOfWeek = (dayOfWeek + 7 - (dayOfMonth % 7)) % 7 + 1;
+                            if (dayOfWeek < firstDayOfWeek) {
+                                builder.append(String.valueOf(weekOfMonth + 1));
+                            } else {
+                                builder.append(String.valueOf(weekOfMonth));
+                            }
+                            break;
+                        }
+                        case 'w': {
+                            // weekOfYear
+                            builder.append(String.valueOf(weekOfYear));
+                            break;
+                        }
+                        case 'z': {
+                            // timezone
+                            TimeZone tz = timeZone == null ? TimeZone.getDefault() : timeZone;
+                            builder.append(tz.getID());
+                            break;
+                        }
+                        default: {
+                            // 其他输出
+                            if (prevChar != '\0') {
+                                // 输出count个 prevChar
+                                int n = count;
+                                while (n-- > 0)
+                                    builder.append(prevChar);
+                            }
+                        }
+                    }
+                    count = 1;
+                }
+                prevChar = ch;
+            }
+        } catch (Throwable throwable) {
+            if (throwable instanceof RuntimeException) {
+                throw (RuntimeException) throwable;
+            }
+            throw new IllegalStateException(throwable.getMessage(), throwable);
+        }
     }
 
     public int compareTo(Date o) {
@@ -924,7 +1000,7 @@ public class Date implements java.io.Serializable, Comparable<Date> {
     }
 
     public static void main(String[] args) {
-        System.out.println(new Date().format("Y/M/d H:m:s"));
+        System.out.println(new Date().format("YYYY/MM/dd hh:mm:ss"));
     }
 
 }

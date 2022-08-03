@@ -58,10 +58,23 @@ public enum ReadOption {
      * 开启后在不确定number类型情况下，统一转化为BigDecimal；
      * <p> BigDecimal在存储结构上比普通number类型多很多字段，即使不调用toString占用内存也高得多，如果对于精度没有要求不建议启用
      */
-    UseBigDecimalAsDefaultNumber
+    UseBigDecimalAsDefaultNumber,
 
-//    /**
-//     * 使用pojo类的字段进行反序列化
-//     */
-//    UseFields
+    /**
+     * <p>
+     * 缺省情况下对于number的解析使用10进制字符累加计算，当double的数字长度超过15位时会存在精度丢失（double）；
+     * <p> 当java类型确定为double类型时可以启用此配置，程序将使用jdk内置的Double.parseDouble来解析；
+     * <p> 注：即使使用Double.parseDouble也无法保证100%精度完整；
+     */
+    UseNativeDoubleParser,
+
+    /**
+     * <p> 对于map的解析默认缓存了key值
+     * <p> 通常都能提升解析性能，不排除发生桶索引（index）大量碰撞的场景，会导致链表过长反而影响性能
+     * <p> 设置此项配置可禁用cache key
+     *
+     * @see io.github.wycst.wast.json.util.FixedNameValueMap
+     * @see Options#getCacheKey(char[], int, int, int)
+     */
+    DisableCacheMapKey
 }

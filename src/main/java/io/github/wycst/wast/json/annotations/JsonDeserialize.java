@@ -1,6 +1,5 @@
 package io.github.wycst.wast.json.annotations;
 
-import io.github.wycst.wast.common.annotations.Deserialize;
 import io.github.wycst.wast.json.custom.JsonDeserializer;
 
 import java.lang.annotation.ElementType;
@@ -14,9 +13,8 @@ import java.lang.annotation.Target;
  * @Author: wangy
  * @Description:
  */
-@Target({ElementType.METHOD, ElementType.FIELD})
+@Target({ElementType.METHOD, ElementType.FIELD, ElementType.PARAMETER})
 @Retention(RetentionPolicy.RUNTIME)
-@Deserialize
 public @interface JsonDeserialize {
 
     /**

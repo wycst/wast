@@ -93,6 +93,10 @@ public abstract class HttpClientExecutor {
             StringBuffer queryParamBuffer = new StringBuffer();
             if(url.indexOf("?") == -1) {
                 queryParamBuffer.append("?");
+            } else {
+                if(!url.endsWith("?")) {
+                    queryParamBuffer.append("&");
+                }
             }
             int length = clientParameters.size();
             int i = 0;

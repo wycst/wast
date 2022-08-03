@@ -1,9 +1,54 @@
 package io.github.wycst.wast.json.options;
 
+import io.github.wycst.wast.json.util.FixedNameValueMap;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+
 public class Options {
 
     // Format output character pool
     public static final String writeFormatOutSymbol = "\n\t\t\t\t\t\t\t\t\t\t";
+
+    // cache keys
+    private static FixedNameValueMap<String> keyValueMap = new FixedNameValueMap<String>(4096);
+
+    private static Object lock = new Object();
+
+    // global set cache keys
+    public static void addGlobalKeys(String... keys) {
+        synchronized (lock) {
+            Set<String> keySet = new HashSet<String>(Arrays.asList(keys));
+            for (String key : keySet) {
+                if (key == null || key.trim().length() == 0) continue;
+                keyValueMap.putValue(key, key);
+            }
+        }
+    }
+
+    // global set cache keys
+    public static void setGlobalKeys(String... keys) {
+        clearGlobalKeys();
+        addGlobalKeys(keys);
+    }
+
+    // clear cache keys
+    public static void clearGlobalKeys() {
+        synchronized (lock) {
+            keyValueMap.reset();
+        }
+    }
+
+    static String getCacheKey(char[] buf, int offset, int len, int hashCode) {
+        //  len > 0
+        String value = keyValueMap.getValue(buf, offset, offset + len, hashCode);
+        if (value == null) {
+            value = new String(buf, offset, len);
+            keyValueMap.putValue(value, value);
+        }
+        return value;
+    }
 
     private static void setWriteOption(WriteOption option, JsonConfig jsonConfig) {
         if (jsonConfig != null) {
@@ -82,6 +127,12 @@ public class Options {
                 case UseBigDecimalAsDefaultNumber:
                     parseContext.setUseBigDecimalAsDefault(true);
                     break;
+                case UseNativeDoubleParser:
+                    parseContext.setUseNativeDoubleParser(true);
+                    break;
+                case DisableCacheMapKey:
+                    parseContext.setDisableCacheMapKey(true);
+                    break;
 //                case UseFields:
 //                    parseContext.setUseFields(true);
 //                    break;
@@ -103,4 +154,37 @@ public class Options {
         }
     }
 
+    public static void main(String[] args) {
+        String str = "username hello world name age ";
+        char[] buf = str.toCharArray();
+        addGlobalKeys("username1", "hello1", "world1", "name", "age");
+
+        String k1 = null, k2 = null, k3 = null;
+
+        long l1 = System.currentTimeMillis();
+        for (int i = 0; i < 10000000; i++) {
+            k1 = new String(buf, 0, 8);
+            k2 = new String(buf, 9, 5);
+            k3 = new String(buf, 15, 5);
+//            k1 = keyValueMap.getValue(buf, 0, 8, "username".hashCode());
+//            if(k1 == null) {
+//                k1 = new String(buf, 0, 8);
+//            }
+//            k2 = keyValueMap.getValue(buf, 9, 14, "hello".hashCode());
+//            if(k2 == null) {
+//                k2 = new String(buf, 9, 5);
+//            }
+//            k3 = keyValueMap.getValue(buf, 15, 20, "world".hashCode());
+//            if(k3 == null) {
+//                k3 = new String(buf, 15, 5);
+//            }
+        }
+
+        long l2 = System.currentTimeMillis();
+        System.out.println(l2 - l1);
+        System.out.println(k1);
+        System.out.println(k2);
+        System.out.println(k3);
+
+    }
 }

@@ -18,6 +18,7 @@ package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
+import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.SetterInfo;
 import io.github.wycst.wast.common.tools.Base64;
 import io.github.wycst.wast.json.exceptions.JSONException;
@@ -29,14 +30,17 @@ import java.io.*;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 1,基于流的JSON解析:
- * <p> 超大文件json文件解析（文件大小读取无限制）,无需将流内容读取到内存中再解析
- * <p> 检测当前json类型是对象还是数组，其他类型处理无意义
- * <p> 线性解析模式（无回溯）
- * <p> 随时终止
- * <p> 支持异步
+ * <p> - 超大文件json文件解析（文件大小读取无限制）,无需将流内容读取到内存中再解析
+ * <p> - 检测当前json类型是对象还是数组，其他类型处理无意义
+ * <p> - 线性解析模式（无回溯）
+ * <p> - 可按需终止
+ * <p> - 支持异步
  * <br>
  * <p>
  * 2,Only strict JSON mode is supported:
@@ -54,9 +58,9 @@ import java.util.*;
  * <p>
  * 2、On demand read stream
  * <p>
- * 构造StreamReaderCallback时指定模式： ReadParseMode.ExternalImpl
+ * 构造ReaderCallback时指定模式： ReadParseMode.ExternalImpl
  * <pre>
- *         reader.read(new JSONReader.StreamReaderCallback(JSONReader.ReadParseMode.ExternalImpl) {
+ *         reader.read(new JSONReader.ReaderCallback(JSONReader.ReadParseMode.ExternalImpl) {
  *
  *             public void parseValue(String key, Object value, Object host, int elementIndex, String path) throws Exception {
  *                 if(path.equals("/features/[100000]/properties/STREET")) {
@@ -70,7 +74,7 @@ import java.util.*;
  * Call abort() to terminate the reading of the stream at any time
  *
  * @author wangyunchao
- * @see StreamReaderCallback
+ * @see ReaderCallback
  * @see JSONReader#JSONReader(InputStream)
  * @see JSONReader#JSONReader(InputStream, String)
  * @see JSONReader#JSONReader(Reader)
@@ -78,7 +82,7 @@ import java.util.*;
  * @see JSONNode
  * @see JSONStringWriter
  */
-public final class JSONReader extends JSONGeneral {
+public class JSONReader extends JSONGeneral {
 
     /**
      * 字符流读取器
@@ -88,7 +92,7 @@ public final class JSONReader extends JSONGeneral {
     /**
      * 整个流中当前指针位置（绝对位置）
      */
-    private int pos;
+    protected int pos;
 
     /**
      * 缓冲字符数组
@@ -98,30 +102,31 @@ public final class JSONReader extends JSONGeneral {
     /**
      * 缓冲容量
      */
-    private int bufferSize = DIRECT_READ_BUFFER_SIZE;
+    protected int bufferSize = DIRECT_READ_BUFFER_SIZE;
 
     /**
      * 缓冲字符数组实际可读取的长度
      */
-    private int count;
+    protected int count;
 
     /**
      * 缓冲字符数组当前读取位置(相对位置)
      */
-    private int offset;
+    protected int offset;
 
     /**
      * 当前字符
      */
-    private int current;
+    protected int current;
 
     // 回调句柄
-    private StreamReaderCallback callback;
+    private ReaderCallback callback;
 
     /**
      * 解析配置上下文
      */
     private final JSONParseContext parseContext = new JSONParseContext();
+    private ReadOption[] readOptions = new ReadOption[0];
 
     /**
      * 反射类型，如果没有指定，解析时动态指定
@@ -134,15 +139,15 @@ public final class JSONReader extends JSONGeneral {
     // 读取中状态
     private boolean reading;
 
-    // 是否结束
+    // 是否已关闭（流）
     private boolean closed;
 
     // 是否终止
     private boolean aborted;
 
     // 临时字符串构建器
-    private final StringBuilder bufferWriter = new StringBuilder();
-    private int readingOffset = -1;
+    protected final StringBuilder bufferWriter = new StringBuilder();
+    protected int readingOffset = -1;
 
     // 锁(也可以使用CountDownLatch)
     private Object lock = new Object();
@@ -196,7 +201,6 @@ public final class JSONReader extends JSONGeneral {
         return new JSONReader(getChars(json));
     }
 
-
     /**
      * 通过字符数组构建
      *
@@ -207,9 +211,18 @@ public final class JSONReader extends JSONGeneral {
         return new JSONReader(source);
     }
 
+    /**
+     * 通过字符数组构建
+     *
+     * @param buf
+     */
     public JSONReader(char[] buf) {
         this.buf = buf;
         this.count = buf.length;
+        this.reader = null;
+    }
+
+    JSONReader() {
         this.reader = null;
     }
 
@@ -268,7 +281,7 @@ public final class JSONReader extends JSONGeneral {
      * @param readOptions
      */
     public void setOptions(ReadOption... readOptions) {
-        Options.readOptions(readOptions, parseContext);
+        Options.readOptions(this.readOptions = readOptions, parseContext);
     }
 
     /**
@@ -287,6 +300,9 @@ public final class JSONReader extends JSONGeneral {
     public Object read() {
         try {
             this.readBuffer();
+            if (this.isCompleted()) {
+                return JSONDefaultParser.parse(buf, 0, count, null, readOptions);
+            }
             this.defaultRead();
         } catch (Exception e) {
             throw new JSONException(e);
@@ -303,7 +319,7 @@ public final class JSONReader extends JSONGeneral {
      * @param async 是否异步
      */
     public void read(boolean async) {
-        read(new StreamReaderCallback(), async);
+        read(new ReaderCallback(), async);
     }
 
     /**
@@ -331,7 +347,7 @@ public final class JSONReader extends JSONGeneral {
      *
      * @param callback 回调句柄
      */
-    public void read(StreamReaderCallback callback) {
+    public void read(ReaderCallback callback) {
         read(callback, false);
     }
 
@@ -341,7 +357,7 @@ public final class JSONReader extends JSONGeneral {
      * @param callback 回调句柄
      * @param async    是否异步
      */
-    public void read(StreamReaderCallback callback, boolean async) {
+    public void read(ReaderCallback callback, boolean async) {
         if (this.closed) {
             throw new UnsupportedOperationException("Stream has been closed");
         }
@@ -511,17 +527,13 @@ public final class JSONReader extends JSONGeneral {
                 this.beginReading(0);
                 // 暂且不考虑key值中存在转义字符\
                 while (readNext() > -1 && current != '"') ;
-
-//                this.endReading(-1);
-//                key = bufferWriter.toString();
+                // 去掉当前字符（结束 "）
                 key = endReadingAsString(-1);
-
                 // 解析value
                 clearWhitespaces();
                 if (current == ':') {
                     clearWhitespaces();
                     Object value;
-                    boolean toBreakOrContinue = false;
                     switch (current) {
                         case '{':
                             value = this.readObject();
@@ -536,22 +548,37 @@ public final class JSONReader extends JSONGeneral {
                             value = this.readString();
                             instance.put(key, value);
                             break;
-                        default:
-                            // null, boolean, number
-                            value = this.readSimpleValue('}');
-                            toBreakOrContinue = true;
-                            instance.put(key, value);
+                        case 'n':
+                            // 读取null
+                            this.readNull();
+                            instance.put(key, null);
                             break;
+                        case 't':
+                            // 读取null
+                            this.readTrue();
+                            instance.put(key, true);
+                            break;
+                        case 'f':
+                            // 读取null
+                            this.readFalse();
+                            instance.put(key, false);
+                            break;
+                        default:
+                            value = this.readNumber('}');
+                            instance.put(key, value);
+                            if (current == '}') {
+                                return instance;
+                            } else {
+                                continue;
+                            }
                     }
-                    if (!toBreakOrContinue) {
-                        clearWhitespaces();
-                    }
+                    clearWhitespaces();
                     // 是否为逗号或者}
                     if (current == ',') {
                         continue;
                     }
                     if (current == '}') {
-                        break;
+                        return instance;
                     }
                     if (current == -1) {
                         throw new JSONException("Syntax error, the closing symbol '}' is not found, end pos: " + pos);
@@ -564,7 +591,227 @@ public final class JSONReader extends JSONGeneral {
                 throwUnexpectedException();
             }
         }
-        return instance;
+    }
+
+    private void readTrue() throws Exception {
+        // true
+        if (readNext(true) == 'r'
+                && readNext(true) == 'u'
+                && readNext(true) == 'e') {
+            return;
+        }
+        throwUnexpectedException();
+    }
+
+    private void readFalse() throws Exception {
+        // false
+        if (readNext(true) == 'a'
+                && readNext(true) == 'l'
+                && readNext(true) == 's'
+                && readNext(true) == 'e') {
+            return;
+        }
+        throwUnexpectedException();
+    }
+
+    private void readNull() throws Exception {
+        if (readNext(true) == 'u'
+                && readNext(true) == 'l'
+                && readNext(true) == 'l') {
+            return;
+        }
+        throwUnexpectedException();
+    }
+
+    private Number readNumber(char endSyntax) throws Exception {
+        if (parseContext.isUseBigDecimalAsDefault()) {
+            this.beginCurrent();
+            while (readNext() > -1) {
+                if (current == ',' || current == endSyntax) {
+                    this.endReading(-1);
+                    // 前置空白已清除
+                    int len = bufferWriter.length();
+                    // 去除后置空白
+                    while (bufferWriter.charAt(len - 1) <= ' ') {
+                        len--;
+                    }
+                    char[] digits = new char[len];
+                    bufferWriter.getChars(0, len, digits, 0);
+                    return new BigDecimal(digits, 0, digits.length);
+                }
+            }
+            throw new JSONException("Syntax error, the closing symbol '" + endSyntax + "' is not found, end pos: " + pos);
+        } else {
+            // append current
+            boolean negative = false;
+            char beginChar = (char) current;
+            if (beginChar == '-') {
+                // is negative
+                negative = true;
+                readNext();
+            } else if (beginChar == '+') {
+                readNext();
+            }
+
+            double value = 0;
+            int decimalCount = 0;
+            final int radix = 10;
+            int expValue = 0;
+            boolean expNegative = false;
+            // init integer type
+            int mode = 0;
+            // number suffix
+            int specifySuffix = 0;
+
+            do {
+                char ch = (char) current;
+                int digit = digitDecimal(ch);
+                if (digit == -1) {
+                    if (ch == ',' || ch == endSyntax) {
+                        break;
+                    }
+                    if (ch == '.') {
+                        if (mode != 0) {
+                            throwUnexpectedException();
+                            return value;
+                        }
+                        // 小数点模式
+                        mode = 1;
+                        ch = (char) readNext(true);
+                        digit = digitDecimal(ch);
+                    } else if (ch == 'E' || ch == 'e') {
+                        if (mode == 2) {
+                            throwUnexpectedException();
+                            return value;
+                        }
+                        // 科学计数法
+                        mode = 2;
+                        ch = (char) readNext(true);
+                        if (ch == '-') {
+                            expNegative = true;
+                            ch = (char) readNext(true);
+                        }
+                        digit = digitDecimal(ch);
+                    }
+                }
+
+                if (digit == -1) {
+                    boolean breakLoop = false;
+                    switch (ch) {
+                        case 'l':
+                        case 'L': {
+                            if (specifySuffix == 0) {
+                                specifySuffix = 1;
+                                while ((ch = (char) readNext()) <= ' ') ;
+                                if (ch == ',' || ch == endSyntax) {
+                                    breakLoop = true;
+                                    break;
+                                }
+                            }
+                            throwUnexpectedException();
+                            return value;
+                        }
+                        case 'f':
+                        case 'F': {
+                            if (specifySuffix == 0) {
+                                specifySuffix = 2;
+                                while ((ch = (char) readNext()) <= ' ') ;
+                                if (ch == ',' || ch == endSyntax) {
+                                    breakLoop = true;
+                                    break;
+                                }
+                            }
+                            throwUnexpectedException();
+                            return value;
+                        }
+                        case 'd':
+                        case 'D': {
+                            if (specifySuffix == 0) {
+                                specifySuffix = 3;
+                                while ((ch = (char) readNext()) <= ' ') ;
+                                if (ch == ',' || ch == endSyntax) {
+                                    breakLoop = true;
+                                    break;
+                                }
+                            }
+                            throwUnexpectedException();
+                            return value;
+                        }
+                        default: {
+                            if (ch <= ' ') {
+                                while ((ch = (char) readNext()) <= ' ') ;
+                                if (ch == ',' || ch == endSyntax) {
+                                    breakLoop = true;
+                                    break;
+                                }
+                                throwUnexpectedException();
+                                return value;
+                            }
+                        }
+                    }
+                    if (breakLoop) {
+                        break;
+                    }
+                    throwUnexpectedException();
+                    return value;
+                }
+                switch (mode) {
+                    case 0:
+                        value *= radix;
+                        value += digit;
+                        break;
+                    case 1:
+                        value *= radix;
+                        value += digit;
+                        decimalCount++;
+                        break;
+                    case 2:
+                        expValue *= 10;
+                        expValue += digit;
+                        break;
+                }
+            } while (readNext() > -1);
+
+            if (mode == 0) {
+                value = negative ? -value : value;
+                if (specifySuffix > 0) {
+                    switch (specifySuffix) {
+                        case 1:
+                            return (long) value;
+                        case 2:
+                            return (float) value;
+                    }
+                    return value;
+                }
+                if (value <= Integer.MAX_VALUE && value > Integer.MIN_VALUE) {
+                    return (int) value;
+                }
+                if (value <= Long.MAX_VALUE && value > Long.MIN_VALUE) {
+                    return (long) value;
+                }
+                return value;
+            } else {
+                expValue = expNegative ? -expValue - decimalCount : expValue - decimalCount;
+                if (expValue > 0) {
+                    double powValue = Math.pow(radix, expValue);
+                    value *= powValue;
+                } else if (expValue < 0) {
+                    double powValue = Math.pow(radix, -expValue);
+                    value /= powValue;
+                }
+                value = negative ? -value : value;
+                if (specifySuffix > 0) {
+                    switch (specifySuffix) {
+                        case 1:
+                            return (long) value;
+                        case 2:
+                            return (float) value;
+                    }
+                    return value;
+                }
+                return value;
+            }
+        }
     }
 
     private Object readArray() throws Exception {
@@ -578,43 +825,63 @@ public final class JSONReader extends JSONGeneral {
                 }
                 return arrInstance;
             }
-            boolean toBreakOrContinue = false;
-            if (current == '{') {
-                Object value = this.readObject();
-                arrInstance.add(value);
-            } else if (current == '[') {
-                // 2 [ array
-                Object value = this.readArray();
-                arrInstance.add(value);
-            } else if (current == '"') {
-                // 3 string
-                String value = this.readString();
-                arrInstance.add(value);
-            } else {
-                // null, boolean, number
-                Object value = this.readSimpleValue(']');
-                toBreakOrContinue = true;
-                arrInstance.add(value);
+            switch (current) {
+                case '{': {
+                    Object value = this.readObject();
+                    arrInstance.add(value);
+                    break;
+                }
+                case '[': {
+                    // 2 [ array
+                    Object value = this.readArray();
+                    arrInstance.add(value);
+                    break;
+                }
+                case '"': {
+                    String value = this.readString();
+                    arrInstance.add(value);
+                    break;
+                }
+                case 'n':
+                    // 读取null
+                    this.readNull();
+                    arrInstance.add(null);
+                    break;
+                case 't':
+                    // 读取null
+                    this.readTrue();
+                    arrInstance.add(true);
+                    break;
+                case 'f':
+                    // 读取null
+                    this.readFalse();
+                    arrInstance.add(false);
+                    break;
+                default: {
+                    Number value = readNumber(']');
+                    arrInstance.add(value);
+                    if (current == ']') {
+                        return arrInstance;
+                    } else {
+                        continue;
+                    }
+                }
             }
 
             elementIndex++;
-
-            if (!toBreakOrContinue) {
-                clearWhitespaces();
-            }
-            // 是否为逗号或者]
+            clearWhitespaces();
+            // , or ]
             if (current == ',') {
                 continue;
             }
             if (current == ']') {
-                break;
+                return arrInstance;
             }
             if (current == -1) {
                 throw new JSONException("Syntax error, the closing symbol ']' is not found, end pos: " + pos);
             }
             throwUnexpectedException();
         }
-        return arrInstance;
     }
 
     /**
@@ -630,25 +897,25 @@ public final class JSONReader extends JSONGeneral {
         boolean assignableFromMap = true;
         ClassStructureWrapper classStructureWrapper = null;
         boolean externalImpl = isExternalImpl();
+        GenericParameterizedType ofValueType = null;
         if (!externalImpl) {
             if (genericType != null) {
                 Class<?> actualType = genericType.getActualType();
-                if (actualType == null || actualType == Object.class
-                        || actualType == Map.class || actualType == LinkedHashMap.class) {
-                    instance = mapInstane = new LinkedHashMap<String, Object>();
-                } else if (actualType == HashMap.class) {
-                    instance = mapInstane = new HashMap<String, Object>();
-                } else {
+                ReflectConsts.ClassCategory classCategory = genericType.getActualClassCategory();
+                if (classCategory == ReflectConsts.ClassCategory.MapCategory || classCategory == ReflectConsts.ClassCategory.ANY) {
+                    Class<? extends Map> mapCls = (Class<? extends Map>) actualType;
+                    assignableFromMap = true;
+                    instance = mapInstane = JSONDefaultParser.createMapInstance(mapCls);
+                    ofValueType = genericType.getValueType();
+                } else if (classCategory == ReflectConsts.ClassCategory.ObjectCategory) {
+                    assignableFromMap = false;
                     classStructureWrapper = ClassStructureWrapper.get(actualType);
                     if (classStructureWrapper == null) {
                         throw new UnsupportedOperationException("Class " + actualType + " is not supported ");
                     }
-                    assignableFromMap = classStructureWrapper == null ? false : classStructureWrapper.isAssignableFromMap();
-                    if (!assignableFromMap) {
-                        instance = classStructureWrapper.newInstance();
-                    } else {
-                        instance = mapInstane = (Map) actualType.newInstance();
-                    }
+                    instance = classStructureWrapper.newInstance();
+                } else {
+                    throw new UnsupportedOperationException("Class " + actualType + " is not supported ");
                 }
             } else {
                 instance = mapInstane = new LinkedHashMap();
@@ -671,13 +938,9 @@ public final class JSONReader extends JSONGeneral {
                 empty = false;
                 // find next "
                 this.beginReading(0);
-                // 暂且不考虑key值中存在转义字符\
                 while (readNext() > -1 && current != '"') ;
-//                this.endReading(-1);
-//                key = bufferWriter.toString();
                 key = endReadingAsString(-1);
 
-                String nextPath = externalImpl ? path + "/" + key : null;
 
                 // 解析value
                 clearWhitespaces();
@@ -686,51 +949,72 @@ public final class JSONReader extends JSONGeneral {
                     Object value;
                     boolean toBreakOrContinue = false;
 
-                    GenericParameterizedType valueType = null;
+                    GenericParameterizedType valueType = ofValueType == null ? null : ofValueType;
                     SetterInfo setterInfo = null;
+                    // if skip value
+                    boolean isSkipValue = false;
                     if (!externalImpl && !assignableFromMap) {
                         setterInfo = classStructureWrapper.getSetterInfo(key);
-                        valueType = setterInfo.getGenericParameterizedType();
-                    }
-
-                    switch (current) {
-                        case '{':
-                            value = this.readObject(nextPath, valueType);
-                            invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, mapInstane, instance, setterInfo);
-                            break;
-                        case '[':
-                            value = this.readArray(nextPath, valueType);
-                            invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, mapInstane, instance, setterInfo);
-                            break;
-                        case '"':
-                            // 将字符串转化为指定类型
-                            value = parseStringTo(this.readString(), valueType);
-                            invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, mapInstane, instance, setterInfo);
-                            break;
-                        default:
-                            // null, boolean, number
-                            value = parseSimpleValueTo(this.readSimpleValue('}'), valueType);
-                            toBreakOrContinue = true;
-                            invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, mapInstane, instance, setterInfo);
-                            break;
-                    }
-
-                    // if aborted
-                    if (isAborted()) {
-                        return instance;
-                    }
-
-                    if (callback != null) {
-                        if (callback.isAbored()) {
-                            abortRead();
-                            return instance;
+                        isSkipValue = setterInfo == null;
+                        if (!isSkipValue) {
+                            valueType = setterInfo.getGenericParameterizedType();
                         }
                     }
 
-                    if (!toBreakOrContinue) {
-                        clearWhitespaces();
-                    }
+                    if (isSkipValue) {
+                        this.skipValue('}');
+                    } else {
+                        String nextPath = externalImpl ? path + "/" + key : null;
+                        switch (current) {
+                            case '{':
+                                value = this.readObject(nextPath, valueType);
+                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, mapInstane, instance, setterInfo);
+                                break;
+                            case '[':
+                                value = this.readArray(nextPath, valueType);
+                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, mapInstane, instance, setterInfo);
+                                break;
+                            case '"':
+                                // 将字符串转化为指定类型
+                                value = parseStringTo(this.readString(), valueType);
+                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, mapInstane, instance, setterInfo);
+                                break;
+                            case 'n':
+                                readNull();
+                                invokeValueOfObject(key, null, nextPath, externalImpl, assignableFromMap, mapInstane, instance, setterInfo);
+                                break;
+                            case 't':
+                                readTrue();
+                                value = toBoolType(true, valueType);
+                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, mapInstane, instance, setterInfo);
+                                break;
+                            case 'f':
+                                readFalse();
+                                value = toBoolType(false, valueType);
+                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, mapInstane, instance, setterInfo);
+                                break;
+                            default:
+                                // number
+                                value = parseNumberTo(this.readNumber('}'), valueType);
+                                toBreakOrContinue = true;
+                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, mapInstane, instance, setterInfo);
+                                break;
+                        }
 
+                        // if aborted
+                        if (isAborted()) {
+                            return instance;
+                        }
+                        if (callback != null) {
+                            if (callback.isAbored()) {
+                                abortRead();
+                                return instance;
+                            }
+                        }
+                        if (!toBreakOrContinue) {
+                            clearWhitespaces();
+                        }
+                    }
                     // 是否为逗号或者}
                     if (current == '}') {
                         break;
@@ -753,12 +1037,132 @@ public final class JSONReader extends JSONGeneral {
         return instance;
     }
 
-    private void beginReading(int n) {
+    private Object toBoolType(boolean b, GenericParameterizedType valueType) {
+        if (valueType == null) return b;
+        if (valueType.getActualClassCategory() == ReflectConsts.ClassCategory.BoolCategory) {
+            return b;
+        }
+        Class actualType = valueType.getActualType();
+        if (actualType == AtomicBoolean.class) {
+            return new AtomicBoolean(b);
+        }
+        throw new JSONException("boolean value " + b + " is mismatch " + actualType);
+    }
+
+    private void skipValue(char endChar) throws Exception {
+        switch (current) {
+            case '{':
+                this.skipObject();
+                this.clearWhitespaces();
+                break;
+            case '[':
+                this.skipArray();
+                this.clearWhitespaces();
+                break;
+            case '"':
+                // 将字符串转化为指定类型
+                this.skipString();
+                this.clearWhitespaces();
+                break;
+            default:
+                // null, boolean, number
+                this.skipSimple(endChar);
+                break;
+        }
+    }
+
+    private void skipObject() throws Exception {
+        boolean empty = true;
+        for (; ; ) {
+            clearWhitespaces();
+            if (current == '}') {
+                if (!empty) {
+                    throw new JSONException("Syntax error, not allowed ',' followed by '}', pos " + pos);
+                }
+                return;
+            }
+            String key;
+            if (current == '"') {
+                empty = false;
+                while (readNext() > -1 && current != '"') ;
+                clearWhitespaces();
+                if (current == ':') {
+                    clearWhitespaces();
+                    this.skipValue('}');
+                    // 是否为逗号或者}
+                    if (current == '}') {
+                        return;
+                    }
+                    if (current == ',') {
+                        continue;
+                    }
+                    if (current == -1) {
+                        throw new JSONException("Syntax error, the closing symbol '}' is not found, end pos: " + pos);
+                    }
+                    throwUnexpectedException();
+                } else {
+                    throwUnexpectedException();
+                }
+            } else {
+                throwUnexpectedException();
+            }
+        }
+    }
+
+    private void skipArray() throws Exception {
+        int elementIndex = 0;
+        for (; ; ) {
+            clearWhitespaces();
+            if (current == ']') {
+                if (elementIndex > 0) {
+                    throw new JSONException("Syntax error, not allowed ',' followed by ']', pos " + pos);
+                }
+                return;
+            }
+            this.skipValue(']');
+            elementIndex++;
+            // 是否为逗号或者]
+            if (current == ']') {
+                return;
+            }
+            if (current == ',') {
+                continue;
+            }
+            if (current == -1) {
+                throw new JSONException("Syntax error, the closing symbol ']' is not found, end pos: " + pos);
+            }
+            throwUnexpectedException();
+        }
+    }
+
+    private void skipString() throws Exception {
+        char prev = '\0';
+        while (readNext() > -1) {
+            if (current == '"' && prev != '\\') {
+                return;
+            }
+            prev = (char) current;
+        }
+        // maybe throw an exception
+        throwUnexpectedException();
+    }
+
+    private void skipSimple(char endChar) throws Exception {
+        while (readNext() > -1) {
+            if (current == ',' || current == endChar) {
+                return;
+            }
+        }
+        // maybe throw an exception
+        throwUnexpectedException();
+    }
+
+    protected void beginReading(int n) {
         bufferWriter.setLength(0);
         this.readingOffset = offset + n;
     }
 
-    private String endReadingAsString(int n) {
+    protected String endReadingAsString(int n) {
         if (bufferWriter.length() > 0) {
             endReading(n);
             return bufferWriter.toString();
@@ -774,7 +1178,7 @@ public final class JSONReader extends JSONGeneral {
         endReading(n, -1);
     }
 
-    private void endReading(int n, int newOffset) {
+    protected void endReading(int n, int newOffset) {
         int endIndex = offset + n;
         if (endIndex > this.readingOffset) {
             this.bufferWriter.append(buf, this.readingOffset, endIndex - this.readingOffset);
@@ -782,88 +1186,132 @@ public final class JSONReader extends JSONGeneral {
         this.readingOffset = newOffset;
     }
 
-    private Object parseSimpleValueTo(Object simpleValue, GenericParameterizedType valueType) {
+    private Object parseNumberTo(Object simpleValue, GenericParameterizedType valueType) {
         if (simpleValue == null) return null;
-        Class<?> actualType = null;
-        if (valueType == null || (actualType = valueType.getActualType()) == Object.class) {
+
+        ReflectConsts.ClassCategory classCategory;
+        if (valueType == null || (classCategory = valueType.getActualClassCategory()) == ReflectConsts.ClassCategory.ANY) {
             return simpleValue;
         }
+
+        Class<?> actualType = valueType.getActualType();
         if (actualType.isInstance(simpleValue)) {
             return simpleValue;
         }
-        if (Number.class.isAssignableFrom(actualType)) {
-            Number numValue = (Number) simpleValue;
-            if (actualType == int.class || actualType == Integer.class) {
-                return numValue.intValue();
-            } else if (actualType == int.class || actualType == Integer.class) {
-                return numValue.intValue();
-            } else if (actualType == float.class || actualType == Float.class) {
-                return numValue.floatValue();
-            } else if (actualType == long.class || actualType == Long.class) {
-                return numValue.longValue();
-            } else if (actualType == double.class || actualType == Double.class) {
-                return numValue.doubleValue();
-            } else if (actualType == byte.class || actualType == Byte.class) {
-                return numValue.byteValue();
-            } else if (actualType == BigDecimal.class) {
-                return new BigDecimal(String.valueOf(numValue));
-            } else if (actualType == BigInteger.class) {
-                return new BigInteger(String.valueOf(numValue));
+
+        Number numValue = (Number) simpleValue;
+        if (classCategory == ReflectConsts.ClassCategory.NumberCategory) {
+            int numberType = valueType.getParamClassNumberType();
+            switch (numberType) {
+                case ReflectConsts.CLASS_TYPE_NUMBER_BYTE:
+                    return numValue.byteValue();
+                case ReflectConsts.CLASS_TYPE_NUMBER_SHORT:
+                    return numValue.shortValue();
+                case ReflectConsts.CLASS_TYPE_NUMBER_INTEGER:
+                    return numValue.intValue();
+                case ReflectConsts.CLASS_TYPE_NUMBER_LONG:
+                    return numValue.longValue();
+                case ReflectConsts.CLASS_TYPE_NUMBER_FLOAT:
+                    return numValue.floatValue();
+                case ReflectConsts.CLASS_TYPE_NUMBER_DOUBLE:
+                    return numValue.doubleValue();
+                case ReflectConsts.CLASS_TYPE_NUMBER_ATOMIC_INTEGER: {
+                    return new AtomicInteger(numValue.intValue());
+                }
+                case ReflectConsts.CLASS_TYPE_NUMBER_ATOMIC_LONG: {
+                    return new AtomicLong(numValue.longValue());
+                }
+                case ReflectConsts.CLASS_TYPE_NUMBER_BIGDECIMAL: {
+                    return new BigDecimal(numValue.doubleValue());
+                }
+                case ReflectConsts.CLASS_TYPE_NUMBER_BIG_INTEGER:
+                    return new BigInteger(String.valueOf(numValue.longValue()));
+                default: {
+                    // not supported
+                    // throw new UnsupportedOperationException("Unsupported number type of " + parameterizedType.getActualType());
+                    return null;
+                }
             }
+        } else if (classCategory == ReflectConsts.ClassCategory.EnumCategory) {
+            int ordinal = numValue.intValue();
+            Enum[] values = (Enum[]) actualType.getEnumConstants();
+            if (values != null && ordinal < values.length)
+                return values[ordinal];
+            throw new JSONException("value " + numValue + " is mismatch enum " + actualType);
         }
-        return simpleValue;
+
+        throw new JSONException("value " + numValue + " is mismatch type " + actualType);
     }
 
     private Object parseStringTo(String value, GenericParameterizedType valueType) throws Exception {
         if (value == null) return null;
-        Class<?> actualType = null;
-        if (valueType == null || (actualType = valueType.getActualType()) == String.class || actualType == Object.class) {
+        if (valueType == null || valueType == GenericParameterizedType.AnyType) {
+            return value;
+        }
+        Class<?> actualType = valueType.getActualType();
+        if (actualType == String.class || actualType == CharSequence.class) {
             return value;
         }
         char[] chars = getChars(value);
-        if (actualType == CharSequence.class) {
-            return value;
-        } else if (Date.class.isAssignableFrom(actualType)) {
-            char[] dateChars = new char[chars.length + 2];
-            dateChars[0] = '"';
-            System.arraycopy(chars, 0, dateChars, 1, chars.length);
-            dateChars[chars.length + 1] = '"';
-            String pattern = valueType.getDatePattern();
-            String timezone = valueType.getDateTimezone();
-            return parseDateValue(0, dateChars.length, dateChars, pattern, timezone, (Class<? extends Date>) actualType);
-        } else if (actualType == byte[].class) {
-            if (parseContext.isByteArrayFromHexString()) {
-                return hexString2Bytes(chars, 0, chars.length);
-            } else {
-                return Base64.getDecoder().decode(value);
-            }
-        } else if (actualType == char[].class) {
+        if (actualType == char[].class) {
             return chars;
-        } else if (Enum.class.isAssignableFrom(actualType)) {
-            try {
-                Class enumCls = actualType;
-                return Enum.valueOf(enumCls, value);
-            } catch (RuntimeException exception) {
-                if (parseContext.isUnknownEnumAsNull()) {
-                    return null;
+        }
+        ReflectConsts.ClassCategory classCategory = valueType.getActualClassCategory();
+        switch (classCategory) {
+            case DateCategory: {
+                char[] dateChars = new char[chars.length + 2];
+                dateChars[0] = '"';
+                System.arraycopy(chars, 0, dateChars, 1, chars.length);
+                dateChars[chars.length + 1] = '"';
+                String pattern = valueType.getDatePattern();
+                String timezone = valueType.getDateTimezone();
+                return parseDateValue(0, dateChars.length, dateChars, pattern, timezone, (Class<? extends Date>) actualType);
+            }
+            case Binary: {
+                if (parseContext.isByteArrayFromHexString()) {
+                    return hexString2Bytes(chars, 0, chars.length);
                 } else {
-                    throw exception;
+                    return Base64.getDecoder().decode(value);
                 }
             }
-        } else if (actualType == StringBuffer.class) {
-            StringBuffer buffer = new StringBuffer();
-            buffer.append(chars);
-            return buffer;
-        } else if (actualType == StringBuilder.class) {
-            StringBuilder builder = new StringBuilder();
-            builder.append(chars);
-            return builder;
-        } else if (actualType == Class.class) {
-            return Class.forName(value);
-        } else if (actualType == Character.class) {
-            return chars[0];
+            case EnumCategory: {
+                try {
+                    Class enumCls = actualType;
+                    return Enum.valueOf(enumCls, value);
+                } catch (RuntimeException exception) {
+                    if (parseContext.isUnknownEnumAsNull()) {
+                        return null;
+                    } else {
+                        throw exception;
+                    }
+                }
+            }
+            case CharSequence: {
+                if (actualType == StringBuffer.class) {
+                    StringBuffer buffer = new StringBuffer();
+                    buffer.append(chars);
+                    return buffer;
+                } else if (actualType == StringBuilder.class) {
+                    StringBuilder builder = new StringBuilder();
+                    builder.append(chars);
+                    return builder;
+                } else if (actualType == Character.class || actualType == char.class) {
+                    if (chars.length == 1) {
+                        return chars[0];
+                    } else {
+                        throw new JSONException("value " + value + " is mismatch " + actualType);
+                    }
+                } else {
+                    // not supported
+                    return null;
+                }
+            }
+            case ClassCategory: {
+                return Class.forName(value);
+            }
         }
-        return null;
+
+        throw new JSONException("value " + value + " is mismatch " + actualType);
     }
 
     private void invokeValueOfObject(String key, Object value, String nextPath, boolean externalImpl, boolean assignableFromMap, Map mapInstane, Object instance, SetterInfo setterInfo) throws Exception {
@@ -944,22 +1392,47 @@ public final class JSONReader extends JSONGeneral {
             boolean toBreakOrContinue = false;
             String nextPath = externalImpl ? path + "/[" + elementIndex + "]" : null;
 
-            if (current == '{') {
-                Object value = this.readObject(nextPath, valueType);
-                this.parseCollectionElement(externalImpl, value, arrInstance, instance, elementIndex, nextPath);
-            } else if (current == '[') {
-                // 2 [ array
-                Object value = this.readArray(nextPath, valueType);
-                this.parseCollectionElement(externalImpl, value, arrInstance, instance, elementIndex, nextPath);
-            } else if (current == '"') {
-                // 3 string
-                Object value = parseStringTo(this.readString(), valueType);
-                this.parseCollectionElement(externalImpl, value, arrInstance, instance, elementIndex, nextPath);
-            } else {
-                // null, boolean, number
-                Object value = parseSimpleValueTo(this.readSimpleValue(']'), valueType);
-                toBreakOrContinue = true;
-                this.parseCollectionElement(externalImpl, value, arrInstance, instance, elementIndex, nextPath);
+            switch (current) {
+                case '{': {
+                    Object value = this.readObject(nextPath, valueType);
+                    this.parseCollectionElement(externalImpl, value, arrInstance, instance, elementIndex, nextPath);
+                    break;
+                }
+                case '[': {
+                    // 2 [ array
+                    Object value = this.readArray(nextPath, valueType);
+                    this.parseCollectionElement(externalImpl, value, arrInstance, instance, elementIndex, nextPath);
+                    break;
+                }
+                case '"': {
+                    // 3 string
+                    Object value = parseStringTo(this.readString(), valueType);
+                    this.parseCollectionElement(externalImpl, value, arrInstance, instance, elementIndex, nextPath);
+                    break;
+                }
+                case 'n':
+                    readNull();
+                    this.parseCollectionElement(externalImpl, null, arrInstance, instance, elementIndex, nextPath);
+                    break;
+                case 't': {
+                    readTrue();
+                    Object value = toBoolType(true, valueType);
+                    this.parseCollectionElement(externalImpl, value, arrInstance, instance, elementIndex, nextPath);
+                    break;
+                }
+                case 'f': {
+                    readFalse();
+                    Object value = toBoolType(false, valueType);
+                    this.parseCollectionElement(externalImpl, value, arrInstance, instance, elementIndex, nextPath);
+                    break;
+                }
+                default: {
+                    // null, boolean, number
+                    Object value = parseNumberTo(this.readNumber(']'), valueType);
+                    toBreakOrContinue = true;
+                    this.parseCollectionElement(externalImpl, value, arrInstance, instance, elementIndex, nextPath);
+                    break;
+                }
             }
 
             // if aborted
@@ -998,87 +1471,28 @@ public final class JSONReader extends JSONGeneral {
         return isArrayCls ? collectionToArray(arrInstance, actualType == null ? Object.class : actualType) : arrInstance;
     }
 
-    private void throwUnexpectedException() {
+    /**
+     * throw unexpected exception
+     */
+    protected final void throwUnexpectedException() {
         throw new JSONException("Syntax error, unexpected token character '" + (char) current + "', position " + pos);
     }
 
-    private Object readSimpleValue(char endSyntax) throws Exception {
-//        bufferWriter.setLength(0);
-//        bufferWriter.append((char) current);
-        char firstChar = (char) current;
+    /**
+     * 从当前字符开始（包含当前字符）
+     */
+    protected void beginCurrent() {
+        // 每次读完字符，offset会+1, current的实际位置是offset - 1
         this.beginReading(-1);
-        Object value = null;
-        boolean matchEnd = false;
-        while (readNext() > -1) {
-            if (current == ',' || current == endSyntax) {
-                this.endReading(-1);
-                // 前置空白已清除
-                int len = bufferWriter.length();
-                // 去除后置空白
-                while (bufferWriter.charAt(len - 1) <= ' ') {
-                    len--;
-                }
-                switch (firstChar) {
-                    case 't': {
-                        if (len == 4
-                                && bufferWriter.charAt(1) == 'r'
-                                && bufferWriter.charAt(2) == 'u'
-                                && bufferWriter.charAt(3) == 'e') {
-                            value = true;
-                            break;
-                        } else {
-                            throwUnexpectedException();
-                        }
-                    }
-                    case 'f': {
-                        if (len == 5
-                                && bufferWriter.charAt(1) == 'a'
-                                && bufferWriter.charAt(2) == 'l'
-                                && bufferWriter.charAt(3) == 's'
-                                && bufferWriter.charAt(4) == 'e') {
-                            value = true;
-                            break;
-                        } else {
-                            throwUnexpectedException();
-                        }
-                    }
-                    case 'n': {
-                        if (len == 4
-                                && bufferWriter.charAt(1) == 'u'
-                                && bufferWriter.charAt(2) == 'l'
-                                && bufferWriter.charAt(3) == 'l') {
-                            value = null;
-                            break;
-                        } else {
-                            throwUnexpectedException();
-                        }
-                    }
-                    default: {
-                        char[] digits = new char[len];
-                        bufferWriter.getChars(0, len, digits, 0);
-                        value = parseNumber(digits, 0, len, parseContext.isUseBigDecimalAsDefault());
-                    }
-                }
-                matchEnd = true;
-                break;
-            }
-//            else {
-//                bufferWriter.append((char) current);
-//            }
-        }
-        if (!matchEnd) {
-            throw new JSONException("Syntax error, the closing symbol '" + endSyntax + "' is not found, end pos: " + pos);
-        }
-        return value;
     }
 
-    private String readString() throws Exception {
+    protected String readString() throws Exception {
         // reset
         this.beginReading(0);
         char prev = '\0';
         while (readNext() > -1) {
             if (prev == '\\') {
-                // 如果buf的最后一个字符为转义符，读取current时会读取下一批字符数组，转义符会被写道buff中需要清掉
+                // buf因为分批读取的原因，如果当前批次最后一个字符为转义符\\，readNext()时转义符会被写到writer中需要清掉
                 if (offset == 1) {
                     // remove \\
                     int bufferLen = bufferWriter.length();
@@ -1118,21 +1532,15 @@ public final class JSONReader extends JSONGeneral {
                     case 'u':
                         // Skip \\ and current
                         this.endReading(-2, offset);
-
                         // stop reading buffer
                         this.readingOffset = -1;
 
-                        int c;
-                        if (offset < bufferSize - 4) {
-                            c = parseInt(buf, offset, offset = offset + 4, 16);
-                        } else {
-                            // find next 4 character
-                            char[] hexDigits = new char[4];
-                            for (int i = 0; i < 4; i++) {
-                                hexDigits[i] = (char) readNext(true);
-                            }
-                            c = parseInt(hexDigits, 0, 4, 16);
-                        }
+                        int c1 = readNext(true);
+                        int c2 = readNext(true);
+                        int c3 = readNext(true);
+                        int c4 = readNext(true);
+                        int c = hex4(c1, c2, c3, c4);
+
                         // begin reading and locate to offset
                         this.readingOffset = offset;
                         bufferWriter.append((char) c);
@@ -1143,15 +1551,16 @@ public final class JSONReader extends JSONGeneral {
                         bufferWriter.append('\\');
                         break;
                     default: {
-                        // Temporarily not supported
+                        // other case delete char '\\'
+                        this.endReading(-2, offset);
+                        bufferWriter.append((char) current);
+                        break;
                     }
                 }
                 prev = '\0';
                 continue;
             }
             if (current == '"') {
-//                this.endReading(-1);
-//                return bufferWriter.toString();
                 return endReadingAsString(-1);
             }
             prev = (char) current;
@@ -1162,7 +1571,7 @@ public final class JSONReader extends JSONGeneral {
         return null/*bufferWriter.toString()*/;
     }
 
-    private int readNext() throws Exception {
+    protected int readNext() throws Exception {
         pos++;
         if (offset < count) return current = buf[offset++];
 
@@ -1177,10 +1586,9 @@ public final class JSONReader extends JSONGeneral {
         } else {
             return current = -1;
         }
-//        return current = reader.read();
     }
 
-    private int readNext(boolean check) throws Exception {
+    protected final int readNext(boolean check) throws Exception {
         readNext();
         if (check && current == -1) {
             close();
@@ -1203,6 +1611,15 @@ public final class JSONReader extends JSONGeneral {
      */
     private boolean isExternalImpl() {
         return this.callback != null && this.callback.readParseMode == ReadParseMode.ExternalImpl;
+    }
+
+    /**
+     * 是否读取完成
+     *
+     * @return
+     */
+    protected boolean isCompleted() {
+        return reader == null || count < bufferSize;
     }
 
     /**
@@ -1267,7 +1684,7 @@ public final class JSONReader extends JSONGeneral {
      * 钩子模式，非异步调用 （Hook mode, non asynchronous call）
      *
      */
-    public static class StreamReaderCallback {
+    public static class ReaderCallback {
 
         // 读取解析模式 (Read parsing mode)
         private final ReadParseMode readParseMode;
@@ -1277,11 +1694,11 @@ public final class JSONReader extends JSONGeneral {
          * 默认内部解析模式
          * 即读取到流结束后返回给使用者
          */
-        public StreamReaderCallback() {
+        public ReaderCallback() {
             this(ReadParseMode.BuiltParse);
         }
 
-        public StreamReaderCallback(ReadParseMode readParseMode) {
+        public ReaderCallback(ReadParseMode readParseMode) {
             this.readParseMode = readParseMode;
         }
 

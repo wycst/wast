@@ -21,7 +21,7 @@ public class JSONReaderTest {
         // download addr: https://codeload.github.com/zemirco/sf-city-lots-json/zip/refs/heads/master
         String f = "e:/tmp/sf-city-lots-json-master/citylots.json";
         final JSONReader reader = JSONReader.from(new File(f));
-        reader.read(new JSONReader.StreamReaderCallback(JSONReader.ReadParseMode.ExternalImpl) {
+        reader.read(new JSONReader.ReaderCallback(JSONReader.ReadParseMode.ExternalImpl) {
             @Override
             public void parseValue(String key, Object value, Object host, int elementIndex, String path) throws Exception {
                 super.parseValue(key, value, host, elementIndex, path);

@@ -83,6 +83,7 @@ public class ReflectUtils {
                     return genericClazz;
                 }
             }
+            return Object.class;
         } else if (parameterType.isArray()) {
             return parameterType.getComponentType();
         } else {

@@ -129,26 +129,15 @@ public class JSONValidator extends JSONGeneral {
         this.message = null;
     }
 
-    private void validateJSONArray(int fromIndex) {
-
+    private void validateJSONArray(int fromIndex) throws Exception {
         int beginIndex = fromIndex + 1;
         char ch = '\0';
-
         int size = 0;
-        // 集合数组核心token是逗号（The core token of the collection array is a comma）
-        // for loop
         for (int i = beginIndex; i < toIndex; i++) {
             // clear white space characters
             while ((ch = buf[i]) <= ' ') {
                 i++;
             }
-            // for simple element parse
-            int simpleFromIndex = i, simpleToIndex = -1;
-
-            // 如果提前遇到字符']'，说明是空集合
-            //  （If the character ']' is encountered in advance, it indicates that it is an empty set）
-            // 另一种可能性(语法错误): 非空集合，发生在空逗号后接结束字符']'直接抛出异常
-            //  (Another possibility(Syntax error): whether the empty comma followed by the closing character ']' throws an exception)
             if (ch == ']') {
                 if (size > 0) {
                     result = false;
@@ -160,61 +149,14 @@ public class JSONValidator extends JSONGeneral {
                 offset = i;
                 return;
             }
-
             size++;
-
-            // 是否简单元素如null, true or false or numeric or string
-            // (is simple elements such as null, true or false or numeric or string)
-            boolean isSimpleElement = false;
-            if (ch == '{') {
-                validateJSONObject(i);
-                i = offset;
-            } else if (ch == '[') {
-                // 2 [ array
-                validateJSONArray(i);
-                i = offset;
-            } else if (ch == '"' || ch == '\'') {
-                // 3 string
-                // When there are escape characters, the escape character needs to be parsed
-                validateJSONString(i, ch);
-                i = offset;
-            } else {
-                // 简单元素（Simple element）
-                isSimpleElement = true;
-                while (i + 1 < toIndex) {
-                    ch = buf[i + 1];
-                    if (ch == ',' || ch == ']') {
-                        break;
-                    }
-                    i++;
-                }
-
-                if(i == toIndex - 1) {
-                    this.result = false;
-                    if (showMessage) {
-                        String errorContextTextAt = createErrorContextText(buf, i);
-                        setValidateMessage("Syntax error, util pos " + i + ", context text by '" + errorContextTextAt + "' token ',' or ']' not found ");
-                    }
-                    return;
-                }
-            }
-
+            this.validateValue(ch, i, ']');
+            i = offset;
             if (!result) return;
-
-            // 清除空白字符（clear white space characters）
+            // clear white space characters
             while ((ch = buf[++i]) <= ' ') ;
-            if (simpleToIndex == -1) {
-                simpleToIndex = i;
-            }
-
-            // 检查下一个字符是逗号还是结束符号。如果是，继续或者终止。如果不是，则抛出异常
-            // （Check whether the next character is a comma or end symbol. If yes, continue or return . If not, throw an exception）
             boolean isEnd = ch == ']';
             if (ch == ',' || isEnd) {
-                if (isSimpleElement) {
-                    validateSimpleValue(simpleFromIndex, simpleToIndex);
-                    if (!result) return;
-                }
                 if (isEnd) {
                     offset = i;
                     return;
@@ -233,12 +175,10 @@ public class JSONValidator extends JSONGeneral {
         }
     }
 
-    private void validateJSONObject(int fromIndex) {
+    private void validateJSONObject(int fromIndex) throws Exception {
 
         int beginIndex = fromIndex + 1;
         char ch;
-        String key = null;
-
         boolean empty = true;
 
         // for loop to parse
@@ -247,11 +187,11 @@ public class JSONValidator extends JSONGeneral {
             while ((ch = buf[i]) <= ' ') {
                 i++;
             }
-            int fieldKeyFrom = i, fieldKeyTo, splitIndex, simpleToIndex = -1;
+            int splitIndex, simpleToIndex = -1;
             // Standard JSON field name with "
             if (ch == '"') {
                 while (i + 1 < toIndex && (buf[++i] != '"' || buf[i - 1] == '\\')) ;
-                if(ch != '"') {
+                if (ch != '"') {
                     result = false;
                     if (showMessage) {
                         String errorContextTextAt = createErrorContextText(buf, i);
@@ -272,7 +212,6 @@ public class JSONValidator extends JSONGeneral {
                         return;
                     }
                     offset = i;
-                    // 空对象提前结束查找
                     return;
                 }
 
@@ -303,80 +242,17 @@ public class JSONValidator extends JSONGeneral {
             while ((ch = buf[i]) <= ' ') {
                 i++;
             }
-            // 清除注释前记录属性字段的token结束位置
-            fieldKeyTo = i;
-
-            // Standard JSON rules:
-            // 1 if matched, it can only be followed by a colon, and all other symbols are wrong
-            // 2 after the attribute value is parsed, it can only be followed by a comma(,) or end, and other symbols are wrong
             if (ch == ':') {
-                // Resolve key value pairs
-//                validateFieldKey(fieldKeyFrom, fieldKeyTo);
-                // 清除空白字符（clear white space characters）
                 while ((ch = buf[++i]) <= ' ') ;
-
-                // 分割符位置,SimpleMode
-                splitIndex = i - 1;
-
-                // 空，布尔值，数字，或者字符串 （ null, true or false or numeric or string）
-                boolean isSimpleValue = false;
-
-                switch (ch) {
-                    case '{': {
-                        validateJSONObject(i);
-                        i = offset;
-                        break;
-                    }
-                    case '[': {
-                        // 2 [ array
-                        // 解析集合或者数组 （Parse a collection or array）
-                        validateJSONArray(i);
-                        i = offset;
-                        break;
-                    }
-                    case '"':
-                    case '\'': {
-                        validateJSONString(i, ch);
-                        i = offset;
-                        break;
-                    }
-                    default: {
-                        isSimpleValue = true;
-                        // 4 null, true or false or numeric
-                        // Find comma(,) or closing symbol(})
-                        while (i + 1 < toIndex) {
-                            ch = buf[i + 1];
-                            if (ch == ',' || ch == '}') {
-                                break;
-                            }
-                            i++;
-                        }
-                        if(i == toIndex - 1) {
-                            this.result = false;
-                            if (showMessage) {
-                                String errorContextTextAt = createErrorContextText(buf, i);
-                                setValidateMessage("Syntax error, util pos " + i + ", context text by '" + errorContextTextAt + "', token ',' or '}' not found ");
-                            }
-                            return;
-                        }
-                        // Check whether post comments are appended
-                    }
-                }
-
+                this.validateValue(ch, i, '}');
+                i = offset;
                 if (!result) return;
-
                 // clear white space characters
                 while ((ch = buf[++i]) <= ' ') ;
-                if (simpleToIndex == -1) {
-                    simpleToIndex = i;
-                }
 
                 // Check whether the next character is a comma or end symbol '}'. If yes, continue or break. If not, throw an exception
                 boolean isClosingSymbol = ch == '}';
                 if (ch == ',' || isClosingSymbol) {
-                    if (isSimpleValue) {
-                        validateSimpleValue(splitIndex + 1, simpleToIndex);
-                    }
                     if (isClosingSymbol) {
                         offset = i;
                         return;
@@ -403,6 +279,40 @@ public class JSONValidator extends JSONGeneral {
         this.message = "Syntax error, the closing symbol '}' is not found ";
     }
 
+    private void validateValue(char ch, int i, char endChar) throws Exception {
+        switch (ch) {
+            case '{': {
+                validateJSONObject(i);
+                break;
+            }
+            case '[': {
+                validateJSONArray(i);
+                break;
+            }
+            case '"':
+            case '\'': {
+                validateJSONString(i, ch);
+                break;
+            }
+            case 'n': {
+                validateNULL(i);
+                break;
+            }
+            case 't': {
+                validateTrue(i);
+                break;
+            }
+            case 'f': {
+                validateFalse(i);
+                break;
+            }
+            default: {
+                validateNumber(i, '}');
+                break;
+            }
+        }
+    }
+
     private void validateJSONString(int from, char endCh) {
         int beginIndex = from + 1;
         char ch = '\0';
@@ -421,87 +331,67 @@ public class JSONValidator extends JSONGeneral {
         }
     }
 
-    // 数字， boolean， null
-    private void validateSimpleValue(int fromIndex, int toIndex) {
-        // 初始位置
-        char beginChar = '\0';
-        char endChar = '\0';
-
-        while ((fromIndex < toIndex) && ((beginChar = buf[fromIndex]) <= ' ')) {
-            fromIndex++;
+    private void validateNULL(int fromIndex) {
+        int beginIndex = fromIndex + 1;
+        if (fromIndex + 3 < toIndex && buf[beginIndex++] == 'u'
+                && buf[beginIndex++] == 'l'
+                && buf[beginIndex] == 'l') {
+            offset = beginIndex;
+            return;
+        } else {
+            result = false;
+            if (showMessage) {
+                int len = Math.min(4, toIndex - fromIndex);
+                setValidateMessage("Syntax error, at pos " + fromIndex + ", expected 'null' because it starts with 'n', but found text '" + new String(buf, fromIndex, len) + "'");
+            }
+            return;
         }
-        while ((toIndex > fromIndex) && ((endChar = buf[toIndex - 1]) <= ' ')) {
-            toIndex--;
-        }
+    }
 
-        int len = toIndex - fromIndex;
-        switch (beginChar) {
-            case 't':
-                if (len == 4 && buf[fromIndex + 1] == 'r'
-                        && buf[fromIndex + 2] == 'u'
-                        && endChar == 'e') {
-                    return;
-                } else {
-                    result = false;
-                    if (showMessage) {
-                        setValidateMessage("Syntax error, at pos " + fromIndex + ", expected 'true' because it starts with 't', but found text '" + new String(buf, fromIndex, len) + "'");
-                    }
-                    return;
-                }
-            case 'f':
-                if (len == 5 && buf[fromIndex + 1] == 'a'
-                        && buf[fromIndex + 2] == 'l'
-                        && buf[fromIndex + 3] == 's'
-                        && endChar == 'e') {
-                    return;
-                } else {
-                    result = false;
-                    if (showMessage) {
-                        setValidateMessage("Syntax error, at pos " + fromIndex + ", expected 'false' because it starts with 'f', but found text '" + new String(buf, fromIndex, len) + "'");
-                    }
-                    return;
-                }
-            case 'n':
-                if (len == 4 && buf[fromIndex + 1] == 'u'
-                        && buf[fromIndex + 2] == 'l'
-                        && endChar == 'l') {
-                    return;
-                } else {
-                    result = false;
-                    if (showMessage) {
-                        setValidateMessage("Syntax error, at pos " + fromIndex + ", expected 'null' because it starts with 'n', but found text '" + new String(buf, fromIndex, len) + "'");
-                    }
-                    return;
-                }
-            default:
-                // 判断是否数字
-                // +-开头,最多一个小数点,最多一个E, 结尾DL
-                int i = fromIndex;
-                if (beginChar == '+' || beginChar == '-') {
-                    i++;
-                }
-                int dotNum = 0;
-                boolean existUnDigitChar = false;
-                for (; i < toIndex; i++) {
-                    char ch = buf[i];
-                    if (ch >= '0' && ch <= '9') continue;
-                    if (ch == '.') {
-                        dotNum++;
-                    } else {
-                        existUnDigitChar = true;
-                    }
-                }
-                if (!existUnDigitChar && dotNum < 2) {
-                    return;
-                }
-                try {
-                    parseDouble(buf, fromIndex, toIndex);
-                } catch (Throwable throwable) {
-                    result = false;
-                    if (showMessage) {
-                        setValidateMessage("Syntax error, at pos " + fromIndex + ", '" + new String(buf, fromIndex, len) + "' is a wrong number text.");
-                    }
-                }
+    private void validateTrue(int fromIndex) {
+        int beginIndex = fromIndex + 1;
+        if (fromIndex + 3 < toIndex && buf[beginIndex++] == 'r'
+                && buf[beginIndex++] == 'u'
+                && buf[beginIndex] == 'e') {
+            offset = beginIndex;
+            return;
+        } else {
+            result = false;
+            if (showMessage) {
+                int len = Math.min(4, toIndex - fromIndex);
+                setValidateMessage("Syntax error, at pos " + fromIndex + ", expected 'true' because it starts with 't', but found text '" + new String(buf, fromIndex, len) + "'");
+            }
+            return;
+        }
+    }
+
+    private void validateFalse(int fromIndex) {
+        int beginIndex = fromIndex + 1;
+        if (fromIndex + 4 < toIndex && buf[beginIndex++] == 'a'
+                && buf[beginIndex++] == 'l'
+                && buf[beginIndex++] == 's'
+                && buf[beginIndex] == 'e') {
+            offset = beginIndex;
+            return;
+        } else {
+            result = false;
+            if (showMessage) {
+                int len = Math.min(4, toIndex - fromIndex);
+                setValidateMessage("Syntax error, at pos " + fromIndex + ", expected 'false' because it starts with 'f', but found text '" + new String(buf, fromIndex, len) + "'");
+            }
+            return;
+        }
+    }
+
+    private void validateNumber(int fromIndex, char endChar) throws Exception {
+        try {
+            JSONTypeDeserializer.NUMBER.deserializeDefault(buf, fromIndex, toIndex, endChar, parseContext);
+            offset = parseContext.getEndIndex();
+        } catch (Throwable throwable) {
+            result = false;
+            if (showMessage) {
+                setValidateMessage(throwable.getMessage());
+            }
         }
     }
 

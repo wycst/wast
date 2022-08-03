@@ -4,6 +4,7 @@ import io.github.wycst.wast.common.expression.ExpressionException;
 
 import java.lang.reflect.Array;
 import java.util.Collection;
+import java.util.Date;
 import java.util.Map;
 
 /**
@@ -66,12 +67,12 @@ public final class BuiltInFunction {
 
     // 比较
     private static int compareTo(Object o1, Object o2) {
-        if(o1.getClass() == o2.getClass()) {
+        if (o1.getClass() == o2.getClass()) {
             Comparable c1 = (Comparable) o1;
             Comparable c2 = (Comparable) o2;
             return c1.compareTo(c2);
         }
-        if(o1 instanceof Number && o2 instanceof Number) {
+        if (o1 instanceof Number && o2 instanceof Number) {
             double d1 = ((Number) o1).doubleValue();
             double d2 = ((Number) o2).doubleValue();
             return d1 > d2 ? 1 : -1;
@@ -217,4 +218,36 @@ public final class BuiltInFunction {
         return left == null ? right : left;
     }
 
+    /**
+     * 当前时间
+     *
+     * @return
+     */
+    public final static Date now() {
+        return new Date();
+    }
+
+    /**
+     * 以当前时间为标准，计算偏移量offset（毫秒）, 将日期转化为指定模板（Y-M-d H:m:s）的字符串
+     *
+     * @param offset 偏移量（单位秒） 0代表当前时间
+     * @return
+     * @see io.github.wycst.wast.common.beans.Date#format(String)
+     */
+    public final static String date(long offset) {
+        return date_format(offset, "Y-M-d H:m:s");
+    }
+
+    /**
+     * 以当前时间为标准，计算偏移量offset（毫秒）, 将日期转化为指定模板的字符串
+     *
+     * @param offset 偏移量（单位秒）
+     * @param template
+     * @return
+     * @see io.github.wycst.wast.common.beans.Date#format(String)
+     */
+    public final static String date_format(long offset, String template) {
+        long current = System.currentTimeMillis();
+        return new io.github.wycst.wast.common.beans.Date(current + offset * 1000).format(template);
+    }
 }

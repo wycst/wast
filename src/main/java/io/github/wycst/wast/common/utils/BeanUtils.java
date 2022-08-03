@@ -67,7 +67,7 @@ public class BeanUtils {
             List<GetterInfo> sourceGetterInfos = sourceClassStructureWrapper.getGetterInfos();
 
             for (GetterInfo getterInfo : sourceGetterInfos) {
-                String fieldName = getterInfo.getFieldName();
+                String fieldName = getterInfo.getName();
                 if (targetMap != null) {
                     targetMap.put(fieldName, getterInfo.invoke(srcBean));
                 } else {
@@ -123,7 +123,7 @@ public class BeanUtils {
             List<GetterInfo> sourceGetterInfos = sourceClassStructureWrapper.getGetterInfos();
 
             for (GetterInfo getterInfo : sourceGetterInfos) {
-                String fieldName = getterInfo.getFieldName();
+                String fieldName = getterInfo.getName();
                 Object val = getterInfo.invoke(srcBean);
                 if (targetMap != null) {
                     targetMap.put(fieldName, val);
