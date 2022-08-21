@@ -85,13 +85,11 @@ public class UnsafeHelper {
      * @return
      */
     public static char[] getChars(String stringValue) {
-        if (stringValue == null) {
-            throw new NullPointerException();
-        }
         if (stringToChars == null) {
             return stringValue.toCharArray();
         }
         try {
+            stringValue.getClass();
             // note: jdk9+ value is byte[]
             if (stringValueOffset > -1) {
                 return (char[]) getObjectValue(stringValue, stringValueOffset);
@@ -210,11 +208,17 @@ public class UnsafeHelper {
         }
     }
 
-    static boolean setAccessible(AccessibleObject field) {
+    public static boolean setAccessible(AccessibleObject accessibleObject) {
         if (OVERRIDE_OFFSET > -1) {
-            unsafe.putBoolean(field, OVERRIDE_OFFSET, true);
+            unsafe.putBoolean(accessibleObject, OVERRIDE_OFFSET, true);
             return true;
         }
         return false;
+    }
+
+    public static void setAccessibleList(AccessibleObject... accessibleList) {
+        for (AccessibleObject accessibleObject : accessibleList) {
+            setAccessible(accessibleObject);
+        }
     }
 }

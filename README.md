@@ -2,7 +2,7 @@
 
 ## 简介
 
-一个轻量级java库，包含json, yaml, common, clients,其他模块视情况陆续放出。
+一个轻量级java库。
 
 
 ## Maven
@@ -12,20 +12,20 @@
 <dependency>
     <groupId>io.github.wycst</groupId>
     <artifactId>wast</artifactId>
-    <version>0.0.5</version>
+    <version>0.0.6</version>
 </dependency>
 ```
 
 ## Groovy
 
 ```
-implementation 'io.github.wycst:wast:0.0.5'
+implementation 'io.github.wycst:wast:0.0.6'
 ```
 
 ## Kotlin
 
 ```
-implementation("io.github.wycst:wast:0.0.5")
+implementation("io.github.wycst:wast:0.0.6")
 ```
 
 ## json模块
@@ -33,9 +33,8 @@ implementation("io.github.wycst:wast:0.0.5")
 > 1 java语言整体性能最快的json库之一；<br>
 > 2 功能全面，支持IO流文件读写，JSON节点树按需解析， 局部解析，序列化格式化，驼峰下划线自动转换；<br>
 > 3 源码实现简单易懂，阅读调试都很容易；<br>
-> 4 基本上无缓存，内存占用少；<br>
-> 5 代码轻量，使用安全，没有漏洞风险；<br>
-> 6 兼容jdk1.6+；
+> 4 代码轻量，使用安全，没有漏洞风险；<br>
+> 5 兼容jdk1.6+；
 
 关于本json库与主流json库性能pk(原库名字叫light) <br>
 [https://blog.csdn.net/wangych0112/article/details/122522193](https://blog.csdn.net/wangych0112/article/details/122522193)
@@ -136,7 +135,7 @@ System.out.println(map);
 
 ```
         final JSONReader reader = JSONReader.from(new File(f));
-        reader.read(new JSONReader.StreamReaderCallback(JSONReader.ReadParseMode.ExternalImpl) {
+        reader.read(new JSONReader.ReaderCallback(JSONReader.ReadParseMode.ExternalImpl) {
             @Override
             public void parseValue(String key, Object value, Object host, int elementIndex, String path) throws Exception {
                 super.parseValue(key, value, host, elementIndex, path);

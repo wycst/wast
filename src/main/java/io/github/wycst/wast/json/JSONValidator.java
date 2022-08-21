@@ -133,10 +133,10 @@ public class JSONValidator extends JSONGeneral {
         int beginIndex = fromIndex + 1;
         char ch = '\0';
         int size = 0;
-        for (int i = beginIndex; i < toIndex; i++) {
+        for (int i = beginIndex; i < toIndex; ++i) {
             // clear white space characters
             while ((ch = buf[i]) <= ' ') {
-                i++;
+                ++i;
             }
             if (ch == ']') {
                 if (size > 0) {
@@ -182,10 +182,10 @@ public class JSONValidator extends JSONGeneral {
         boolean empty = true;
 
         // for loop to parse
-        for (int i = beginIndex; i < toIndex; i++) {
+        for (int i = beginIndex; i < toIndex; ++i) {
             // clear white space characters
             while ((ch = buf[i]) <= ' ') {
-                i++;
+                ++i;
             }
             int splitIndex, simpleToIndex = -1;
             // Standard JSON field name with "
@@ -200,7 +200,7 @@ public class JSONValidator extends JSONGeneral {
                     return;
                 }
                 empty = false;
-                i++;
+                ++i;
             } else {
                 if (ch == '}') {
                     if (!empty) {
@@ -219,7 +219,7 @@ public class JSONValidator extends JSONGeneral {
                     if (parseContext.isAllowSingleQuotes()) {
                         while (i + 1 < toIndex && buf[++i] != '\'') ;
                         empty = false;
-                        i++;
+                        ++i;
                     } else {
                         this.result = false;
                         if (showMessage) {
@@ -240,7 +240,7 @@ public class JSONValidator extends JSONGeneral {
 
             // clear white space characters
             while ((ch = buf[i]) <= ' ') {
-                i++;
+                ++i;
             }
             if (ch == ':') {
                 while ((ch = buf[++i]) <= ' ') ;
@@ -319,7 +319,7 @@ public class JSONValidator extends JSONGeneral {
         int i = beginIndex;
         char prev = '\0';
         while (i < toIndex && (ch = buf[i]) != '"' || prev == '\\') {
-            i++;
+            ++i;
             prev = ch;
         }
         offset = i;

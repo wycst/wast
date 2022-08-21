@@ -5,6 +5,7 @@ import io.github.wycst.wast.clients.http.definition.HttpClientResponse;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
 
 /**
  * @Author: wangy
@@ -35,13 +36,26 @@ abstract class AbstractHttpClientResponse implements HttpClientResponse {
 
     private void writeStreamToContent(InputStream is) {
         if (is != null) {
-            ByteArrayOutputStream os = new ByteArrayOutputStream();
             try {
-                int d = -1;
-                while (checkIfRead(os) && (d = is.read()) > -1) {
-                    os.write(d);
+                if (contentLength > 0) {
+                    // read max length(${contentLength})
+                    byte[] buf = new byte[contentLength];
+                    int len = is.read(buf);
+                    if (len < contentLength) {
+                        content = Arrays.copyOf(buf, len);
+                    } else {
+                        content = buf;
+                    }
+                } else {
+                    // read full is
+                    ByteArrayOutputStream os = new ByteArrayOutputStream();
+                    byte[] buf = new byte[1024];
+                    int len;
+                    while ((len = is.read(buf)) > 0) {
+                        os.write(buf, 0, len);
+                    }
+                    this.content = os.toByteArray();
                 }
-                this.content = os.toByteArray();
             } catch (IOException e) {
                 e.printStackTrace();
             } finally {
@@ -54,7 +68,7 @@ abstract class AbstractHttpClientResponse implements HttpClientResponse {
     }
 
     private boolean checkIfRead(ByteArrayOutputStream os) {
-        if(this.contentLength == -1) {
+        if (this.contentLength == -1) {
             return true;
         }
         return os.size() < this.contentLength;

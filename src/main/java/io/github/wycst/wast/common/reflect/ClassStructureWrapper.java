@@ -38,6 +38,9 @@ public final class ClassStructureWrapper {
     // jdk invoke
     private Class<?> sourceClass;
 
+    // type
+    private ClassWrapperType classWrapperType = ClassWrapperType.Normal;
+
     // is built in module
     private boolean javaBuiltInModule;
 
@@ -46,6 +49,9 @@ public final class ClassStructureWrapper {
 
     // is record(jdk14+)
     private boolean record;
+
+    // is Temporal
+    private boolean temporal;
 
     private int fieldCount;
 
@@ -119,12 +125,20 @@ public final class ClassStructureWrapper {
         return record;
     }
 
+    public boolean isTemporal() {
+        return temporal;
+    }
+
     public int getFieldCount() {
         return fieldCount;
     }
 
     public boolean isForceUseFields() {
         return forceUseFields;
+    }
+
+    public ClassWrapperType getClassWrapperType() {
+        return classWrapperType;
     }
 
     public Object[] createConstructorArgs() {
@@ -199,6 +213,7 @@ public final class ClassStructureWrapper {
                 } else {
                     // 通过pojo或者javabean的规范（公约）即method或者field初始化wrapper
                     wrapperWithMethodAndField(wrapper, superGenericClassMap);
+
                 }
 
                 classStructureWarppers.put(sourceClass, wrapper);
@@ -423,6 +438,10 @@ public final class ClassStructureWrapper {
 
         wrapper.getterInfos = Collections.unmodifiableList(getterInfos);
         wrapper.setterInfos = Collections.unmodifiableMap(wrapper.setterInfos);
+
+        if (wrapper.getterInfos.size() == 0 && wrapper.getterInfoOfFields != null && wrapper.getterInfoOfFields.size() > 0) {
+            wrapper.forceUseFields = true;
+        }
     }
 
     private static Object defaulTypeValue(Class<?> type) {
@@ -451,19 +470,38 @@ public final class ClassStructureWrapper {
         if (pckName.startsWith("java.") || pckName.startsWith("sun.")) {
             this.javaBuiltInModule = true;
         }
+
         // jdk17 java.lang.Record
         if (sourceClass.getSuperclass().getName().equals("java.lang.Record")) {
             this.record = true;
             this.javaBuiltInModule = true;
+            this.classWrapperType = ClassWrapperType.Record;
         }
 
-        if(javaBuiltInModule) {
+        if (javaBuiltInModule) {
             forceUseFields = true;
             for (Class superClass : USE_GETTER_METHOD_TYPE_LIST) {
-                if(superClass.isAssignableFrom(sourceClass)) {
+                if (superClass.isAssignableFrom(sourceClass)) {
                     forceUseFields = false;
                     break;
                 }
+            }
+            String className = sourceClass.getName();
+            if (className.equals("java.time.LocalDate")) {
+                this.classWrapperType = ClassWrapperType.TemporalLocalDate;
+                this.temporal = true;
+            } else if (className.equals("java.time.LocalTime")) {
+                this.classWrapperType = ClassWrapperType.TemporalLocalTime;
+                this.temporal = true;
+            } else if (className.equals("java.time.LocalDateTime")) {
+                this.classWrapperType = ClassWrapperType.TemporalLocalDateTime;
+                this.temporal = true;
+            } else if (className.equals("java.time.Instant")) {
+                this.classWrapperType = ClassWrapperType.TemporalInstant;
+                this.temporal = true;
+            } else if (className.equals("java.time.ZonedDateTime")) {
+                this.classWrapperType = ClassWrapperType.TemporalZonedDateTime;
+                this.temporal = true;
             }
         }
     }
@@ -674,5 +712,42 @@ public final class ClassStructureWrapper {
         for (Annotation annotation : annotationArr) {
             annotationMap.put(annotation.annotationType(), annotation);
         }
+    }
+
+    public enum ClassWrapperType {
+        /**
+         * 普通的pojo
+         */
+        Normal,
+
+        /**
+         * record(jdk15+) support
+         */
+        Record,
+
+        /**
+         * LocalDate(jdk8+) support
+         */
+        TemporalLocalDate,
+
+        /**
+         * LocalDate(jdk8+) support
+         */
+        TemporalLocalDateTime,
+
+        /**
+         * LocalTime(jdk8+) support
+         */
+        TemporalLocalTime,
+
+        /**
+         * instant(jdk8+) support
+         */
+        TemporalInstant,
+
+        /**
+         * ZonedDateTime(jdk8+) support
+         */
+        TemporalZonedDateTime
     }
 }

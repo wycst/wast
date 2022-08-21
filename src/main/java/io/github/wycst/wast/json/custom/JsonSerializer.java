@@ -1,6 +1,5 @@
 package io.github.wycst.wast.json.custom;
 
-import io.github.wycst.wast.common.reflect.GetterInfo;
 import io.github.wycst.wast.json.JSONTypeSerializer;
 import io.github.wycst.wast.json.options.JsonConfig;
 

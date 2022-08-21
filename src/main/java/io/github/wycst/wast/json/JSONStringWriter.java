@@ -60,7 +60,7 @@ public class JSONStringWriter extends CharArrayWriter {
     }
 
     static {
-        for (int i = 0; i < CACHE_COUNT; i++) {
+        for (int i = 0; i < CACHE_COUNT; ++i) {
             CharBufCache charArrayCache = new CharBufCache(new char[CACHE_CHAR_BUFFER_SIZE]);
             charArrayCache.index = i;
             BUF_CACHES[i] = charArrayCache;

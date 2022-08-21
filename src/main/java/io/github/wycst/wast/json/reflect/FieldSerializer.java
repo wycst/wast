@@ -86,7 +86,7 @@ public class FieldSerializer extends JSONTypeSerializer {
     }
 
     void initSerializer() {
-        if(this.serializer == null) {
+        if (this.serializer == null) {
             this.serializer = createSerializer();
         }
     }
@@ -111,10 +111,16 @@ public class FieldSerializer extends JSONTypeSerializer {
                 e.printStackTrace();
             }
         }
-        if(classCategory == ReflectConsts.ClassCategory.NumberCategory) {
-            return JSONTypeSerializer.getTypeSerializer(getterInfo.getReturnType());
+        Class<?> returnType = getterInfo.getReturnType();
+        if (classCategory == ReflectConsts.ClassCategory.ObjectCategory) {
+            // Temporal of Object cache singletons cannot be used
+        } else if(classCategory == ReflectConsts.ClassCategory.NumberCategory) {
+            // From cache by different number types (int/float/double/long...)
+            return JSONTypeSerializer.getTypeSerializer(returnType);
         }
-        return JSONTypeSerializer.getTypeSerializer(classCategory, jsonProperty);
+
+        return JSONTypeSerializer.getFieldTypeSerializer(classCategory, returnType, jsonProperty);
+//        return JSONTypeSerializer.getTypeSerializer(classCategory, jsonProperty);
     }
 
     private void fixed() {

@@ -10,7 +10,6 @@ import io.github.wycst.wast.json.custom.JsonDeserializer;
 import io.github.wycst.wast.json.options.JSONParseContext;
 
 import java.io.Serializable;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -99,7 +98,7 @@ public class FieldDeserializer extends JSONTypeDeserializer {
 
     void initDeserializer() {
         if (setterInfo.isNonInstanceType()) {
-            if(genericParameterizedType.getActualType() == Serializable.class) {
+            if (genericParameterizedType.getActualType() == Serializable.class) {
                 this.deserializer = SERIALIZABLE_DESERIALIZER;
             } else {
                 this.deserializer = null;
@@ -135,7 +134,7 @@ public class FieldDeserializer extends JSONTypeDeserializer {
                 e.printStackTrace();
             }
         }
-        return JSONTypeDeserializer.getTypeDeserializer(genericParameterizedType, jsonProperty);
+        return JSONTypeDeserializer.getFieldDeserializer(genericParameterizedType, jsonProperty);
     }
 
     public String getName() {

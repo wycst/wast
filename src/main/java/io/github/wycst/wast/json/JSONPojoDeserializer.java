@@ -61,9 +61,9 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
         boolean empty = true;
         char ch;
         boolean allowComment = jsonParseContext.isAllowComment();
-        for (int i = fromIndex + 1; /*i < toIndex*/ ; i++) {
+        for (int i = fromIndex + 1; /*i < toIndex*/ ; ++i) {
             while ((ch = buf[i]) <= ' ') {
-                i++;
+                ++i;
             }
             if (allowComment) {
                 if (ch == '/') {
@@ -83,7 +83,7 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
 //                    String errorContextTextAt = createErrorContextText(buf, i);
 //                    throw new JSONException("Syntax error, util pos " + i + ", context text by '" + errorContextTextAt + "' the closing symbol '\"' is not found ");
 //                }
-                i++;
+                ++i;
             } else {
                 if (ch == '}') {
                     if (!empty) {
@@ -99,7 +99,7 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                             hashValue = hashValue * 31 + ch;
                         }
                         empty = false;
-                        i++;
+                        ++i;
                     } else {
                         String errorContextTextAt = createErrorContextText(buf, i);
                         throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "' the single quote symbol ' is not allowed here.");
@@ -122,7 +122,7 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
 
             fieldKeyTo = i;
             while ((ch = buf[i]) <= ' ') {
-                i++;
+                ++i;
             }
             if (allowComment) {
                 if (ch == '/') {

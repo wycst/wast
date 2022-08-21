@@ -503,10 +503,10 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
         boolean lazyParseLastNode = isLastPathLevel && jsonParseContext.lazy;
 
         // for loop to parse
-        for (int i = beginIndex; i < toIndex; i++) {
+        for (int i = beginIndex; i < toIndex; ++i) {
             // clear white space characters
             while ((ch = buf[i]) <= ' ') {
-                i++;
+                ++i;
             }
             if (jsonParseContext.isAllowComment()) {
                 if (ch == '/') {
@@ -521,7 +521,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
             if (ch == '"') {
                 while (i + 1 < toIndex && (buf[++i] != '"' || buf[i - 1] == '\\')) ;
                 empty = false;
-                i++;
+                ++i;
             } else {
                 if (ch == '}') {
                     if (!empty) {
@@ -535,7 +535,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                     if (jsonParseContext.isAllowSingleQuotes()) {
                         while (i + 1 < toIndex && buf[++i] != '\'') ;
                         empty = false;
-                        i++;
+                        ++i;
                     } else {
                         throw new JSONException("Syntax error, the single quote symbol ' is not allowed at pos " + i);
                     }
@@ -552,7 +552,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
 
             // clear white space characters
             while ((ch = buf[i]) <= ' ') {
-                i++;
+                ++i;
             }
             // 清除注释前记录属性字段的token结束位置
             fieldKeyTo = i;
@@ -698,7 +698,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
 
     private static boolean stringEqual(String path, int s1, int len1, String key, int s2, int len2) {
         if (len1 != len2) return false;
-        for (int i = 0; i < len1; i++) {
+        for (int i = 0; i < len1; ++i) {
             if (path.charAt(s1 + i) != key.charAt(s2 + i)) return false;
         }
         return true;
@@ -794,7 +794,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
         }
 
         // for loop
-        for (int i = beginIndex; i < toIndex; i++) {
+        for (int i = beginIndex; i < toIndex; ++i) {
 
             boolean returnListIfMathched = false;
             if (!skipValue && !fetchAllElement) {
@@ -818,7 +818,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
 
             // clear white space characters
             while ((ch = buf[i]) <= ' ') {
-                i++;
+                ++i;
             }
             if (allowComment) {
                 if (ch == '/') {
@@ -1051,7 +1051,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
         int splitIndex = -1;
         int hashValue = beginChar;
         char ch;
-        for (int i = beginIndex + 1; i < endIndex; i++) {
+        for (int i = beginIndex + 1; i < endIndex; ++i) {
             if ((ch = pathBuf[i]) == '/') {
                 splitIndex = i;
                 break;
@@ -1160,7 +1160,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
         if (len == 0) return -1;
         int value = 0;
         char ch;
-        for (int i = offset, n = i + len; i < n; i++) {
+        for (int i = offset, n = i + len; i < n; ++i) {
             ch = buf[i];
             int d = digitDecimal(ch);
             if (d < 0) {
@@ -1180,10 +1180,10 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
         char ch;
         boolean allowComment = parseContext.isAllowComment();
         boolean empty = true;
-        for (int i = offset + 1; i < endIndex; i++) {
+        for (int i = offset + 1; i < endIndex; ++i) {
             // clear white space characters
             while ((ch = buf[i]) <= ' ') {
-                i++;
+                ++i;
             }
             if (allowComment) {
                 if (ch == '/') {
@@ -1210,7 +1210,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                     if (parseContext.isAllowSingleQuotes()) {
                         while (i + 1 < endIndex && (buf[++i] != '\'' || buf[i - 1] == '\\')) ;
                         empty = false;
-                        i++;
+                        ++i;
                         key = JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, false);
                     } else {
                         throw new JSONException("Syntax error, the single quote symbol ' is not allowed at pos " + i);
@@ -1227,7 +1227,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                 }
             }
             while ((ch = buf[i]) <= ' ') {
-                i++;
+                ++i;
             }
             if (allowComment) {
                 if (ch == '/') {
@@ -1282,10 +1282,10 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
         char ch;
         boolean allowComment = parseContext.isAllowComment(), matchedIndex;
         // for loop
-        for (int i = offset + 1; i < endIndex; i++) {
+        for (int i = offset + 1; i < endIndex; ++i) {
             // clear white space characters
             while ((ch = buf[i]) <= ' ') {
-                i++;
+                ++i;
             }
             if (allowComment) {
                 if (ch == '/') {
@@ -1858,7 +1858,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                 }
             }
         }
-        for (int i = 0; i < length; i++) {
+        for (int i = 0; i < length; ++i) {
             JSONNode element = elementValues[i];
             Object result = null;
             if (element.isArray) {
@@ -1975,7 +1975,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                 break;
             case ARRAY:
                 stringBuilder.append('[');
-                for (int j = 0; j < length; j++) {
+                for (int j = 0; j < length; ++j) {
                     JSONNode value = elementValues[j];
                     value.writeTo(stringBuilder);
                     if (j < length - 1) {
@@ -2004,7 +2004,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
     private static void writeStringTo(String leafValue, StringBuilder content) {
         int len = leafValue.length();
         int beginIndex = 0;
-        for (int i = 0; i < len; i++) {
+        for (int i = 0; i < len; ++i) {
             char ch = leafValue.charAt(i);
             if (ch == '\\') {
                 int length = i - beginIndex;
@@ -2105,7 +2105,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
             this.parseFullNode();
         }
         List result = new ArrayList();
-        for (int i = 0; i < length; i++) {
+        for (int i = 0; i < length; ++i) {
             JSONNode jsonNode = elementValues[i];
             result.add(jsonNode.getPathValue(childPath, typeClass));
         }

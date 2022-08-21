@@ -46,7 +46,7 @@ public class FixedNameValueMap<T> {
     public void reset() {
         synchronized (this) {
             count = 0;
-            for (int i = 0; i < capacity; i++) {
+            for (int i = 0; i < capacity; ++i) {
                 valueEntryNodes[i] = null;
             }
         }

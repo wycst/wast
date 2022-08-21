@@ -21,6 +21,7 @@ public class ObjectStructureWrapper {
     private static Map<Class<?>, ObjectStructureWrapper> objectStructureWarppers = new ConcurrentHashMap<Class<?>, ObjectStructureWrapper>();
 
     private final ClassStructureWrapper classStructureWrapper;
+    private ClassStructureWrapper.ClassWrapperType classWrapperType;
     private final GenericParameterizedType genericType;
     private final FixedNameValueMap<FieldDeserializer> fieldDeserializerMap;
     // deserializers
@@ -36,6 +37,7 @@ public class ObjectStructureWrapper {
     private ObjectStructureWrapper(ClassStructureWrapper classStructureWrapper) {
         classStructureWrapper.getClass();
         this.classStructureWrapper = classStructureWrapper;
+        this.classWrapperType = classStructureWrapper.getClassWrapperType();
         this.forceUseFields = classStructureWrapper.isForceUseFields();
         // serializer info
         List<GetterInfo> getterInfos = classStructureWrapper.getGetterInfos();
@@ -127,12 +129,24 @@ public class ObjectStructureWrapper {
         }
     }
 
+    public Class<?> getSourceClass() {
+        return classStructureWrapper.getSourceClass();
+    }
+
     public boolean isRecord() {
         return classStructureWrapper.isRecord();
     }
 
+    public boolean isTemporal() {
+        return classStructureWrapper.isTemporal();
+    }
+
     public int getFieldCount() {
         return classStructureWrapper.getFieldCount();
+    }
+
+    public ClassStructureWrapper.ClassWrapperType getClassWrapperType() {
+        return classWrapperType;
     }
 
     public Object[] createConstructorArgs() {

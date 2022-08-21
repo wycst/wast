@@ -153,38 +153,4 @@ public class Options {
             setParseContextOption(option, parseContext);
         }
     }
-
-    public static void main(String[] args) {
-        String str = "username hello world name age ";
-        char[] buf = str.toCharArray();
-        addGlobalKeys("username1", "hello1", "world1", "name", "age");
-
-        String k1 = null, k2 = null, k3 = null;
-
-        long l1 = System.currentTimeMillis();
-        for (int i = 0; i < 10000000; i++) {
-            k1 = new String(buf, 0, 8);
-            k2 = new String(buf, 9, 5);
-            k3 = new String(buf, 15, 5);
-//            k1 = keyValueMap.getValue(buf, 0, 8, "username".hashCode());
-//            if(k1 == null) {
-//                k1 = new String(buf, 0, 8);
-//            }
-//            k2 = keyValueMap.getValue(buf, 9, 14, "hello".hashCode());
-//            if(k2 == null) {
-//                k2 = new String(buf, 9, 5);
-//            }
-//            k3 = keyValueMap.getValue(buf, 15, 20, "world".hashCode());
-//            if(k3 == null) {
-//                k3 = new String(buf, 15, 5);
-//            }
-        }
-
-        long l2 = System.currentTimeMillis();
-        System.out.println(l2 - l1);
-        System.out.println(k1);
-        System.out.println(k2);
-        System.out.println(k3);
-
-    }
 }

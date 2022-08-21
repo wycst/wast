@@ -793,10 +793,10 @@ public class JSONReader extends JSONGeneral {
             } else {
                 expValue = expNegative ? -expValue - decimalCount : expValue - decimalCount;
                 if (expValue > 0) {
-                    double powValue = Math.pow(radix, expValue);
+                    double powValue = getDecimalPowerValue(expValue); // Math.pow(radix, expValue);
                     value *= powValue;
                 } else if (expValue < 0) {
-                    double powValue = Math.pow(radix, -expValue);
+                    double powValue = getDecimalPowerValue(-expValue);// Math.pow(radix, -expValue);
                     value /= powValue;
                 }
                 value = negative ? -value : value;

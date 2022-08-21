@@ -232,8 +232,7 @@ public final class GenericParameterizedType<T> {
         parameterizedType.generic = true;
         parameterizedType.setActualType(collectionClass == null ? ArrayList.class : collectionClass);
 
-        GenericParameterizedType valueType = new GenericParameterizedType();
-        valueType.setActualType(valueActualType);
+        GenericParameterizedType valueType = actualType(valueActualType);
         parameterizedType.valueType = valueType;
         return parameterizedType;
     }

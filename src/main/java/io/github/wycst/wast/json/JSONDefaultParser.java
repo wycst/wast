@@ -170,10 +170,10 @@ public final class JSONDefaultParser extends JSONGeneral {
         char ch;
 
         // The core token of the collection array is a comma
-        for (int i = beginIndex; /*i < toIndex*/ ; i++) {
+        for (int i = beginIndex; /*i < toIndex*/ ; ++i) {
             // clear white space characters
             while ((ch = buf[i]) <= ' ') {
-                i++;
+                ++i;
             }
             // clear comment and whiteSpaces
             if (jsonParseContext.isAllowComment()) {
@@ -233,7 +233,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                     i = jsonParseContext.getEndIndex();
                     list.add(value);
                     // either continue or return
-                    i++;
+                    ++i;
                     char next = buf[i];
                     if (next == ']') {
                         jsonParseContext.setEndIndex(i);
@@ -274,10 +274,10 @@ public final class JSONDefaultParser extends JSONGeneral {
         boolean allowomment = jsonParseContext.isAllowComment();
         boolean disableCacheMapKey = jsonParseContext.isDisableCacheMapKey();
         // for loop to parse
-        for (int i = beginIndex; /*i < toIndex*/ ; i++) {
+        for (int i = beginIndex; /*i < toIndex*/ ; ++i) {
             // clear white space characters
             while ((ch = buf[i]) <= ' ') {
-                i++;
+                ++i;
             }
             // clear comment and whiteSpaces
             if (allowomment) {
@@ -293,7 +293,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                 key = disableCacheMapKey ? parseMapKey(buf, i, toIndex, '"', jsonParseContext) : parseMapKeyByCache(buf, i, toIndex, '"', jsonParseContext);
                 i = jsonParseContext.getEndIndex();
                 empty = false;
-                i++;
+                ++i;
             } else {
                 // empty object or exception
                 if (ch == '}') {
@@ -307,7 +307,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                     if (jsonParseContext.isAllowSingleQuotes()) {
                         while (i + 1 < toIndex && (buf[++i] != '\'' || buf[i - 1] == '\\')) ;
                         empty = false;
-                        i++;
+                        ++i;
                         key = parseKeyOfMap(buf, fieldKeyFrom, i, false);
                     } else {
                         throw new JSONException("Syntax error, at pos " + i + ", the single quote symbol ' is not allowed here.");
@@ -317,9 +317,21 @@ public final class JSONDefaultParser extends JSONGeneral {
                         while (i + 1 < toIndex && buf[++i] != ':') ;
                         empty = false;
                         key = parseKeyOfMap(buf, fieldKeyFrom, i, true);
+                        if(key.equals("null")) {
+                            key = null;
+                        }
                     } else {
-                        String errorContextTextAt = createErrorContextText(buf, i);
-                        throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', expected '\"' or use option ReadOption.AllowUnquotedFieldNames ");
+                        int j = i;
+                        boolean isNullKey = false;
+                        key = null;
+                        if(ch == 'n' && buf[++i] == 'u' && buf[++i] == 'l' && buf[++i] == 'l') {
+                            isNullKey = true;
+                            ++i;
+                        }
+                        if(!isNullKey) {
+                            String errorContextTextAt = createErrorContextText(buf, j);
+                            throw new JSONException("Syntax error, at pos " + j + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', expected '\"' or use option ReadOption.AllowUnquotedFieldNames ");
+                        }
                     }
                 }
 
@@ -327,7 +339,7 @@ public final class JSONDefaultParser extends JSONGeneral {
 
             // clear white space characters
             while ((ch = buf[i]) <= ' ') {
-                i++;
+                ++i;
             }
             // clear comment and whiteSpaces
             if (allowomment) {
@@ -389,8 +401,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                         value = JSONTypeDeserializer.NUMBER.deserialize(buf, i, toIndex, jsonParseContext.isUseBigDecimalAsDefault() ? GenericParameterizedType.BigDecimalType : GenericParameterizedType.AnyType, null, '}', jsonParseContext);
                         i = jsonParseContext.getEndIndex();
                         instance.put(key, value);
-                        i++;
-                        char next = buf[i];
+                        char next = buf[++i];
                         if (next == '}') {
                             jsonParseContext.setEndIndex(i);
                             return instance;
@@ -433,9 +444,9 @@ public final class JSONDefaultParser extends JSONGeneral {
         JSONStringWriter writer = null;
         boolean escape = false;
 
-        for (; /*i < toIndex*/ ; i++) {
+        for (; /*i < toIndex*/ ; ++i) {
             while (/*i < toIndex &&*/ (ch = buf[i]) != '\\' && ch != endCh) {
-                i++;
+                ++i;
             }
             // ch is \\ or "
             if (ch == '\\') {
@@ -448,63 +459,6 @@ public final class JSONDefaultParser extends JSONGeneral {
                 }
                 beginIndex = escapeNext(buf, next, i, beginIndex, writer, jsonParseContext);
                 i = jsonParseContext.getEndIndex();
-//                switch (next) {
-//                    case '\'':
-//                    case '"':
-//                        if (i > beginIndex) {
-//                            writer.write(buf, beginIndex, i - beginIndex + 1);
-//                            writer.setCharAt(writer.size() - 1, next);
-//                        } else {
-//                            writer.append(next);
-//                        }
-//                        beginIndex = ++i + 1;
-//                        break;
-//                    case 'n':
-//                        len = i - beginIndex;
-//                        writer.write(buf, beginIndex, len + 1);
-//                        writer.setCharAt(writer.size() - 1, '\n');
-//                        beginIndex = ++i + 1;
-//                        break;
-//                    case 'r':
-//                        len = i - beginIndex;
-//                        writer.write(buf, beginIndex, len + 1);
-//                        writer.setCharAt(writer.size() - 1, '\r');
-//                        beginIndex = ++i + 1;
-//                        break;
-//                    case 't':
-//                        len = i - beginIndex;
-//                        writer.write(buf, beginIndex, len + 1);
-//                        writer.setCharAt(writer.size() - 1, '\t');
-//                        beginIndex = ++i + 1;
-//                        break;
-//                    case 'b':
-//                        len = i - beginIndex;
-//                        writer.write(buf, beginIndex, len + 1);
-//                        writer.setCharAt(writer.size() - 1, '\b');
-//                        beginIndex = ++i + 1;
-//                        break;
-//                    case 'f':
-//                        len = i - beginIndex;
-//                        writer.write(buf, beginIndex, len + 1);
-//                        writer.setCharAt(writer.size() - 1, '\f');
-//                        beginIndex = ++i + 1;
-//                        break;
-//                    case 'u':
-//                        len = i - beginIndex;
-//                        writer.write(buf, beginIndex, len + 1);
-//                        int c = hex4(buf, i + 2);
-//                        writer.setCharAt(writer.size() - 1, (char) c);
-//                        i += 4;
-//                        beginIndex = ++i + 1;
-//                        break;
-//                    default: {
-//                        // other case delete char '\\'
-//                        len = i - beginIndex;
-//                        writer.write(buf, beginIndex, len + 1);
-//                        writer.setCharAt(writer.size() - 1, next);
-//                        beginIndex = ++i + 1;
-//                    }
-//                }
             } else {
                 jsonParseContext.setEndIndex(i);
                 len = i - beginIndex;
@@ -527,9 +481,9 @@ public final class JSONDefaultParser extends JSONGeneral {
 
         JSONStringWriter writer = null;
         boolean escape = false;
-        for (; ; i++) {
+        for (; ; ++i) {
             while ((ch = buf[i]) != '\\' && ch != endCh) {
-                i++;
+                ++i;
             }
             // ch is \\ or "
             if (ch == '\\') {
@@ -563,10 +517,10 @@ public final class JSONDefaultParser extends JSONGeneral {
 
         JSONStringWriter writer = null;
         boolean escape = false;
-        for (; ; i++) {
+        for (; ; ++i) {
             int hashValue = 0;
             while ((ch = buf[i]) != '\\' && ch != endCh) {
-                i++;
+                ++i;
                 hashValue = hashValue * 31 + ch;
             }
             // ch is \\ or "

@@ -76,12 +76,15 @@ class JSONGeneral {
     // 时间钟加入缓存
     protected final static Map<String, TimeZone> GMT_TIME_ZONE_MAP = new ConcurrentHashMap<String, TimeZone>();
 
+    // zero zone
+    public final static TimeZone ZERO_TIME_ZONE = TimeZone.getTimeZone("GMT+00:00");
+
     public static String toEscapeString(int ch) {
         return String.format("\\u%04x", ch);
     }
 
     static {
-        for (int i = 0; i < escapes.length; i++) {
+        for (int i = 0; i < escapes.length; ++i) {
             switch (i) {
                 case '\n':
                     escapes[i] = "\\n";
@@ -126,12 +129,12 @@ class JSONGeneral {
             }
         }
 
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 10; ++i) {
             FORMAT_DIGITS[i] = new char[]{'0', Character.forDigit(i, 10)};
         }
 
         // e0 ~ e360(e306)
-        for (int i = 0, len = PositiveDecimalPower.length; i < len; i++) {
+        for (int i = 0, len = PositiveDecimalPower.length; i < len; ++i) {
             PositiveDecimalPower[i] = Math.pow(10, i);
         }
 
@@ -139,7 +142,7 @@ class JSONGeneral {
         for (String availableID : availableIDs) {
             GMT_TIME_ZONE_MAP.put(availableID, TimeZone.getTimeZone(availableID));
         }
-        TimeZone timeZone = TimeZone.getTimeZone("GMT+00:00");
+        TimeZone timeZone = ZERO_TIME_ZONE;
         GMT_TIME_ZONE_MAP.put("GMT+00:00", timeZone);
         GMT_TIME_ZONE_MAP.put("+00:00", timeZone);
         GMT_TIME_ZONE_MAP.put("-00:00", timeZone);
@@ -380,7 +383,7 @@ class JSONGeneral {
      */
     protected final static int indexOf(char[] buf, char ch, int beginIndex, int toIndex) {
         if (buf == null) return -1;
-        for (int i = beginIndex; i < toIndex; i++) {
+        for (int i = beginIndex; i < toIndex; ++i) {
             if (buf[i] == ch) {
                 return i;
             }
@@ -398,7 +401,7 @@ class JSONGeneral {
      */
     protected static int indexOf(int[] arr, int j, int fromIndex) {
         if (arr == null) return -1;
-        for (int i = fromIndex; i < arr.length; i++) {
+        for (int i = fromIndex; i < arr.length; ++i) {
             if (arr[i] == j) {
                 return i;
             }
@@ -419,13 +422,13 @@ class JSONGeneral {
 
         int len = to - from;
         String timezoneIdAt = timezone;
-        if (len > 23) {
+        if (len > 19) {
             // yyyy-MM-ddTHH:mm:ss.SSS+XX:YY
             int j = to, ch;
             while (j > from) {
                 // Check whether the time zone ID exists in the date
                 // Check for '+' or '-' or 'Z'
-                if ((ch = buf[--j]) == '.') break;
+                if ((ch = buf[--j]) == '.' || ch == ' ') break;
                 if (ch == '+' || ch == '-' || ch == 'Z') {
                     timezoneIdAt = new String(buf, j, to - j);
                     to = j;
@@ -659,16 +662,18 @@ class JSONGeneral {
                     return parseDate(year, month, day, hour, minute, second, 0, timezoneIdAt, dateCls);
                 }
                 default: {
-                    io.github.wycst.wast.common.beans.Date date = io.github.wycst.wast.common.beans.Date.parse(buf, from + 1, to - from - 2, dateTemplate);
-                    if (timezoneIdAt != null) {
-                        date.setTimeZone(TimeZone.getTimeZone(timezoneIdAt));
-                    }
+//                    io.github.wycst.wast.common.beans.Date date = io.github.wycst.wast.common.beans.Date.parse(buf, from + 1, to - from - 2, dateTemplate);
+//                    if (timezoneIdAt != null) {
+//                        date.setTimeZone(TimeZone.getTimeZone(timezoneIdAt));
+//                    }
+                    TimeZone timeZone = getTimeZone(timezoneIdAt);
+                    long time = dateTemplate.parseTime(buf, from + 1, to - from - 2, timeZone);
                     if (dateCls == Date.class) {
-                        return new Date(date.getTime());
+                        return new Date(time);
                     }
                     Constructor<? extends Date> constructor = dateCls.getConstructor(long.class);
                     constructor.setAccessible(true);
-                    return constructor.newInstance(date.getTime());
+                    return constructor.newInstance(time);
                 }
             }
         } catch (Throwable throwable) {
@@ -744,7 +749,7 @@ class JSONGeneral {
         if (ch == '/') {
             // End with newline \ n
             while (i < toIndex && buf[i] != '\n') {
-                i++;
+                ++i;
             }
             // continue clear WhiteSpaces
             ch = '\0';
@@ -808,7 +813,7 @@ class JSONGeneral {
     }
 
     private static int getMonthAbbrIndex(String monthAbbr) {
-        for (int i = 0, len = MONTH_ABBR.length; i < len; i++) {
+        for (int i = 0, len = MONTH_ABBR.length; i < len; ++i) {
             if (MONTH_ABBR[i].equals(monthAbbr)) {
                 return i;
             }
@@ -817,8 +822,14 @@ class JSONGeneral {
     }
 
     private static Date parseDate(int year, int month, int day, int hour, int minute, int second, int millsecond, String timeZoneId, Class<? extends Date> dateCls) {
+        TimeZone timeZone = getTimeZone(timeZoneId);
+        long timeInMillis = io.github.wycst.wast.common.beans.Date.getTime(year, month, day, hour, minute, second, millsecond, timeZone);
+        return parseDate(timeInMillis, dateCls);
+    }
+
+    static TimeZone getTimeZone(String timeZoneId) {
         TimeZone timeZone = null;
-        if (timeZoneId != null) {
+        if (timeZoneId != null && timeZoneId.trim().length() > 0) {
             if (GMT_TIME_ZONE_MAP.containsKey(timeZoneId)) {
                 timeZone = GMT_TIME_ZONE_MAP.get(timeZoneId);
             } else {
@@ -832,9 +843,7 @@ class JSONGeneral {
                 }
             }
         }
-        io.github.wycst.wast.common.beans.Date date = new io.github.wycst.wast.common.beans.Date(year, month, day, hour, minute, second, millsecond, timeZone);
-        long timeInMillis = date.getTime();
-        return parseDate(timeInMillis, dateCls);
+        return timeZone;
     }
 
     protected static Date parseDate(long timeInMillis, Class<? extends Date> dateCls) {
@@ -858,7 +867,7 @@ class JSONGeneral {
 
     protected static String printHexString(byte[] b, char splitChar) {
         StringBuilder returnValue = new StringBuilder();
-        for (int i = 0; i < b.length; i++) {
+        for (int i = 0; i < b.length; ++i) {
             String hex = Integer.toHexString(b[i] & 0xFF);
             if (hex.length() == 1) {
                 hex = '0' + hex;
@@ -875,7 +884,7 @@ class JSONGeneral {
         byte[] bytes = new byte[len / 2];
         int byteLength = 0;
         int b = -1;
-        for (int i = offset, count = offset + len; i < count; i++) {
+        for (int i = offset, count = offset + len; i < count; ++i) {
             char ch = Character.toUpperCase(chars[i]);
             int numIndex = ch > '9' ? ch - 55 : ch - 48;
             if (numIndex < 0 || numIndex >= 16) continue;
@@ -949,7 +958,7 @@ class JSONGeneral {
         int len = bytes.length;
         int charLen = 0;
 
-        for (int j = 0; j < len; j++) {
+        for (int j = 0; j < len; ++j) {
             byte b = bytes[j];
             if (b > 0) {
                 chars[charLen++] = (char) b;
@@ -1006,6 +1015,22 @@ class JSONGeneral {
             }
         }
         return charLen;
+    }
+
+    protected static int getPatternType(String pattern) {
+        if (pattern != null) {
+            if (pattern.equalsIgnoreCase("yyyy-MM-dd HH:mm:ss")
+                    || pattern.equalsIgnoreCase("yyyy/MM/dd HH:mm:ss")) {
+                return 1;
+            } else if (pattern.equalsIgnoreCase("yyyy-MM-dd") || pattern.equalsIgnoreCase("yyyy/MM/dd")) {
+                return 2;
+            } else if (pattern.equalsIgnoreCase("yyyyMMddHHmmss")) {
+                return 3;
+            } else {
+                return 4;
+            }
+        }
+        return 0;
     }
 
 

@@ -26,9 +26,11 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
     final static JSONTypeSerializer[] TYPE_SERIALIZERS = new JSONTypeSerializer[LENGTH];
     // class and JSONTypeSerializer mapping
     private static final Map<Class<?>, JSONTypeSerializer> classJSONTypeSerializerMap = new ConcurrentHashMap<Class<?>, JSONTypeSerializer>();
+    // CharSequence
+    protected static final CharSequenceSerializer STRING = new CharSequenceSerializer();
 
     static {
-        TYPE_SERIALIZERS[ReflectConsts.ClassCategory.CharSequence.ordinal()] = new CharSequenceSerializer();
+        TYPE_SERIALIZERS[ReflectConsts.ClassCategory.CharSequence.ordinal()] = STRING;
         JSONTypeSerializer SIMPLE = new SimpleSerializer();
         TYPE_SERIALIZERS[ReflectConsts.ClassCategory.NumberCategory.ordinal()] = SIMPLE;
         TYPE_SERIALIZERS[ReflectConsts.ClassCategory.BoolCategory.ordinal()] = SIMPLE;
@@ -82,6 +84,31 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
         }
     }
 
+    /**
+     * <p> 序列化大部分场景可以使用分类序列化器即可比如Object类型,枚举类型，字符串类型；
+     * <p> 日期时间类如果存在pattern等配置需要单独构建,不能缓存；
+     * <p> 部分number类型比如int和long可以使用缓存好的序列化器提升一定性能；
+     *
+     * @param classCategory
+     * @param type
+     * @param jsonProperty
+     * @return
+     */
+    protected static JSONTypeSerializer getFieldTypeSerializer(ReflectConsts.ClassCategory classCategory, Class<?> type, JsonProperty jsonProperty) {
+        if (classCategory == ReflectConsts.ClassCategory.NumberCategory) {
+            // number type use cache
+            return JSONTypeSerializer.getTypeSerializer(type);
+        } else if (classCategory == ReflectConsts.ClassCategory.ObjectCategory) {
+            ObjectStructureWrapper objectStructureWrapper = ObjectStructureWrapper.get(type);
+            if (objectStructureWrapper.isTemporal()) {
+                return JSONTemporalSerializer.getTemporalSerializerInstance(objectStructureWrapper, jsonProperty);
+            }
+        }
+        // others by classCategory
+        return JSONTypeSerializer.getTypeSerializer(classCategory, jsonProperty);
+    }
+
+
     protected static JSONTypeSerializer getValueSerializer(Object value) {
         return getTypeSerializer(value.getClass());
     }
@@ -97,7 +124,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
     protected abstract void serialize(Object value, Writer writer, JsonConfig jsonConfig, int indent) throws Exception;
 
     // 0、字符串序列化
-    private static class CharSequenceSerializer extends JSONTypeSerializer {
+    static class CharSequenceSerializer extends JSONTypeSerializer {
 
         protected void serialize(Object value, Writer content, JsonConfig jsonConfig, int indent) throws Exception {
             String strValue;
@@ -124,7 +151,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
 
             if (!jsonConfig.isDisableEscapeValidate()) {
                 // It takes too much time to determine whether there is an escape character
-                for (int i = 0; i < len; i++) {
+                for (int i = 0; i < len; ++i) {
                     char ch = chars[i];
                     if (ch == '\\') {
                         int length = i - beginIndex;
@@ -163,7 +190,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
 
             static int stringSize(long x) {
                 long p = 10;
-                for (int i = 1; i < 19; i++) {
+                for (int i = 1; i < 19; ++i) {
                     if (x < p)
                         return i;
                     p = (p << 3) + (p << 1);
@@ -173,13 +200,13 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
 
             protected void serialize(Object value, Writer content, JsonConfig jsonConfig, int indent) throws Exception {
                 long numValue = ((Number) value).longValue();
-                if(numValue == 0) {
+                if (numValue == 0) {
                     content.append('0');
                     return;
                 }
 
                 int size, pos;
-                if(numValue < 0) {
+                if (numValue < 0) {
                     numValue = -numValue;
                     content.append('-');
                 }
@@ -276,7 +303,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
             char prevChar = '\0';
             int count = 0;
             // 增加一位虚拟字符进行遍历
-            for (int i = 0; i <= len; i++) {
+            for (int i = 0; i <= len; ++i) {
                 char ch = '\0';
                 if (i < len)
                     ch = pattern.charAt(i);
@@ -554,7 +581,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                 content.write('[');
                 int lastLevel = indentLevel;
                 boolean isFirstKey = true;
-                for (int i = 0; i < length; i++) {
+                for (int i = 0; i < length; ++i) {
                     if (isFirstKey) {
                         isFirstKey = false;
                     } else {
