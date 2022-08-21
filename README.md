@@ -12,20 +12,20 @@
 <dependency>
     <groupId>io.github.wycst</groupId>
     <artifactId>wast</artifactId>
-    <version>0.0.6</version>
+    <version>0.0.6.1</version>
 </dependency>
 ```
 
 ## Groovy
 
 ```
-implementation 'io.github.wycst:wast:0.0.6'
+implementation 'io.github.wycst:wast:0.0.6.1'
 ```
 
 ## Kotlin
 
 ```
-implementation("io.github.wycst:wast:0.0.6")
+implementation("io.github.wycst:wast:0.0.6.1")
 ```
 
 ## json模块
