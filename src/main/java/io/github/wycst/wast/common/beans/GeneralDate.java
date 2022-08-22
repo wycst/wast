@@ -276,7 +276,10 @@ public class GeneralDate {
     public static TimeZone getDefaultTimeZone() {
         if (defaultTimeZoneField != null) {
             try {
-                return (TimeZone) defaultTimeZoneField.get(null);
+                TimeZone defaultTimezone = (TimeZone) defaultTimeZoneField.get(null);
+                if(defaultTimezone != null) {
+                    return defaultTimezone;
+                }
             } catch (IllegalAccessException exception) {
             }
         }
