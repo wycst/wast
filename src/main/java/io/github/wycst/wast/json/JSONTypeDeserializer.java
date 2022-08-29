@@ -772,8 +772,8 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             int len = endIndex - fromIndex;
             if (beginChar == 'n' &&
                     len == 4 &&
-                    buf[1] == 'u' &&
-                    buf[2] == 'l' &&
+                    buf[fromIndex + 1] == 'u' &&
+                    buf[fromIndex + 2] == 'l' &&
                     endChar == 'l') {
                 return null;
             }
