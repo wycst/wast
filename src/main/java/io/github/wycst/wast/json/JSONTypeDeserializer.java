@@ -1,5 +1,6 @@
 package io.github.wycst.wast.json;
 
+import io.github.wycst.wast.common.beans.CharSource;
 import io.github.wycst.wast.common.beans.DateTemplate;
 import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
@@ -198,7 +199,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
     }
 
     /**
-     * 反序列化
+     * 核心反序列化
      *
      * @param buf
      * @param fromIndex
@@ -208,6 +209,19 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
      */
     protected abstract Object deserialize(char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception;
 
+    /**
+     * 拓展反序列化
+     *
+     * @param bytes    ascii字节数组
+     * @param fromIndex
+     * @param toIndex
+     * @param jsonParseContext
+     * @throws Exception
+     */
+    protected Object deserialize(byte[] bytes, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
+        throw new UnsupportedOperationException();
+    }
+
     // 0、字符串序列化
     static class CharSequenceDeserializer extends JSONTypeDeserializer {
 
@@ -216,9 +230,6 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             while (/*i < toIndex &&*/ buf[i] != '"' || buf[i - 1] == '\\') {
                 ++i;
             }
-//            if (i == toIndex) {
-//                throw new JSONException("Syntax error, from pos " + fromIndex + ", the closing symbol '\"' is not found ");
-//            }
             jsonParseContext.setEndIndex(i);
         }
 
@@ -772,8 +783,8 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             int len = endIndex - fromIndex;
             if (beginChar == 'n' &&
                     len == 4 &&
-                    buf[1] == 'u' &&
-                    buf[2] == 'l' &&
+                    buf[fromIndex + 1] == 'u' &&
+                    buf[fromIndex + 2] == 'l' &&
                     endChar == 'l') {
                 return null;
             }
@@ -1105,19 +1116,15 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             if (valueType == null) {
                 elementCls = arrayCls.getComponentType();
                 valueType = GenericParameterizedType.actualType(elementCls);
+//                actualClassCategory = valueType.getActualClassCategory();
             } else {
                 elementCls = valueType.getActualType();
+//                actualClassCategory = ReflectConsts.getClassCategory(elementCls);
             }
+            ReflectConsts.ClassCategory actualClassCategory = valueType.getActualClassCategory();
 
-            ReflectConsts.ClassCategory actualClassCategory = ReflectConsts.getClassCategory(elementCls);
-
-            // use Collection to add
-            Collection<Object> collection;
-            if (instance != null) {
-                collection = (Collection) instance;
-            } else {
-                collection = new ArrayList<Object>();
-            }
+            // No random access is required, and it is best to use LinkedList or ConcurrentLinkedQueue to convert it into an array ??
+            Collection<Object> collection = new ArrayList<Object>();
 
             // 允许注释
             boolean allowComment = jsonParseContext.isAllowComment();
@@ -1595,11 +1602,11 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                             int j = i;
                             boolean isNullKey = false;
                             mapKey = null;
-                            if(ch == 'n' && buf[++i] == 'u' && buf[++i] == 'l' && buf[++i] == 'l') {
+                            if (ch == 'n' && buf[++i] == 'u' && buf[++i] == 'l' && buf[++i] == 'l') {
                                 isNullKey = true;
                                 ++i;
                             }
-                            if(!isNullKey) {
+                            if (!isNullKey) {
                                 String errorContextTextAt = createErrorContextText(buf, j);
                                 throw new JSONException("Syntax error, at pos " + j + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', expected '\"' or use option ReadOption.AllowUnquotedFieldNames ");
                             }
@@ -1654,30 +1661,6 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             }
 
             throw new JSONException("Syntax error, the closing symbol '}' is not found ");
-        }
-
-        // create map
-        private static Map createMapInstance(Class<? extends Map> mapCls) {
-            if (mapCls == Map.class || mapCls == LinkedHashMap.class) {
-                return new LinkedHashMap();
-            }
-            if (mapCls == HashMap.class) {
-                return new HashMap();
-            }
-            if (mapCls == Hashtable.class) {
-                return new Hashtable();
-            }
-            if (mapCls == AbstractMap.class) {
-                return new LinkedHashMap();
-            }
-            if (mapCls == TreeMap.class) {
-                return new TreeMap();
-            }
-            try {
-                return mapCls.newInstance();
-            } catch (Exception e) {
-                throw new JSONException("create map instance error, class " + mapCls);
-            }
         }
 
     }

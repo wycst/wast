@@ -17,13 +17,17 @@
 package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
+import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import io.github.wycst.wast.json.exceptions.JSONException;
 import io.github.wycst.wast.json.options.JSONParseContext;
 import io.github.wycst.wast.json.options.Options;
 import io.github.wycst.wast.json.options.ReadOption;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * 默认解析器，根据字符的开头前缀解析为Map、List、String
@@ -34,6 +38,14 @@ import java.util.*;
  */
 public final class JSONDefaultParser extends JSONGeneral {
 
+    // String structure determination, true if the jdk version > 8, and the value of String is byte[] not char[]
+    private static final boolean StringCoder;
+
+    static {
+        long stringCoderOffset = UnsafeHelper.getStringCoderOffset();
+        StringCoder = stringCoderOffset > -1;
+    }
+
     /**
      * return Map or List
      *
@@ -42,7 +54,14 @@ public final class JSONDefaultParser extends JSONGeneral {
      * @return Map or List
      */
     public static Object parse(String json, ReadOption... readOptions) {
-        if (json == null) return null;
+        json.getClass();
+        if (StringCoder) {
+            int code = UnsafeHelper.getStringCoder(json);
+            if (code == 0) {
+                byte[] bytes = (byte[]) UnsafeHelper.getStringValue(json);
+                return JSONByteArrayParser.parse(bytes, readOptions);
+            }
+        }
         return parse(getChars(json), readOptions);
     }
 
@@ -57,42 +76,64 @@ public final class JSONDefaultParser extends JSONGeneral {
         return parse(buf, null, readOptions);
     }
 
-    static Object parseObject(String json, Class<? extends Map> mapCls, ReadOption... readOptions) {
-        if (json == null) return null;
-        return parseObject(getChars(json), mapCls, readOptions);
+    /**
+     * 解析字节数组
+     *
+     * @param bytes
+     * @param readOptions
+     * @return
+     */
+    public static Object parseBytes(byte[] bytes, ReadOption[] readOptions) {
+        if (StringCoder) {
+            // jdk9+
+            return JSONByteArrayParser.parse(bytes, readOptions);
+        }
+        // jdk <= 8 ，use char[]
+        return parse(getChars(new String(bytes)), readOptions);
     }
 
-    static Object parseObject(char[] buf, Class<? extends Map> mapCls, ReadOption... readOptions) {
-        Map mapIntance = createMapInstance(mapCls);
-        return parse(buf, mapIntance, readOptions);
+    /**
+     * 指定外层的map类型
+     *
+     * @param json
+     * @param mapCls
+     * @param readOptions
+     * @return
+     */
+    static Map parseMap(String json, Class<? extends Map> mapCls, ReadOption... readOptions) {
+        json.getClass();
+        if (StringCoder) {
+            int code = UnsafeHelper.getStringCoder(json);
+            if (code == 0) {
+                byte[] bytes = (byte[]) UnsafeHelper.getStringValue(json);
+                return (Map) JSONByteArrayParser.parse(bytes, createMapInstance(mapCls), readOptions);
+            }
+        }
+        return (Map) parse(getChars(json), createMapInstance(mapCls), readOptions);
     }
 
-    // create map
-    static Map createMapInstance(Class<? extends Map> mapCls) {
-        if (mapCls == Map.class || mapCls == null || mapCls == LinkedHashMap.class) {
-            return new LinkedHashMap();
+    /**
+     * 指定外层的map类型
+     *
+     * @param json
+     * @param listCls
+     * @param readOptions
+     * @return
+     */
+    static Collection parseCollection(String json, Class<? extends Collection> listCls, ReadOption... readOptions) {
+        json.getClass();
+        if (StringCoder) {
+            int code = UnsafeHelper.getStringCoder(json);
+            if (code == 0) {
+                byte[] bytes = (byte[]) UnsafeHelper.getStringValue(json);
+                return (Collection) JSONByteArrayParser.parse(bytes, createCollectionInstance(listCls), readOptions);
+            }
         }
-        if (mapCls == HashMap.class) {
-            return new HashMap();
-        }
-        if (mapCls == Hashtable.class) {
-            return new Hashtable();
-        }
-        if (mapCls == AbstractMap.class) {
-            return new LinkedHashMap();
-        }
-        if (mapCls == TreeMap.class) {
-            return new TreeMap();
-        }
-        try {
-            return mapCls.newInstance();
-        } catch (Exception e) {
-            throw new JSONException("create map instance error, class " + mapCls);
-        }
+        return (Collection) parse(getChars(json), createCollectionInstance(listCls), readOptions);
     }
 
     static Object parse(char[] buf, Object defaultValue, ReadOption... readOptions) {
-        if (buf == null || buf.length == 0) return null;
+        buf.getClass();
         return parse(buf, 0, buf.length, defaultValue, readOptions);
     }
 
@@ -317,18 +358,18 @@ public final class JSONDefaultParser extends JSONGeneral {
                         while (i + 1 < toIndex && buf[++i] != ':') ;
                         empty = false;
                         key = parseKeyOfMap(buf, fieldKeyFrom, i, true);
-                        if(key.equals("null")) {
+                        if (key.equals("null")) {
                             key = null;
                         }
                     } else {
                         int j = i;
                         boolean isNullKey = false;
                         key = null;
-                        if(ch == 'n' && buf[++i] == 'u' && buf[++i] == 'l' && buf[++i] == 'l') {
+                        if (ch == 'n' && buf[++i] == 'u' && buf[++i] == 'l' && buf[++i] == 'l') {
                             isNullKey = true;
                             ++i;
                         }
-                        if(!isNullKey) {
+                        if (!isNullKey) {
                             String errorContextTextAt = createErrorContextText(buf, j);
                             throw new JSONException("Syntax error, at pos " + j + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', expected '\"' or use option ReadOption.AllowUnquotedFieldNames ");
                         }

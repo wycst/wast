@@ -271,56 +271,172 @@ public class ReflectConsts {
      * 基本类型枚举
      */
     enum PrimitiveType {
-        PrimitiveByte,
-        PrimitiveShort,
-        PrimitiveInt,
-        PrimitiveFloat,
-        PrimitiveLong,
-        PrimitiveDouble,
-        PrimitiveBoolean,
-        PrimitiveCharacter;
+        PrimitiveByte(byte[].class, arrayBaseOffset(byte[].class), arrayIndexScale(byte[].class)) {
+            @Override
+            void putValue(Object target, long fieldOffset, Object value) {
+                UnsafeHelper.getUnsafe().putByte(target, fieldOffset, (Byte) value);
+            }
+            @Override
+            Object getValue(Object target, long fieldOffset) {
+                return UnsafeHelper.getUnsafe().getByte(target, fieldOffset);
+            }
+        },
+        PrimitiveShort(short[].class, arrayBaseOffset(short[].class), arrayIndexScale(short[].class)) {
+            @Override
+            void putValue(Object target, long fieldOffset, Object value) {
+                UnsafeHelper.getUnsafe().putShort(target, fieldOffset, (Short) value);
+            }
+            @Override
+            Object getValue(Object target, long fieldOffset) {
+                return UnsafeHelper.getUnsafe().getShort(target, fieldOffset);
+            }
+        },
+        PrimitiveInt(int[].class, arrayBaseOffset(int[].class), arrayIndexScale(int[].class)) {
+            @Override
+            void putValue(Object target, long fieldOffset, Object value) {
+                UnsafeHelper.getUnsafe().putInt(target, fieldOffset, (Integer) value);
+            }
+            @Override
+            Object getValue(Object target, long fieldOffset) {
+                return UnsafeHelper.getUnsafe().getInt(target, fieldOffset);
+            }
+        },
+        PrimitiveFloat(float[].class, arrayBaseOffset(float[].class), arrayIndexScale(float[].class)) {
+            @Override
+            void putValue(Object target, long fieldOffset, Object value) {
+                UnsafeHelper.getUnsafe().putFloat(target, fieldOffset, (Byte) value);
+            }
+            @Override
+            Object getValue(Object target, long fieldOffset) {
+                return UnsafeHelper.getUnsafe().getFloat(target, fieldOffset);
+            }
+        },
+        PrimitiveLong(long[].class, arrayBaseOffset(long[].class), arrayIndexScale(long[].class)) {
+            @Override
+            void putValue(Object target, long fieldOffset, Object value) {
+                UnsafeHelper.getUnsafe().putLong(target, fieldOffset, (Long) value);
+            }
+            @Override
+            Object getValue(Object target, long fieldOffset) {
+                return UnsafeHelper.getUnsafe().getLong(target, fieldOffset);
+            }
+        },
+        PrimitiveDouble(double[].class, arrayBaseOffset(double[].class), arrayIndexScale(double[].class)) {
+            @Override
+            void putValue(Object target, long fieldOffset, Object value) {
+                UnsafeHelper.getUnsafe().putDouble(target, fieldOffset, (Double) value);
+            }
+            @Override
+            Object getValue(Object target, long fieldOffset) {
+                return UnsafeHelper.getUnsafe().getDouble(target, fieldOffset);
+            }
+        },
+        PrimitiveBoolean(boolean[].class, arrayBaseOffset(boolean[].class), arrayIndexScale(boolean[].class)) {
+            @Override
+            void putValue(Object target, long fieldOffset, Object value) {
+                UnsafeHelper.getUnsafe().putBoolean(target, fieldOffset, (Boolean) value);
+            }
+            @Override
+            Object getValue(Object target, long fieldOffset) {
+                return UnsafeHelper.getUnsafe().getBoolean(target, fieldOffset);
+            }
+        },
+        PrimitiveCharacter(char[].class, arrayBaseOffset(char[].class), arrayIndexScale(char[].class)) {
+            @Override
+            void putValue(Object target, long fieldOffset, Object value) {
+                UnsafeHelper.getUnsafe().putChar(target, fieldOffset, (Character) value);
+            }
+            @Override
+            Object getValue(Object target, long fieldOffset) {
+                return UnsafeHelper.getUnsafe().getChar(target, fieldOffset);
+            }
+        };
+
+        final Class genericArrayType;
+        final int arrayBaseOffset;
+        final int arrayIndexScale;
+
+        PrimitiveType(Class genericArrayType, int arrayBaseOffset, int arrayIndexScale) {
+            this.genericArrayType = genericArrayType;
+            this.arrayBaseOffset = arrayBaseOffset;
+            this.arrayIndexScale = arrayIndexScale;
+        }
+
+        void put(Object target, long fieldOffset, Object value) {
+            target.getClass();
+            if (value == null) return;
+            putValue(target, fieldOffset, value);
+        }
+
+        Object get(Object target, long fieldOffset) {
+            target.getClass();
+            return getValue(target, fieldOffset);
+        }
+
+        abstract Object getValue(Object target, long fieldOffset);
+
+        abstract void putValue(Object target, long fieldOffset, Object value);
+
+        final static int DoubleNameHash = -1325958191;
+        final static int IntNameHash = 104431;
+        final static int ByteNameHash = 3039496;
+        final static int CharNameHash = 3052374;
+        final static int LongNameHash = 3327612;
+        final static int BooleanNameHash = 64711720;
+        final static int FloatNameHash = 97526364;
+        final static int ShortNameHash = 109413500;
 
         public static PrimitiveType typeOf(Class<?> fieldType) {
-            if (fieldType == int.class) {
-                return PrimitiveInt;
-            } else if (fieldType == long.class) {
-                return PrimitiveLong;
-            } else if (fieldType == float.class) {
-                return PrimitiveFloat;
-            } else if (fieldType == double.class) {
-                return PrimitiveDouble;
-            } else if (fieldType == boolean.class) {
-                return PrimitiveBoolean;
-            } else if (fieldType == short.class) {
-                return PrimitiveShort;
-            } else if (fieldType == char.class) {
-                return PrimitiveCharacter;
-            } else if (fieldType == byte.class) {
-                return PrimitiveByte;
+            if (!fieldType.isPrimitive()) return null;
+            int hash = fieldType.getName().hashCode();
+            switch (hash) {
+                case DoubleNameHash:
+                    return PrimitiveDouble;
+                case IntNameHash:
+                    return PrimitiveInt;
+                case ByteNameHash:
+                    return PrimitiveByte;
+                case CharNameHash:
+                    return PrimitiveCharacter;
+                case LongNameHash:
+                    return PrimitiveLong;
+                case BooleanNameHash:
+                    return PrimitiveBoolean;
+                case FloatNameHash:
+                    return PrimitiveFloat;
+                case ShortNameHash:
+                    return PrimitiveShort;
             }
+//            if (fieldType == int.class) {
+//                return PrimitiveInt;
+//            } else if (fieldType == long.class) {
+//                return PrimitiveLong;
+//            } else if (fieldType == float.class) {
+//                return PrimitiveFloat;
+//            } else if (fieldType == double.class) {
+//                return PrimitiveDouble;
+//            } else if (fieldType == boolean.class) {
+//                return PrimitiveBoolean;
+//            } else if (fieldType == short.class) {
+//                return PrimitiveShort;
+//            } else if (fieldType == char.class) {
+//                return PrimitiveCharacter;
+//            } else if (fieldType == byte.class) {
+//                return PrimitiveByte;
+//            }
             return null;
         }
 
         public Class getGenericArrayType() {
-            switch (this) {
-                case PrimitiveByte:
-                    return byte[].class;
-                case PrimitiveShort:
-                    return short[].class;
-                case PrimitiveInt:
-                    return int[].class;
-                case PrimitiveFloat:
-                    return float[].class;
-                case PrimitiveLong:
-                    return long[].class;
-                case PrimitiveDouble:
-                    return double[].class;
-                case PrimitiveBoolean:
-                    return boolean[].class;
-                default:
-                    return char[].class;
-            }
+            return genericArrayType;
         }
     }
 
+    static int arrayBaseOffset(Class arrayCls) {
+        return UnsafeHelper.arrayBaseOffset(arrayCls);
+    }
+
+    static int arrayIndexScale(Class arrayCls) {
+        return UnsafeHelper.arrayIndexScale(arrayCls);
+    }
 }

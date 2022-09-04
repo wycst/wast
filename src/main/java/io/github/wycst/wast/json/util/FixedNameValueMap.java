@@ -86,6 +86,33 @@ public class FixedNameValueMap<T> {
     }
 
     /**
+     * default
+     *
+     * @param bytes
+     * @param beginIndex
+     * @param endIndex
+     * @param hashValue
+     * @return
+     */
+    public T getValue(byte[] bytes, int beginIndex, int endIndex, int hashValue) {
+        int len = endIndex - beginIndex;
+        int index = hashValue & capacity - 1;
+        NameValueEntryNode<T> entryNode = valueEntryNodes[index];
+        if (entryNode == null) {
+            return null;
+        }
+        // Is there an efficient logic that can determine the match?
+        while (!matchKey(bytes, beginIndex, len, entryNode.key)) {
+            entryNode = entryNode.next;
+            if (entryNode == null) {
+                return null;
+            }
+        }
+
+        return entryNode.value;
+    }
+
+    /**
      * Ensure that the hash does not collide, otherwise do not use it
      *
      * @param hashValue
@@ -147,6 +174,23 @@ public class FixedNameValueMap<T> {
         if (len != key.length) return false;
         for (int j = 0; j < len; j++) {
             if (buf[offset + j] != key[j]) return false;
+        }
+        return true;
+    }
+
+    /**
+     * matchKey
+     *
+     * @param bytes
+     * @param offset
+     * @param len
+     * @param key
+     * @return
+     */
+    private static boolean matchKey(byte[] bytes, int offset, int len, char[] key) {
+        if (len != key.length) return false;
+        for (int j = 0; j < len; j++) {
+            if (bytes[offset + j] != key[j]) return false;
         }
         return true;
     }

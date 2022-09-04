@@ -269,7 +269,7 @@ public class GeneralDate {
             day = NumberUtils.parseInt2(buf[offset + 8], buf[offset + 9]);
             return new GeneralDate(year, month, day, hour, minute, second, 0, timeZone);
         } catch (Throwable throwable) {
-            throw new UnsupportedOperationException("Date Format Error, parseGeneralDate_Standard_19 only supported 'yyyy?MM?dd?HH:mm:ss'");
+            throw new UnsupportedOperationException("Date Format Error, parseGeneralDate_Standard_10 only supported 'yyyy?MM?dd'");
         }
     }
 

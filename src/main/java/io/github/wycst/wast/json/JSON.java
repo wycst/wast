@@ -91,11 +91,35 @@ public final class JSON extends JSONGeneral {
      *
      * @param json        source
      * @param readOptions 解析配置项
-     * @return object/array/string
+     * @return Map(LinkHashMap)/List(ArrayList)/String
      */
     public static Object parse(String json, ReadOption... readOptions) {
         if (json == null) return null;
         return JSONDefaultParser.parse(json, readOptions);
+    }
+
+    /**
+     * 将json字符串转化为指定map
+     *
+     * @param json
+     * @param mapCls
+     * @param readOptions
+     * @return map instance
+     */
+    public static Map parseMap(String json, Class<? extends Map> mapCls, ReadOption... readOptions) {
+        return JSONDefaultParser.parseMap(json, mapCls, readOptions);
+    }
+
+    /**
+     * 将json字符串转化为指定collection
+     *
+     * @param json
+     * @param collectionCls
+     * @param readOptions
+     * @return collection instance
+     */
+    public static Collection parseCollection(String json, Class<? extends Collection> collectionCls, ReadOption... readOptions) {
+        return JSONDefaultParser.parseCollection(json, collectionCls, readOptions);
     }
 
     /**
@@ -110,11 +134,11 @@ public final class JSON extends JSONGeneral {
     }
 
     /**
-     * 将json字符串转化为指定class的实例
+     * 将json字符串转化为指定actualType的实例
      * <p>
-     * 源字符串json是{}则返回clazz该类的对象，
+     * 源字符串json是{}则返回actualType该类的对象，
      * <p>
-     * 如果是[]集合,则返回元素类型为clazz的集合
+     * 如果是[]集合,则返回元素类型为actualType的集合(collection)或者数组（actualType）
      *
      * @param json        json字符串
      * @param actualType  类型（type）
@@ -138,7 +162,13 @@ public final class JSON extends JSONGeneral {
      */
     public static <T> T parseObject(String json, Class<T> actualType, ReadOption... readOptions) {
         if (json == null) return null;
-        return parseObject(getChars(json), actualType, readOptions);
+        // if use JSONDefaultParser.parse
+        JSONTypeDeserializer typeDeserializer = JSONTypeDeserializer.getTypeDeserializer(actualType);
+        if (typeDeserializer == JSONTypeDeserializer.MAP) {
+            Object map = JSONDefaultParser.parseMap(json, (Class<? extends Map>) actualType, readOptions);
+            return (T) map;
+        }
+        return parseObject(typeDeserializer, getChars(json), actualType, readOptions);
     }
 
     /**
@@ -152,15 +182,29 @@ public final class JSON extends JSONGeneral {
      * @return 类型对象
      */
     public static <T> T parseObject(char[] buf, final Class<T> actualType, ReadOption... readOptions) {
-        return (T) deserialize(buf, new Deserializer() {
+//        return (T) deserialize(buf, new Deserializer() {
+//
+//            Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
+//                JSONTypeDeserializer typeDeserializer = JSONTypeDeserializer.getTypeDeserializer(actualType);
+//                GenericParameterizedType<T> genericParameterizedType = typeDeserializer.getGenericParameterizedType();
+//                if (genericParameterizedType == null) {
+//                    genericParameterizedType = GenericParameterizedType.actualType(actualType);
+//                }
+//                return typeDeserializer.deserialize(buf, fromIndex, toIndex, genericParameterizedType, null, '\0', jsonParseContext);
+//            }
+//        }, readOptions);
+        JSONTypeDeserializer typeDeserializer = JSONTypeDeserializer.getTypeDeserializer(actualType);
+        return parseObject(typeDeserializer, buf, actualType, readOptions);
+    }
 
+    private static <T> T parseObject(final JSONTypeDeserializer deserializer, char[] buf, final Class<T> actualType, ReadOption[] readOptions) {
+        return (T) deserialize(buf, new Deserializer() {
             Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
-                JSONTypeDeserializer typeDeserializer = JSONTypeDeserializer.getTypeDeserializer(actualType);
-                GenericParameterizedType<T> genericParameterizedType = typeDeserializer.getGenericParameterizedType();
+                GenericParameterizedType<T> genericParameterizedType = deserializer.getGenericParameterizedType();
                 if (genericParameterizedType == null) {
                     genericParameterizedType = GenericParameterizedType.actualType(actualType);
                 }
-                return typeDeserializer.deserialize(buf, fromIndex, toIndex, genericParameterizedType, null, '\0', jsonParseContext);
+                return deserializer.deserialize(buf, fromIndex, toIndex, genericParameterizedType, null, '\0', jsonParseContext);
             }
         }, readOptions);
     }
@@ -426,13 +470,13 @@ public final class JSON extends JSONGeneral {
     /***
      * 读取字节数组返回Map对象或者List集合
      *
-     * @param bytes
+     * @param bytes utf编码
      * @param readOptions
      * @return
      */
     public static Object read(byte[] bytes, ReadOption... readOptions) {
         if (bytes == null) return null;
-        return parse(new String(bytes), readOptions);
+        return JSONDefaultParser.parseBytes(bytes, readOptions);
     }
 
     /***

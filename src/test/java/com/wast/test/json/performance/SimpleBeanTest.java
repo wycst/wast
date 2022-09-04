@@ -60,6 +60,7 @@ public class SimpleBeanTest {
 
         long end = System.currentTimeMillis();
         System.out.println(" deserielize use " + (end - begin));
+        System.out.println(JSON.toJsonString(result).equals(json));
 
     }
 

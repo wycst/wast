@@ -588,7 +588,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                         content.append(",");
                     }
                     writeFormatSymbolOut(content, lastLevel = indentLevel + 1, formatOut);
-                    Object value = Array.get(obj, i);
+                    Object value = getArrayValueAt(obj, i);  // Array.get(obj, i);
                     if (value == null) {
                         content.write(NULL);
                     } else {

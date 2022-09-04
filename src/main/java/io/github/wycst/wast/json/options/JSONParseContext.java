@@ -190,6 +190,10 @@ public class JSONParseContext {
         return Options.getCacheKey(buf, offset, len, hashCode);
     }
 
+    public final String getCacheKey(byte[] bytes, int offset, int len, int hashCode) {
+        return Options.getCacheKey(bytes, offset, len, hashCode);
+    }
+
     public void clear() {
         if (writer != null) {
             writer.reset();

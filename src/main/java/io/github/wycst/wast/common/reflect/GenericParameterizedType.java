@@ -199,8 +199,7 @@ public final class GenericParameterizedType<T> {
         parameterizedType.generic = true;
         parameterizedType.array = true;
 
-        GenericParameterizedType valueType = new GenericParameterizedType();
-        valueType.setActualType(componentType);
+        GenericParameterizedType valueType = actualType(componentType);
         parameterizedType.valueType = valueType;
         return parameterizedType;
     }

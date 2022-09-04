@@ -1,5 +1,7 @@
 package com.wast.test.json.inputstream;
 
+import io.github.wycst.wast.common.template.StringTemplate;
+import io.github.wycst.wast.common.utils.StringUtils;
 import io.github.wycst.wast.json.JSON;
 
 import java.io.File;
@@ -20,14 +22,16 @@ public class InputStreamTest {
 
         // 1 读取网络资源 GET
         result = JSON.read(new URL("https://developer.aliyun.com/artifact/aliyunMaven/searchArtifactByGav?groupId=spring&artifactId=&version=&repoId=all&_input_charset=utf-8"), Map.class);
+        System.out.println(result);
 
         // 2 读取输入流
         InputStream inputStream = InputStreamTest.class.getResourceAsStream("/sample.json");
         result = JSON.read(inputStream, Map.class);
+        System.out.println(result);
 
         // 3 读取文件
         result = JSON.read(new File("/tmp/smaple.json"), Map.class);
-
+        System.out.println(result);
     }
 
 }

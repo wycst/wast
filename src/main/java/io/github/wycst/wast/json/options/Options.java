@@ -50,6 +50,16 @@ public class Options {
         return value;
     }
 
+    static String getCacheKey(byte[] bytes, int offset, int len, int hashCode) {
+        //  len > 0
+        String value = keyValueMap.getValue(bytes, offset, offset + len, hashCode);
+        if (value == null) {
+            value = new String(bytes, offset, len);
+            keyValueMap.putValue(value, value);
+        }
+        return value;
+    }
+
     private static void setWriteOption(WriteOption option, JsonConfig jsonConfig) {
         if (jsonConfig != null) {
             switch (option) {
