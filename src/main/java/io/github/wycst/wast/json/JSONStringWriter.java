@@ -170,6 +170,26 @@ public class JSONStringWriter extends CharArrayWriter {
         }
     }
 
+    /**
+     * 写入 bytes
+     *
+     * @param bytes
+     * @param offset
+     * @param len
+     */
+    void writeBytes(byte[] bytes, int offset, int len) {
+        if (len == 0) return;
+        String str = new String(bytes, offset, len);
+        // reset len maybe utf8 bytes
+        len = str.length();
+        int newcount = count + len;
+        if (newcount > buf.length) {
+            expandCapacity(Math.max(buf.length << 1, buf.length + newcount));
+        }
+        str.getChars(0, len, buf, count);
+        count = newcount;
+    }
+
     @Override
     public void write(String str, int off, int len) {
         if(len == 0) return;
