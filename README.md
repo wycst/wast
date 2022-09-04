@@ -2,8 +2,10 @@
 
 ## 简介
 
-一个轻量级java库。
+一个轻量级且高性能java库。
 
+性能评测数据 <br>
+[https://github.com/wycst/wast-jmh-test](https://github.com/wycst/wast-jmh-test)
 
 ## Maven
 
@@ -12,20 +14,20 @@
 <dependency>
     <groupId>io.github.wycst</groupId>
     <artifactId>wast</artifactId>
-    <version>0.0.6.1</version>
+    <version>0.0.7</version>
 </dependency>
 ```
 
 ## Groovy
 
 ```
-implementation 'io.github.wycst:wast:0.0.6.1'
+implementation 'io.github.wycst:wast:0.0.7'
 ```
 
 ## Kotlin
 
 ```
-implementation("io.github.wycst:wast:0.0.6.1")
+implementation("io.github.wycst:wast:0.0.7")
 ```
 
 ## json模块
@@ -36,8 +38,8 @@ implementation("io.github.wycst:wast:0.0.6.1")
 > 4 代码轻量，使用安全，没有漏洞风险；<br>
 > 5 兼容jdk1.6+；
 
-关于本json库与主流json库性能pk(原库名字叫light) <br>
-[https://blog.csdn.net/wangych0112/article/details/122522193](https://blog.csdn.net/wangych0112/article/details/122522193)
+关于本json库与主流json库性能评测数据 <br>
+[https://github.com/wycst/wast-jmh-test](https://github.com/wycst/wast-jmh-test)
 
 ## yaml模块
 
