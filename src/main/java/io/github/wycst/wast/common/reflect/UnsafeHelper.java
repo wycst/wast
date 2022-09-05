@@ -287,11 +287,9 @@ public class UnsafeHelper {
     private static long getObjectArrOffsetScale(Class<?> arrCls) {
         Long objectArrOffsetScale = ObjectArrayOffsetScales.get(arrCls);
         if (objectArrOffsetScale == null) {
-            synchronized (unsafe) {
-                int base = unsafe.arrayBaseOffset(arrCls);
-                int scale = unsafe.arrayIndexScale(arrCls);
-                objectArrOffsetScale = (long) base << 32 | scale;
-            }
+            int base = unsafe.arrayBaseOffset(arrCls);
+            int scale = unsafe.arrayIndexScale(arrCls);
+            objectArrOffsetScale = (long) base << 32 | scale;
             ObjectArrayOffsetScales.put(arrCls, objectArrOffsetScale);
         }
         return objectArrOffsetScale;
