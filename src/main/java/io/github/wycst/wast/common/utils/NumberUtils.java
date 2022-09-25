@@ -112,10 +112,10 @@ public class NumberUtils {
     /**
      * 十进制字符转数字
      *
-     * @param ch
+     * @param ch 字符值（非数字）
      * @return
      */
-    public static int digitDecimal(char ch) {
+    public static int digitDecimal(int ch) {
         switch (ch) {
             case '0':
             case '1':
@@ -160,6 +160,30 @@ public class NumberUtils {
     }
 
     /**
+     * n 位数字（ 0 < n < 5）
+     *
+     * @param bytes
+     * @param fromIndex
+     * @param n
+     * @return
+     * @throws NumberFormatException
+     */
+    public final static int parseIntWithin5(byte[] bytes, int fromIndex, int n)
+            throws NumberFormatException {
+        switch (n) {
+            case 1:
+                return parseInt1(bytes[fromIndex]);
+            case 2:
+                return parseInt2(bytes[fromIndex++], bytes[fromIndex]);
+            case 3:
+                return parseInt3(bytes[fromIndex++], bytes[fromIndex++], bytes[fromIndex]);
+            case 4:
+                return parseInt4(bytes[fromIndex++], bytes[fromIndex++], bytes[fromIndex++], bytes[fromIndex]);
+        }
+        throw new NumberFormatException("For input string: \"" + new String(bytes, fromIndex, n) + "\"");
+    }
+
+    /**
      * 转化为4位十进制数int数字
      *
      * @param buf
@@ -172,6 +196,19 @@ public class NumberUtils {
     }
 
     /**
+     * 转化为4位十进制数int数字
+     *
+     * @param buf
+     * @param fromIndex
+     * @return
+     */
+    public final static int parseInt4(byte[] buf, int fromIndex)
+            throws NumberFormatException {
+        return parseInt4(buf[fromIndex++], buf[fromIndex++], buf[fromIndex++], buf[fromIndex]);
+    }
+
+
+    /**
      * 转化为4位十进制数
      *
      * @param c1 千位
@@ -180,13 +217,13 @@ public class NumberUtils {
      * @param c4 个位
      * @return
      */
-    public final static int parseInt4(char c1, char c2, char c3, char c4) {
+    public final static int parseInt4(int c1, int c2, int c3, int c4) {
         int v1 = digitDecimal(c1);
         int v2 = digitDecimal(c2);
         int v3 = digitDecimal(c3);
         int v4 = digitDecimal(c4);
         if ((v1 | v2 | v3 | v4) == -1) {
-            throw new NumberFormatException("For input string: \"" + new String(new char[]{c1, c2, c3, c4}) + "\"");
+            throw new NumberFormatException("For input string: \"" + new String(new char[]{(char)c1, (char)c2, (char)c3, (char)c4}) + "\"");
         }
         return v1 * 1000 + v2 * 100 + v3 * 10 + v4;
     }
@@ -212,13 +249,13 @@ public class NumberUtils {
      * @return
      * @throws NumberFormatException
      */
-    public final static int parseInt3(char c1, char c2, char c3)
+    public final static int parseInt3(int c1, int c2, int c3)
             throws NumberFormatException {
         int v1 = digitDecimal(c1);
         int v2 = digitDecimal(c2);
         int v3 = digitDecimal(c3);
         if ((v1 | v2 | v3) == -1) {
-            throw new NumberFormatException("For input string: \"" + new String(new char[]{c1, c2, c3}) + "\"");
+            throw new NumberFormatException("For input string: \"" + new String(new char[]{(char)c1, (char)c2, (char)c3}) + "\"");
         }
         return v1 * 100 + v2 * 10 + v3;
     }
@@ -238,17 +275,29 @@ public class NumberUtils {
     /**
      * 转化为2位十进制数
      *
+     * @param buf
+     * @param fromIndex
+     * @return
+     */
+    public final static int parseInt2(byte[] buf, int fromIndex)
+            throws NumberFormatException {
+        return parseInt2(buf[fromIndex++], buf[fromIndex]);
+    }
+
+    /**
+     * 转化为2位十进制数
+     *
      * @param c1
      * @param c2
      * @return
      * @throws NumberFormatException
      */
-    public final static int parseInt2(char c1, char c2)
+    public final static int parseInt2(int c1, int c2)
             throws NumberFormatException {
         int v1 = digitDecimal(c1);
         int v2 = digitDecimal(c2);
         if ((v1 | v2) == -1) {
-            throw new NumberFormatException("For input string: \"" + new String(new char[]{c1, c2}) + "\"");
+            throw new NumberFormatException("For input string: \"" + new String(new char[]{(char)c1, (char)c2}) + "\"");
         }
         return v1 * 10 + v2;
     }
@@ -265,7 +314,38 @@ public class NumberUtils {
             throws NumberFormatException {
         int v1 = digitDecimal(buf[fromIndex]);
         if (v1 == -1) {
-            throw new NumberFormatException("For input string: \"" + new String(buf, fromIndex, 2) + "\"");
+            throw new NumberFormatException("For input string: \"" + new String(buf, fromIndex, 1) + "\"");
+        }
+        return v1;
+    }
+
+    /**
+     * 转化为1位int数字
+     *
+     * @param buf
+     * @param fromIndex
+     * @return
+     */
+    public final static int parseInt1(byte[] buf, int fromIndex)
+            throws NumberFormatException {
+        int v1 = digitDecimal(buf[fromIndex]);
+        if (v1 == -1) {
+            throw new NumberFormatException("For input string: \"" + new String(buf, fromIndex, 1) + "\"");
+        }
+        return v1;
+    }
+
+    /**
+     * 转化为1位int数字
+     *
+     * @param ch
+     * @return
+     */
+    public final static int parseInt1(int ch)
+            throws NumberFormatException {
+        int v1 = digitDecimal(ch);
+        if (v1 == -1) {
+            throw new NumberFormatException("For input string: \"" + ch + "\"");
         }
         return v1;
     }

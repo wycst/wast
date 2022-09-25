@@ -188,37 +188,6 @@ public class Date extends GeneralDate implements java.io.Serializable, Comparabl
         return (target.getTime() - this.timeMills) / 3600000l;
     }
 
-    /**
-     * 通过 TimeZone对象设置时差
-     * 时间戳不变，重置各个系数
-     *
-     * @param timeZone
-     * @return
-     */
-    public Date setTimeZone(TimeZone timeZone) {
-        this.timeZone = timeZone;
-        int rawOffset = timeZone.getRawOffset();
-        if (this.currentOffset != rawOffset) {
-            this.currentOffset = rawOffset;
-            setTime(this.timeMills, true);
-        }
-        return this;
-    }
-
-    /**
-     * 通过表达式设置GMT时钟
-     *
-     * @param offsetExpr +-{hour}:{minute}?
-     *                   Z
-     * @return
-     */
-    public Date setTimeZone(String offsetExpr) {
-        if (offsetExpr.startsWith("GMT")) {
-            return setTimeZone(TimeZone.getTimeZone(offsetExpr));
-        }
-        return setTimeZone(TimeZone.getTimeZone("GMT" + offsetExpr));
-    }
-
     public Date set(int year, int month, int day) {
         return this.set(year, month, day, hourOfDay, minute, second, millisecond, null);
     }
@@ -349,197 +318,26 @@ public class Date extends GeneralDate implements java.io.Serializable, Comparabl
     }
 
     public void setTime(long timeMills, boolean reset) {
-
         // 如果毫秒没有变化不计算（注意-1不做处理）
         if (this.timeMills == timeMills && !reset) {
             return;
         }
-        this.timeMills = timeMills;
+        super.setTime(timeMills, reset);
 
-        // actual mills for compute
-        int zoneOffset = timeZone.getOffset(timeMills);
-        timeMills -= this.currentOffset - zoneOffset;
-        this.standardMills = timeMills;
-
-        // 补上毫秒差
-        timeMills += RELATIVE_MILLS + currentOffset;
-
-        int offsetYear = 0;
-        if (timeMills < 0) {
-            // 如果是公元元年之前先计算年份，然后将timeMills补齐到正数在进行计算
-            // 这里只做了初略的转正处理，确保time段(时分秒)解析正确
-            // todo 公元元年之前的时间可以使用码表处理，或者可以使用通用码表
-            do {
-                boolean leap = ((offsetYear + 1) & 3) == 0;
-                timeMills += leap ? MILLS_366_DAY : MILLS_365_DAY;
-                timeMills += MILLS_DAY;
-                offsetYear++;
-            } while (timeMills < 0);
-        }
-
-        long seconds = timeMills / 1000;
-        // 毫秒
-        int millisecond = (int) (timeMills - seconds * 1000);
-        // 分钟数
-        long minutes = seconds / 60;
-        // 秒
-        int second = (int) (seconds - minutes * 60);
-        // 所有的小时数hours
-        long hours = minutes / 60;
-        // 分
-        int minute = (int) (minutes - hours * 60);
-        // 天数 (距离0001.1.1的天数）
-        long days = hours / 24;
-        // 时 (time / 1000 / 60 / 60 + 8) % 24
-        int hourOfDay = (int) (hours - days * 24);
-        int leafYearCount = 0;
-        // 先估算一个年份 ，因为年份从0001.1.1开始算起，所以后面+1
-        int year = (int) (days / 365) + 1;
-        int deleteDays = 0;
-        // 577815~578180 以4年一润初始化闰年天数（1582年分界点）
-        leafYearCount = (year - 1) / 4;
-        if (days >= 577815) {
-            // 1583.1.1 年以后
-            deleteDays = 10;
-            if (days >= 578180) {
-                // 闰年个数，完整公式：  (year - 1) / 4 - (year - 1)/100 + (year - 1)/400 +（1582 / 100 - 1582 / 400）
-                leafYearCount = (year - 1) / 4 - (year - 1) / 100 + (year - 1) / 400 + 12;
-            }
-        }
         // 以星期四（5）作为参考，星期六（7） 星期日（1）   -6~0   1-7
-        int dayOfWeek = (int) ((RELATIVE_DAY_OF_WEEK + days - RELATIVE_DAYS - 1) % 7 + 1);
+        int dayOfWeek = (int) ((RELATIVE_DAY_OF_WEEK + currentDays - RELATIVE_DAYS - 1) % 7 + 1);
         if (dayOfWeek <= 0) {
             dayOfWeek = dayOfWeek + 7;
         }
-        // 如果已知除数情况，减法&乘法比再使用%求余性能稍微块点
-        int remainder = (int) (days - (year - 1) * 365);
-        // 当年第多少天 = 余数 + 1 - 闰年数 + （删除的天数）
-        int daysOfYear = remainder + 1 - leafYearCount + deleteDays;
-        Boolean isLeapYear = null;
-
-        // 以上while处理在daysOfYear很小很小（比如80万年左右的时间戳时由于循环次数太多，性能会降下来）
-        if (daysOfYear < 1) {
-            // 算法逻辑：每次年数减一，把这一年的天数补上 tempDaysOfYear，直到tempDaysOfYear为正数为止
-            int negativeCount = (daysOfYear + 1) / 365 - 1;
-            // 得到减去后的年份
-            int targetYear = year + negativeCount;
-            // 计算2个年份之间的闰年个数为少加的天数 1988~1988 1个 1989~1988 也是1个1990~1988 1ge
-            // targetYear targetYear + 1 ..... targetYear + negativeCount 之间闰年个数（理论上negativeCount / 4  + 1）
-            // 1582 年
-            int lt = year > 1582 ? ((year - 1) / 4 - (year - 1) / 100 + (year - 1) / 400 - ((targetYear - 1) / 4 - (targetYear - 1) / 100 + (targetYear - 1) / 400)) : ((year - 1) / 4 - (targetYear - 1) / 4);
-            daysOfYear = daysOfYear - negativeCount * 365 + lt;
-
-            // 如果daysOfYear = 366 ，且 year 是闰年
-            int increaseCount = (daysOfYear - 1) / 365;
-            targetYear += increaseCount;
-            year = targetYear;
-            if (year > 1582) {
-                negativeCount = (year - 1) / 4 - (year - 1) / 100 + (year - 1) / 400 - ((year - increaseCount - 1) / 4 - (year - increaseCount - 1) / 100 + (year - increaseCount - 1) / 400);
-            } else {
-                negativeCount = (year - 1) / 4 - (year - increaseCount - 1) / 4;
-            }
-            // 如果2个时间段闰年太多lt太大，daysOfYear2 是365的数倍以上，又要回算年份
-            // daysOfYear = (daysOfYear - 1) % 365 + 1 - (increaseCount / 4 - increaseCount / 100 + increaseCount / 400) ;
-            daysOfYear = (daysOfYear - 1) % 365 + 1 - negativeCount;
-            if (daysOfYear < 1) {
-                // 继续 53～52
-                year -= 1;
-                if (isLeapYear == null) {
-                    isLeapYear = year > 1582 ? (year - (year >> 2 << 2)) == 0 && (year % 100 != 0 || year % 400 == 0) : year % 4 == 0;
-                }
-                daysOfYear += isLeapYear ? 366 : 365;
-            }
-        }
-        // targetYear 要比 year小
-        // 计算   targetYear~year之间闰年的个数t(不包括year这一年但包括targetYear这一年即从 targetYear ~ year - 1)
-        // year = targetYear;   daysOfYear = daysOfYear * targetYear + t;
-        // 当前年是否为闰年
-        if (isLeapYear == null) {
-            isLeapYear = year > 1582 ? (year - (year >> 2 << 2)) == 0 && (year % 100 != 0 || year % 400 == 0) : year % 4 == 0;
-        }
-        int month = -1;
-        int day = -1;
-        int boundaryDays = 0;
-        if (daysOfYear >= (boundaryDays = isLeapYear ? 336 : 335)) {
-            month = 12;
-            day = daysOfYear - boundaryDays + 1;
-        } else if (daysOfYear >= (boundaryDays = isLeapYear ? 306 : 305)) {
-            month = 11;
-            day = daysOfYear - boundaryDays + 1;
-        } else if (daysOfYear >= (boundaryDays = isLeapYear ? 275 : 274)) {
-            month = 10;
-            day = daysOfYear - boundaryDays + 1;
-        } else if (daysOfYear >= (boundaryDays = isLeapYear ? 245 : 244)) {
-            month = 9;
-            day = daysOfYear - boundaryDays + 1;
-        } else if (daysOfYear >= (boundaryDays = isLeapYear ? 214 : 213)) {
-            month = 8;
-            day = daysOfYear - boundaryDays + 1;
-        } else if (daysOfYear >= (boundaryDays = isLeapYear ? 183 : 182)) {
-            month = 7;
-            day = daysOfYear - boundaryDays + 1;
-        } else if (daysOfYear >= (boundaryDays = isLeapYear ? 153 : 152)) {
-            month = 6;
-            day = daysOfYear - boundaryDays + 1;
-        } else if (daysOfYear >= (boundaryDays = isLeapYear ? 122 : 121)) {
-            month = 5;
-            day = daysOfYear - boundaryDays + 1;
-        } else if (daysOfYear >= (boundaryDays = isLeapYear ? 92 : 91)) {
-            month = 4;
-            day = daysOfYear - boundaryDays + 1;
-        } else if (daysOfYear >= (boundaryDays = isLeapYear ? 61 : 60)) {
-            month = 3;
-            day = daysOfYear - boundaryDays + 1;
-        } else if (daysOfYear >= 32) {
-            month = 2;
-            day = daysOfYear - 31;
-        } else {
-            month = 1;
-            day = daysOfYear;
-        }
-
-        // 1582年共355天 不存在的10天(1582.10.05~1582.10.14 对应278～287) 288～355
-        if (year == 1582 && daysOfYear >= 278) {
-            //  daysOfYear 必然 <= 355 ，12月通过算法得到day最大21
-            day += 10;
-            // 10～11月溢出处理
-            if (month == 10 && day > 31) {
-                month += 1;
-                day = day - 31;
-            } else if (month == 11 && day > 30) {
-                month += 1;
-                day = day - 30;
-            }
-        }
-
-        this.year = year - offsetYear;
-        this.month = month;
-        this.dayOfMonth = day;
-        this.hourOfDay = hourOfDay;
-        this.minute = minute;
-        this.second = second;
-        this.millisecond = millisecond;
-
-        this.daysOfYear = daysOfYear;
         this.dayOfWeek = dayOfWeek;
         this.weekOfMonth = dayOfMonth % 7 == 0 ? dayOfMonth / 7 : dayOfMonth / 7 + 1;
         this.weekOfYear = daysOfYear % 7 == 0 ? daysOfYear / 7 : daysOfYear / 7 + 1;
-        this.leapYear = isLeapYear;
 
         this.afterDateChange();
     }
 
     public void setTime(long timeMills) {
         setTime(timeMills, false);
-    }
-
-    /**
-     * 是否上午
-     *
-     * @return
-     */
-    public boolean isAm() {
-        return this.hourOfDay < 12;
     }
 
     /**
@@ -650,183 +448,11 @@ public class Date extends GeneralDate implements java.io.Serializable, Comparabl
     }
 
     public void formatTo(String template, Appendable appendable) {
-//        try {
-//            String pattern = template.trim();
-//            int len = pattern.length();
-//            char prevChar = '\0';
-//            int count = 0;
-//            // 增加一位虚拟字符进行遍历
-//            for (int i = 0; i <= len; i++) {
-//                char ch = '\0';
-//                if (i < len)
-//                    ch = pattern.charAt(i);
-//                if (ch == 'Y')
-//                    ch = 'y';
-//
-//                if (prevChar == ch) {
-//                    count++;
-//                } else {
-//                    // switch & case
-//                    switch (prevChar) {
-//                        case 'y': {
-//                            // 年份
-//                            if (count == 2) {
-//                                // 输出2位数年份
-//                                int j = year % 100;
-//                                if (j < 10) {
-//                                    appendable.append(FORMAT_DIGITS[j]);
-//                                } else {
-//                                    appendable.append(String.valueOf(j));
-//                                }
-//                            } else {
-//                                // 输出完整的年份
-//                                appendable.append(String.valueOf(year));
-//                            }
-//                            break;
-//                        }
-//                        case 'M': {
-//                            // 月份
-//                            if (month >= 10) {
-//                                // 输出实际month
-//                                appendable.append(String.valueOf(month));
-//                            } else {
-//                                // 输出完整的month
-//                                appendable.append(FORMAT_DIGITS[month]);
-//                            }
-//                            break;
-//                        }
-//                        case 'd': {
-//                            if (dayOfMonth >= 10) {
-//                                // 输出实际day
-//                                appendable.append(String.valueOf(dayOfMonth));
-//                            } else {
-//                                // 输出完整的day
-//                                appendable.append(FORMAT_DIGITS[dayOfMonth]);
-//                            }
-//                            break;
-//                        }
-//                        case 'A':
-//                        case 'a': {
-//                            // 上午/下午
-//                            if (isAm()) {
-//                                appendable.append("上午");
-//                            } else {
-//                                appendable.append("下午");
-//                            }
-//                            break;
-//                        }
-//                        case 'H': {
-//                            // 0-23
-//                            if (hourOfDay >= 10) {
-//                                // 输出实际hourOfDay
-//                                appendable.append(String.valueOf(hourOfDay));
-//                            } else {
-//                                // 输出完整的hourOfDay
-//                                appendable.append(FORMAT_DIGITS[hourOfDay]);
-//                            }
-//                            break;
-//                        }
-//                        case 'h': {
-//                            // 1-12 小时格式
-//                            int h = hourOfDay % 12;
-//                            if (h == 0)
-//                                h = 12;
-//                            if (h >= 10) {
-//                                // 输出实际h
-//                                appendable.append(String.valueOf(h));
-//                            } else {
-//                                // 输出完整的h
-//                                appendable.append(FORMAT_DIGITS[h]);
-//                            }
-//                            break;
-//                        }
-//                        case 'm': {
-//                            // 分钟 0-59
-//                            if (minute >= 10) {
-//                                // 输出实际分钟
-//                                appendable.append(String.valueOf(minute));
-//                            } else {
-//                                // 输出2位分钟数
-//                                appendable.append(FORMAT_DIGITS[minute]);
-//                            }
-//                            break;
-//                        }
-//                        case 's': {
-//                            // 秒 0-59
-//                            if (second >= 10) {
-//                                // 输出实际秒
-//                                appendable.append(String.valueOf(second));
-//                            } else {
-//                                // 输出2位秒
-//                                appendable.append(FORMAT_DIGITS[second]);
-//                            }
-//                            break;
-//                        }
-//                        case 'S': {
-//                            // 统一3位毫秒
-//                            String millisecondStr = String.valueOf(millisecond + 1000);
-//                            appendable.append(millisecondStr, 1, 4);
-//                            break;
-//                        }
-//                        case 'E': {
-//                            // 星期
-//                            appendable.append(WEEK_DAYS[(dayOfWeek - 1) & 7]);
-//                            break;
-//                        }
-//                        case 'D': {
-//                            // daysOfYear
-//                            appendable.append(String.valueOf(daysOfYear));
-//                            break;
-//                        }
-//                        case 'F': {
-//                            // weekOfMonth
-//                            appendable.append(String.valueOf(weekOfMonth));
-//                            break;
-//                        }
-//                        case 'W': {
-//                            // actualWeekOfMonth: weekOfMonth or weekOfMonth + 1
-//                            // 当天星期数如果小于当月第一天星期数时需要+1，否则直接为weekOfMonth
-//                            int firstDayOfWeek = (dayOfWeek + 7 - (dayOfMonth % 7)) % 7 + 1;
-//                            if (dayOfWeek < firstDayOfWeek) {
-//                                appendable.append(String.valueOf(weekOfMonth + 1));
-//                            } else {
-//                                appendable.append(String.valueOf(weekOfMonth));
-//                            }
-//                            break;
-//                        }
-//                        case 'w': {
-//                            // weekOfYear
-//                            appendable.append(String.valueOf(weekOfYear));
-//                            break;
-//                        }
-//                        case 'z': {
-//                            // timezone
-//                            TimeZone tz = timeZone == null ? TimeZone.getDefault() : timeZone;
-//                            appendable.append(tz.getID());
-//                            break;
-//                        }
-//                        default: {
-//                            // 其他输出
-//                            if (prevChar != '\0') {
-//                                // 输出count个 prevChar
-//                                int n = count;
-//                                while (n-- > 0)
-//                                    appendable.append(prevChar);
-//                            }
-//                        }
-//                    }
-//                    count = 1;
-//                }
-//                prevChar = ch;
-//            }
-//        } catch (Throwable throwable) {
-//            if (throwable instanceof RuntimeException) {
-//                throw (RuntimeException) throwable;
-//            }
-//            throw new IllegalStateException(throwable.getMessage(), throwable);
-//        }
-//
         DateTemplate.formatTo(year, month, dayOfMonth, hourOfDay, minute, second, millisecond, dayOfWeek, daysOfYear, weekOfMonth, weekOfYear, timeZone, template, appendable);
+    }
+
+    public void formatTo(String template, Appendable appendable, boolean escapeQuot) {
+        DateTemplate.formatTo(year, month, dayOfMonth, hourOfDay, minute, second, millisecond, dayOfWeek, daysOfYear, weekOfMonth, weekOfYear, timeZone, template, appendable, escapeQuot);
     }
 
     public int compareTo(Date o) {
@@ -837,7 +463,17 @@ public class Date extends GeneralDate implements java.io.Serializable, Comparabl
     }
 
     public static void main(String[] args) {
-        System.out.println(new Date().format("YYYY/MM/dd hh:mm:ss"));
-    }
 
+        // Time_1991_09_15_00_00_00
+        System.out.println(new Date(2199, 12, 31, 0, 0, 0, 0).timeMills);
+        GeneralDate date = null;
+        long l1 = System.currentTimeMillis();
+        for (int i = 0; i < 10000000; i++) {
+            date = new GeneralDate(l1, (TimeZone) null);
+        }
+        long l2 = System.currentTimeMillis();
+        System.out.println(l2 - l1);
+        System.out.println(date);
+        System.out.println(new Date().format("YYYY/MM/dd HH:mm:ss"));
+    }
 }

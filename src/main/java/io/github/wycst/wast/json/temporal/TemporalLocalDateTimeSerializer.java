@@ -1,5 +1,6 @@
 package io.github.wycst.wast.json.temporal;
 
+import io.github.wycst.wast.json.JSONStringWriter;
 import io.github.wycst.wast.json.JSONTemporalSerializer;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.options.JsonConfig;
@@ -41,9 +42,22 @@ public class TemporalLocalDateTimeSerializer extends JSONTemporalSerializer {
         int millisecond = nano / 1000000;
 
         writer.append('"');
-        dateTemplate.formatTo(year, month, day, hour, minute, second, millisecond, writer);
+        dateTemplate.formatTo(year, month, day, hour, minute, second, millisecond, writer, true);
         writer.append('"');
     }
 
-
+    // yyyy-MM-ddTHH:mm:ss.SSS
+    @Override
+    protected void writeDefault(Object value, Writer writer, JsonConfig jsonConfig, int indent) throws Exception {
+        int year = TemporalAloneInvoker.invokeLocalDateTimeYear(value).intValue();
+        int month = TemporalAloneInvoker.invokeLocalDateTimeMonth(value).intValue();
+        int day = TemporalAloneInvoker.invokeLocalDateTimeDay(value).intValue();
+        int hour = TemporalAloneInvoker.invokeLocalDateTimeHour(value).intValue();
+        int minute = TemporalAloneInvoker.invokeLocalDateTimeMinute(value).intValue();
+        int second = TemporalAloneInvoker.invokeLocalDateTimeSecond(value).intValue();
+        int nano = TemporalAloneInvoker.invokeLocalDateTimeNano(value).intValue();
+        writer.write('"');
+        writeYYYY_MM_dd_T_HH_mm_ss_SSS(writer, year, month, day, hour, minute, second, nano / 1000000);
+        writer.write('"');;
+    }
 }

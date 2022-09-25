@@ -1,5 +1,6 @@
 package io.github.wycst.wast.json;
 
+import io.github.wycst.wast.common.beans.GeneralDate;
 import io.github.wycst.wast.common.reflect.GetterInfo;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.tools.Base64;
@@ -212,8 +213,26 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                 }
                 size = stringSize(numValue);
                 pos = size;
+                if(content instanceof JSONStringWriter) {
+                    JSONStringWriter stringWriter = (JSONStringWriter) content;
+                    int count = stringWriter.addLength(size);
+                    if ((pos & 1) == 1) {
+                        long v = numValue / 10;
+                        int digit = (int) (numValue - ((v << 3) + (v << 1)));
+                        stringWriter.setCharAt(--count,  DigitOnes[digit]);
+                        numValue = v;
+                    }
+                    while (numValue > 0) {
+                        long v = numValue / 100;
+                        int digits = (int) (numValue - ((v << 6) + (v << 5) + (v << 2)));
+                        stringWriter.setCharAt(--count, DigitOnes[digits]);
+                        stringWriter.setCharAt(--count, DigitTens[digits]);
+                        numValue = v;
+                    }
+                    return;
+                }
                 // 20位
-                char[] contextChars = jsonConfig.getContextChars();
+                char[] contextChars = CachedChars_20.get();
                 if ((pos & 1) == 1) {
                     long v = numValue / 10;
                     int digit = (int) (numValue - ((v << 3) + (v << 1)));
@@ -228,7 +247,6 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                     contextChars[--pos] = DigitTens[digits];
                     numValue = v;
                 }
-
                 content.write(contextChars, pos, size);
             }
         }
@@ -272,16 +290,13 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
         private static void writeDate(Date date, String pattern, String timezone, Writer content) throws IOException {
 
             int month, year, day, hourOfDay, minute, second, millisecond;
-            io.github.wycst.wast.common.beans.Date commonDate = new io.github.wycst.wast.common.beans.Date(date.getTime());
-            if (timezone != null) {
-                commonDate.setTimeZone(timezone);
-            }
-            year = commonDate.getYear();
-            month = commonDate.getMonth();
-            day = commonDate.getDay();
-            hourOfDay = commonDate.getHourOfDay();
-            minute = commonDate.getMinute();
-            second = commonDate.getSecond();
+            GeneralDate generalDate = new GeneralDate(date.getTime(), timezone);
+            year = generalDate.getYear();
+            month = generalDate.getMonth();
+            day = generalDate.getDay();
+            hourOfDay = generalDate.getHourOfDay();
+            minute = generalDate.getMinute();
+            second = generalDate.getSecond();
 
             if (pattern == null) {
                 if (date instanceof Time) {
@@ -292,8 +307,8 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                 return;
             }
 
-            millisecond = commonDate.getMillisecond();
-            boolean isAm = commonDate.isAm();
+            millisecond = generalDate.getMillisecond();
+            boolean isAm = generalDate.isAm();
 
             pattern = pattern.trim();
             int len = pattern.length();
@@ -318,39 +333,30 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                     switch (prevChar) {
                         case 'y': {
                             // 年份
+                            int y2 = year % 100;
                             if (count == 2) {
                                 // 输出2位数年份
-                                int j = year % 100;
-                                if (j < 10) {
-                                    content.write(FORMAT_DIGITS[j]);
-                                } else {
-                                    content.write(String.valueOf(j));
-                                }
+                                content.write(DigitTens[y2]);
+                                content.write(DigitOnes[y2]);
                             } else {
+                                int y1 = year / 100;
                                 // 输出完整的年份
-                                content.write(String.valueOf(year));
+                                content.write(DigitTens[y1]);
+                                content.write(DigitOnes[y1]);
+                                content.write(DigitTens[y2]);
+                                content.write(DigitOnes[y2]);
                             }
                             break;
                         }
                         case 'M': {
                             // 月份
-                            if (month >= 10) {
-                                // 输出实际month
-                                content.write(String.valueOf(month));
-                            } else {
-                                // 输出完整的month
-                                content.write(FORMAT_DIGITS[month]);
-                            }
+                            content.write(DigitTens[month]);
+                            content.write(DigitOnes[month]);
                             break;
                         }
                         case 'd': {
-                            if (day >= 10) {
-                                // 输出实际day
-                                content.write(String.valueOf(day));
-                            } else {
-                                // 输出完整的day
-                                content.write(FORMAT_DIGITS[day]);
-                            }
+                            content.write(DigitTens[day]);
+                            content.write(DigitOnes[day]);
                             break;
                         }
                         case 'a': {
@@ -364,13 +370,8 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                         }
                         case 'H': {
                             // 0-23
-                            if (hourOfDay >= 10) {
-                                // 输出实际hourOfDay
-                                content.write(String.valueOf(hourOfDay));
-                            } else {
-                                // 输出完整的hourOfDay
-                                content.write(FORMAT_DIGITS[hourOfDay]);
-                            }
+                            content.write(DigitTens[hourOfDay]);
+                            content.write(DigitOnes[hourOfDay]);
                             break;
                         }
                         case 'h': {
@@ -378,35 +379,20 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                             int h = hourOfDay % 12;
                             if (h == 0)
                                 h = 12;
-                            if (h >= 10) {
-                                // 输出实际h
-                                content.write(String.valueOf(h));
-                            } else {
-                                // 输出完整的h
-                                content.write(FORMAT_DIGITS[h]);
-                            }
+                            content.write(DigitTens[h]);
+                            content.write(DigitOnes[h]);
                             break;
                         }
                         case 'm': {
                             // 分钟 0-59
-                            if (minute >= 10) {
-                                // 输出实际分钟
-                                content.write(String.valueOf(minute));
-                            } else {
-                                // 输出2位分钟数
-                                content.write(FORMAT_DIGITS[minute]);
-                            }
+                            content.write(DigitTens[minute]);
+                            content.write(DigitOnes[minute]);
                             break;
                         }
                         case 's': {
                             // 秒 0-59
-                            if (second >= 10) {
-                                // 输出实际秒
-                                content.write(String.valueOf(second));
-                            } else {
-                                // 输出2位秒
-                                content.write(FORMAT_DIGITS[second]);
-                            }
+                            content.write(DigitTens[second]);
+                            content.write(DigitOnes[second]);
                             break;
                         }
                         case 'S': {
@@ -418,9 +404,20 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                             // 其他输出
                             if (prevChar != '\0') {
                                 // 输出count个 prevChar
-                                int n = count;
-                                while (n-- > 0)
+                                if(count == 1) {
+                                    if(prevChar == '"') {
+                                        content.append('\\');
+                                    }
                                     content.append(prevChar);
+                                } else {
+                                    int n = count;
+                                    while (n-- > 0) {
+                                        if(prevChar == '"') {
+                                            content.append('\\');
+                                        }
+                                        content.append(prevChar);
+                                    }
+                                }
                             }
                         }
                     }
@@ -434,79 +431,87 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
 
         // "yyyy-MM-dd HH:mm:ss"
         private static void writeDefaultFormatDate(int year, int month, int day, int hourOfDay, int minute, int second, Writer content) throws IOException {
-            content.append('"');
-            if (year < 0) {
-                content.append('-');
-                year *= -1;
-            }
-            if (year < 10) {
-                content.append("000");
-            } else if (year < 100) {
-                content.append("00");
-            } else if (year < 1000) {
-                content.append('0');
-            }
-            content.write(String.valueOf(year));
-            content.write('-');
 
-            if (month >= 10) {
-                content.write(String.valueOf(month));
-            } else {
-                // 输出完整的month
-                content.write(FORMAT_DIGITS[month]);
+            int y1 = year / 100, y2 = year - y1 * 100;
+            if (content instanceof JSONStringWriter) {
+                JSONStringWriter writer = (JSONStringWriter) content;
+                writer.ensureCapacity(21);
+                writer.writeDirectly('"');
+                writer.writeDirectly(DigitTens[y1]);
+                writer.writeDirectly(DigitOnes[y1]);
+                writer.writeDirectly(DigitTens[y2]);
+                writer.writeDirectly(DigitOnes[y2]);
+                writer.writeDirectly('-');
+                writer.writeDirectly(DigitTens[month]);
+                writer.writeDirectly(DigitOnes[month]);
+                writer.writeDirectly('-');
+                writer.writeDirectly(DigitTens[day]);
+                writer.writeDirectly(DigitOnes[day]);
+                writer.writeDirectly(' ');
+                writer.writeDirectly(DigitTens[hourOfDay]);
+                writer.writeDirectly(DigitOnes[hourOfDay]);
+                writer.writeDirectly(':');
+                writer.writeDirectly(DigitTens[minute]);
+                writer.writeDirectly(DigitOnes[minute]);
+                writer.writeDirectly(':');
+                writer.writeDirectly(DigitTens[second]);
+                writer.writeDirectly(DigitOnes[second]);
+                writer.writeDirectly('"');
+                return;
             }
-            content.write('-');
-            if (day >= 10) {
-                content.write(String.valueOf(day));
-            } else {
-                // 输出完整的day
-                content.write(FORMAT_DIGITS[day]);
-            }
-            content.write(' ');
 
-            if (hourOfDay >= 10) {
-                content.write(String.valueOf(hourOfDay));
-            } else {
-                content.write(FORMAT_DIGITS[hourOfDay]);
-            }
-            content.write(':');
+            char[] chars = CachedCharsDate_19.get();
+            chars[1] = DigitTens[y1];
+            chars[2] = DigitOnes[y1];
+            chars[3] = DigitTens[y2];
+            chars[4] = DigitOnes[y2];
 
-            if (minute >= 10) {
-                content.write(String.valueOf(minute));
-            } else {
-                content.write(FORMAT_DIGITS[minute]);
-            }
-            content.write(':');
+            chars[6] = DigitTens[month];
+            chars[7] = DigitOnes[month];
 
-            if (second >= 10) {
-                content.write(String.valueOf(second));
-            } else {
-                content.write(FORMAT_DIGITS[second]);
-            }
-            content.append('"');
+            chars[9] = DigitTens[day];
+            chars[10] = DigitOnes[day];
+
+            chars[12] = DigitTens[hourOfDay];
+            chars[13] = DigitOnes[hourOfDay];
+
+            chars[15] = DigitTens[minute];
+            chars[16] = DigitOnes[minute];
+
+            chars[18] = DigitTens[second];
+            chars[19] = DigitOnes[second];
+            content.write(chars);
         }
 
         // "HH:mm:ss"
         private static void writeDefaultFormatTime(int hourOfDay, int minute, int second, Writer content) throws IOException {
-            content.append('"');
-            if (hourOfDay >= 10) {
-                content.write(String.valueOf(hourOfDay));
-            } else {
-                content.write(FORMAT_DIGITS[hourOfDay]);
+
+            if (content instanceof JSONStringWriter) {
+                JSONStringWriter writer = (JSONStringWriter) content;
+                writer.ensureCapacity(10);
+                writer.writeDirectly('"');
+                writer.writeDirectly(DigitTens[hourOfDay]);
+                writer.writeDirectly(DigitOnes[hourOfDay]);
+                writer.writeDirectly(':');
+                writer.writeDirectly(DigitTens[minute]);
+                writer.writeDirectly(DigitOnes[minute]);
+                writer.writeDirectly(':');
+                writer.writeDirectly(DigitTens[second]);
+                writer.writeDirectly(DigitOnes[second]);
+                writer.writeDirectly('"');
+                return;
             }
+
+            content.write('"');
+            content.write(DigitTens[hourOfDay]);
+            content.write(DigitOnes[hourOfDay]);
             content.write(':');
-            if (minute >= 10) {
-                content.write(String.valueOf(minute));
-            } else {
-                content.write(FORMAT_DIGITS[minute]);
-            }
+            content.write(DigitTens[minute]);
+            content.write(DigitOnes[minute]);
             content.write(':');
-            if (second >= 10) {
-                content.write(String.valueOf(second));
-            } else {
-                content.write(FORMAT_DIGITS[second]);
-            }
-            content.append('"');
+            content.write(DigitTens[second]);
+            content.write(DigitOnes[second]);
+            content.write('"');
         }
 
         static class DateInstanceSerializer extends DateSerializer {
@@ -742,7 +747,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
             Class clazz = obj.getClass();
             ObjectStructureWrapper classStructureWrapper = getObjectStructureWrapper(clazz);
             boolean isFirstKey = isWriteType(content, clazz, formatOut, indentLevel);
-            List<FieldSerializer> fieldSerializers = classStructureWrapper.getFieldSerializers(jsonConfig.isUseFields());
+            FieldSerializer[] fieldSerializers = classStructureWrapper.getFieldSerializers(jsonConfig.isUseFields());
 
             boolean skipGetterOfNoExistField = jsonConfig.isSkipGetterOfNoneField();
             boolean camelCaseToUnderline = jsonConfig.isCamelCaseToUnderline();

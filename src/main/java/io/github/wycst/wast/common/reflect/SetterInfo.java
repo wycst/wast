@@ -44,6 +44,9 @@ public class SetterInfo {
     // 是否存在默认值
     private Boolean existDefault;
 
+    // invoke时禁用field
+    private boolean fieldDisabled;
+
     /**
      * 反射动作
      */
@@ -178,6 +181,14 @@ public class SetterInfo {
 
     void setIndex(int index) {
         this.index = index;
+    }
+
+    void setFieldDisabled(boolean disabled) {
+        this.fieldDisabled = disabled;
+    }
+
+    public boolean isFieldDisabled() {
+        return fieldDisabled;
     }
 }
 

@@ -7,6 +7,9 @@
 性能评测数据 <br>
 [https://github.com/wycst/wast-jmh-test](https://github.com/wycst/wast-jmh-test)
 
+2022-09-25 json性能测试数据 <br>
+[https://github.com/wycst/wast-jmh-test/blob/main/README_0925_json.md](https://github.com/wycst/wast-jmh-test/blob/main/README_0925_json.md)
+
 ## Maven
 
 ```xml
@@ -14,20 +17,20 @@
 <dependency>
     <groupId>io.github.wycst</groupId>
     <artifactId>wast</artifactId>
-    <version>0.0.7</version>
+    <version>0.0.8</version>
 </dependency>
 ```
 
 ## Groovy
 
 ```
-implementation 'io.github.wycst:wast:0.0.7'
+implementation 'io.github.wycst:wast:0.0.8'
 ```
 
 ## Kotlin
 
 ```
-implementation("io.github.wycst:wast:0.0.7")
+implementation("io.github.wycst:wast:0.0.8")
 ```
 
 ## json模块
@@ -40,6 +43,10 @@ implementation("io.github.wycst:wast:0.0.7")
 
 关于本json库与主流json库性能评测数据 <br>
 [https://github.com/wycst/wast-jmh-test](https://github.com/wycst/wast-jmh-test)
+
+2022-09-25 json性能测试数据 <br>
+[https://github.com/wycst/wast-jmh-test/blob/main/README_0925_json.md](https://github.com/wycst/wast-jmh-test/blob/main/README_0925_json.md)
+
 
 ## yaml模块
 

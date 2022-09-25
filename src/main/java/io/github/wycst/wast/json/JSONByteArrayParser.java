@@ -16,6 +16,7 @@
  */
 package io.github.wycst.wast.json;
 
+import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import io.github.wycst.wast.json.exceptions.JSONException;
 import io.github.wycst.wast.json.options.JSONParseContext;
 import io.github.wycst.wast.json.options.Options;
@@ -23,10 +24,7 @@ import io.github.wycst.wast.json.options.ReadOption;
 
 import java.io.Serializable;
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.*;
 
 /**
  * <p> 字节数组解析;
@@ -46,15 +44,27 @@ class JSONByteArrayParser extends JSONGeneral {
      * @return
      */
     public static Object parse(byte[] bytes, ReadOption... readOptions) {
-        return parse(bytes, null, readOptions);
+        return parse(null, bytes, null, readOptions);
     }
 
-    static Object parse(byte[] bytes, Object defaultValue, ReadOption... readOptions) {
+    /**
+     * 解析bytes返回Map或者List
+     *
+     * @param bytes
+     * @param readOptions
+     * @return
+     */
+    public static Object parse(String source, byte[] bytes, ReadOption... readOptions) {
+        return parse(source, bytes, null, readOptions);
+    }
+
+    static Object parse(String source, byte[] bytes, Object defaultValue, ReadOption... readOptions) {
         bytes.getClass();
-        return parse(bytes, 0, bytes.length, defaultValue, readOptions);
+        return parse(source, bytes, 0, bytes.length, defaultValue, readOptions);
     }
 
-    static Object parse(byte[] bytes, int fromIndex, int toIndex, Object defaultValue, ReadOption... readOptions) {
+    static Object parse(String source, byte[] bytes, int fromIndex, int toIndex, Object defaultValue, ReadOption... readOptions) {
+
         // Trim remove white space characters
         byte beginByte = '\0';
         while ((fromIndex < toIndex) && (beginByte = bytes[fromIndex]) <= ' ') {
@@ -77,13 +87,13 @@ class JSONByteArrayParser extends JSONGeneral {
             Object result;
             switch (beginByte) {
                 case '{':
-                    result = parseJSONObject(bytes, fromIndex, toIndex, defaultValue == null ? new LinkedHashMap() : (Map) defaultValue, jsonParseContext);
+                    result = parseJSONObject(source, bytes, fromIndex, toIndex, defaultValue == null ? new LinkedHashMap() : (Map) defaultValue, jsonParseContext);
                     break;
                 case '[':
-                    result = parseJSONArray(bytes, fromIndex, toIndex, defaultValue == null ? new ArrayList() : (Collection) defaultValue, jsonParseContext);
+                    result = parseJSONArray(source, bytes, fromIndex, toIndex, defaultValue == null ? new ArrayList() : (Collection) defaultValue, jsonParseContext);
                     break;
                 case '"':
-                    result = parseJSONString(bytes, fromIndex, toIndex, beginByte, jsonParseContext);
+                    result = parseJSONString(source, bytes, fromIndex, toIndex, beginByte, jsonParseContext);
                     break;
                 default:
                     throw new UnsupportedOperationException("Unsupported for begin character with '" + beginByte + "'");
@@ -123,7 +133,7 @@ class JSONByteArrayParser extends JSONGeneral {
         }
     }
 
-    static Collection parseJSONArray(byte[] bytes, int fromIndex, int toIndex, Collection list, JSONParseContext jsonParseContext) throws Exception {
+    static Collection parseJSONArray(String source, byte[] bytes, int fromIndex, int toIndex, Collection list, JSONParseContext jsonParseContext) throws Exception {
 
         int beginIndex = fromIndex + 1;
         byte b;
@@ -151,14 +161,14 @@ class JSONByteArrayParser extends JSONGeneral {
             Object value;
             switch (b) {
                 case '{': {
-                    value = parseJSONObject(bytes, i, toIndex, new LinkedHashMap(), jsonParseContext);
+                    value = parseJSONObject(source, bytes, i, toIndex, new LinkedHashMap(), jsonParseContext);
                     list.add(value);
                     i = jsonParseContext.getEndIndex();
                     break;
                 }
                 case '[': {
                     // 2 [ array
-                    value = parseJSONArray(bytes, i, toIndex, new ArrayList(), jsonParseContext);
+                    value = parseJSONArray(source, bytes, i, toIndex, new ArrayList(), jsonParseContext);
                     list.add(value);
                     i = jsonParseContext.getEndIndex();
                     break;
@@ -167,7 +177,7 @@ class JSONByteArrayParser extends JSONGeneral {
                 case '"': {
                     // 3 string
                     // When there are escape characters, the escape character needs to be parsed
-                    value = parseJSONString(bytes, i, toIndex, b, jsonParseContext);
+                    value = parseJSONString(source, bytes, i, toIndex, b, jsonParseContext);
                     list.add(value);
                     i = jsonParseContext.getEndIndex();
                     break;
@@ -188,13 +198,13 @@ class JSONByteArrayParser extends JSONGeneral {
                     list.add(value);
                     break;
                 default: {
-                    value = parseDefaultNumber(bytes, i, toIndex, (byte) ']', jsonParseContext);
+                    value = parseDefaultNumber(bytes, i, toIndex, EndArray, jsonParseContext);
                     i = jsonParseContext.getEndIndex();
                     list.add(value);
                     // either continue or return
                     ++i;
-                    char next = (char) bytes[i];
-                    if (next == ']') {
+                    byte next = bytes[i];
+                    if (next == EndArray) {
                         jsonParseContext.setEndIndex(i);
                         return list;
                     } else {
@@ -224,7 +234,7 @@ class JSONByteArrayParser extends JSONGeneral {
 //        throw new JSONException("Syntax error, cannot find closing symbol ']' matching '['");
     }
 
-    static Map parseJSONObject(byte[] bytes, int fromIndex, int toIndex, Map instance, JSONParseContext jsonParseContext) throws Exception {
+    static Map parseJSONObject(String source, byte[] bytes, int fromIndex, int toIndex, Map instance, JSONParseContext jsonParseContext) throws Exception {
 
         int beginIndex = fromIndex + 1;
         byte b;
@@ -322,21 +332,21 @@ class JSONByteArrayParser extends JSONGeneral {
                 Object value;
                 switch (b) {
                     case '{': {
-                        value = parseJSONObject(bytes, i, toIndex, new LinkedHashMap(), jsonParseContext);
+                        value = parseJSONObject(source, bytes, i, toIndex, new LinkedHashMap(), jsonParseContext);
                         i = jsonParseContext.getEndIndex();
                         instance.put(key, value);
                         break;
                     }
                     case '[': {
                         // 2 [ array
-                        value = parseJSONArray(bytes, i, toIndex, new ArrayList(), jsonParseContext);
+                        value = parseJSONArray(source, bytes, i, toIndex, new ArrayList(), jsonParseContext);
                         i = jsonParseContext.getEndIndex();
                         instance.put(key, value);
                         break;
                     }
                     case '"':
                     case '\'': {
-                        value = parseJSONString(bytes, i, toIndex, b, jsonParseContext);
+                        value = parseJSONString(source, bytes, i, toIndex, b, jsonParseContext);
                         i = jsonParseContext.getEndIndex();
                         instance.put(key, value);
                         break;
@@ -357,11 +367,11 @@ class JSONByteArrayParser extends JSONGeneral {
                         instance.put(key, value);
                         break;
                     default: {
-                        value = parseDefaultNumber(bytes, i, toIndex, (byte) '}', jsonParseContext);
+                        value = parseDefaultNumber(bytes, i, toIndex, EndObject, jsonParseContext);
                         i = jsonParseContext.getEndIndex();
                         instance.put(key, value);
-                        char next = (char) bytes[++i];
-                        if (next == '}') {
+                        byte next = bytes[++i];
+                        if (next == EndObject) {
                             jsonParseContext.setEndIndex(i);
                             return instance;
                         } else {
@@ -378,10 +388,10 @@ class JSONByteArrayParser extends JSONGeneral {
                     }
                 }
                 // Check whether the next character is a comma or end symbol '}'. If yes, continue or break. If not, throw an exception
-                if (b == ',') {
+                if (b == Comma) {
                     continue;
                 }
-                if (b == '}') {
+                if (b == EndObject) {
                     jsonParseContext.setEndIndex(i);
                     return instance;
                 }
@@ -394,40 +404,215 @@ class JSONByteArrayParser extends JSONGeneral {
 //        throw new JSONException("Syntax error, the closing symbol '}' is not found ");
     }
 
-    static String parseJSONString(byte[] bytes, int from, int toIndex, byte endCh, JSONParseContext jsonParseContext) {
+    static String parseJSONString(String source, byte[] bytes, int from, int toIndex, byte endCh, JSONParseContext jsonParseContext) {
+
         int beginIndex = from + 1;
-        byte b = '\0', next = '\0';
-        int i = beginIndex;
-        int len;
-
         JSONStringWriter writer = null;
-        boolean escape = false;
+        boolean useSource = source != null;
+        if (useSource && JDK_9_ABOVE) {
+            // ASCII mode
+            int endIndex = source.indexOf(endCh, beginIndex);
+            bytes[endIndex] = '\\';
+            // find \\
+            int escapeIndex = source.indexOf('\\', beginIndex);
+            // restore
+            bytes[endIndex] = endCh;
+            if (escapeIndex == endIndex) {
+                jsonParseContext.setEndIndex(endIndex);
+                int len = endIndex - beginIndex;
+                if (len == 0) return "";
+                return UnsafeHelper.getAsciiString(Arrays.copyOfRange(bytes, beginIndex, endIndex));
+            }
+            writer = getContextWriter(jsonParseContext);
+            byte prev = bytes[endIndex - 1];
+            if (prev == '\\') {
+                do {
+                    endIndex = source.indexOf(endCh, endIndex + 1);
+                    prev = bytes[endIndex - 1];
+                } while (prev == '\\');
+            }
+            bytes[endIndex] = '\\';
+            boolean shortText = endIndex - from < 512;
+            try {
+                do {
+                    beginIndex = escapeAscii(source, bytes, bytes[escapeIndex + 1], escapeIndex, beginIndex, writer, jsonParseContext);
+                    if(shortText) {
+                        // use loop
+                        int c;
+                        while ((c = bytes[beginIndex]) != '\\') {
+                            writer.write(c);
+                            ++beginIndex;
+                        }
+                        escapeIndex = beginIndex;
+                    } else {
+                        escapeIndex = source.indexOf('\\', beginIndex);
+                    }
+                    // Don't worry about escapeindex > endindex, it can't happen
+                } while (escapeIndex != endIndex);
+            } finally {
+                // restore
+                bytes[endIndex] = endCh;
+            }
 
-        for (; /*i < toIndex*/ ; ++i) {
-            while (/*i < toIndex &&*/ (b = bytes[i]) != '\\' && b != endCh) {
-                ++i;
-            }
-            // ch is \\ or "
-            if (b == '\\') {
-                if (i < toIndex - 1) {
+            jsonParseContext.setEndIndex(endIndex);
+            writer.writeString(source, beginIndex, escapeIndex - beginIndex);
+            return writer.toString();
+        }
+
+        // scene: parse(byte[] bytes) or parse(byte[] bytes, Class<?> cls);
+        // JDK_9_ABOVE use direct bytes
+        // other use JSONStringWriter append char that decode from bytes
+
+        int asciiFlag = 0;
+        if (JDK_9_ABOVE) {
+            byte b, next = '\0';
+            int i = beginIndex;
+            int len;
+            boolean escape = false;
+            boolean latin1 = true;
+
+            for (; ; ++i) {
+                while ((b = bytes[i]) != '\\' && b != endCh) {
+                    ++i;
+                    if (latin1 && b < 0) {
+                        latin1 = false;
+                        // The internal storage of jdk9+is not char []. Decode is not required
+                        // Mark latin1 as false
+                    }
+                }
+                // ch is \\ or "
+                if (b == '\\') {
                     next = bytes[i + 1];
-                }
-                if (writer == null) {
-                    writer = getContextWriter(jsonParseContext);
-                    escape = true;
-                }
-                beginIndex = escape(bytes, next, i, beginIndex, writer, jsonParseContext);
-                i = jsonParseContext.getEndIndex();
-            } else {
-                jsonParseContext.setEndIndex(i);
-                len = i - beginIndex;
-                if (escape) {
-                    writer.writeBytes(bytes, beginIndex, len);
-                    return writer.toString();
+                    if (writer == null) {
+                        writer = getContextWriter(jsonParseContext);
+                        escape = true;
+                    }
+                    if (latin1) {
+                        String str = UnsafeHelper.getAsciiString(Arrays.copyOfRange(bytes, beginIndex, i));
+                        writer.writeString(str, 0, i - beginIndex);
+                        beginIndex = i;
+                    }
+                    beginIndex = escape(bytes, next, i, beginIndex, writer, jsonParseContext);
+                    i = jsonParseContext.getEndIndex();
                 } else {
-                    return len == 0 ? "" : new String(bytes, beginIndex, len);
+                    jsonParseContext.setEndIndex(i);
+                    len = i - beginIndex;
+                    if (escape) {
+                        writer.writeBytes(bytes, beginIndex, len);
+                        return writer.toString();
+                    } else {
+                        if (latin1) {
+                            return UnsafeHelper.getAsciiString(Arrays.copyOfRange(bytes, beginIndex, i));
+                        }
+                        return new String(bytes, beginIndex, len);
+                    }
                 }
             }
+        } else {
+            // jdk version <= 8
+            int i = beginIndex;
+            byte b, prev = 0, next;
+            boolean escape = false;
+            while ((b = bytes[i]) != endCh || prev == '\\') {
+                if (b == '\\') {
+                    asciiFlag = -1;
+                    escape = true;
+                    if (writer == null) {
+                        writer = getContextWriter(jsonParseContext);
+                    }
+                    next = bytes[i + 1];
+                    beginIndex = escape(bytes, next, i, beginIndex, writer, jsonParseContext);
+                    i = jsonParseContext.getEndIndex() + 1;
+                    continue;
+                }
+                asciiFlag |= b;
+                prev = b;
+                i++;
+            }
+            jsonParseContext.setEndIndex(i);
+            if (asciiFlag > 0) {
+                int len = i - beginIndex;
+                char[] chars = new char[len];
+                for (int j = 0; j < len; ++j) {
+                    chars[j] = (char) bytes[j + beginIndex];
+                }
+                return UnsafeHelper.getString(chars);
+            }
+
+            if (escape) {
+                writer.writeBytes(bytes, beginIndex, i - beginIndex);
+                return writer.toString();
+            }
+
+            return new String(bytes, beginIndex, i - beginIndex);
+//            byte b1, b2, b3, next;
+//            // writer for decode
+//            writer = getContextWriter(jsonParseContext);
+//            writer.ensureCapacity(toIndex - from);
+//            for (; ; ++i) {
+//                while ((b = bytes[i]) != '\\' && b != endCh) {
+//                    if (b >= 0) {
+//                        writer.write(b);
+//                    } else {
+//                        // decode utf
+//                        // 读取字节b的前4位判断需要读取几个字节
+//                        try {
+//                            int s = b >> 4, a;
+//                            switch (s) {
+//                                case -1:
+//                                    // 1111 4个字节
+//                                    // 第1个字节的后4位 + 第2个字节的后6位 + 第3个字节的后6位 + 第4个字节的后6位
+//                                    b1 = bytes[++i];
+//                                    b2 = bytes[++i];
+//                                    b3 = bytes[++i];
+//                                    a = ((b & 0x7) << 18) | ((b1 & 0x3f) << 12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f);
+//                                    if (Character.isSupplementaryCodePoint(a)) {
+//                                        char c1 = (char) ((a >>> 10)
+//                                                + (Character.MIN_HIGH_SURROGATE - (Character.MIN_SUPPLEMENTARY_CODE_POINT >>> 10)));
+//                                        char c2 = (char) ((a & 0x3ff) + Character.MIN_LOW_SURROGATE);
+//                                        writer.write(c1);
+//                                        writer.write(c2);
+//                                    } else {
+//                                        writer.write((char) a);
+//                                    }
+//                                    break;
+//                                case -2:
+//                                    // 1110 3个字节
+//                                    // 第1个字节的后4位 + 第2个字节的后6位 + 第3个字节的后6位
+//                                    b1 = bytes[++i];
+//                                    b2 = bytes[++i];
+//                                    a = ((b & 0xf) << 12) | ((b1 & 0x3f) << 6) | (b2 & 0x3f);
+//                                    writer.write((char) a);
+//                                    break;
+//                                case -3:
+//                                case -4:
+//                                    // 1101 和 1100都按2字节处理
+//                                    // 1100 2个字节
+//                                    b1 = bytes[++i];
+//                                    a = ((b & 0x1f) << 6) | (b1 & 0x3f);
+//                                    writer.write((char) a);
+//                                    break;
+//                                default:
+//                                    throw new UnsupportedOperationException("utf-8 character error ");
+//                            }
+//                        } catch (Throwable throwable) {
+//                            String msg = new String(bytes, beginIndex, Math.min(i - beginIndex, 100));
+//                            throw new JSONException("offset " + from + ", utf-8 character error , context text '" + msg + "'");
+//                        }
+//                    }
+//                    beginIndex = ++i;
+//                }
+//                // b is \\ or "
+//                if (b == '\\') {
+//                    next = bytes[i + 1];
+//                    beginIndex = escape(bytes, next, i, beginIndex, writer, jsonParseContext);
+//                    i = jsonParseContext.getEndIndex();
+//                } else {
+//                    jsonParseContext.setEndIndex(i);
+//                    writer.writeBytes(bytes, beginIndex, i - beginIndex);
+//                    return writer.toString();
+//                }
+//            }
         }
     }
 
@@ -515,7 +700,7 @@ class JSONByteArrayParser extends JSONGeneral {
         // calculation
         while (true) {
             b = bytes[i];
-            int digit = digitDecimal((char) b);
+            int digit = digitDecimal(b);
             if (digit == -1) {
                 if (b == ',' || b == endToken) {
                     break;
@@ -527,7 +712,7 @@ class JSONByteArrayParser extends JSONGeneral {
                     // 小数点模式
                     mode = 1;
                     b = bytes[++i];
-                    digit = digitDecimal((char) b);
+                    digit = digitDecimal(b);
                 } else if (b == 'E' || b == 'e') {
                     if (mode == 2) {
                         throw new JSONException("For input string: \"" + new String(bytes, fromIndex, i + 1 - fromIndex) + "\"");
@@ -539,7 +724,7 @@ class JSONByteArrayParser extends JSONGeneral {
                         expNegative = true;
                         b = bytes[++i];
                     }
-                    digit = digitDecimal((char) b);
+                    digit = digitDecimal(b);
                 }
             }
 
@@ -853,6 +1038,116 @@ class JSONByteArrayParser extends JSONGeneral {
                 len = i - beginIndex;
                 writer.writeBytes(bytes, beginIndex, len + 1);
                 writer.setCharAt(writer.size() - 1, (char) next);
+                beginIndex = ++i + 1;
+            }
+        }
+        jsonParseContext.setEndIndex(i);
+        return beginIndex;
+    }
+
+    /**
+     * escape next
+     *
+     * @param source
+     * @param bytes
+     * @param next
+     * @param i                escapeIndex
+     * @param beginIndex
+     * @param writer
+     * @param jsonParseContext
+     * @return 返回转义内容处理完成后的下一个未知字符位置
+     */
+    static int escapeAscii(String source, byte[] bytes, byte next, int i, int beginIndex, JSONStringWriter writer, JSONParseContext jsonParseContext) {
+        int len;
+        switch (next) {
+            case '\'':
+            case '"':
+                if (i > beginIndex) {
+                    writer.writeString(source, beginIndex, i - beginIndex + 1);
+                    writer.setCharAt(writer.size() - 1, (char) next);
+                } else {
+                    writer.append((char) next);
+                }
+                beginIndex = ++i + 1;
+                break;
+            case 'n':
+                if (i > beginIndex) {
+                    writer.writeString(source, beginIndex, i - beginIndex + 1);
+                    writer.setCharAt(writer.size() - 1, '\n');
+                } else {
+                    writer.append('\n');
+                }
+                beginIndex = ++i + 1;
+                break;
+            case 'r':
+                if (i > beginIndex) {
+                    writer.writeString(source, beginIndex, i - beginIndex + 1);
+                    writer.setCharAt(writer.size() - 1, '\r');
+                } else {
+                    writer.append('\r');
+                }
+                beginIndex = ++i + 1;
+                break;
+            case 't':
+                if (i > beginIndex) {
+                    writer.writeString(source, beginIndex, i - beginIndex + 1);
+                    writer.setCharAt(writer.size() - 1, '\t');
+                } else {
+                    writer.append('\t');
+                }
+                beginIndex = ++i + 1;
+                break;
+            case 'b':
+                if (i > beginIndex) {
+                    writer.writeString(source, beginIndex, i - beginIndex + 1);
+                    writer.setCharAt(writer.size() - 1, '\b');
+                } else {
+                    writer.append('\b');
+                }
+                beginIndex = ++i + 1;
+                break;
+            case 'f':
+                if (i > beginIndex) {
+                    writer.writeString(source, beginIndex, i - beginIndex + 1);
+                    writer.setCharAt(writer.size() - 1, '\f');
+                } else {
+                    writer.append('\f');
+                }
+                beginIndex = ++i + 1;
+                break;
+            case 'u':
+                int c;
+                int j = i + 2;
+                try {
+                    int c1 = hex(bytes[j++]);
+                    int c2 = hex(bytes[j++]);
+                    int c3 = hex(bytes[j++]);
+                    int c4 = hex(bytes[j++]);
+                    c = (c1 << 12) | (c2 << 8) | (c3 << 4) | c4;
+                } catch (Throwable throwable) {
+                    // \\u parse error
+                    String errorContextTextAt = createErrorMessage(bytes, i + 1);
+                    throw new JSONException("Syntax error, from pos " + (i + 1) + ", context text by '" + errorContextTextAt + "', " + throwable.getMessage());
+                }
+                len = i - beginIndex;
+//                writer.writeString(source, beginIndex, len + 1);
+                if(len > 0) {
+                    writer.writeString(source, beginIndex, i - beginIndex + 1);
+                    writer.setCharAt(writer.size() - 1, (char) c);
+                } else {
+                    writer.append((char) c);
+                }
+                i += 4;
+                beginIndex = ++i + 1;
+                break;
+            default: {
+                // other case delete char '\\'
+                if (i > beginIndex) {
+                    writer.writeString(source, beginIndex, i - beginIndex + 1);
+                    writer.setCharAt(writer.size() - 1, (char) next);
+                } else {
+                    writer.append((char) next);
+                }
                 beginIndex = ++i + 1;
             }
         }

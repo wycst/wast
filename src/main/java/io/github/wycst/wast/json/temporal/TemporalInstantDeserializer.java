@@ -35,4 +35,9 @@ public class TemporalInstantDeserializer extends JSONTemporalDeserializer {
         long time = dateTemplate.parseTime(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
         return TemporalAloneInvoker.createOrOfInstant(time);
     }
+
+    protected Object deserializeTemporal(byte[] buf, int fromIndex, int endIndex, JSONParseContext jsonParseContext) throws Exception {
+        long time = dateTemplate.parseTime(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
+        return TemporalAloneInvoker.createOrOfInstant(time);
+    }
 }

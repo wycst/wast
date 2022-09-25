@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Writer;
 import java.lang.reflect.Constructor;
+import java.nio.ByteOrder;
 import java.sql.Time;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,20 +29,37 @@ class JSONGeneral {
     protected final static char[] EMPTY_ARRAY = new char[]{'[', ']'};
     protected final static char[] EMPTY_OBJECT = new char[]{'{', '}'};
 
+    protected final static byte Zero            = 0;
+    protected final static byte Comma           = ',';
+    protected final static byte DoubleQuotation = '"';
+    protected final static byte EndArray        = ']';
+    protected final static byte EndObject       = '}';
+    protected final static byte WhiteSpace      = ' ';
+
     // 转义字符与字符串映射（0-159）（序列化）
     protected final static String[] escapes = new String[160];
 
     // 是否需要转义定义（序列化转义校验）
     protected final static boolean[] needEscapes = new boolean[160];
 
-    protected final static char[][] FORMAT_DIGITS = new char[10][];
-
     protected final static String MONTH_ABBR[] = {
             "Jan", "Feb", "Mar", "Apr", "May", "Jun",
             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
     };
 
-    final static char[] DigitOnes = {
+    // String structure determination, true if the jdk version > 8, and the value of String is byte[] not char[]
+    protected static final boolean StringCoder;
+    protected static final float JDK_VERSION;
+
+    protected static final boolean JDK_17_ABOVE;
+    protected static final boolean JDK_9_ABOVE;
+
+    // 是否小端模式
+//    protected static final boolean LE;
+//    protected static final int HI_BYTE_SHIFT;
+//    protected static final int LO_BYTE_SHIFT;
+
+    protected final static char[] DigitOnes = {
             '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
             '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
             '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
@@ -54,7 +72,7 @@ class JSONGeneral {
             '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
     };
 
-    final static char[] DigitTens = {
+    protected final static char[] DigitTens = {
             '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
             '1', '1', '1', '1', '1', '1', '1', '1', '1', '1',
             '2', '2', '2', '2', '2', '2', '2', '2', '2', '2',
@@ -77,6 +95,27 @@ class JSONGeneral {
 
     // zero zone
     public final static TimeZone ZERO_TIME_ZONE = TimeZone.getTimeZone("GMT+00:00");
+
+    // yyyy-MM-dd HH:mm:ss
+    protected final static ThreadLocal<char[]> CachedChars_20 = new ThreadLocal<char[]>() {
+        @Override
+        protected char[] initialValue() {
+            return new char[20];
+        }
+    };
+
+    // yyyy-MM-dd HH:mm:ss
+    protected final static ThreadLocal<char[]> CachedCharsDate_19 = new ThreadLocal<char[]>() {
+        @Override
+        protected char[] initialValue() {
+            char[] chars = new char[21];
+            chars[0] = chars[20] = '"';
+            chars[5] = chars[8] = '-';
+            chars[11] = ' ';
+            chars[14] = chars[17] = ':';
+            return chars;
+        }
+    };
 
     public static String toEscapeString(int ch) {
         return String.format("\\u%04x", ch);
@@ -128,10 +167,6 @@ class JSONGeneral {
             }
         }
 
-        for (int i = 0; i < 10; ++i) {
-            FORMAT_DIGITS[i] = new char[]{'0', Character.forDigit(i, 10)};
-        }
-
         // e0 ~ e360(e306)
         for (int i = 0, len = PositiveDecimalPower.length; i < len; ++i) {
             PositiveDecimalPower[i] = Math.pow(10, i);
@@ -149,10 +184,37 @@ class JSONGeneral {
         GMT_TIME_ZONE_MAP.put("-0", timeZone);
         GMT_TIME_ZONE_MAP.put("+08:00", timeZone = TimeZone.getTimeZone("GMT+08:00"));
         GMT_TIME_ZONE_MAP.put("GMT+08:00", timeZone);
+
+        long stringCoderOffset = UnsafeHelper.getStringCoderOffset();
+        StringCoder = stringCoderOffset > -1;
+
+        float jdkVersion = 1.8f;
+        try {
+            // 规范版本号
+            String version = System.getProperty("java.specification.version");
+            if (version != null) {
+                jdkVersion = Float.parseFloat(version);
+            }
+        } catch (Throwable throwable) {
+        }
+        JDK_VERSION = jdkVersion;
+        JDK_9_ABOVE = JDK_VERSION > 1.8;
+        JDK_17_ABOVE = JDK_VERSION >= 17;
+
+        // JDK9+ 可以直接使用地址判断是否小端模式
+//        LE = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
+//        if (LE) {
+//            HI_BYTE_SHIFT = 0;
+//            LO_BYTE_SHIFT = 8;
+//        } else {
+//            HI_BYTE_SHIFT = 8;
+//            LO_BYTE_SHIFT = 0;
+//        }
     }
 
     /**
      * 获取以10为底数的指定数值（-1 < expValue > 310）指数值
+     *
      * @param expValue
      * @return
      */
@@ -276,6 +338,38 @@ class JSONGeneral {
     }
 
     /**
+     * 解析处理字符串中转义字符，如果不存在转义字符，返回原字符串
+     *
+     * @param str
+     * @return
+     */
+    public static final String parseEscapeString(String str) {
+        str.getClass();
+        int beginIndex = str.indexOf('\\');
+        // none Escape
+        if (beginIndex == -1) return str;
+
+        JSONParseContext jsonParseContext = new JSONParseContext();
+        JSONStringWriter writer = getContextWriter(jsonParseContext);
+        try {
+            char[] chars = getChars(str);
+            char next = chars[beginIndex + 1];
+            beginIndex = escapeNext(chars, next, beginIndex, 0, writer, jsonParseContext);
+            int max = chars.length;
+            for (int i = beginIndex + 1; i < max; i++) {
+                if (chars[i] != '\\') continue;
+                next = chars[i + 1];
+                beginIndex = escapeNext(chars, next, i, beginIndex, writer, jsonParseContext);
+                i = jsonParseContext.getEndIndex();
+            }
+            writer.write(chars, beginIndex, max - beginIndex);
+            return writer.toString();
+        } finally {
+            jsonParseContext.clear();
+        }
+    }
+
+    /**
      * 将\\u后面的4个16进制字符转化为int值
      *
      * @param i1
@@ -348,7 +442,7 @@ class JSONGeneral {
      * @param ch
      * @return
      */
-    protected static int digitDecimal(char ch) {
+    protected static int digitDecimal(int ch) {
         return NumberUtils.digitDecimal(ch);
     }
 
@@ -545,6 +639,207 @@ class JSONGeneral {
                 throw (JSONException) throwable;
             }
             String dateSource = new String(buf, from + 1, to - from - 2);
+            if (patternType > 0) {
+                throw new JSONException("Syntax error, at pos " + realFrom + ", dateStr " + dateSource + " mismatch date pattern '" + pattern + "'");
+            } else {
+                throw new JSONException("Syntax error, at pos " + realFrom + ", dateStr " + dateSource + " mismatch any date format.");
+            }
+        }
+    }
+
+    /**
+     * 匹配日期
+     *
+     * @param buf
+     * @param from
+     * @param to
+     * @param dateCls
+     * @return
+     */
+    final static Date matchDate(byte[] buf, int from, int to, String timezone, Class<? extends Date> dateCls) {
+
+        int len = to - from;
+        String timezoneIdAt = timezone;
+        if (len > 19) {
+            // yyyy-MM-ddTHH:mm:ss.SSS+XX:YY
+            int j = to, ch;
+            while (j > from) {
+                // Check whether the time zone ID exists in the date
+                // Check for '+' or '-' or 'Z'
+                if ((ch = buf[--j]) == '.' || ch == ' ') break;
+                if (ch == '+' || ch == '-' || ch == 'Z') {
+                    timezoneIdAt = new String(buf, j, to - j);
+                    to = j;
+                    len = to - from;
+                    break;
+                }
+            }
+        }
+        switch (len) {
+            case 8: {
+                // yyyyMMdd
+                // HH:mm:ss
+                try {
+                    if (dateCls != null && Time.class.isAssignableFrom(dateCls)) {
+                        int hour = NumberUtils.parseInt2(buf, from);
+                        int minute = NumberUtils.parseInt2(buf, from + 3);
+                        int second = NumberUtils.parseInt2(buf, from + 6);
+                        return parseDate(1970, 1, 1, hour, minute, second, 0, timezoneIdAt, dateCls);
+                    } else {
+                        int year = NumberUtils.parseInt4(buf, from);
+                        int month = NumberUtils.parseInt2(buf, from + 4);
+                        int day = NumberUtils.parseInt2(buf, from + 6);
+                        return parseDate(year, month, day, 0, 0, 0, 0, timezoneIdAt, dateCls);
+                    }
+                } catch (Throwable throwable) {
+                }
+                return null;
+            }
+            case 10: {
+                // yyyy-MM-dd yyyy/MM/dd
+                // \d{4}[-/]\d{2}[-/]\d{2}
+                try {
+                    int year = NumberUtils.parseInt4(buf, from);
+                    int month = NumberUtils.parseInt2(buf, from + 5);
+                    int day = NumberUtils.parseInt2(buf, from + 8);
+                    return parseDate(year, month, day, 0, 0, 0, 0, timezoneIdAt, dateCls);
+                } catch (Throwable throwable) {
+                }
+                return null;
+            }
+            case 14:
+            case 15:
+            case 16:
+            case 17: {
+                // yyyyMMddHHmmss or yyyyMMddhhmmssSSS
+                try {
+                    int year = NumberUtils.parseInt4(buf, from);
+                    int month = NumberUtils.parseInt2(buf, from + 4);
+                    int day = NumberUtils.parseInt2(buf, from + 6);
+                    int hour = NumberUtils.parseInt2(buf, from + 8);
+                    int minute = NumberUtils.parseInt2(buf, from + 10);
+                    int second = NumberUtils.parseInt2(buf, from + 12);
+                    int millsecond = 0;
+                    if (len > 14) {
+                        millsecond = NumberUtils.parseIntWithin5(buf, from + 14, len - 14);
+                    }
+                    return parseDate(year, month, day, hour, minute, second, millsecond, timezoneIdAt, dateCls);
+                } catch (Throwable throwable) {
+                }
+                return null;
+            }
+            case 19:
+            case 21:
+            case 22:
+            case 23: {
+                // yyyy-MM-dd HH:mm:ss yyyy/MM/dd HH:mm:ss 19位
+                // yyyy-MM-dd HH:mm:ss.SSS? yyyy/MM/dd HH:mm:ss.SSS? 23位
+                // \\d{4}[-/]\\d{2}[-/]\\d{2} \\d{2}:\\d{2}:\\d{2}
+                try {
+                    int year = NumberUtils.parseInt4(buf, from);
+                    int month = NumberUtils.parseInt2(buf, from + 5);
+                    int day = NumberUtils.parseInt2(buf, from + 8);
+                    int hour = NumberUtils.parseInt2(buf, from + 11);
+                    int minute = NumberUtils.parseInt2(buf, from + 14);
+                    int second = NumberUtils.parseInt2(buf, from + 17);
+                    int millsecond = 0;
+                    if (len > 20) {
+                        millsecond = NumberUtils.parseIntWithin5(buf, from + 20, len - 20);
+                    }
+                    return parseDate(year, month, day, hour, minute, second, millsecond, timezoneIdAt, dateCls);
+                } catch (Throwable throwable) {
+                }
+                return null;
+            }
+            case 28: {
+                /***
+                 * dow mon dd hh:mm:ss zzz yyyy 28位
+                 * example Sun Jan 02 21:51:14 CST 2020
+                 * @see Date#toString()
+                 */
+                try {
+                    int year = NumberUtils.parseInt4(buf, from + 24);
+                    String monthAbbr = new String(buf, from + 4, 3);
+                    int month = getMonthAbbrIndex(monthAbbr) + 1;
+                    int day = NumberUtils.parseInt2(buf, from + 8);
+                    int hour = NumberUtils.parseInt2(buf, from + 11);
+                    int minute = NumberUtils.parseInt2(buf, from + 14);
+                    int second = NumberUtils.parseInt2(buf, from + 17);
+                    return parseDate(year, month, day, hour, minute, second, 0, timezoneIdAt, dateCls);
+                } catch (Throwable throwable) {
+                }
+                return null;
+            }
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * 字符串转日期
+     *
+     * @param bytes        字节数组
+     * @param from         开始引号位置
+     * @param to           结束引号位置后一位
+     * @param pattern      日期格式
+     * @param patternType  格式分类
+     * @param dateTemplate 日期模板
+     * @param timezone     时间钟
+     * @param dateCls      日期类型
+     * @return
+     */
+    protected static Object parseDateValueOfString(byte[] bytes, int from, int to, String pattern, int patternType, DateTemplate dateTemplate, String timezone,
+                                                   Class<? extends Date> dateCls) {
+        int realFrom = from;
+        String timezoneIdAt = timezone;
+        try {
+            switch (patternType) {
+                case 0: {
+                    return matchDate(bytes, from + 1, to - 1, timezone, dateCls);
+                }
+                case 1: {
+                    // yyyy-MM-dd HH:mm:ss or yyyy/MM/dd HH:mm:ss
+                    int year = NumberUtils.parseInt4(bytes, from + 1);
+                    int month = NumberUtils.parseInt2(bytes, from + 6);
+                    int day = NumberUtils.parseInt2(bytes, from + 9);
+                    int hour = NumberUtils.parseInt2(bytes, from + 12);
+                    int minute = NumberUtils.parseInt2(bytes, from + 15);
+                    int second = NumberUtils.parseInt2(bytes, from + 18);
+                    return parseDate(year, month, day, hour, minute, second, 0, timezoneIdAt, dateCls);
+                }
+                case 2: {
+                    // yyyy-MM-dd yyyy/MM/dd
+                    int year = NumberUtils.parseInt4(bytes, from + 1);
+                    int month = NumberUtils.parseInt2(bytes, from + 6);
+                    int day = NumberUtils.parseInt2(bytes, from + 9);
+                    return parseDate(year, month, day, 0, 0, 0, 0, timezoneIdAt, dateCls);
+                }
+                case 3: {
+                    // yyyyMMddHHmmss
+                    int year = NumberUtils.parseInt4(bytes, from + 1);
+                    int month = NumberUtils.parseInt2(bytes, from + 5);
+                    int day = NumberUtils.parseInt2(bytes, from + 7);
+                    int hour = NumberUtils.parseInt2(bytes, from + 9);
+                    int minute = NumberUtils.parseInt2(bytes, from + 11);
+                    int second = NumberUtils.parseInt2(bytes, from + 13);
+                    return parseDate(year, month, day, hour, minute, second, 0, timezoneIdAt, dateCls);
+                }
+                default: {
+                    TimeZone timeZone = getTimeZone(timezoneIdAt);
+                    long time = dateTemplate.parseTime(bytes, from + 1, to - from - 2, timeZone);
+                    if (dateCls == Date.class) {
+                        return new Date(time);
+                    }
+                    Constructor<? extends Date> constructor = dateCls.getConstructor(long.class);
+                    constructor.setAccessible(true);
+                    return constructor.newInstance(time);
+                }
+            }
+        } catch (Throwable throwable) {
+            if (throwable instanceof JSONException) {
+                throw (JSONException) throwable;
+            }
+            String dateSource = new String(bytes, from + 1, to - from - 2);
             if (patternType > 0) {
                 throw new JSONException("Syntax error, at pos " + realFrom + ", dateStr " + dateSource + " mismatch date pattern '" + pattern + "'");
             } else {
@@ -773,6 +1068,32 @@ class JSONGeneral {
         return buffer;
     }
 
+    // 16进制字符数组（字符串）转化字节数组
+    protected static byte[] hexString2Bytes(byte[] buf, int offset, int len) {
+        byte[] bytes = new byte[len / 2];
+        int byteLength = 0;
+        int b = -1;
+        for (int i = offset, count = offset + len; i < count; ++i) {
+            char ch = Character.toUpperCase((char) buf[i]);
+            int numIndex = ch > '9' ? ch - 55 : ch - 48;
+            if (numIndex < 0 || numIndex >= 16) continue;
+            if (b == -1) {
+                b = numIndex << 4;
+            } else {
+                b += numIndex;
+                bytes[byteLength++] = (byte) b;
+                b = -1;
+            }
+        }
+        if (byteLength == bytes.length) {
+            return bytes;
+        }
+
+        byte[] buffer = new byte[byteLength];
+        System.arraycopy(bytes, 0, buffer, 0, byteLength);
+        return buffer;
+    }
+
     // 读取流中的最大限度（maxLen）的字符数组
     protected static char[] readInputStream(InputStream is, int maxLen) throws IOException {
         try {
@@ -920,4 +1241,17 @@ class JSONGeneral {
     protected static char[] getChars(String value) {
         return UnsafeHelper.getChars(value);
     }
+
+//    /**
+//     * 修改字符
+//     *
+//     * @param bytes
+//     * @param index
+//     * @param c
+//     */
+//    static void putUtf16CharAt(byte[] bytes, int index, char c) {
+//        index <<= 1;
+//        bytes[index++] = (byte) (c >> HI_BYTE_SHIFT);
+//        bytes[index] = (byte) (c >> LO_BYTE_SHIFT);
+//    }
 }

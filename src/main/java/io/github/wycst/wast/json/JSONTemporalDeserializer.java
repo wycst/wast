@@ -1,5 +1,6 @@
 package io.github.wycst.wast.json;
 
+import io.github.wycst.wast.common.beans.CharSource;
 import io.github.wycst.wast.common.beans.DateTemplate;
 import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
@@ -79,11 +80,11 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
      * @throws Exception
      */
     @Override
-    protected Object deserialize(char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
+    protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
         char beginChar = buf[fromIndex];
         switch (beginChar) {
             case '"':
-                STRING.skip(buf, fromIndex, toIndex, jsonParseContext);
+                STRING.skip(charSource, buf, fromIndex, toIndex, jsonParseContext);
                 int endIndex = jsonParseContext.getEndIndex();
                 try {
                     return deserializeTemporal(buf, fromIndex, endIndex, jsonParseContext);
@@ -96,7 +97,7 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
                     throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', temporal text '" + source + "' cannot convert to the temporal type , exception: " + throwable.getMessage());
                 }
             case 'n':
-                return NULL.deserialize(buf, fromIndex, toIndex, null, null, jsonParseContext);
+                return NULL.deserialize(null, buf, fromIndex, toIndex, null, null, jsonParseContext);
             default: {
                 // not support or custom handle ?
                 String errorContextTextAt = createErrorContextText(buf, fromIndex);
@@ -105,5 +106,47 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
         }
     }
 
+    /**
+     * Temporal 暂时只支持字符串(")和null
+     *
+     * @param buf
+     * @param fromIndex
+     * @param toIndex
+     * @param parameterizedType
+     * @param defaultValue
+     * @param endToken
+     * @param jsonParseContext
+     * @return
+     * @throws Exception
+     */
+    @Override
+    protected Object deserialize(CharSource charSource, byte[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext jsonParseContext) throws Exception {
+        byte beginByte = buf[fromIndex];
+        char beginChar = (char) beginByte;
+        switch (beginChar) {
+            case '"':
+                STRING.skip(charSource, buf, fromIndex, toIndex, jsonParseContext);
+                int endIndex = jsonParseContext.getEndIndex();
+                try {
+                    return deserializeTemporal(buf, fromIndex, endIndex, jsonParseContext);
+                } catch (Throwable throwable) {
+                    if (throwable instanceof InvocationTargetException) {
+                        throwable = ((InvocationTargetException) throwable).getTargetException();
+                    }
+                    String source = new String(buf, fromIndex + 1, endIndex - fromIndex - 1);
+                    String errorContextTextAt = JSONByteArrayParser.createErrorMessage(buf, fromIndex);
+                    throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', temporal text '" + source + "' cannot convert to the temporal type , exception: " + throwable.getMessage());
+                }
+            case 'n':
+                return JSONByteArrayParser.parseNull(buf, fromIndex, toIndex, jsonParseContext);
+            default: {
+                // not support or custom handle ?
+                String errorContextTextAt = JSONByteArrayParser.createErrorMessage(buf, fromIndex);
+                throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected token character '" + beginChar + "' for Temporal Type, expected '\"' ");
+            }
+        }
+    }
+
     protected abstract Object deserializeTemporal(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception;
+    protected abstract Object deserializeTemporal(byte[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception;
 }

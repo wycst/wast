@@ -5,6 +5,7 @@ import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import java.io.IOException;
 import java.io.Writer;
 import java.math.BigDecimal;
+import java.util.Arrays;
 
 /**
  * <p> 针对jdk9+字符串内置bytes数组coder=LATIN1(0)时的字符转换读取
@@ -12,14 +13,13 @@ import java.math.BigDecimal;
  * @Author wangyunchao
  * @Date 2022/8/27 15:53
  */
-class AsciiStringSource extends AbstractCharSource implements CharSource {
+public final class AsciiStringSource extends AbstractCharSource implements CharSource {
 
-    private final byte[] bytes;
     private final String input;
-    private char[] source;
+    private final byte[] bytes;
 
-    AsciiStringSource(String input, byte[] bytes, int from, int to) {
-        super(from, to);
+    AsciiStringSource(String input, byte[] bytes) {
+        super(0, bytes.length);
         this.bytes = bytes;
         this.input = input;
     }
@@ -28,27 +28,25 @@ class AsciiStringSource extends AbstractCharSource implements CharSource {
      * 构建对象
      *
      * @param input
-     * @param bytes
      * @return
      */
-    public static AsciiStringSource ofTrim(String input, byte[] bytes) {
-        int fromIndex = 0;
-        int toIndex = bytes.length;
-        while ((fromIndex < toIndex) && input.charAt(fromIndex) <= ' ') {
-            fromIndex++;
+    public static AsciiStringSource of(String input) {
+        byte coder = UnsafeHelper.getStringCoder(input);
+        if (coder == 1) {
+            throw new UnsupportedOperationException("only support LATIN1 input string.");
         }
-        while ((toIndex > fromIndex) && input.charAt(toIndex - 1) <= ' ') {
-            toIndex--;
-        }
-        return new AsciiStringSource(input, bytes, fromIndex, toIndex);
+        byte[] bytes = (byte[]) UnsafeHelper.getStringValue(input);
+        return new AsciiStringSource(input, bytes);
     }
 
     @Override
-    public char[] getSource() {
-        if (source == null) {
-            source = input.toCharArray();
-        }
-        return source;
+    public char[] charArray() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public byte[] byteArray() {
+        return bytes;
     }
 
     @Override
@@ -68,9 +66,9 @@ class AsciiStringSource extends AbstractCharSource implements CharSource {
      */
     @Override
     public String getString(int offset, int len) {
-        byte[] newBytes = new byte[len];
-        System.arraycopy(bytes, offset, newBytes, 0, len);
-        return UnsafeHelper.getAsciiString(newBytes);
+//        byte[] newBytes = new byte[len];
+//        System.arraycopy(bytes, offset, newBytes, 0, len);
+        return UnsafeHelper.getAsciiString(Arrays.copyOfRange(bytes, offset, offset + len));
     }
 
     /**
@@ -83,26 +81,22 @@ class AsciiStringSource extends AbstractCharSource implements CharSource {
      */
     @Override
     public void writeTo(Writer writer, int offset, int len) throws IOException {
-//        writer.write(source, offset, len);
         writer.write(input, offset, len);
     }
 
     @Override
     public void appendTo(StringBuffer stringBuffer, int offset, int len) {
-//        stringBuffer.append(source, offset, len);
         stringBuffer.append(input, offset, len);
     }
 
     @Override
     public void appendTo(StringBuilder stringBuilder, int offset, int len) {
-//        stringBuilder.append(source, offset, len);
         stringBuilder.append(input, offset, len);
     }
 
     @Override
     public void copy(int srcOff, char[] target, int tarOff, int len) {
         input.getChars(srcOff, srcOff + len, target, tarOff);
-//        System.arraycopy(_source, srcOff, target, tarOff, len);
     }
 
     // todo 优化
@@ -112,10 +106,27 @@ class AsciiStringSource extends AbstractCharSource implements CharSource {
     }
 
     @Override
+    public int indexOf(char ch, int beginIndex) {
+        return input.indexOf(ch, beginIndex);
+    }
+
+    @Override
+    public String substring(int beginIndex, int endIndex) {
+        return UnsafeHelper.getAsciiString(Arrays.copyOfRange(bytes, beginIndex, endIndex));
+    }
+
+    @Override
+    public String input() {
+        return input;
+    }
+
+    @Override
     public String toString() {
-        if (fromIndex() == 0 && length() == bytes.length) {
-            return UnsafeHelper.getAsciiString(bytes);
-        }
-        return new String(bytes, fromIndex(), length());
+        return input;
+    }
+
+    @Override
+    public void setCharAt(int endIndex, char c) {
+        bytes[endIndex] = (byte) c;
     }
 }

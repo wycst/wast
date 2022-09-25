@@ -1,5 +1,6 @@
 package io.github.wycst.wast.json.reflect;
 
+import io.github.wycst.wast.common.beans.CharSource;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.SetterInfo;
@@ -157,8 +158,12 @@ public class FieldDeserializer extends JSONTypeDeserializer {
         return genericParameterizedType;
     }
 
-    protected Object deserialize(char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
-        return null;
+    protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
+        throw new UnsupportedOperationException();
+    }
+
+    protected Object deserialize(CharSource charSource, byte[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext jsonParseContext) throws Exception {
+        throw new UnsupportedOperationException();
     }
 
     public ReflectConsts.ClassCategory getClassCategory() {

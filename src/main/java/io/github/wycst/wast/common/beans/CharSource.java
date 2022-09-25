@@ -18,7 +18,14 @@ public interface CharSource extends CharSequence {
      *
      * @return
      */
-    char[] getSource();
+    char[] charArray();
+
+    /**
+     * 获取字节源
+     *
+     * @return
+     */
+    byte[] byteArray();
 
     /**
      * 开始位置
@@ -110,4 +117,37 @@ public interface CharSource extends CharSequence {
      * @return
      */
     BigDecimal ofBigDecimal(int fromIndex, int len);
+
+    /**
+     * 查找字符索引
+     *
+     * @param ch
+     * @param beginIndex
+     * @return
+     */
+    int indexOf(char ch, int beginIndex);
+
+    /**
+     * 截取字符串内容
+     *
+     * @param beginIndex
+     * @param endIndex
+     * @return
+     */
+    String substring(int beginIndex, int endIndex);
+
+    /**
+     * 返回输入字符串
+     *
+     * @return
+     */
+    String input();
+
+    /**
+     * 修改索引位置的字符
+     *
+     * @param endIndex
+     * @param c
+     */
+    void setCharAt(int endIndex, char c);
 }

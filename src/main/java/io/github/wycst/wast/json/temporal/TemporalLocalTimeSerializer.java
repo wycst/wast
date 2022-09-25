@@ -38,8 +38,35 @@ public class TemporalLocalTimeSerializer extends JSONTemporalSerializer {
         int millisecond = nano / 1000000;
 
         writer.append('"');
-        dateTemplate.formatTo(1970, 1, 1, hour, minute, second, millisecond, writer);
+        dateTemplate.formatTo(1970, 1, 1, hour, minute, second, millisecond, writer, true);
         writer.append('"');
     }
 
+    @Override
+    protected void writeDefault(Object value, Writer writer, JsonConfig jsonConfig, int indent) throws Exception {
+
+        int hour = TemporalAloneInvoker.invokeLocalTimeHour(value).intValue();
+        int minute = TemporalAloneInvoker.invokeLocalTimeMinute(value).intValue();
+        int second = TemporalAloneInvoker.invokeLocalTimeSecond(value).intValue();
+        int nano = TemporalAloneInvoker.invokeLocalTimeNano(value).intValue();
+        int millisecond = nano / 1000000;
+
+        writer.write('"');
+        writer.write(DigitTens[hour]);
+        writer.write(DigitOnes[hour]);
+        writer.write(':');
+        writer.write(DigitTens[minute]);
+        writer.write(DigitOnes[minute]);
+        writer.write(':');
+        writer.write(DigitTens[second]);
+        writer.write(DigitOnes[second]);
+        writer.write('.');
+
+        char s1 = (char) (millisecond / 100 + 48);
+        int v = millisecond % 100;
+        writer.write(s1);
+        writer.write(DigitTens[v]);
+        writer.write(DigitOnes[v]);
+        writer.write('"');
+    }
 }

@@ -301,7 +301,7 @@ public class JSONReader extends JSONGeneral {
         try {
             this.readBuffer();
             if (this.isCompleted()) {
-                return JSONDefaultParser.parse(buf, 0, count, null, readOptions);
+                return JSONDefaultParser.parse(null, buf, 0, count, null, readOptions);
             }
             this.defaultRead();
         } catch (Exception e) {

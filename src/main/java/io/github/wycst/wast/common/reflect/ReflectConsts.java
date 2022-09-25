@@ -304,7 +304,7 @@ public class ReflectConsts {
         PrimitiveFloat(float[].class, arrayBaseOffset(float[].class), arrayIndexScale(float[].class)) {
             @Override
             void putValue(Object target, long fieldOffset, Object value) {
-                UnsafeHelper.getUnsafe().putFloat(target, fieldOffset, (Byte) value);
+                UnsafeHelper.getUnsafe().putFloat(target, fieldOffset, (Float) value);
             }
             @Override
             Object getValue(Object target, long fieldOffset) {

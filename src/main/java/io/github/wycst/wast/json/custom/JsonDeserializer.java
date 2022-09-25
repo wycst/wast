@@ -1,5 +1,6 @@
 package io.github.wycst.wast.json.custom;
 
+import io.github.wycst.wast.common.beans.CharSource;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.json.JSONTypeDeserializer;
 import io.github.wycst.wast.json.options.JSONParseContext;
@@ -20,8 +21,15 @@ public abstract class JsonDeserializer<T> extends JSONTypeDeserializer {
     }
 
     @Override
-    protected final Object deserialize(char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
-        Object value = JSONTypeDeserializer.doDeserialize(ANY, buf, fromIndex, toIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
+    protected final Object deserialize(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
+        Object value = JSONTypeDeserializer.doDeserialize(ANY, charSource, buf, fromIndex, toIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
+        int endIndex = jsonParseContext.getEndIndex();
+        return deserialize(value, useSource ? new String(buf, fromIndex, endIndex - fromIndex) : null, null);
+    }
+
+    @Override
+    protected final Object deserialize(CharSource charSource, byte[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext jsonParseContext) throws Exception {
+        Object value = JSONTypeDeserializer.doDeserialize(ANY, charSource, buf, fromIndex, toIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
         int endIndex = jsonParseContext.getEndIndex();
         return deserialize(value, useSource ? new String(buf, fromIndex, endIndex - fromIndex) : null, null);
     }

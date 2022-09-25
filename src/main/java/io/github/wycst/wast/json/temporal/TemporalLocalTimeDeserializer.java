@@ -2,6 +2,7 @@ package io.github.wycst.wast.json.temporal;
 
 import io.github.wycst.wast.common.beans.GeneralDate;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
+import io.github.wycst.wast.common.utils.NumberUtils;
 import io.github.wycst.wast.json.JSONTemporalDeserializer;
 import io.github.wycst.wast.json.options.JSONParseContext;
 
@@ -32,6 +33,20 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
             int h = parseInt2(buf, fromIndex + 1);
             int m = parseInt2(buf, fromIndex + 4);
             int s = parseInt2(buf, fromIndex + 7);
+            return TemporalAloneInvoker.ofLocalTime(h, m, s, 0);
+        } else {
+            // use dateTemplate && pattern
+            GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, null);
+            return TemporalAloneInvoker.ofLocalTime(generalDate.getHourOfDay(), generalDate.getMinute(), generalDate.getSecond(), generalDate.getMillisecond() * 1000000);
+        }
+    }
+
+    protected Object deserializeTemporal(byte[] buf, int fromIndex, int endIndex, JSONParseContext jsonParseContext) throws Exception {
+        if (patternType == 0) {
+            // default hh:mm:ss
+            int h = NumberUtils.parseInt2(buf, fromIndex + 1);
+            int m = NumberUtils.parseInt2(buf, fromIndex + 4);
+            int s = NumberUtils.parseInt2(buf, fromIndex + 7);
             return TemporalAloneInvoker.ofLocalTime(h, m, s, 0);
         } else {
             // use dateTemplate && pattern

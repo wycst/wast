@@ -372,7 +372,8 @@ public final class ClassStructureWrapper {
                     // 属性
                     Field field = sourceClass.getDeclaredField(fieldName);
                     if (!Modifier.isStatic(field.getModifiers()) && !Modifier.isFinal(field.getModifiers())) {
-                        if (setAccessible(field)) {
+                        // 当声明属性的类型和getter方法返回的类型不一致时，如果触发invoke，则以method的call为准
+                        if (setAccessible(field) && field.getType().isAssignableFrom(returnType)) {
                             getterInfo.setField(field);
                         }
                     }
@@ -413,8 +414,13 @@ public final class ClassStructureWrapper {
                 try {
                     Field field = sourceClass.getDeclaredField(setFieldName);
                     if (!Modifier.isStatic(field.getModifiers()) && !Modifier.isFinal(field.getModifiers())) {
-                        if (setAccessible(field)) {
+                        // 确保unsafe能安全调用,需要判断参数类型和field类型一致或者是field类型的子类
+                        // 通常情况下method都会被后续的同名的field构建的SetterInfo替换掉
+                        if (setAccessible(field) && field.getType().isAssignableFrom(parameterType)) {
                             setterInfo.setField(field);
+                        } else {
+                            // 以method为准,禁用field
+                            setterInfo.setFieldDisabled(true);
                         }
                     }
                     Annotation[] fieldAnnotations = field.getAnnotations();
@@ -639,7 +645,11 @@ public final class ClassStructureWrapper {
                     parseSetterGenericType(superGenericClassMap, sourceClass, declaringClass, setterInfo, genericType, fieldType);
                     setterInfo.setAnnotations(annotationMap);
 
-                    wrapper.setterInfos.put(fieldName, setterInfo);
+                    SetterInfo oldSetterInfo = wrapper.setterInfos.get(fieldName);
+                    // 如果同名setter方法中参数类型和field类型不适配，以setter方法为准，确保序列化和反序列化的个性化处理特性
+                    if(oldSetterInfo == null || !oldSetterInfo.isFieldDisabled()) {
+                        wrapper.setterInfos.put(fieldName, setterInfo);
+                    }
                 }
             }
             target = target.getSuperclass();

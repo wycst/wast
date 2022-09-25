@@ -16,8 +16,8 @@ public class CharArraySource extends AbstractCharSource implements CharSource {
     // 字符数组
     private final char[] source;
 
-    CharArraySource(char[] source, int from, int to) {
-        super(from, to);
+    CharArraySource(char[] source) {
+        super(0, source.length);
         this.source = source;
     }
 
@@ -28,40 +28,17 @@ public class CharArraySource extends AbstractCharSource implements CharSource {
      * @return
      */
     public static CharArraySource of(char[] source) {
-        return new CharArraySource(source, 0, source.length);
-    }
-
-    /**
-     * 构建对象并trim
-     *
-     * @param source
-     * @return
-     */
-    public static CharArraySource ofTrim(char[] source) {
-        return ofTrim(source, 0, source.length);
-    }
-
-    /**
-     * 构建对象并trim
-     *
-     * @param source
-     * @param fromIndex 开始位置
-     * @param toIndex   结束位置
-     * @return
-     */
-    public static CharArraySource ofTrim(char[] source, int fromIndex, int toIndex) {
-        while ((fromIndex < toIndex) && source[fromIndex] <= ' ') {
-            fromIndex++;
-        }
-        while ((toIndex > fromIndex) && source[toIndex - 1] <= ' ') {
-            toIndex--;
-        }
-        return new CharArraySource(source, fromIndex, toIndex);
+        return new CharArraySource(source);
     }
 
     @Override
-    public char[] getSource() {
+    public char[] charArray() {
         return source;
+    }
+
+    @Override
+    public byte[] byteArray() {
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -97,6 +74,21 @@ public class CharArraySource extends AbstractCharSource implements CharSource {
     @Override
     public BigDecimal ofBigDecimal(int fromIndex, int len) {
         return new BigDecimal(source, fromIndex, len);
+    }
+
+    @Override
+    public int indexOf(char ch, int beginIndex) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String substring(int beginIndex, int endIndex) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String input() {
+        throw new UnsupportedOperationException();
     }
 
     @Override

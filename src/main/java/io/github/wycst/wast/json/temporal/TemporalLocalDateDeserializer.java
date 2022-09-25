@@ -2,6 +2,7 @@ package io.github.wycst.wast.json.temporal;
 
 import io.github.wycst.wast.common.beans.GeneralDate;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
+import io.github.wycst.wast.common.utils.NumberUtils;
 import io.github.wycst.wast.json.JSONTemporalDeserializer;
 import io.github.wycst.wast.json.options.JSONParseContext;
 
@@ -29,9 +30,23 @@ public class TemporalLocalDateDeserializer extends JSONTemporalDeserializer {
     protected Object deserializeTemporal(char[] buf, int fromIndex, int endIndex, JSONParseContext jsonParseContext) throws Exception {
         if (patternType == 0) {
             // default yyyy-MM-dd
-            int year = parseInt4(buf, fromIndex + 1);
-            int month = parseInt2(buf, fromIndex + 6);
-            int day = parseInt2(buf, fromIndex + 9);
+            int year = NumberUtils.parseInt4(buf, fromIndex + 1);
+            int month = NumberUtils.parseInt2(buf, fromIndex + 6);
+            int day = NumberUtils.parseInt2(buf, fromIndex + 9);
+            return TemporalAloneInvoker.ofLocalDate(year, month, day);
+        } else {
+            // use dateTemplate && pattern
+            GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, null);
+            return TemporalAloneInvoker.ofLocalDate(generalDate.getYear(), generalDate.getMonth(), generalDate.getDay());
+        }
+    }
+
+    protected Object deserializeTemporal(byte[] buf, int fromIndex, int endIndex, JSONParseContext jsonParseContext) throws Exception {
+        if (patternType == 0) {
+            // default yyyy-MM-dd
+            int year = NumberUtils.parseInt4(buf, fromIndex + 1);
+            int month = NumberUtils.parseInt2(buf, fromIndex + 6);
+            int day = NumberUtils.parseInt2(buf, fromIndex + 9);
             return TemporalAloneInvoker.ofLocalDate(year, month, day);
         } else {
             // use dateTemplate && pattern

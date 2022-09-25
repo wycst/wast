@@ -165,9 +165,6 @@ public class LunarDate extends Date {
     // 12星座基本和节气中的12气对应
     private final static long[] SOLAR_TERMS_2019 = new long[24];
 
-    // 地球公转一周年毫秒数(计算24节气)
-    public final static long YEAR_TIMEMILLS = 31556925216l;
-
     // 是否禁用自动update
     private boolean disableAutoUpdate;
 

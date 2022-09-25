@@ -16,8 +16,12 @@
  */
 package io.github.wycst.wast.json;
 
+import io.github.wycst.wast.common.beans.AsciiStringSource;
+import io.github.wycst.wast.common.beans.CharSource;
+import io.github.wycst.wast.common.beans.UTF16ByteArraySource;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
+import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import io.github.wycst.wast.json.exceptions.JSONException;
 import io.github.wycst.wast.json.options.*;
 
@@ -86,6 +90,8 @@ import java.util.*;
 @SuppressWarnings("rawtypes")
 public final class JSON extends JSONGeneral {
 
+    public static String FLAG = "0.0.7";
+
     /**
      * 将json字符串转为对象或者数组(Convert JSON strings to objects or arrays)
      *
@@ -133,6 +139,18 @@ public final class JSON extends JSONGeneral {
         return JSONDefaultParser.parse(buf, readOptions);
     }
 
+    /***
+     * 解析字节数组返回Map对象或者List集合
+     *
+     * @param bytes 字节数组（ascii/utf8/...）
+     * @param readOptions
+     * @return
+     */
+    public static Object parse(byte[] bytes, ReadOption... readOptions) {
+        if (bytes == null) return null;
+        return JSONDefaultParser.parseBytes(bytes, readOptions);
+    }
+
     /**
      * 将json字符串转化为指定actualType的实例
      * <p>
@@ -148,7 +166,22 @@ public final class JSON extends JSONGeneral {
     public static Object parse(String json, Class<?> actualType, ReadOption... readOptions) {
         if (json == null)
             return null;
-        return parse(getChars(json), actualType, null, readOptions);
+        if (JDK_9_ABOVE) {
+            int code = UnsafeHelper.getStringCoder(json);
+            if (code == 0) {
+                if(json.length() < DIRECT_READ_BUFFER_SIZE) {
+                    // Small text uses chars
+                    return parse(null, getChars(json), actualType, null, readOptions);
+                }
+                CharSource charSource = AsciiStringSource.of(json);
+                return parse(charSource, charSource.byteArray(), actualType, null, readOptions);
+            } else {
+                // utf16
+                char[] chars = getChars(json);
+                return parse(UTF16ByteArraySource.of(json, chars), chars, actualType, null, readOptions);
+            }
+        }
+        return parse(null, getChars(json), actualType, null, readOptions);
     }
 
     /**
@@ -168,7 +201,25 @@ public final class JSON extends JSONGeneral {
             Object map = JSONDefaultParser.parseMap(json, (Class<? extends Map>) actualType, readOptions);
             return (T) map;
         }
-        return parseObject(typeDeserializer, getChars(json), actualType, readOptions);
+
+        if (JDK_9_ABOVE) {
+            int code = UnsafeHelper.getStringCoder(json);
+            if (code == 0) {
+                // use ascii bytes
+                if(json.length() < DIRECT_READ_BUFFER_SIZE) {
+                    // Small text uses chars
+                    return parseObject(typeDeserializer, null, getChars(json), actualType, readOptions);
+                }
+                CharSource charSource = AsciiStringSource.of(json);
+                return parseObject(typeDeserializer, charSource, charSource.byteArray(), actualType, readOptions);
+            } else {
+                // utf16
+                char[] chars = getChars(json);
+                return parseObject(typeDeserializer, UTF16ByteArraySource.of(json, chars), chars, actualType, readOptions);
+            }
+        }
+
+        return parseObject(typeDeserializer, null, getChars(json), actualType, readOptions);
     }
 
     /**
@@ -182,32 +233,49 @@ public final class JSON extends JSONGeneral {
      * @return 类型对象
      */
     public static <T> T parseObject(char[] buf, final Class<T> actualType, ReadOption... readOptions) {
-//        return (T) deserialize(buf, new Deserializer() {
-//
-//            Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
-//                JSONTypeDeserializer typeDeserializer = JSONTypeDeserializer.getTypeDeserializer(actualType);
-//                GenericParameterizedType<T> genericParameterizedType = typeDeserializer.getGenericParameterizedType();
-//                if (genericParameterizedType == null) {
-//                    genericParameterizedType = GenericParameterizedType.actualType(actualType);
-//                }
-//                return typeDeserializer.deserialize(buf, fromIndex, toIndex, genericParameterizedType, null, '\0', jsonParseContext);
-//            }
-//        }, readOptions);
         JSONTypeDeserializer typeDeserializer = JSONTypeDeserializer.getTypeDeserializer(actualType);
-        return parseObject(typeDeserializer, buf, actualType, readOptions);
+        return parseObject(typeDeserializer, null, buf, actualType, readOptions);
     }
 
-    private static <T> T parseObject(final JSONTypeDeserializer deserializer, char[] buf, final Class<T> actualType, ReadOption[] readOptions) {
+    /**
+     * 将字节数组转化为指定class的实例
+     * <p> 去除不可见字符后以字符{开始
+     *
+     * @param buf         字节数组
+     * @param actualType  类型
+     * @param readOptions 读取配置
+     * @param <T>         泛型
+     * @return 类型对象
+     */
+    public static <T> T parseObject(byte[] buf, final Class<T> actualType, ReadOption... readOptions) {
+        JSONTypeDeserializer typeDeserializer = JSONTypeDeserializer.getTypeDeserializer(actualType);
+        return parseObject(typeDeserializer, null, buf, actualType, readOptions);
+    }
+
+    private static <T> T parseObject(final JSONTypeDeserializer deserializer, final CharSource charSource, char[] buf, final Class<T> actualType, ReadOption[] readOptions) {
         return (T) deserialize(buf, new Deserializer() {
             Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
                 GenericParameterizedType<T> genericParameterizedType = deserializer.getGenericParameterizedType();
                 if (genericParameterizedType == null) {
                     genericParameterizedType = GenericParameterizedType.actualType(actualType);
                 }
-                return deserializer.deserialize(buf, fromIndex, toIndex, genericParameterizedType, null, '\0', jsonParseContext);
+                return deserializer.deserialize(charSource, buf, fromIndex, toIndex, genericParameterizedType, null, '\0', jsonParseContext);
             }
         }, readOptions);
     }
+
+    private static <T> T parseObject(final JSONTypeDeserializer deserializer, final CharSource charSource, byte[] buf, final Class<T> actualType, ReadOption[] readOptions) {
+        return (T) deserialize(buf, new Deserializer() {
+            Object deserialize(byte[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
+                GenericParameterizedType<T> genericParameterizedType = deserializer.getGenericParameterizedType();
+                if (genericParameterizedType == null) {
+                    genericParameterizedType = GenericParameterizedType.actualType(actualType);
+                }
+                return deserializer.deserialize(charSource, buf, fromIndex, toIndex, genericParameterizedType, null, (byte) 0, jsonParseContext);
+            }
+        }, readOptions);
+    }
+
 
     /**
      * 将JSON字符串转化为指定Type的实例
@@ -248,6 +316,14 @@ public final class JSON extends JSONGeneral {
      */
     public static <T> T parse(String json, GenericParameterizedType<T> genericParameterizedType, ReadOption... readOptions) {
         if (json == null) return null;
+        if (JDK_9_ABOVE) {
+            int code = UnsafeHelper.getStringCoder(json);
+            if (code == 1) {
+                // utf16
+                char[] chars = getChars(json);
+                return parse(UTF16ByteArraySource.of(json, chars), chars, genericParameterizedType, readOptions);
+            }
+        }
         return parse(getChars(json), genericParameterizedType, readOptions);
     }
 
@@ -261,11 +337,25 @@ public final class JSON extends JSONGeneral {
      * @return 对象或者数组
      */
     public static <T> T parse(char[] buf, final GenericParameterizedType<T> genericParameterizedType, ReadOption... readOptions) {
+        return parse(null, buf, genericParameterizedType, readOptions);
+    }
+
+    /**
+     * 根据输入genericType选择对应的序列化器进行序列化
+     *
+     * @param charSource               源
+     * @param buf                      json字符数组
+     * @param genericParameterizedType 泛型结构
+     * @param readOptions              读取配置
+     * @param <T>                      泛型类型
+     * @return 对象或者数组
+     */
+    private static <T> T parse(final CharSource charSource, char[] buf, final GenericParameterizedType<T> genericParameterizedType, ReadOption... readOptions) {
         return (T) deserialize(buf, new Deserializer() {
 
             Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
                 ReflectConsts.ClassCategory classCategory = genericParameterizedType.getActualClassCategory();
-                return JSONTypeDeserializer.TYPE_DESERIALIZERS[classCategory.ordinal()].deserialize(buf, fromIndex, toIndex, genericParameterizedType, null, '\0', jsonParseContext);
+                return JSONTypeDeserializer.TYPE_DESERIALIZERS[classCategory.ordinal()].deserialize(charSource, buf, fromIndex, toIndex, genericParameterizedType, null, '\0', jsonParseContext);
             }
         }, readOptions);
     }
@@ -280,6 +370,14 @@ public final class JSON extends JSONGeneral {
      */
     public static <T> List<T> parseArray(String json, Class<T> actualType, ReadOption... readOptions) {
         if (json == null) return null;
+        if (JDK_9_ABOVE) {
+            int code = UnsafeHelper.getStringCoder(json);
+            if (code == 1) {
+                // utf16
+                char[] chars = getChars(json);
+                return parseArray(UTF16ByteArraySource.of(json, chars), chars, actualType, readOptions);
+            }
+        }
         return parseArray(getChars(json), actualType, readOptions);
     }
 
@@ -293,9 +391,22 @@ public final class JSON extends JSONGeneral {
      * @return
      */
     public static <T> List<T> parseArray(char[] buf, final Class<T> actualType, ReadOption... readOptions) {
+        return parseArray(null, buf, actualType, readOptions);
+    }
+
+    /**
+     * 解析集合
+     *
+     * @param buf         字符数组
+     * @param actualType  类型
+     * @param readOptions 读取配置
+     * @param <T>         泛型
+     * @return
+     */
+    private static <T> List<T> parseArray(final CharSource charSource, char[] buf, final Class<T> actualType, ReadOption... readOptions) {
         return (List<T>) deserialize(buf, new Deserializer() {
             Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
-                return JSONTypeDeserializer.COLLECTION.deserialize(buf, fromIndex, toIndex, GenericParameterizedType.collectionType(ArrayList.class, actualType), null, '\0', jsonParseContext);
+                return JSONTypeDeserializer.COLLECTION.deserialize(charSource, buf, fromIndex, toIndex, GenericParameterizedType.collectionType(ArrayList.class, actualType), null, '\0', jsonParseContext);
             }
         }, readOptions);
     }
@@ -309,33 +420,100 @@ public final class JSON extends JSONGeneral {
      * @return
      */
     public static Object parse(char[] buf, Class<?> actualType, ReadOption... readOptions) {
-        return parse(buf, actualType, null, readOptions);
+        return parse(null, buf, 0, buf.length, actualType, null, readOptions);
     }
 
     /**
      * 解析buf字符数组，返回对象或者集合类型
      *
+     * @param buf         字符数组
+     * @param fromIndex   开始位置
+     * @param toIndex     结束位置
+     * @param actualType  类型
+     * @param readOptions 读取配置
+     * @return
+     */
+    public static Object parse(char[] buf, int fromIndex, int toIndex, Class<?> actualType, ReadOption... readOptions) {
+        return parse(null, buf, fromIndex, toIndex, actualType, null, readOptions);
+    }
+
+    /**
+     * 解析buf字节数组，返回对象或者集合类型
+     *
+     * @param buf         字符数组
+     * @param actualType  类型
+     * @param readOptions 读取配置
+     * @return
+     */
+    public static Object parse(byte[] buf, Class<?> actualType, ReadOption... readOptions) {
+        return parse(null, buf, actualType, null, readOptions);
+//        if (JDK_9_ABOVE) {
+//            return parse(null, buf, actualType, null, readOptions);
+//        }
+//        return parse(new String(buf), actualType, readOptions);
+    }
+
+    /**
+     * 解析buf字符数组，返回对象或者集合类型
+     *
+     * @param charSource   源
      * @param buf          字符数组
      * @param actualType   类型
      * @param defaultValue 默认值
      * @param readOptions  读取配置
      * @return 对象
      */
-    private static Object parse(char[] buf, final Class<?> actualType, final Object defaultValue, ReadOption... readOptions) {
-        return deserialize(buf, new Deserializer() {
+    private static Object parse(final CharSource charSource, char[] buf, final Class<?> actualType, final Object defaultValue, ReadOption... readOptions) {
+        return parse(charSource, buf, 0, buf.length, actualType, defaultValue, readOptions);
+    }
+
+    // 基于偏移位置和长度解析
+    private static Object parse(final CharSource charSource, char[] buf, int fromIndex, int toIndex, final Class<?> actualType, final Object defaultValue, ReadOption... readOptions) {
+        return deserialize(buf, fromIndex, toIndex, new Deserializer() {
 
             Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
                 char beginChar = buf[fromIndex];
                 switch (beginChar) {
                     case '[':
-                        return JSONTypeDeserializer.COLLECTION.deserializeCollection(buf, fromIndex, toIndex, GenericParameterizedType.collectionType(ArrayList.class, actualType), defaultValue == null ? new ArrayList() : defaultValue, jsonParseContext);
+                        return JSONTypeDeserializer.COLLECTION.deserializeCollection(charSource, buf, fromIndex, toIndex, GenericParameterizedType.collectionType(ArrayList.class, actualType), defaultValue == null ? new ArrayList() : defaultValue, jsonParseContext);
                     default: {
                         JSONTypeDeserializer typeDeserializer = JSONTypeDeserializer.getTypeDeserializer(actualType);
                         GenericParameterizedType type = typeDeserializer.getGenericParameterizedType();
                         if (type == null) {
                             type = GenericParameterizedType.actualType(actualType);
                         }
-                        return typeDeserializer.deserialize(buf, fromIndex, toIndex, type, defaultValue, '\0', jsonParseContext);
+                        return typeDeserializer.deserialize(charSource, buf, fromIndex, toIndex, type, defaultValue, '\0', jsonParseContext);
+                    }
+                }
+            }
+        }, readOptions);
+    }
+
+    /**
+     * 解析buf字节数组，返回对象或者集合类型
+     *
+     * @param charSource   源
+     * @param buf          字节数组
+     * @param actualType   类型
+     * @param defaultValue 默认值
+     * @param readOptions  读取配置
+     * @return 对象
+     */
+    private static Object parse(final CharSource charSource, byte[] buf, final Class<?> actualType, final Object defaultValue, ReadOption... readOptions) {
+        return deserialize(buf, new Deserializer() {
+
+            Object deserialize(byte[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
+                byte beginByte = buf[fromIndex];
+                switch (beginByte) {
+                    case '[':
+                        return JSONTypeDeserializer.COLLECTION.deserializeCollection(charSource, buf, fromIndex, toIndex, GenericParameterizedType.collectionType(ArrayList.class, actualType), defaultValue == null ? new ArrayList() : defaultValue, jsonParseContext);
+                    default: {
+                        JSONTypeDeserializer typeDeserializer = JSONTypeDeserializer.getTypeDeserializer(actualType);
+                        GenericParameterizedType type = typeDeserializer.getGenericParameterizedType();
+                        if (type == null) {
+                            type = GenericParameterizedType.actualType(actualType);
+                        }
+                        return typeDeserializer.deserialize(charSource, buf, fromIndex, toIndex, type, defaultValue, (byte) '\0', jsonParseContext);
                     }
                 }
             }
@@ -354,16 +532,28 @@ public final class JSON extends JSONGeneral {
         if (instance == null || json == null) {
             return null;
         }
-        return deserialize(getChars(json), new Deserializer() {
+        if (JDK_9_ABOVE) {
+            int code = UnsafeHelper.getStringCoder(json);
+            if (code == 1) {
+                // utf16
+                char[] chars = getChars(json);
+                return parseToObject(UTF16ByteArraySource.of(json, chars), chars, instance, readOptions);
+            }
+        }
+        return parseToObject(null, getChars(json), instance, readOptions);
+    }
 
+    private static Object parseToObject(final CharSource charSource, char[] buf, final Object instance, ReadOption... readOptions) {
+        return deserialize(buf, new Deserializer() {
             Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
                 if (instance instanceof Map) {
-                    return JSONTypeDeserializer.MAP.deserialize(buf, fromIndex, toIndex, GenericParameterizedType.DefaultMap, instance, '\0', jsonParseContext);
+                    return JSONTypeDeserializer.MAP.deserialize(charSource, buf, fromIndex, toIndex, GenericParameterizedType.DefaultMap, instance, '\0', jsonParseContext);
                 }
-                return JSONTypeDeserializer.OBJECT.deserializeObject(buf, fromIndex, toIndex, GenericParameterizedType.actualType(instance.getClass()), instance, jsonParseContext);
+                return JSONTypeDeserializer.OBJECT.deserializeObject(charSource, buf, fromIndex, toIndex, GenericParameterizedType.actualType(instance.getClass()), instance, jsonParseContext);
             }
         }, readOptions);
     }
+
 
     /**
      * 解析目标json到指定泛型类型的集合对象
@@ -379,9 +569,21 @@ public final class JSON extends JSONGeneral {
         if (instance == null || json == null) {
             return null;
         }
-        return deserialize(getChars(json), new Deserializer() {
+        if (JDK_9_ABOVE) {
+            int code = UnsafeHelper.getStringCoder(json);
+            if (code == 1) {
+                // utf16
+                char[] chars = getChars(json);
+                return parseToList(UTF16ByteArraySource.of(json, chars), chars, instance, actualType, readOptions);
+            }
+        }
+        return parseToList(null, getChars(json), instance, actualType, readOptions);
+    }
+
+    private static <E> Object parseToList(final CharSource charSource, char[] buf, final Collection instance, final Class<E> actualType, ReadOption... readOptions) {
+        return deserialize(buf, new Deserializer() {
             Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
-                return JSONTypeDeserializer.COLLECTION.deserializeCollection(buf, fromIndex, toIndex, GenericParameterizedType.collectionType(instance.getClass(), actualType), instance, jsonParseContext);
+                return JSONTypeDeserializer.COLLECTION.deserializeCollection(charSource, buf, fromIndex, toIndex, GenericParameterizedType.collectionType(instance.getClass(), actualType), instance, jsonParseContext);
             }
         }, readOptions);
     }
@@ -390,7 +592,13 @@ public final class JSON extends JSONGeneral {
      * 本地反序列化器提取代码
      */
     abstract static class Deserializer {
-        abstract Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception;
+        Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
+            throw new UnsupportedOperationException();
+        }
+
+        Object deserialize(byte[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
+            throw new UnsupportedOperationException();
+        }
     }
 
     /***
@@ -402,8 +610,10 @@ public final class JSON extends JSONGeneral {
      * @return
      */
     private static Object deserialize(char[] buf, Deserializer deserializer, ReadOption... readOptions) {
-        int fromIndex = 0;
-        int toIndex = buf.length;
+        return deserialize(buf, 0, buf.length, deserializer, readOptions);
+    }
+
+    private static Object deserialize(char[] buf, int fromIndex, int toIndex, Deserializer deserializer, ReadOption... readOptions) {
         // Trim remove white space characters
         char beginChar = '\0';
         while ((fromIndex < toIndex) && (beginChar = buf[fromIndex]) <= ' ') {
@@ -447,6 +657,67 @@ public final class JSON extends JSONGeneral {
             // There is only one possibility to control out of bounds exceptions when indexing toindex
             if (ex instanceof IndexOutOfBoundsException) {
                 String errorContextTextAt = createErrorContextText(buf, toIndex);
+                throw new JSONException("Syntax error, context text by '" + errorContextTextAt + "', JSON format error, and the end token may be missing, such as '\"' or ', ' or '}' or ']'.");
+            }
+            throw new JSONException("Error: " + ex.getMessage(), ex);
+        } finally {
+            jsonParseContext.clear();
+        }
+    }
+
+    /***
+     * 提取重复代码
+     *
+     * @param buf
+     * @param deserializer
+     * @param readOptions
+     * @return
+     */
+    private static Object deserialize(byte[] buf, Deserializer deserializer, ReadOption... readOptions) {
+        int fromIndex = 0;
+        int toIndex = buf.length;
+        // Trim remove white space characters
+        byte beginByte = '\0';
+        while ((fromIndex < toIndex) && (beginByte = buf[fromIndex]) <= ' ') {
+            fromIndex++;
+        }
+        while ((toIndex > fromIndex) && buf[toIndex - 1] <= ' ') {
+            toIndex--;
+        }
+
+        JSONParseContext jsonParseContext = new JSONParseContext();
+        Options.readOptions(readOptions, jsonParseContext);
+        try {
+            boolean allowComment = jsonParseContext.isAllowComment();
+            if (allowComment && beginByte == '/') {
+                fromIndex = JSONByteArrayParser.clearComments(buf, fromIndex + 1, toIndex, jsonParseContext);
+            }
+            Object result = deserializer.deserialize(buf, fromIndex, toIndex, jsonParseContext);
+            int endIndex = jsonParseContext.getEndIndex();
+            if (allowComment) {
+                /** 去除声明在尾部的注释*/
+                if (endIndex < toIndex - 1) {
+                    byte commentStart = '\0';
+                    while (endIndex + 1 < toIndex && (commentStart = buf[++endIndex]) <= ' ') ;
+                    if (commentStart == '/') {
+                        endIndex = JSONByteArrayParser.clearComments(buf, endIndex + 1, toIndex, jsonParseContext);
+                    }
+                }
+            }
+
+            if (endIndex != toIndex - 1) {
+                int wordNum = Math.min(50, buf.length - endIndex);
+                throw new JSONException("Syntax error, at pos " + endIndex + " extra characters found, '" + new String(buf, endIndex, wordNum) + " ...'");
+            }
+
+            return result;
+        } catch (Exception ex) {
+            if (ex instanceof JSONException) {
+                throw (JSONException) ex;
+            }
+            // There is only one possibility to control out of bounds exceptions when indexing toindex
+            if (ex instanceof IndexOutOfBoundsException) {
+                String errorContextTextAt = JSONByteArrayParser.createErrorMessage(buf, toIndex);
                 throw new JSONException("Syntax error, context text by '" + errorContextTextAt + "', JSON format error, and the end token may be missing, such as '\"' or ', ' or '}' or ']'.");
             }
             throw new JSONException("Error: " + ex.getMessage(), ex);
@@ -519,7 +790,8 @@ public final class JSON extends JSONGeneral {
      * @return T对象
      */
     public static <T> T read(byte[] bytes, Class<T> actualType, ReadOption... readOptions) {
-        return (T) parse(getChars(new String(bytes)), actualType, readOptions);
+        return (T) parse(null, bytes, actualType, null, readOptions);
+        // return (T) parse(getChars(new String(bytes)), actualType, readOptions);
     }
 
     /**

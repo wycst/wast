@@ -41,8 +41,33 @@ public final class DateTemplate {
 
     private final List<DateFieldIndex> fieldIndexs = new ArrayList<DateFieldIndex>();
 
-    private final static String[] FORMAT_DIGITS = {"00", "01", "02", "03", "04", "05", "06", "07", "08", "09"};
+    //    private final static String[] FORMAT_DIGITS = {"00", "01", "02", "03", "04", "05", "06", "07", "08", "09"};
     private final static String[] WEEK_DAYS = {"星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"};
+    final static char[] DigitOnes = {
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+    };
+
+    final static char[] DigitTens = {
+            '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
+            '1', '1', '1', '1', '1', '1', '1', '1', '1', '1',
+            '2', '2', '2', '2', '2', '2', '2', '2', '2', '2',
+            '3', '3', '3', '3', '3', '3', '3', '3', '3', '3',
+            '4', '4', '4', '4', '4', '4', '4', '4', '4', '4',
+            '5', '5', '5', '5', '5', '5', '5', '5', '5', '5',
+            '6', '6', '6', '6', '6', '6', '6', '6', '6', '6',
+            '7', '7', '7', '7', '7', '7', '7', '7', '7', '7',
+            '8', '8', '8', '8', '8', '8', '8', '8', '8', '8',
+            '9', '9', '9', '9', '9', '9', '9', '9', '9', '9',
+    };
 
     public static class DateFieldIndex implements Comparable<DateFieldIndex> {
         final int field;
@@ -240,7 +265,118 @@ public final class DateTemplate {
                     // 只处理最多3位毫秒
                     int msOffset = millisecondIndex + offset + factor;
                     int digit = NumberUtils.digitDecimal(buf[msOffset++]);
-                    if(digit != -1) {
+                    if (digit != -1) {
+                        millisecond = digit;
+                    }
+                    if (msOffset < bufLength) {
+                        int v2 = NumberUtils.digitDecimal(buf[msOffset++]);
+                        if (v2 != -1) {
+                            millisecond = millisecond * 10 + v2;
+                            if (msOffset < bufLength) {
+                                int v3 = NumberUtils.digitDecimal(buf[msOffset]);
+                                if (v3 != -1) {
+                                    millisecond = millisecond * 10 + v3;
+                                } else {
+                                    factor--;
+                                }
+                            }
+                        } else {
+                            factor -= 2;
+                        }
+                    }
+                    continue;
+                }
+            }
+        }
+        return new GeneralDate(year, month, day, hour, minute, second, millisecond, timeZone);
+    }
+
+    public GeneralDate parseGeneralDate(byte[] buf, int offset, int len, TimeZone timeZone) {
+        int year = 0, month = 0, day = 0, hour = 0, minute = 0, second = 0, millisecond = 0;
+        int factor = 0, bufLength = offset + len;
+        for (DateFieldIndex fieldIndex : fieldIndexs) {
+            switch (fieldIndex.field) {
+                case Date.YEAR: {
+                    int yearLen = fieldIndex.len;
+                    // todo 如果要解析的字符中，年份是负数，需要判断第一个字符是否为'-',然后factor++,有需求再实现
+                    if (yearLen == 2) {
+                        year = NumberUtils.parseInt2(buf, yearIndex + offset + factor);
+                        year += new Date().getYear() / 100 * 100;
+                    } else {
+                        year = NumberUtils.parseInt4(buf, fullYearIndex + offset + factor);
+                    }
+                    continue;
+                }
+                case Date.MONTH: {
+                    int monOffset = monthIndex + offset + factor;
+                    month = NumberUtils.parseInt1(buf, monOffset++);
+                    if (monOffset < bufLength) {
+                        int mon2 = NumberUtils.digitDecimal((char) buf[monOffset]);
+                        if (mon2 == -1) {
+                            factor--;
+                        } else {
+                            month = month * 10 + mon2;
+                        }
+                    }
+                    continue;
+                }
+                case Date.DAY_OF_MONTH: {
+                    int dayOffset = dayIndex + offset + factor;
+                    day = NumberUtils.parseInt1(buf, dayOffset++);
+                    if (dayOffset < bufLength) {
+                        int d2 = NumberUtils.digitDecimal((char) buf[dayOffset]);
+                        if (d2 == -1) {
+                            factor--;
+                        } else {
+                            day = day * 10 + d2;
+                        }
+                    }
+                    continue;
+                }
+                case Date.HOURS: {
+                    int hourOffset = hourIndex + offset + factor;
+                    hour = NumberUtils.parseInt1(buf, hourOffset++);
+                    if (hourOffset < bufLength) {
+                        int h2 = NumberUtils.digitDecimal(buf[hourOffset]);
+                        if (h2 == -1) {
+                            factor--;
+                        } else {
+                            hour = hour * 10 + h2;
+                        }
+                    }
+                    continue;
+                }
+                case Date.MINUTE: {
+                    int minOffset = minuteIndex + offset + factor;
+                    minute = NumberUtils.parseInt1(buf, minOffset++);
+                    if (minOffset < bufLength) {
+                        int minute2 = NumberUtils.digitDecimal(buf[minOffset]);
+                        if (minute2 == -1) {
+                            factor--;
+                        } else {
+                            minute = minute * 10 + minute2;
+                        }
+                    }
+                    continue;
+                }
+                case Date.SECOND: {
+                    int secOffset = secondIndex + offset + factor;
+                    second = NumberUtils.parseInt1(buf, secOffset++);
+                    if (secOffset < bufLength) {
+                        int s2 = NumberUtils.digitDecimal(buf[secOffset]);
+                        if (s2 == -1) {
+                            factor--;
+                        } else {
+                            second = second * 10 + s2;
+                        }
+                    }
+                    continue;
+                }
+                case Date.MILLISECOND: {
+                    // 只处理最多3位毫秒
+                    int msOffset = millisecondIndex + offset + factor;
+                    int digit = NumberUtils.digitDecimal(buf[msOffset++]);
+                    if (digit != -1) {
                         millisecond = digit;
                     }
                     if (msOffset < bufLength) {
@@ -276,6 +412,21 @@ public final class DateTemplate {
      * @return
      */
     public long parseTime(char[] buf, int offset, int len, TimeZone timeZone) {
+        GeneralDate generalDate = parseGeneralDate(buf, offset, len, timeZone);
+        generalDate.updateTime();
+        return generalDate.timeMills;
+    }
+
+    /**
+     * 解析日期返回日期在指定时区下的时间戳
+     *
+     * @param buf
+     * @param offset
+     * @param len
+     * @param timeZone
+     * @return
+     */
+    public long parseTime(byte[] buf, int offset, int len, TimeZone timeZone) {
         GeneralDate generalDate = parseGeneralDate(buf, offset, len, timeZone);
         generalDate.updateTime();
         return generalDate.timeMills;
@@ -354,6 +505,18 @@ public final class DateTemplate {
         date.formatTo(pattern, appendable);
     }
 
+    /**
+     * 格式化日期对象为字符串
+     *
+     * @param date
+     * @param appendable
+     * @param escapeQuot 是否转义双引号
+     * @see Date#formatTo(String, Appendable)
+     */
+    public void formatTo(Date date, Appendable appendable, boolean escapeQuot) {
+        date.formatTo(pattern, appendable, escapeQuot);
+    }
+
     static void formatTo(int year,
                          int month,
                          int dayOfMonth,
@@ -367,7 +530,26 @@ public final class DateTemplate {
                          int weekOfYear,
                          TimeZone timeZone,
                          String template,
-                         Appendable appendable) {
+                         Appendable appendable
+    ) {
+        formatTo(year, month, dayOfMonth, hour, minute, second, millisecond, dayOfWeek, daysOfYear, weekOfMonth, weekOfYear, timeZone, template, appendable, false);
+    }
+
+    static void formatTo(int year,
+                         int month,
+                         int dayOfMonth,
+                         int hour,
+                         int minute,
+                         int second,
+                         int millisecond,
+                         int dayOfWeek,
+                         int daysOfYear,
+                         int weekOfMonth,
+                         int weekOfYear,
+                         TimeZone timeZone,
+                         String template,
+                         Appendable appendable,
+                         boolean escape) {
         try {
             String pattern = template.trim();
             int len = pattern.length();
@@ -392,39 +574,30 @@ public final class DateTemplate {
                                 appendable.append('-');
                                 year = -year;
                             }
+                            int y2 = year % 100;
                             if (count == 2) {
                                 // 输出2位数年份
-                                int j = year % 100;
-                                if (j < 10) {
-                                    appendable.append(FORMAT_DIGITS[j]);
-                                } else {
-                                    appendable.append(String.valueOf(j));
-                                }
+                                appendable.append(DigitTens[y2]);
+                                appendable.append(DigitOnes[y2]);
                             } else {
+                                int y1 = year / 100;
                                 // 输出完整的年份
-                                appendable.append(String.valueOf(year));
+                                appendable.append(DigitTens[y1]);
+                                appendable.append(DigitOnes[y1]);
+                                appendable.append(DigitTens[y2]);
+                                appendable.append(DigitOnes[y2]);
                             }
                             break;
                         }
                         case 'M': {
                             // 月份
-                            if (month >= 10) {
-                                // 输出实际month
-                                appendable.append(String.valueOf(month));
-                            } else {
-                                // 输出完整的month
-                                appendable.append(FORMAT_DIGITS[month]);
-                            }
+                            appendable.append(DigitTens[month]);
+                            appendable.append(DigitOnes[month]);
                             break;
                         }
                         case 'd': {
-                            if (dayOfMonth >= 10) {
-                                // 输出实际day
-                                appendable.append(String.valueOf(dayOfMonth));
-                            } else {
-                                // 输出完整的day
-                                appendable.append(FORMAT_DIGITS[dayOfMonth]);
-                            }
+                            appendable.append(DigitTens[dayOfMonth]);
+                            appendable.append(DigitOnes[dayOfMonth]);
                             break;
                         }
                         case 'A':
@@ -439,13 +612,8 @@ public final class DateTemplate {
                         }
                         case 'H': {
                             // 0-23
-                            if (hour >= 10) {
-                                // 输出实际hourOfDay
-                                appendable.append(String.valueOf(hour));
-                            } else {
-                                // 输出完整的hourOfDay
-                                appendable.append(FORMAT_DIGITS[hour]);
-                            }
+                            appendable.append(DigitTens[hour]);
+                            appendable.append(DigitOnes[hour]);
                             break;
                         }
                         case 'h': {
@@ -453,41 +621,29 @@ public final class DateTemplate {
                             int h = hour % 12;
                             if (h == 0)
                                 h = 12;
-                            if (h >= 10) {
-                                // 输出实际h
-                                appendable.append(String.valueOf(h));
-                            } else {
-                                // 输出完整的h
-                                appendable.append(FORMAT_DIGITS[h]);
-                            }
+                            appendable.append(DigitTens[h]);
+                            appendable.append(DigitOnes[h]);
                             break;
                         }
                         case 'm': {
                             // 分钟 0-59
-                            if (minute >= 10) {
-                                // 输出实际分钟
-                                appendable.append(String.valueOf(minute));
-                            } else {
-                                // 输出2位分钟数
-                                appendable.append(FORMAT_DIGITS[minute]);
-                            }
+                            appendable.append(DigitTens[minute]);
+                            appendable.append(DigitOnes[minute]);
                             break;
                         }
                         case 's': {
                             // 秒 0-59
-                            if (second >= 10) {
-                                // 输出实际秒
-                                appendable.append(String.valueOf(second));
-                            } else {
-                                // 输出2位秒
-                                appendable.append(FORMAT_DIGITS[second]);
-                            }
+                            appendable.append(DigitTens[second]);
+                            appendable.append(DigitOnes[second]);
                             break;
                         }
                         case 'S': {
                             // 统一3位毫秒
-                            String millisecondStr = String.valueOf(millisecond + 1000);
-                            appendable.append(millisecondStr, 1, 4);
+                            char s1 = (char) (millisecond / 100 + 48);
+                            int v = millisecond % 100;
+                            appendable.append(s1);
+                            appendable.append(DigitTens[v]);
+                            appendable.append(DigitOnes[v]);
                             break;
                         }
                         case 'E': {
@@ -532,8 +688,12 @@ public final class DateTemplate {
                             if (prevChar != '\0') {
                                 // 输出count个 prevChar
                                 int n = count;
-                                while (n-- > 0)
+                                while (n-- > 0) {
+                                    if (escape && prevChar == '"') {
+                                        appendable.append('\\');
+                                    }
                                     appendable.append(prevChar);
+                                }
                             }
                         }
                     }
@@ -563,5 +723,9 @@ public final class DateTemplate {
      */
     public void formatTo(int year, int month, int day, int hour, int minute, int second, int millisecond, Appendable appendable) {
         formatTo(year, month, day, hour, minute, second, millisecond, 0, 0, 0, 0, null, pattern, appendable);
+    }
+
+    public void formatTo(int year, int month, int day, int hour, int minute, int second, int millisecond, Appendable appendable, boolean escape) {
+        formatTo(year, month, day, hour, minute, second, millisecond, 0, 0, 0, 0, null, pattern, appendable, escape);
     }
 }

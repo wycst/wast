@@ -930,16 +930,16 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
     // string
     private static JSONNode parseStringPathNode(char[] buf, int fromIndex, int toIndex, boolean skipValue, JSONNodeContext jsonParseContext) throws Exception {
         if (skipValue) {
-            JSONTypeDeserializer.STRING.skip(buf, fromIndex, toIndex, jsonParseContext);
+            JSONTypeDeserializer.STRING.skip(null, buf, fromIndex, toIndex, jsonParseContext);
             return null;
         }
-        String value = (String) JSONTypeDeserializer.STRING.deserializeString(buf, fromIndex, toIndex, GenericParameterizedType.StringType, jsonParseContext);
+        String value = (String) JSONTypeDeserializer.STRING.deserializeString(null, buf, fromIndex, toIndex, GenericParameterizedType.StringType, jsonParseContext);
         int endIndex = jsonParseContext.getEndIndex();
         return new JSONNode(value, buf, fromIndex, endIndex + 1, STRING, jsonParseContext);
     }
 
     private static JSONNode parseNullPathNode(char[] buf, int fromIndex, int toIndex, JSONNodeContext jsonParseContext) throws Exception {
-        JSONTypeDeserializer.NULL.deserialize(buf, fromIndex, toIndex, null, null, jsonParseContext);
+        JSONTypeDeserializer.NULL.deserialize(null, buf, fromIndex, toIndex, null, null, jsonParseContext);
         int endIndex = jsonParseContext.getEndIndex();
         return new JSONNode((Serializable) null, buf, fromIndex, endIndex + 1, NULL, jsonParseContext);
     }
@@ -1355,13 +1355,13 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
         char ch = buf[i];
         switch (ch) {
             case '{': {
-                JSONTypeDeserializer.ANY.skip(buf, i, endIndex, '}', parseContext);
+                JSONTypeDeserializer.ANY.skip(null, buf, i, endIndex, '}', parseContext);
                 int eIndex = parseContext.getEndIndex();
                 value = new JSONNode(buf, i, eIndex, OBJECT, parseContext, root);
                 break;
             }
             case '[': {
-                JSONTypeDeserializer.ANY.skip(buf, i, endIndex, ']', parseContext);
+                JSONTypeDeserializer.ANY.skip(null, buf, i, endIndex, ']', parseContext);
                 int eIndex = parseContext.getEndIndex();
                 value = new JSONNode(buf, i, eIndex, ARRAY, parseContext, root);
                 break;
@@ -1513,7 +1513,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
     public String getText() {
         if (text == null) {
             if (type == STRING) {
-                text = (String) JSONTypeDeserializer.STRING.deserializeString(buf, beginIndex, endIndex, GenericParameterizedType.StringType, parseContext);
+                text = (String) JSONTypeDeserializer.STRING.deserializeString(null, buf, beginIndex, endIndex, GenericParameterizedType.StringType, parseContext);
                 leafValue = text;
             } else {
                 return source();

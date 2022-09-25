@@ -1,5 +1,7 @@
 package io.github.wycst.wast.json.options;
 
+import io.github.wycst.wast.json.JSONSimpleParser;
+
 /**
  * JSON解析读取配置
  *
@@ -18,7 +20,8 @@ public enum ReadOption {
      * 是否禁用转义符校验,再确保没有需要转义符的情况下可以使用
      * <p> 不要将此配置项应用到全局配置
      * <p> 小文本下微乎其微，一般场景下可以不用启用， 在大文本字符串解析时可显著提升性能（除非已确保没有需要转义处理的场景）
-     * （暂时弃用）
+     * （暂时弃用请使用JSONSimpleParser）
+     * @see JSONSimpleParser
      */
     @Deprecated
     DisableEscapeValidate,
@@ -77,4 +80,5 @@ public enum ReadOption {
      * @see Options#getCacheKey(char[], int, int, int)
      */
     DisableCacheMapKey
+
 }

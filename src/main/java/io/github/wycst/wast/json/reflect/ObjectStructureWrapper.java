@@ -28,9 +28,9 @@ public class ObjectStructureWrapper {
     private List<FieldDeserializer> fieldDeserializers = new ArrayList<FieldDeserializer>();
 
     // getter methods
-    private List<FieldSerializer> getterMethodSerializers = new ArrayList<FieldSerializer>();
+    private FieldSerializer[] getterMethodSerializers;
     // field
-    private List<FieldSerializer> getterFieldSerializers = new ArrayList<FieldSerializer>();
+    private FieldSerializer[] getterFieldSerializers;;
     private final boolean collision;
     private boolean forceUseFields;
 
@@ -41,6 +41,7 @@ public class ObjectStructureWrapper {
         this.forceUseFields = classStructureWrapper.isForceUseFields();
         // serializer info
         List<GetterInfo> getterInfos = classStructureWrapper.getGetterInfos();
+        List<FieldSerializer> fieldSerializers = new ArrayList<FieldSerializer>();
         for (GetterInfo getterInfo : getterInfos) {
             JsonProperty jsonProperty = (JsonProperty) getterInfo.getAnnotation(JsonProperty.class);
             String name = getterInfo.getName();
@@ -54,9 +55,11 @@ public class ObjectStructureWrapper {
                 }
             }
             FieldSerializer fieldSerializer = new FieldSerializer(getterInfo, name);
-            getterMethodSerializers.add(fieldSerializer);
+            fieldSerializers.add(fieldSerializer);
         }
+        getterMethodSerializers = fieldSerializers.toArray(new FieldSerializer[fieldSerializers.size()]);
 
+        fieldSerializers.clear();
         List<GetterInfo> getterByFieldInfos = classStructureWrapper.getGetterInfos(true);
         for (GetterInfo getterInfo : getterByFieldInfos) {
             JsonProperty jsonProperty = (JsonProperty) getterInfo.getAnnotation(JsonProperty.class);
@@ -71,8 +74,9 @@ public class ObjectStructureWrapper {
                 }
             }
             FieldSerializer fieldSerializer = new FieldSerializer(getterInfo, name);
-            getterFieldSerializers.add(fieldSerializer);
+            fieldSerializers.add(fieldSerializer);
         }
+        getterFieldSerializers = fieldSerializers.toArray(new FieldSerializer[fieldSerializers.size()]);
 
         // deserializer info
         this.fieldDeserializerMap = new FixedNameValueMap(classStructureWrapper.setterNames().size());
@@ -157,6 +161,10 @@ public class ObjectStructureWrapper {
         return fieldDeserializerMap.getValue(buf, beginIndex, endIndex, hashValue);
     }
 
+    public FieldDeserializer getFieldDeserializer(byte[] buf, int beginIndex, int endIndex, int hashValue) {
+        return fieldDeserializerMap.getValue(buf, beginIndex, endIndex, hashValue);
+    }
+
     public FieldDeserializer getFieldDeserializer(String field) {
         return fieldDeserializerMap.getValue(field);
     }
@@ -216,7 +224,7 @@ public class ObjectStructureWrapper {
         return classStructureWrapper.isAssignableFromMap();
     }
 
-    public List<FieldSerializer> getFieldSerializers(boolean useFields) {
+    public FieldSerializer[] getFieldSerializers(boolean useFields) {
         return useFields || forceUseFields ? getterFieldSerializers : getterMethodSerializers;
     }
 }

@@ -162,8 +162,8 @@ public final class GenericParameterizedType<T> {
         parameterizedType.mapKeyClass = mapKeyClass;
 
         GenericParameterizedType valueType = new GenericParameterizedType();
-//        valueType.actualType = valueActualType;
         valueType.setActualType(valueActualType);
+        valueType.initParamClassType();
 
         parameterizedType.valueType = valueType;
         return parameterizedType;
@@ -184,6 +184,7 @@ public final class GenericParameterizedType<T> {
         parameterizedType.mapKeyClass = mapKeyClass;
 
         parameterizedType.valueType = valueType;
+        valueType.initParamClassType();
         return parameterizedType;
     }
 
@@ -248,6 +249,7 @@ public final class GenericParameterizedType<T> {
         parameterizedType.generic = true;
         parameterizedType.setActualType(collectionClass);
         parameterizedType.valueType = valueType;
+        valueType.initParamClassType();
         return parameterizedType;
     }
 
