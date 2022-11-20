@@ -41,17 +41,27 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
 
     protected final Object deserialize(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object entity, char endToken, JSONParseContext jsonParseContext) throws Exception {
         char beginChar = buf[fromIndex];
-        switch (beginChar) {
-            case '{':
-                return deserializePojo(charSource, buf, fromIndex, toIndex, parameterizedType, entity, endToken, jsonParseContext);
-            case 'n':
-                return NULL.deserialize(null, buf, fromIndex, toIndex, null, null, jsonParseContext);
-            default: {
-                // not support or custom handle ?
-                String errorContextTextAt = createErrorContextText(buf, fromIndex);
-                throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected token character '" + beginChar + "' for Object Type, expected '{' ");
-            }
+
+        if(beginChar == '{') {
+            return deserializePojo(charSource, buf, fromIndex, toIndex, parameterizedType, entity, endToken, jsonParseContext);
+        } else if(beginChar == 'n') {
+            return NULL.deserialize(null, buf, fromIndex, toIndex, null, null, jsonParseContext);
+        } else {
+            // not support or custom handle ?
+            String errorContextTextAt = createErrorContextText(buf, fromIndex);
+            throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected token character '" + beginChar + "' for Object Type, expected '{' ");
         }
+//        switch (beginChar) {
+//            case '{':
+//                return deserializePojo(charSource, buf, fromIndex, toIndex, parameterizedType, entity, endToken, jsonParseContext);
+//            case 'n':
+//                return NULL.deserialize(null, buf, fromIndex, toIndex, null, null, jsonParseContext);
+//            default: {
+//                // not support or custom handle ?
+//                String errorContextTextAt = createErrorContextText(buf, fromIndex);
+//                throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected token character '" + beginChar + "' for Object Type, expected '{' ");
+//            }
+//        }
     }
 
     protected final Object deserialize(CharSource charSource, byte[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object entity, byte endToken, JSONParseContext jsonParseContext) throws Exception {
@@ -95,8 +105,10 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
             boolean isUnquotedFieldName = false;
             int hashValue = 0;
             if (ch == '"') {
-                while (/*i + 1 < toIndex &&*/ ((ch = buf[++i]) != '"' || buf[i - 1] == '\\')) {
+                char prev = 0;
+                while (/*i + 1 < toIndex &&*/ ((ch = buf[++i]) != '"' || prev == '\\')) {
                     hashValue = hashValue * 31 + ch;
+                    prev = ch;
                 }
                 empty = false;
 //                if (ch != '"') {

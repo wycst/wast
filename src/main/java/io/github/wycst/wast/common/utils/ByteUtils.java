@@ -1,6 +1,5 @@
 package io.github.wycst.wast.common.utils;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -268,7 +267,7 @@ public class ByteUtils {
      * @throws IOException
      */
     public static byte[] readStreamBytes(InputStream is) throws IOException {
-        return readStreamBytes(is, true);
+        return IOUtils.readBytes(is);
     }
 
 //    public static int readStreamBytes(InputStream is, byte[] buffers) throws IOException {
@@ -281,17 +280,17 @@ public class ByteUtils {
 //        return length;
 //    }
 
-    private static byte[] readStreamBytes(InputStream is, boolean closed) throws IOException {
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        int b;
-        while ((b = is.read()) > -1) {
-            byteArrayOutputStream.write(b);
-        }
-        if (closed) {
-            is.close();
-        }
-        byteArrayOutputStream.close();
-        return byteArrayOutputStream.toByteArray();
-    }
+//    private static byte[] readStreamBytes(InputStream is, boolean closed) throws IOException {
+//        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+//        int b;
+//        while ((b = is.read()) > -1) {
+//            byteArrayOutputStream.write(b);
+//        }
+//        if (closed) {
+//            is.close();
+//        }
+//        byteArrayOutputStream.close();
+//        return byteArrayOutputStream.toByteArray();
+//    }
 
 }

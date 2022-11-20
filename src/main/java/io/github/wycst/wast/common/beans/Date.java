@@ -377,52 +377,33 @@ public class Date extends GeneralDate implements java.io.Serializable, Comparabl
      * @return
      */
     public String format(char dateSyntax, char timeSyntax) {
-        StringBuilder buff = new StringBuilder();
-
+        StringBuilder buff = new StringBuilder(19);
         int year = this.year;
         if (year < 0) {
             buff.append("-");
             year = -year;
         }
-        if (year < 10) {
-            buff.append("000");
-        } else if (year < 100) {
-            buff.append("00");
-        } else if (year < 1000) {
-            buff.append("0");
-        }
-        buff.append(year);
-
-        if (month > 0) {
-            buff.append(dateSyntax);
-            if (month < 10) {
-                buff.append(0);
-            }
-            buff.append(month);
-        }
-
-        if (dayOfMonth > 0) {
-            buff.append(dateSyntax);
-            if (dayOfMonth < 10) {
-                buff.append(0);
-            }
-            buff.append(dayOfMonth);
-        }
-
+        int y1 = year / 100;
+        int y2 = year % 100;
+        buff.append(DateTemplate.DigitTens[y1]);
+        buff.append(DateTemplate.DigitOnes[y1]);
+        buff.append(DateTemplate.DigitTens[y2]);
+        buff.append(DateTemplate.DigitOnes[y2]);
+        buff.append(dateSyntax);
+        buff.append(DateTemplate.DigitTens[month]);
+        buff.append(DateTemplate.DigitOnes[month]);
+        buff.append(dateSyntax);
+        buff.append(DateTemplate.DigitTens[dayOfMonth]);
+        buff.append(DateTemplate.DigitOnes[dayOfMonth]);
         buff.append(' ');
-        if (hourOfDay < 10) {
-            buff.append(0);
-        }
-        buff.append(hourOfDay).append(timeSyntax);
-        if (minute < 10) {
-            buff.append(0);
-        }
-        buff.append(minute).append(timeSyntax);
-        if (second < 10) {
-            buff.append(0);
-        }
-        buff.append(second);
-
+        buff.append(DateTemplate.DigitTens[hourOfDay]);
+        buff.append(DateTemplate.DigitOnes[hourOfDay]);
+        buff.append(timeSyntax);
+        buff.append(DateTemplate.DigitTens[minute]);
+        buff.append(DateTemplate.DigitOnes[minute]);
+        buff.append(timeSyntax);
+        buff.append(DateTemplate.DigitTens[second]);
+        buff.append(DateTemplate.DigitOnes[second]);
         return buff.toString();
     }
 
@@ -463,7 +444,7 @@ public class Date extends GeneralDate implements java.io.Serializable, Comparabl
     }
 
     public static void main(String[] args) {
-
+        System.out.println(new Date().format("YYYY/~MM/pdd HH:mm:ss"));
         // Time_1991_09_15_00_00_00
         System.out.println(new Date(2199, 12, 31, 0, 0, 0, 0).timeMills);
         GeneralDate date = null;

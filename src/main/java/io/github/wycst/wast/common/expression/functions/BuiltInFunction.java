@@ -23,7 +23,7 @@ public final class BuiltInFunction {
      * @param params
      * @return
      */
-    public final static Object max(Object... params) {
+    public static Object max(Object... params) {
         int length = params.length;
         if (length == 0) {
             return 0;
@@ -46,7 +46,7 @@ public final class BuiltInFunction {
      * @param params
      * @return
      */
-    public final static Object min(Object... params) {
+    public static Object min(Object... params) {
         int length = params.length;
         if (length == 0) {
             return 0;
@@ -61,8 +61,6 @@ public final class BuiltInFunction {
             }
         }
         return min;
-//        sort(numbers);
-//        return numbers[0];
     }
 
     // 比较
@@ -97,7 +95,7 @@ public final class BuiltInFunction {
      * @param numbers
      * @return
      */
-    public final static Number avg(Number... numbers) {
+    public static Number avg(Number... numbers) {
         int length = numbers.length;
         if (length == 0) {
             return 0;
@@ -111,7 +109,7 @@ public final class BuiltInFunction {
      * @param numbers
      * @return
      */
-    public final static Number sum(Number... numbers) {
+    public static Number sum(Number... numbers) {
         int length = numbers.length;
         if (length == 0) return 0;
         Double total = 0d;
@@ -140,7 +138,7 @@ public final class BuiltInFunction {
      * @param number
      * @return
      */
-    public final static Number abs(Number number) {
+    public static Number abs(Number number) {
         return Math.abs(number.doubleValue());
     }
 
@@ -150,7 +148,7 @@ public final class BuiltInFunction {
      * @param number
      * @return
      */
-    public final static Number sqrt(Number number) {
+    public static Number sqrt(Number number) {
         return Math.sqrt(number.doubleValue());
     }
 
@@ -173,7 +171,7 @@ public final class BuiltInFunction {
      * @param str
      * @return
      */
-    public final static String lower(String str) {
+    public static String lower(String str) {
         return str.toLowerCase();
     }
 
@@ -183,7 +181,7 @@ public final class BuiltInFunction {
      * @param str
      * @return
      */
-    public final static String upper(String str) {
+    public static String upper(String str) {
         return str.toUpperCase();
     }
 
@@ -193,7 +191,7 @@ public final class BuiltInFunction {
      * @param object
      * @return
      */
-    public final static int size(Object object) {
+    public static int size(Object object) {
         if (object == null) return 0;
         if (object.getClass().isArray()) {
             return Array.getLength(object);
@@ -204,7 +202,7 @@ public final class BuiltInFunction {
         } else if (object instanceof String) {
             return ((String) object).length();
         }
-        throw new ExpressionException("Unsupported call size() ");
+        throw new ExpressionException("Unsupported call size() by type: " + object.getClass());
     }
 
     /**
@@ -214,7 +212,7 @@ public final class BuiltInFunction {
      * @param right
      * @return
      */
-    public final static Object ifNull(Object left, Object right) {
+    public static Object ifNull(Object left, Object right) {
         return left == null ? right : left;
     }
 
@@ -223,7 +221,7 @@ public final class BuiltInFunction {
      *
      * @return
      */
-    public final static Date now() {
+    public static Date now() {
         return new Date();
     }
 
@@ -234,7 +232,7 @@ public final class BuiltInFunction {
      * @return
      * @see io.github.wycst.wast.common.beans.Date#format(String)
      */
-    public final static String date(long offset) {
+    public static String date(long offset) {
         return date_format(offset, "Y-M-d H:m:s");
     }
 
@@ -246,7 +244,7 @@ public final class BuiltInFunction {
      * @return
      * @see io.github.wycst.wast.common.beans.Date#format(String)
      */
-    public final static String date_format(long offset, String template) {
+    public static String date_format(long offset, String template) {
         long current = System.currentTimeMillis();
         return new io.github.wycst.wast.common.beans.Date(current + offset * 1000).format(template);
     }

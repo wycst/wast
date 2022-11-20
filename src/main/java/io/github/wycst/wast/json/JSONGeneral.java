@@ -85,6 +85,21 @@ class JSONGeneral {
             '9', '9', '9', '9', '9', '9', '9', '9', '9', '9',
     };
 
+    protected final static char[] EscapeChars = new char[160];
+    static {
+        for(int i = 0; i < 160; i++) {
+            EscapeChars[i] = (char) i;
+        }
+        EscapeChars['\''] = '\'';
+        EscapeChars['"'] = '"';
+        EscapeChars['n'] = '\n';
+        EscapeChars['r'] = '\r';
+        EscapeChars['t'] = '\t';
+        EscapeChars['b'] = '\b';
+        EscapeChars['f'] = '\f';
+    }
+
+
     // Double.MAX_VALUE 1.7976931348623157e+308
     final static double[] PositiveDecimalPower = new double[310];
 
@@ -275,64 +290,87 @@ class JSONGeneral {
      * @return
      */
     protected final static int escapeNext(char[] buf, char next, int i, int beginIndex, JSONStringWriter writer, JSONParseContext jsonParseContext) {
-        int len;
-        switch (next) {
-            case '\'':
-            case '"':
-                if (i > beginIndex) {
-                    writer.write(buf, beginIndex, i - beginIndex + 1);
-                    writer.setCharAt(writer.size() - 1, next);
-                } else {
-                    writer.append(next);
-                }
-                beginIndex = ++i + 1;
-                break;
-            case 'n':
-                len = i - beginIndex;
-                writer.write(buf, beginIndex, len + 1);
-                writer.setCharAt(writer.size() - 1, '\n');
-                beginIndex = ++i + 1;
-                break;
-            case 'r':
-                len = i - beginIndex;
-                writer.write(buf, beginIndex, len + 1);
-                writer.setCharAt(writer.size() - 1, '\r');
-                beginIndex = ++i + 1;
-                break;
-            case 't':
-                len = i - beginIndex;
-                writer.write(buf, beginIndex, len + 1);
-                writer.setCharAt(writer.size() - 1, '\t');
-                beginIndex = ++i + 1;
-                break;
-            case 'b':
-                len = i - beginIndex;
-                writer.write(buf, beginIndex, len + 1);
-                writer.setCharAt(writer.size() - 1, '\b');
-                beginIndex = ++i + 1;
-                break;
-            case 'f':
-                len = i - beginIndex;
-                writer.write(buf, beginIndex, len + 1);
-                writer.setCharAt(writer.size() - 1, '\f');
-                beginIndex = ++i + 1;
-                break;
-            case 'u':
-                len = i - beginIndex;
-                writer.write(buf, beginIndex, len + 1);
-                int c = hex4(buf, i + 2);
-                writer.setCharAt(writer.size() - 1, (char) c);
-                i += 4;
-                beginIndex = ++i + 1;
-                break;
-            default: {
-                // other case delete char '\\'
-                len = i - beginIndex;
-                writer.write(buf, beginIndex, len + 1);
-                writer.setCharAt(writer.size() - 1, next);
-                beginIndex = ++i + 1;
-            }
+
+        if (i > beginIndex) {
+            writer.write(buf, beginIndex, i - beginIndex);
         }
+        if(next == 'u') {
+            int c = hex4(buf, i + 2);
+            writer.append((char) c);
+            i += 4;
+            beginIndex = ++i + 1;
+        } else if(next < 160) {
+            writer.append(EscapeChars[next]);
+            beginIndex = ++i + 1;
+        } else {
+            writer.append(next);
+            beginIndex = ++i + 1;
+        }
+
+//        int len;
+//        switch (next) {
+//            case '\'':
+//            case '"':
+//                if (i > beginIndex) {
+//                    writer.write(buf, beginIndex, i - beginIndex);
+//                }
+//                writer.append(next);
+//                beginIndex = ++i + 1;
+//                break;
+//            case 'n':
+//                if (i > beginIndex) {
+//                    writer.write(buf, beginIndex, i - beginIndex);
+//                }
+//                writer.append('\n');
+//                beginIndex = ++i + 1;
+//                break;
+//            case 'r':
+//                if (i > beginIndex) {
+//                    writer.write(buf, beginIndex, i - beginIndex);
+//                }
+//                writer.append('\r');
+//                beginIndex = ++i + 1;
+//                break;
+//            case 't':
+//                if (i > beginIndex) {
+//                    writer.write(buf, beginIndex, i - beginIndex);
+//                }
+//                writer.append('\t');
+//                beginIndex = ++i + 1;
+//                break;
+//            case 'b':
+//                if (i > beginIndex) {
+//                    writer.write(buf, beginIndex, i - beginIndex);
+//                }
+//                writer.append('\b');
+//                beginIndex = ++i + 1;
+//                break;
+//            case 'f':
+//                if (i > beginIndex) {
+//                    writer.write(buf, beginIndex, i - beginIndex);
+//                }
+//                writer.append('\f');
+//                beginIndex = ++i + 1;
+//                break;
+//            case 'u':
+//                int c = hex4(buf, i + 2);
+//                len = i - beginIndex;
+//                if(len > 0) {
+//                    writer.write(buf, beginIndex, i - beginIndex);
+//                }
+//                writer.append((char) c);
+//                i += 4;
+//                beginIndex = ++i + 1;
+//                break;
+//            default: {
+//                // other case delete char '\\'
+//                if (i > beginIndex) {
+//                    writer.write(buf, beginIndex, i - beginIndex);
+//                }
+//                writer.append(next);
+//                beginIndex = ++i + 1;
+//            }
+//        }
         jsonParseContext.setEndIndex(i);
         return beginIndex;
     }
@@ -1118,7 +1156,9 @@ class JSONGeneral {
     protected static int getPatternType(String pattern) {
         if (pattern != null) {
             if (pattern.equalsIgnoreCase("yyyy-MM-dd HH:mm:ss")
-                    || pattern.equalsIgnoreCase("yyyy/MM/dd HH:mm:ss")) {
+                    || pattern.equalsIgnoreCase("yyyy/MM/dd HH:mm:ss")
+                    || pattern.equalsIgnoreCase("yyyy-MM-ddTHH:mm:ss")
+                ) {
                 return 1;
             } else if (pattern.equalsIgnoreCase("yyyy-MM-dd") || pattern.equalsIgnoreCase("yyyy/MM/dd")) {
                 return 2;

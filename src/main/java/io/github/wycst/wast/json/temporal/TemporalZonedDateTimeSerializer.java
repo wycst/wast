@@ -40,10 +40,10 @@ public class TemporalZonedDateTimeSerializer extends JSONTemporalSerializer {
         int second = TemporalAloneInvoker.invokeZonedDateTimeSecond(value).intValue();
         int nano = TemporalAloneInvoker.invokeZonedDateTimeNano(value).intValue();
         int millisecond = nano / 1000000;
-        String zoneId = TemporalAloneInvoker.invokeZonedDateTimeZone(value).toString();
         writer.append('"');
         // localDateTime
-        dateTemplate.formatTo(year, month, day, hour, minute, second, millisecond, writer, true);
+        dateFormatter.formatTo(year, month, day, hour, minute, second, millisecond, writer);
+        String zoneId = TemporalAloneInvoker.invokeZonedDateTimeZone(value).toString();
         writeZoneId(writer, zoneId);
         writer.append('"');
     }

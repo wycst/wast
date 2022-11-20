@@ -1,5 +1,8 @@
 package io.github.wycst.wast.common.utils;
 
+import io.github.wycst.wast.common.reflect.UnsafeHelper;
+
+import java.lang.reflect.Array;
 import java.util.Collection;
 import java.util.List;
 
@@ -199,7 +202,10 @@ public class CollectionUtils {
         if (target instanceof Collection) {
             return ((Collection<?>) target).size();
         }
-        return ((Object[]) target).length;
+        if(target instanceof Object[]) {
+            return ((Object[]) target).length;
+        }
+        return Array.getLength(target);
     }
 
     /**
@@ -213,9 +219,18 @@ public class CollectionUtils {
         if (target == null) return null;
         Object[] arr = null;
         if (target instanceof Collection) {
+            if(target instanceof List) {
+                return ((List<?>) target).get(index);
+            }
             arr = ((Collection<?>) target).toArray();
-        } else {
+        } else if(arr instanceof Object[]) {
             arr = (Object[]) target;
+        } else {
+            try {
+                return UnsafeHelper.arrayValueAt(target, index);
+            } catch (RuntimeException throwable) {
+                throw new UnsupportedOperationException("Non array object do not support get value by index, " + target.getClass());
+            }
         }
         return arr[index];
     }

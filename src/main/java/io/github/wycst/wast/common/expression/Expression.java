@@ -16,14 +16,17 @@
  */
 package io.github.wycst.wast.common.expression;
 
+import io.github.wycst.wast.common.expression.compile.CompilerEnvironment;
+import io.github.wycst.wast.common.expression.compile.CompilerExpression;
 import io.github.wycst.wast.common.expression.functions.BuiltInFunction;
+import io.github.wycst.wast.common.reflect.UnsafeHelper;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 表达式模块
- * <p> 要多清凉有多清凉 ！
  * <p>
  * 1，常量表达式：
  * Expression.eval("1 + 2");
@@ -127,6 +130,29 @@ public abstract class Expression {
     }
 
     /***
+     * 编译表达式
+     *
+     * @param expr
+     * @param environment 编译环境
+     * @return
+     */
+    public static Expression compile(String expr, CompilerEnvironment environment) {
+        return CompilerExpression.compile(expr, environment);
+    }
+
+    /***
+     * 编译表达式
+     *
+     * @param expr
+     * @param environment 编译环境
+     * @param coder       Native/Javassist
+     * @return
+     */
+    public static Expression compile(String expr, CompilerEnvironment environment, CompilerExpression.Coder coder) {
+        return CompilerExpression.compile(expr, environment, coder);
+    }
+
+    /***
      * 执行表达式
      *
      * @param expr
@@ -177,6 +203,17 @@ public abstract class Expression {
      * @return
      */
     public static Object eval(String expr, Object context) {
+        return parse(expr).evaluate(context);
+    }
+
+    /**
+     * 执行带上下文表达式
+     *
+     * @param expr
+     * @param context
+     * @return
+     */
+    public static Object eval(String expr, Map context) {
         return parse(expr).evaluate(context);
     }
 
@@ -241,7 +278,15 @@ public abstract class Expression {
     /**
      * 执行变量表达式
      *
-     * @param context 对象或者map
+     * @param context 显示指定map作为参数上下文
+     * @return
+     */
+    public abstract Object evaluate(Map context);
+
+    /**
+     * 执行变量表达式
+     *
+     * @param context 实体对象或者map
      * @return
      */
     public abstract Object evaluate(Object context);
@@ -276,9 +321,14 @@ public abstract class Expression {
         return toResult(evaluate(context), targetClass);
     }
 
-    static <T> T toResult(Object result, Class<T> targetClass) {
+    protected final static <T> T toResult(Object result, Class<T> targetClass) {
         if (result == null) {
             return null;
+        }
+
+        // force
+        if (targetClass.isInstance(result)) {
+            return (T) result;
         }
 
         // number转化
@@ -298,8 +348,11 @@ public abstract class Expression {
             }
         }
 
-        //
-        if (!targetClass.isPrimitive() && !targetClass.isInstance(result)) {
+        if (targetClass == String.class) {
+            return (T) String.valueOf(result);
+        }
+
+        if (!targetClass.isPrimitive()) {
             throw new ClassCastException(String.format("%s cannot be cast to %s", result.getClass().toString(), targetClass.toString()));
         }
 
@@ -335,7 +388,7 @@ public abstract class Expression {
         if (prefixLen == 0 || suffixLen == 0) return template;
 
         StringBuilder builder = new StringBuilder();
-        char[] buffers = template.toCharArray();
+        char[] buffers = getChars(template);
         int length = buffers.length;
         int fromIndex = 0;
 
@@ -351,10 +404,14 @@ public abstract class Expression {
                 builder.append(buffers, fromIndex, prefixIndex - fromIndex);
                 ExprParser exprParser = new ExprParser(buffers, prefixIndex + prefixLen, suffixIndex - prefixIndex - prefixLen);
                 builder.append(exprParser.evaluate(context));
+
+                // continue find next suffix
+                fromIndex = suffixIndex + suffixLen;
+                suffixIndex = template.indexOf(suffix, fromIndex);
+            } else {
+                // keep last fromIndex and update suffixIndex
+                suffixIndex = template.indexOf(suffix, suffixIndex + suffixLen);
             }
-            // continue find next suffix
-            fromIndex = suffixIndex + suffixLen;
-            suffixIndex = template.indexOf(suffix, fromIndex);
         }
 
         if (fromIndex < length) {
@@ -364,5 +421,8 @@ public abstract class Expression {
         return builder.toString();
     }
 
-
+    // get chars
+    protected final static char[] getChars(String value) {
+        return UnsafeHelper.getChars(value);
+    }
 }

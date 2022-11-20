@@ -26,7 +26,7 @@ public class UnsafeHelper {
 
     // maybe jdk9+ not supported
     private static final long OVERRIDE_OFFSET;
-    private static final Map<Class<?>, Long> ObjectArrayOffsetScales = new ConcurrentHashMap<Class<?>, Long>();
+//    private static final Map<Class<?>, Long> ObjectArrayOffsetScales = new ConcurrentHashMap<Class<?>, Long>();
 
     static {
         Field theUnsafeField = null;
@@ -218,7 +218,7 @@ public class UnsafeHelper {
         collection.getClass();
         componentType.getClass();
         Object array = Array.newInstance(componentType, collection.size());
-        Class arrayCls = array.getClass();
+//        Class arrayCls = array.getClass();
         int base, scale, k = 0;
         if (unsafe != null) {
             ReflectConsts.PrimitiveType primitiveType = ReflectConsts.PrimitiveType.typeOf(componentType);
@@ -230,14 +230,16 @@ public class UnsafeHelper {
                     putPrimitiveValue(array, valueOffset, obj, primitiveType);
                 }
             } else {
-                long objectArrOffsetScale = getObjectArrOffsetScale(arrayCls);
-                base = (int) (objectArrOffsetScale >> 32);
-                scale = (int) objectArrOffsetScale;
+//                long objectArrOffsetScale = getObjectArrOffsetScale(arrayCls);
+//                base = (int) (objectArrOffsetScale >> 32);
+//                scale = (int) objectArrOffsetScale;
+                Object[] objects = (Object[]) array;
                 for (Object obj : collection) {
-                    long valueOffset = base + scale * k++;
-                    if (componentType.isInstance(obj)) {
-                        unsafe.putObject(array, valueOffset, obj);
-                    }
+//                    long valueOffset = base + scale * k++;
+//                    if (componentType.isInstance(obj)) {
+//                        unsafe.putObject(array, valueOffset, obj);
+//                    }
+                    objects[k++] = obj;
                 }
             }
         } else {
@@ -261,39 +263,41 @@ public class UnsafeHelper {
             if (index == -1) throw new ArrayIndexOutOfBoundsException(-1);
             Class<?> arrCls = arr.getClass();
             if (!arrCls.isArray()) {
-                throw new UnsupportedOperationException();
+                throw new UnsupportedOperationException("Non array object do not support get value by index");
             }
             Class<?> componentType = arrCls.getComponentType();
             ReflectConsts.PrimitiveType primitiveType = ReflectConsts.PrimitiveType.typeOf(componentType);
 
-            int base, scale;
             if (primitiveType != null) {
+                int base, scale;
                 base = primitiveType.arrayBaseOffset;
                 scale = primitiveType.arrayIndexScale;
                 long valueOffset = base + scale * index;
                 return primitiveType.get(arr, valueOffset);
             } else {
-                long objectArrOffsetScale = getObjectArrOffsetScale(arrCls);
-                base = (int) (objectArrOffsetScale >> 32);
-                scale = (int) objectArrOffsetScale;
-                long valueOffset = base + scale * index;
-                return unsafe.getObject(arr, valueOffset);
+//                long objectArrOffsetScale = getObjectArrOffsetScale(arrCls);
+//                base = (int) (objectArrOffsetScale >> 32);
+//                scale = (int) objectArrOffsetScale;
+//                long valueOffset = base + scale * index;
+//                return unsafe.getObject(arr, valueOffset);
+                Object[] objects = (Object[]) arr;
+                return objects[index];
             }
         } else {
             return Array.get(arr, index);
         }
     }
 
-    private static long getObjectArrOffsetScale(Class<?> arrCls) {
-        Long objectArrOffsetScale = ObjectArrayOffsetScales.get(arrCls);
-        if (objectArrOffsetScale == null) {
-            int base = unsafe.arrayBaseOffset(arrCls);
-            int scale = unsafe.arrayIndexScale(arrCls);
-            objectArrOffsetScale = (long) base << 32 | scale;
-            ObjectArrayOffsetScales.put(arrCls, objectArrOffsetScale);
-        }
-        return objectArrOffsetScale;
-    }
+//    private static long getObjectArrOffsetScale(Class<?> arrCls) {
+//        Long objectArrOffsetScale = ObjectArrayOffsetScales.get(arrCls);
+//        if (objectArrOffsetScale == null) {
+//            int base = unsafe.arrayBaseOffset(arrCls);
+//            int scale = unsafe.arrayIndexScale(arrCls);
+//            objectArrOffsetScale = (long) base << 32 | scale;
+//            ObjectArrayOffsetScales.put(arrCls, objectArrOffsetScale);
+//        }
+//        return objectArrOffsetScale;
+//    }
 
     /**
      * Internal use
@@ -360,28 +364,28 @@ public class UnsafeHelper {
      * 基本类型设置
      */
     static Object getPrimitiveValue(Object target, long fieldOffset, ReflectConsts.PrimitiveType primitiveType) {
-        target.getClass();
-        switch (primitiveType) {
-            case PrimitiveInt:
-                return unsafe.getInt(target, fieldOffset);
-            case PrimitiveByte:
-                return unsafe.getByte(target, fieldOffset);
-            case PrimitiveLong:
-                return unsafe.getLong(target, fieldOffset);
-            case PrimitiveShort:
-                return unsafe.getShort(target, fieldOffset);
-            case PrimitiveDouble:
-                return unsafe.getDouble(target, fieldOffset);
-            case PrimitiveBoolean:
-                return unsafe.getBoolean(target, fieldOffset);
-            case PrimitiveFloat:
-                return unsafe.getFloat(target, fieldOffset);
-            case PrimitiveCharacter:
-                return unsafe.getChar(target, fieldOffset);
-            default: {
-                return 0;
-            }
-        }
+        return primitiveType.get(target, fieldOffset);
+//        switch (primitiveType) {
+//            case PrimitiveInt:
+//                return unsafe.getInt(target, fieldOffset);
+//            case PrimitiveByte:
+//                return unsafe.getByte(target, fieldOffset);
+//            case PrimitiveLong:
+//                return unsafe.getLong(target, fieldOffset);
+//            case PrimitiveShort:
+//                return unsafe.getShort(target, fieldOffset);
+//            case PrimitiveDouble:
+//                return unsafe.getDouble(target, fieldOffset);
+//            case PrimitiveBoolean:
+//                return unsafe.getBoolean(target, fieldOffset);
+//            case PrimitiveFloat:
+//                return unsafe.getFloat(target, fieldOffset);
+//            case PrimitiveCharacter:
+//                return unsafe.getChar(target, fieldOffset);
+//            default: {
+//                return 0;
+//            }
+//        }
     }
 
     public static boolean setAccessible(AccessibleObject accessibleObject) {

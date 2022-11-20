@@ -1,5 +1,6 @@
 package io.github.wycst.wast.common.reflect;
 
+import io.github.wycst.wast.common.exceptions.InvokeReflectException;
 import io.github.wycst.wast.common.utils.StringUtils;
 
 import java.lang.annotation.Annotation;
@@ -70,6 +71,9 @@ public final class ClassStructureWrapper {
      */
     private List<GetterInfo> getterInfoOfFields;
 
+    // getter的属性和GetInfo映射
+    private Map<String, GetterInfo> getterInfoMap = new HashMap<String, GetterInfo>();
+
     /**
      * 构造方法参数
      */
@@ -79,6 +83,12 @@ public final class ClassStructureWrapper {
      * 构造方法
      */
     private Constructor<?> defaultConstructor;
+
+    /**
+     * public 方法集合
+     */
+    private Map<String, List<Method>> publicMethods = null;
+    ;
 
     /**
      * 获取所有getter方法映射的GetterMethodInfo信息
@@ -95,6 +105,21 @@ public final class ClassStructureWrapper {
             return getterInfoOfFields;
         }
         return getterInfos;
+    }
+
+    // public getter 方法 or field
+    public GetterInfo getGetterInfo(String name) {
+        return getterInfoMap.get(name);
+    }
+
+    private void fillGetterInfoMap() {
+        for (GetterInfo getterInfo : getterInfos) {
+            getterInfoMap.put(getterInfo.getName(), getterInfo);
+        }
+        for (GetterInfo getterInfo : getterInfoOfFields) {
+            getterInfoMap.put(getterInfo.getName(), getterInfo);
+            getterInfoMap.put(getterInfo.getField().getName(), getterInfo);
+        }
     }
 
     public SetterInfo getSetterInfo(String name) {
@@ -444,7 +469,7 @@ public final class ClassStructureWrapper {
 
         wrapper.getterInfos = Collections.unmodifiableList(getterInfos);
         wrapper.setterInfos = Collections.unmodifiableMap(wrapper.setterInfos);
-
+        wrapper.fillGetterInfoMap();
         if (wrapper.getterInfos.size() == 0 && wrapper.getterInfoOfFields != null && wrapper.getterInfoOfFields.size() > 0) {
             wrapper.forceUseFields = true;
         }
@@ -647,7 +672,7 @@ public final class ClassStructureWrapper {
 
                     SetterInfo oldSetterInfo = wrapper.setterInfos.get(fieldName);
                     // 如果同名setter方法中参数类型和field类型不适配，以setter方法为准，确保序列化和反序列化的个性化处理特性
-                    if(oldSetterInfo == null || !oldSetterInfo.isFieldDisabled()) {
+                    if (oldSetterInfo == null || !oldSetterInfo.isFieldDisabled()) {
                         wrapper.setterInfos.put(fieldName, setterInfo);
                     }
                 }
@@ -723,6 +748,55 @@ public final class ClassStructureWrapper {
             annotationMap.put(annotation.annotationType(), annotation);
         }
     }
+
+    public Object invokePublic(Object invoker, String methodName, Object[] params) {
+        if (publicMethods == null) {
+            synchronized (this) {
+                if (publicMethods == null) {
+                    publicMethods = new HashMap<String, List<Method>>();
+                    Method[] methods = sourceClass.getMethods();
+                    for (Method method : methods) {
+                        String name = method.getName();
+                        List<Method> nameMethods = publicMethods.get(name);
+                        if (nameMethods == null) {
+                            nameMethods = new ArrayList<Method>();
+                            publicMethods.put(name.intern(), nameMethods);
+                        }
+                        setAccessible(method);
+                        nameMethods.add(method);
+                    }
+                }
+            }
+        }
+        List<Method> nameMethods = publicMethods.get(methodName);
+        if (nameMethods == null) {
+            throw new UnsupportedOperationException("method " + methodName + " is not exist or not a public method ");
+        }
+        try {
+            if (nameMethods.size() == 1) {
+                return nameMethods.get(0).invoke(invoker, params);
+            }
+            for (Method method : nameMethods) {
+                Class[] parameterTypes = method.getParameterTypes();
+                if (parameterTypes.length == params.length) {
+                    boolean matched = true;
+                    for (int i = 0; i < parameterTypes.length; i++) {
+                        if (params[i] != null && !parameterTypes[i].isInstance(params[i])) {
+                            matched = false;
+                            break;
+                        }
+                    }
+                    if (matched) {
+                        return method.invoke(invoker, params);
+                    }
+                }
+            }
+            throw new UnsupportedOperationException("method " + methodName + " of " + sourceClass + " Parameter mismatch ");
+        } catch (Throwable throwable) {
+            throw new InvokeReflectException(throwable);
+        }
+    }
+
 
     public enum ClassWrapperType {
         /**

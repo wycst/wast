@@ -36,7 +36,7 @@ public class TemporalLocalDateSerializer extends JSONTemporalSerializer {
         int month = TemporalAloneInvoker.invokeLocalDateMonth(value).intValue();
         int day = TemporalAloneInvoker.invokeLocalDateDay(value).intValue();
         writer.append('"');
-        dateTemplate.formatTo(year, month, day, 0, 0, 0, 0, writer, true);
+        dateFormatter.formatTo(year, month, day, 0, 0, 0, 0, writer);
         writer.append('"');
     }
 

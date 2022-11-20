@@ -1,5 +1,6 @@
 package io.github.wycst.wast.json;
 
+import io.github.wycst.wast.common.beans.DateFormatter;
 import io.github.wycst.wast.common.beans.DateTemplate;
 import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.json.annotations.JsonProperty;
@@ -23,23 +24,19 @@ import java.io.Writer;
 public abstract class JSONTemporalSerializer extends JSONTypeSerializer {
 
     protected final ObjectStructureWrapper objectStructureWrapper;
-    protected int patternType;
-    protected DateTemplate dateTemplate;
-    protected final boolean useTemplate;
+    protected DateFormatter dateFormatter;
+    protected final boolean useFormatter;
 
     protected JSONTemporalSerializer(ObjectStructureWrapper objectStructureWrapper, JsonProperty property) {
         checkClass(objectStructureWrapper);
         this.objectStructureWrapper = objectStructureWrapper;
         if (property != null) {
             String pattern = property.pattern().trim();
-            patternType = getPatternType(pattern);
-            if (patternType == 0) {
-                createDefaultTemplate();
-            } else {
-                dateTemplate = new DateTemplate(pattern);
+            if(pattern.length() > 0) {
+                dateFormatter = DateFormatter.of(pattern);
             }
         }
-        useTemplate = dateTemplate != null;
+        useFormatter = dateFormatter != null;
     }
 
     static JSONTypeSerializer getTemporalSerializerInstance(ObjectStructureWrapper objectStructureWrapper, JsonProperty property) {
@@ -66,14 +63,11 @@ public abstract class JSONTemporalSerializer extends JSONTypeSerializer {
         }
     }
 
-    protected void createDefaultTemplate() {
-    }
-
     // check
     protected abstract void checkClass(ObjectStructureWrapper objectStructureWrapper);
 
     protected void serialize(Object value, Writer writer, JsonConfig jsonConfig, int indent) throws Exception {
-        if (useTemplate) {
+        if (useFormatter) {
             writeTemporalWithTemplate(value, writer, jsonConfig);
         } else {
             writeDefault(value, writer, jsonConfig, indent);

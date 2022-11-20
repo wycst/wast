@@ -38,10 +38,15 @@ final class GetterMethodInfo extends GetterInfo {
 
     // 是否private私有方法
     public boolean isPrivate() {
-        return Modifier.isPrivate(method.getModifiers());
+        return false;
     }
 
     public Class<?> getReturnType() {
         return method.getReturnType();
+    }
+
+    @Override
+    public String getMethodName() {
+        return method.getName();
     }
 }

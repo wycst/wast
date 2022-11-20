@@ -4,6 +4,7 @@ import io.github.wycst.wast.common.exceptions.LogicNullPointerException;
 import io.github.wycst.wast.common.exceptions.TypeNotMatchExecption;
 import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.common.reflect.GetterInfo;
+import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.SetterInfo;
 
 import java.lang.reflect.Method;
@@ -74,25 +75,25 @@ public class ObjectUtils {
     public static Object get(Object target, String key) {
         if (target == null)
             return null;
-        if (key == null)
-            throw new LogicNullPointerException(" key is null !");
-
         key = key.trim();
-        // 判断是否为多级属性（key中是否包含.），如果是先取一级，递归获取
-        int dotIndex = key.indexOf('.');
+        int dotIndex;
         if (target instanceof Map) {
             Map<String, Object> mapTarget = (Map<String, Object>) target;
-            if (mapTarget.containsKey(key)) {
-                return mapTarget.get(key);
-            } else {
-                if (dotIndex > -1) {
-                    String topKey = key.substring(0, dotIndex);
-                    String nextKey = key.substring(dotIndex + 1);
-                    Object nextTarget = mapTarget.get(topKey);
-                    return get(nextTarget, nextKey);
-                }
+            Object value = mapTarget.get(key);
+            if (value != null) {
+                return value;
             }
+            // 判断是否为多级属性（key中是否包含.），如果是先取一级，递归获取
+            dotIndex = key.indexOf('.');
+            if (dotIndex == -1) {
+                return null;
+            }
+            String topKey = key.substring(0, dotIndex);
+            String nextKey = key.substring(dotIndex + 1);
+            Object nextTarget = mapTarget.get(topKey);
+            return get(nextTarget, nextKey);
         } else {
+            dotIndex = key.indexOf('.');
             if (dotIndex > -1) {
                 String topKey = key.substring(0, dotIndex);
                 String nextKey = key.substring(dotIndex + 1);
@@ -108,17 +109,53 @@ public class ObjectUtils {
                     }
                     throw new TypeNotMatchExecption("context property '" + key + "' is invalid ");
                 } else {
-                    ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(target.getClass());
-                    List<GetterInfo> getterInfos = classStructureWrapper.getGetterInfos();
-                    for (GetterInfo getterInfo : getterInfos) {
-                        if (getterInfo.getName().equals(key.trim())) {
-                            return getterInfo.invoke(target);
-                        }
-                    }
+                    return getObjectFieldValue(target, key);
                 }
             }
         }
+    }
 
+    /**
+     * 获取对象的属性值
+     *
+     * @param target 对象
+     * @param field  属性
+     * @return 返回对象中的属性值
+     */
+    public static Object getAttrValue(Object target, String field) {
+        if (target == null)
+            return null;
+        field.getClass();
+        if(target instanceof Map) {
+            return ((Map<?, ?>) target).get(field);
+        }
+        ReflectConsts.ClassCategory classCategory = ReflectConsts.getClassCategory(target.getClass());
+        switch (classCategory) {
+            case ObjectCategory: {
+                return getObjectFieldValue(target, field);
+            }
+            case CollectionCategory:
+            case ArrayCategory: {
+                if ("size".equals(field) || "length".equals(field)) {
+                    return CollectionUtils.getSize(target);
+                }
+                if (field.startsWith("[") && field.endsWith("]")) {
+                    return CollectionUtils.getElement(target, Integer.parseInt(field.substring(1, field.length() - 1)));
+                }
+                throw new TypeNotMatchExecption("context property '" + field + "' is invalid ");
+            }
+            default: {
+                return null;
+            }
+        }
+    }
+
+    public static Object getObjectFieldValue(Object target, String field) {
+        ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(target.getClass());
+        GetterInfo getterInfo = classStructureWrapper.getGetterInfo(field);
+        if (getterInfo != null) {
+            return getterInfo.invoke(target);
+        }
         return null;
     }
 
@@ -301,4 +338,5 @@ public class ObjectUtils {
             throw new TypeNotMatchExecption("context property '" + key + "' is not array or iterable ");
         }
     }
+
 }

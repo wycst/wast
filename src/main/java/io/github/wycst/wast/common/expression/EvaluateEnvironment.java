@@ -1,6 +1,7 @@
 package io.github.wycst.wast.common.expression;
 
 import io.github.wycst.wast.common.expression.functions.BuiltInFunction;
+import io.github.wycst.wast.common.expression.invoker.Invoker;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
@@ -23,12 +24,16 @@ public class EvaluateEnvironment {
     private Map<String, ExprFunction> functionMap = new HashMap<String, ExprFunction>();
     private Object context;
     private Map<String, Object> variables = new HashMap<String, Object>();
-    private boolean useVariables;
+    boolean useVariables;
+    private boolean safely;
+    private boolean mapContext;
 
-    /** 字符串+默认情况下进行拼接，且不支持除+以外其他运算，开启后自动将字符串转化为double类型 */
+    /**
+     * 字符串+默认情况下进行拼接，且不支持除+以外其他运算，开启后自动将字符串变量转化为double类型（字符串常量逻辑不变）
+     */
     private boolean autoParseStringAsDouble;
 
-    // 静态函数列表
+    // 静态函数列表（静态类+函数名）
     private Map<String, Method> staticMethods = new HashMap<String, Method>();
     private Set<Class> staticClassSet = new HashSet<Class>();
 
@@ -38,12 +43,23 @@ public class EvaluateEnvironment {
         registerStaticMethods(true, BuiltInFunction.class, builtInStaticMethods);
     }
 
+    // 通用执行环境
+    static final EvaluateEnvironment DefaultEnvironment = new EvaluateEnvironment();
+
     public void setAutoParseStringAsDouble(boolean autoParseStringAsDouble) {
         this.autoParseStringAsDouble = autoParseStringAsDouble;
     }
 
     public boolean isAutoParseStringAsDouble() {
         return autoParseStringAsDouble;
+    }
+
+    public void setSafely(boolean safely) {
+        this.safely = safely;
+    }
+
+    public boolean isSafely() {
+        return safely;
     }
 
     // 临时缓存
@@ -55,7 +71,7 @@ public class EvaluateEnvironment {
         Method[] methods = functionClass.getMethods();
         // 静态方法如果存在重载情况，将追加后缀
         for (Method method : methods) {
-            if (Modifier.isStatic(method.getModifiers())) {
+            if (Modifier.isStatic(method.getModifiers()) && Modifier.isPublic(method.getModifiers())) {
                 method.setAccessible(true);
                 String methodName = method.getName();
                 staticMethods.put(global ? methodName : className + "." + methodName, method);
@@ -64,7 +80,6 @@ public class EvaluateEnvironment {
     }
 
     protected EvaluateEnvironment() {
-//        registerStaticMethods(true, BuiltInFunction.class);
         staticMethods.putAll(builtInStaticMethods);
     }
 
@@ -73,8 +88,17 @@ public class EvaluateEnvironment {
      *
      * @return
      */
-    public Object getEvaluateContext() {
-        return useVariables ? variables : context;
+    public Object getContext() {
+        return context;
+    }
+
+    /**
+     * 上下文对象是否为map
+     *
+     * @return
+     */
+    boolean isMapContext() {
+        return mapContext;
     }
 
     /**
@@ -85,6 +109,9 @@ public class EvaluateEnvironment {
     public static EvaluateEnvironment create() {
         EvaluateEnvironment environment = new EvaluateEnvironment();
         environment.useVariables = true;
+        environment.safely = true;
+        environment.context = environment.variables;
+        environment.mapContext = true;
         return environment;
     }
 
@@ -100,13 +127,15 @@ public class EvaluateEnvironment {
         }
         EvaluateEnvironment environment = new EvaluateEnvironment();
         environment.context = context;
+        environment.safely = true;
+        environment.mapContext = context instanceof Map;
         return environment;
     }
 
     /**
      * 注册函数
      *
-     * @param name     函数得名称，再表达式种通过@标识符调用
+     * @param name     函数名称，表达式中通过@标识符调用
      * @param function 函数对象
      * @return
      */
@@ -114,6 +143,18 @@ public class EvaluateEnvironment {
         functionMap.put(name.trim(), function);
         return this;
     }
+
+    /**
+     * 取消注册函数
+     *
+     * @param name 函数名称，表达式中通过@标识符调用
+     * @return
+     */
+    public EvaluateEnvironment unregisterFunction(String name) {
+        functionMap.remove(name.trim());
+        return this;
+    }
+
 
     /**
      * 注册静态方法(public)
@@ -209,10 +250,41 @@ public class EvaluateEnvironment {
         return useVariables ? variables.isEmpty() : context == null;
     }
 
+    EvaluatorContext createEvaluateContext(Object context, Invoker chainInvoker) {
+        EvaluatorContext evaluatorContext = new EvaluatorContext();
+        evaluatorContext.setContextVariables(chainInvoker, context);
+        return evaluatorContext;
+    }
+
+    EvaluatorContext createEvaluateContext(Map context, Invoker chainInvoker) {
+        EvaluatorContext evaluatorContext = new EvaluatorContext();
+        evaluatorContext.setContextVariables(chainInvoker, context);
+        return evaluatorContext;
+    }
+
+    EvaluatorContext createEvaluateContext(Invoker chainInvoker, int count) {
+        if (safely) {
+            EvaluatorContext.StatefulEvaluatorContext evaluatorContext = new EvaluatorContext.StatefulEvaluatorContext();
+            if (isMapContext()) {
+                evaluatorContext.setContextVariables(chainInvoker, (Map) this.context, count);
+            } else {
+                evaluatorContext.setContextVariables(chainInvoker, this.context, count);
+            }
+            return evaluatorContext;
+        }
+        EvaluatorContext evaluatorContext = new EvaluatorContext();
+        if (isMapContext()) {
+            evaluatorContext.setContextVariables(chainInvoker, (Map) this.context);
+        } else {
+            evaluatorContext.setContextVariables(chainInvoker, this.context);
+        }
+        return evaluatorContext;
+    }
+
     /**
      * 内置运行静态method的函数
      */
-    private class MethodFunction implements ExprFunction {
+    private class MethodFunction implements ExprFunction<Object, Object> {
         private String name;
         private Method method;
         private Class[] parameterTypes;

@@ -36,7 +36,7 @@ public class TemporalInstantSerializer extends JSONTemporalSerializer {
     protected void writeTemporalWithTemplate(Object value, Writer writer, JsonConfig jsonConfig) throws Exception {
         long epochMilli = TemporalAloneInvoker.invokeInstantEpochMilli(value).longValue();
         writer.append('"');
-        dateTemplate.formatTo(new Date(epochMilli, ZERO_TIME_ZONE), writer, true);
+        dateFormatter.formatTo(new Date(epochMilli, ZERO_TIME_ZONE), writer);
         writer.append('"');
     }
 

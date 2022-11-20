@@ -38,7 +38,7 @@ public class TemporalLocalTimeSerializer extends JSONTemporalSerializer {
         int millisecond = nano / 1000000;
 
         writer.append('"');
-        dateTemplate.formatTo(1970, 1, 1, hour, minute, second, millisecond, writer, true);
+        dateFormatter.formatTo(1970, 1, 1, hour, minute, second, millisecond, writer);
         writer.append('"');
     }
 

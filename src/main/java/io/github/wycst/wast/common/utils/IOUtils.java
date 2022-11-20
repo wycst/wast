@@ -1,5 +1,7 @@
 package io.github.wycst.wast.common.utils;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 
 /**
@@ -113,4 +115,33 @@ public class IOUtils {
         return charLen;
     }
 
+    /**
+     * 从输入读中读取完整的bytes
+     *
+     * @param is
+     * @return
+     */
+    public static byte[] readBytes(InputStream is) throws IOException {
+        try {
+            // init 1024
+            byte[] bytes = new byte[0];
+            int len = 1024;
+            byte[] tmp = new byte[len];
+            int count;
+            while ((count = is.read(tmp)) > 0) {
+                int oldLen = bytes.length;
+                bytes = Arrays.copyOf(bytes, oldLen + count);
+                System.arraycopy(tmp, 0, bytes, oldLen, count);
+                if(count < len) {
+                    break;
+                } else {
+                    // Capacity expansion
+                    tmp = new byte[len <<= 1];
+                }
+            }
+            return bytes;
+        } finally {
+            is.close();
+        }
+    }
 }

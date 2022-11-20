@@ -49,7 +49,7 @@ public class GetterInfo {
     public final Object invoke(Object target) {
         if (fieldOffset > -1) {
             if (fieldPrimitive) {
-                return UnsafeHelper.getPrimitiveValue(target, fieldOffset, primitiveType);
+                return primitiveType.get(target, fieldOffset);
             } else {
                 return UnsafeHelper.getObjectValue(target, fieldOffset);
             }
@@ -76,6 +76,10 @@ public class GetterInfo {
         } catch (Throwable throwable) {
             this.fieldOffset = -1;
         }
+    }
+
+    Field getField() {
+        return this.field;
     }
 
     public boolean existField() {
@@ -122,5 +126,9 @@ public class GetterInfo {
     // 是否private私有方法
     public boolean isPrivate() {
         return Modifier.isPrivate(field.getModifiers());
+    }
+
+    public String getMethodName() {
+        return null;
     }
 }

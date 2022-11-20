@@ -90,8 +90,6 @@ import java.util.*;
 @SuppressWarnings("rawtypes")
 public final class JSON extends JSONGeneral {
 
-    public static String FLAG = "0.0.7";
-
     /**
      * 将json字符串转为对象或者数组(Convert JSON strings to objects or arrays)
      *

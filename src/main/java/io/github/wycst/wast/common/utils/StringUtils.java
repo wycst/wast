@@ -344,7 +344,7 @@ public class StringUtils {
      */
     public static String fromStream(InputStream is) {
         try {
-            byte[] bytes = ByteUtils.readStreamBytes(is);
+            byte[] bytes = IOUtils.readBytes(is);
             return new String(bytes);
         } catch (IOException e) {
             return null;

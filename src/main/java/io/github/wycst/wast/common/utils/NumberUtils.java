@@ -7,6 +7,29 @@ package io.github.wycst.wast.common.utils;
  */
 public class NumberUtils {
 
+    // Double.MAX_VALUE 1.7976931348623157e+308
+    final static double[] PositiveDecimalPower = new double[310];
+
+    static {
+        // e0 ~ e360(e306)
+        for (int i = 0, len = PositiveDecimalPower.length; i < len; ++i) {
+            PositiveDecimalPower[i] = Math.pow(10, i);
+        }
+    }
+
+    /**
+     * 获取以10为底数的指定数值（-1 < expValue > 310）指数值
+     *
+     * @param expValue
+     * @return
+     */
+    public static double getDecimalPowerValue(int expValue) {
+        if (expValue < PositiveDecimalPower.length) {
+            return PositiveDecimalPower[expValue];
+        }
+        return Math.pow(10, expValue);
+    }
+
     /***
      * 以10进制解析double数
      * 一般与Double.parseDouble(String)的结果一致（a.b{n}当n的值不大于15时）
@@ -100,10 +123,10 @@ public class NumberUtils {
         }
         expValue = expNegative ? -expValue - decimalCount : expValue - decimalCount;
         if (expValue > 0) {
-            double powValue = Math.pow(radix, expValue);
+            double powValue = getDecimalPowerValue(expValue);
             value *= powValue;
         } else if (expValue < 0) {
-            double powValue = Math.pow(radix, -expValue);
+            double powValue = getDecimalPowerValue(-expValue);
             value /= powValue;
         }
         return negative ? -value : value;

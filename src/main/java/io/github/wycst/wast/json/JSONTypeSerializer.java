@@ -1,5 +1,7 @@
 package io.github.wycst.wast.json;
 
+import io.github.wycst.wast.common.beans.DateFormatter;
+import io.github.wycst.wast.common.beans.DateTemplate;
 import io.github.wycst.wast.common.beans.GeneralDate;
 import io.github.wycst.wast.common.reflect.GetterInfo;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
@@ -259,6 +261,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
         protected boolean writeDateAsTime;
         protected String pattern;
         protected String timezone;
+        protected DateFormatter dateFormatter;
 
         @Override
         protected void serialize(Object value, Writer content, JsonConfig jsonConfig, int indent) throws Exception {
@@ -286,8 +289,9 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
          * @param timezone
          * @param content
          * @throws IOException
+         * @see io.github.wycst.wast.common.beans.DateTemplate
          */
-        private static void writeDate(Date date, String pattern, String timezone, Writer content) throws IOException {
+        private void writeDate(Date date, String pattern, String timezone, Writer content) throws IOException {
 
             int month, year, day, hourOfDay, minute, second, millisecond;
             GeneralDate generalDate = new GeneralDate(date.getTime(), timezone);
@@ -299,6 +303,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
             second = generalDate.getSecond();
 
             if (pattern == null) {
+                // use default date writer
                 if (date instanceof Time) {
                     writeDefaultFormatTime(hourOfDay, minute, second, content);
                 } else {
@@ -308,13 +313,21 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
             }
 
             millisecond = generalDate.getMillisecond();
-            boolean isAm = generalDate.isAm();
+            // if config annotation
+            if(dateFormatter != null) {
+                content.append('"');
+                dateFormatter.formatTo(year, month, day, hourOfDay, minute, second, millisecond, content);
+                content.append('"');
+                return;
+            }
 
+            // maybe global pattern
+
+            boolean isAm = generalDate.isAm();
             pattern = pattern.trim();
             int len = pattern.length();
             content.append('"');
-            // 解析pattern
-            // yy-MM-dd HH:mm:ss:s
+            // parse date pattern such as yyyy-MM-dd HH:mm:ss:s
             char prevChar = '\0';
             int count = 0;
             // 增加一位虚拟字符进行遍历
@@ -521,6 +534,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                 String timezone = jsonProperty.timezone().trim();
                 if (pattern.length() > 0) {
                     this.pattern = pattern;
+                    dateFormatter = DateFormatter.of(pattern);
                 }
                 if (timezone.length() > 0) {
                     this.timezone = timezone;
@@ -680,11 +694,9 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                 content.write(EMPTY_OBJECT);
             } else {
                 content.write('{');
-                // 遍历map
-                Iterator<Map.Entry<Object, Object>> iterator = map.entrySet().iterator();
+                Set<Map.Entry<Object, Object>> entrySet = map.entrySet();
                 boolean isFirstKey = true;
-                while (iterator.hasNext()) {
-                    Map.Entry<Object, Object> entry = iterator.next();
+                for (Map.Entry<Object, Object> entry : entrySet) {
                     Object key = entry.getKey();
                     Object value = entry.getValue();
 
@@ -707,6 +719,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                         valueSerializer.serialize(value, content, jsonConfig, formatOut ? indentLevel + 1 : -1);
                     }
                 }
+
                 writeFormatSymbolOut(content, indentLevel, formatOut);
                 content.write('}');
             }

@@ -1058,99 +1058,127 @@ class JSONByteArrayParser extends JSONGeneral {
      * @return 返回转义内容处理完成后的下一个未知字符位置
      */
     static int escapeAscii(String source, byte[] bytes, byte next, int i, int beginIndex, JSONStringWriter writer, JSONParseContext jsonParseContext) {
-        int len;
-        switch (next) {
-            case '\'':
-            case '"':
-                if (i > beginIndex) {
-                    writer.writeString(source, beginIndex, i - beginIndex + 1);
-                    writer.setCharAt(writer.size() - 1, (char) next);
-                } else {
-                    writer.append((char) next);
-                }
-                beginIndex = ++i + 1;
-                break;
-            case 'n':
-                if (i > beginIndex) {
-                    writer.writeString(source, beginIndex, i - beginIndex + 1);
-                    writer.setCharAt(writer.size() - 1, '\n');
-                } else {
-                    writer.append('\n');
-                }
-                beginIndex = ++i + 1;
-                break;
-            case 'r':
-                if (i > beginIndex) {
-                    writer.writeString(source, beginIndex, i - beginIndex + 1);
-                    writer.setCharAt(writer.size() - 1, '\r');
-                } else {
-                    writer.append('\r');
-                }
-                beginIndex = ++i + 1;
-                break;
-            case 't':
-                if (i > beginIndex) {
-                    writer.writeString(source, beginIndex, i - beginIndex + 1);
-                    writer.setCharAt(writer.size() - 1, '\t');
-                } else {
-                    writer.append('\t');
-                }
-                beginIndex = ++i + 1;
-                break;
-            case 'b':
-                if (i > beginIndex) {
-                    writer.writeString(source, beginIndex, i - beginIndex + 1);
-                    writer.setCharAt(writer.size() - 1, '\b');
-                } else {
-                    writer.append('\b');
-                }
-                beginIndex = ++i + 1;
-                break;
-            case 'f':
-                if (i > beginIndex) {
-                    writer.writeString(source, beginIndex, i - beginIndex + 1);
-                    writer.setCharAt(writer.size() - 1, '\f');
-                } else {
-                    writer.append('\f');
-                }
-                beginIndex = ++i + 1;
-                break;
-            case 'u':
-                int c;
-                int j = i + 2;
-                try {
-                    int c1 = hex(bytes[j++]);
-                    int c2 = hex(bytes[j++]);
-                    int c3 = hex(bytes[j++]);
-                    int c4 = hex(bytes[j++]);
-                    c = (c1 << 12) | (c2 << 8) | (c3 << 4) | c4;
-                } catch (Throwable throwable) {
-                    // \\u parse error
-                    String errorContextTextAt = createErrorMessage(bytes, i + 1);
-                    throw new JSONException("Syntax error, from pos " + (i + 1) + ", context text by '" + errorContextTextAt + "', " + throwable.getMessage());
-                }
-                len = i - beginIndex;
-//                writer.writeString(source, beginIndex, len + 1);
-                if(len > 0) {
-                    writer.writeString(source, beginIndex, i - beginIndex + 1);
-                    writer.setCharAt(writer.size() - 1, (char) c);
-                } else {
-                    writer.append((char) c);
-                }
-                i += 4;
-                beginIndex = ++i + 1;
-                break;
-            default: {
-                // other case delete char '\\'
-                if (i > beginIndex) {
-                    writer.writeString(source, beginIndex, i - beginIndex + 1);
-                    writer.setCharAt(writer.size() - 1, (char) next);
-                } else {
-                    writer.append((char) next);
-                }
-                beginIndex = ++i + 1;
-            }
+
+        if (i > beginIndex) {
+            writer.writeString(source, beginIndex, i - beginIndex);
         }
+        if(next == 'u') {
+            int c;
+            int j = i + 2;
+            try {
+                int c1 = hex(bytes[j++]);
+                int c2 = hex(bytes[j++]);
+                int c3 = hex(bytes[j++]);
+                int c4 = hex(bytes[j++]);
+                c = (c1 << 12) | (c2 << 8) | (c3 << 4) | c4;
+            } catch (Throwable throwable) {
+                // \\u parse error
+                String errorContextTextAt = createErrorMessage(bytes, i + 1);
+                throw new JSONException("Syntax error, from pos " + (i + 1) + ", context text by '" + errorContextTextAt + "', " + throwable.getMessage());
+            }
+            writer.append((char) c);
+            i += 4;
+            beginIndex = ++i + 1;
+        } else if(next < 160) {
+            writer.append(EscapeChars[next]);
+            beginIndex = ++i + 1;
+        } else {
+            writer.append((char) next);
+            beginIndex = ++i + 1;
+        }
+//        int len;
+//        switch (next) {
+//            case '\'':
+//            case '"':
+//                if (i > beginIndex) {
+//                    writer.writeString(source, beginIndex, i - beginIndex + 1);
+//                    writer.setCharAt(writer.size() - 1, (char) next);
+//                } else {
+//                    writer.append((char) next);
+//                }
+//                beginIndex = ++i + 1;
+//                break;
+//            case 'n':
+//                if (i > beginIndex) {
+//                    writer.writeString(source, beginIndex, i - beginIndex + 1);
+//                    writer.setCharAt(writer.size() - 1, '\n');
+//                } else {
+//                    writer.append('\n');
+//                }
+//                beginIndex = ++i + 1;
+//                break;
+//            case 'r':
+//                if (i > beginIndex) {
+//                    writer.writeString(source, beginIndex, i - beginIndex + 1);
+//                    writer.setCharAt(writer.size() - 1, '\r');
+//                } else {
+//                    writer.append('\r');
+//                }
+//                beginIndex = ++i + 1;
+//                break;
+//            case 't':
+//                if (i > beginIndex) {
+//                    writer.writeString(source, beginIndex, i - beginIndex + 1);
+//                    writer.setCharAt(writer.size() - 1, '\t');
+//                } else {
+//                    writer.append('\t');
+//                }
+//                beginIndex = ++i + 1;
+//                break;
+//            case 'b':
+//                if (i > beginIndex) {
+//                    writer.writeString(source, beginIndex, i - beginIndex + 1);
+//                    writer.setCharAt(writer.size() - 1, '\b');
+//                } else {
+//                    writer.append('\b');
+//                }
+//                beginIndex = ++i + 1;
+//                break;
+//            case 'f':
+//                if (i > beginIndex) {
+//                    writer.writeString(source, beginIndex, i - beginIndex + 1);
+//                    writer.setCharAt(writer.size() - 1, '\f');
+//                } else {
+//                    writer.append('\f');
+//                }
+//                beginIndex = ++i + 1;
+//                break;
+//            case 'u':
+//                int c;
+//                int j = i + 2;
+//                try {
+//                    int c1 = hex(bytes[j++]);
+//                    int c2 = hex(bytes[j++]);
+//                    int c3 = hex(bytes[j++]);
+//                    int c4 = hex(bytes[j++]);
+//                    c = (c1 << 12) | (c2 << 8) | (c3 << 4) | c4;
+//                } catch (Throwable throwable) {
+//                    // \\u parse error
+//                    String errorContextTextAt = createErrorMessage(bytes, i + 1);
+//                    throw new JSONException("Syntax error, from pos " + (i + 1) + ", context text by '" + errorContextTextAt + "', " + throwable.getMessage());
+//                }
+//                len = i - beginIndex;
+////                writer.writeString(source, beginIndex, len + 1);
+//                if(len > 0) {
+//                    writer.writeString(source, beginIndex, i - beginIndex + 1);
+//                    writer.setCharAt(writer.size() - 1, (char) c);
+//                } else {
+//                    writer.append((char) c);
+//                }
+//                i += 4;
+//                beginIndex = ++i + 1;
+//                break;
+//            default: {
+//                // other case delete char '\\'
+//                if (i > beginIndex) {
+//                    writer.writeString(source, beginIndex, i - beginIndex + 1);
+//                    writer.setCharAt(writer.size() - 1, (char) next);
+//                } else {
+//                    writer.append((char) next); // if & 0xff ?
+//                }
+//                beginIndex = ++i + 1;
+//            }
+//        }
         jsonParseContext.setEndIndex(i);
         return beginIndex;
     }

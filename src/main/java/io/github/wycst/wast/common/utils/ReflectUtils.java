@@ -1,5 +1,7 @@
 package io.github.wycst.wast.common.utils;
 
+import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
+
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -18,7 +20,7 @@ public class ReflectUtils {
      * @param targetClass
      * @return
      */
-    public static Class<?> getActualType(Class<?> targetClass) {
+    public static Type[] getActualTypes(Class<?> targetClass) {
         Type type = targetClass.getGenericSuperclass();
         int i = 0;
         while (type instanceof Class) {
@@ -30,10 +32,22 @@ public class ReflectUtils {
         if (type instanceof ParameterizedType) {
             ParameterizedType parameterizedType = (ParameterizedType) type;
             Type[] types = parameterizedType.getActualTypeArguments();
-            if (types != null && types.length > 0) {
-                if (types[0] instanceof Class) {
-                    return (Class<?>) types[0];
-                }
+            return types;
+        }
+        return null;
+    }
+
+    /**
+     * 获取实例上的泛型或者父类上的泛型
+     *
+     * @param targetClass
+     * @return
+     */
+    public static Class<?> getActualType(Class<?> targetClass) {
+        Type[] types = getActualTypes(targetClass);
+        if (types != null && types.length > 0) {
+            if (types[0] instanceof Class) {
+                return (Class<?>) types[0];
             }
         }
         return null;
@@ -47,7 +61,7 @@ public class ReflectUtils {
      */
     public static Class<?> getImplementActualType(Class<?> targetClass) {
         Type[] implementTypes = targetClass.getGenericInterfaces();
-        if(implementTypes.length == 0) {
+        if (implementTypes.length == 0) {
             Class<?> parentCls = (Class) targetClass.getGenericSuperclass();
             implementTypes = parentCls.getGenericInterfaces();
         }
@@ -89,5 +103,19 @@ public class ReflectUtils {
         } else {
         }
         return null;
+    }
+
+    /**
+     * 方法反射调用，注意缓存method，防止每次重新获取带来性能开销
+     *
+     * @param invoker
+     * @param methodName
+     * @param params
+     * @return
+     */
+    public static Object invoke(Object invoker, String methodName, Object[] params) throws Exception {
+        Class invokerCls = invoker.getClass();
+        ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(invokerCls);
+        return classStructureWrapper.invokePublic(invoker, methodName, params);
     }
 }

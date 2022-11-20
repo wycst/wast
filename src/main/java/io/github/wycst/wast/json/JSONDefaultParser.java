@@ -540,9 +540,7 @@ public final class JSONDefaultParser extends JSONGeneral {
             }
             // ch is \\ or "
             if (ch == '\\') {
-                if (i < toIndex - 1) {
-                    next = buf[i + 1];
-                }
+                next = buf[i + 1];
                 if (writer == null) {
                     writer = getContextWriter(jsonParseContext);
                     escape = true;
@@ -577,9 +575,7 @@ public final class JSONDefaultParser extends JSONGeneral {
             }
             // ch is \\ or "
             if (ch == '\\') {
-                if (i < toIndex - 1) {
-                    next = buf[i + 1];
-                }
+                next = buf[i + 1];
                 if (writer == null) {
                     writer = getContextWriter(jsonParseContext);
                 }
