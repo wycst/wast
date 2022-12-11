@@ -407,23 +407,6 @@ public class ReflectConsts {
                 case ShortNameHash:
                     return PrimitiveShort;
             }
-//            if (fieldType == int.class) {
-//                return PrimitiveInt;
-//            } else if (fieldType == long.class) {
-//                return PrimitiveLong;
-//            } else if (fieldType == float.class) {
-//                return PrimitiveFloat;
-//            } else if (fieldType == double.class) {
-//                return PrimitiveDouble;
-//            } else if (fieldType == boolean.class) {
-//                return PrimitiveBoolean;
-//            } else if (fieldType == short.class) {
-//                return PrimitiveShort;
-//            } else if (fieldType == char.class) {
-//                return PrimitiveCharacter;
-//            } else if (fieldType == byte.class) {
-//                return PrimitiveByte;
-//            }
             return null;
         }
 

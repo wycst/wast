@@ -41,7 +41,7 @@ public class StringUtils {
 
         if (columnName == null)
             return null;
-        StringBuffer buffer = new StringBuffer();
+        StringBuilder buffer = new StringBuilder();
 
         // 如果追求性能问题，可以不使用split,而是遍历循环字符串，append字符方式
         if (columnName.indexOf("_") == -1) {
@@ -133,7 +133,7 @@ public class StringUtils {
      * @param parameters
      * @return
      */
-    public static String replacePlaceholder(String message, String placeholder, Object[] parameters) {
+    public static String replacePlaceholder(String message, String placeholder, Object... parameters) {
 
         int parameterCount;
         if (StringUtils.isEmpty(placeholder) || parameters == null || (parameterCount = parameters.length) == 0) {
@@ -143,7 +143,7 @@ public class StringUtils {
         if ((placeholderIndex = message.indexOf(placeholder)) == -1) {
             return message;
         }
-        StringBuffer buffer = new StringBuffer();
+        StringBuilder buffer = new StringBuilder();
         int fromIndex = 0;
         int placeholderLen = placeholder.length();
         int i = 0;
@@ -224,7 +224,7 @@ public class StringUtils {
         if (groupRegex.indexOf(")") <= groupRegex.indexOf("(") || groupRegex.indexOf("(") == -1) {
             return message;
         }
-        StringBuffer buffer = new StringBuffer();
+        StringBuilder buffer = new StringBuilder();
         Pattern pattern = RegexUtils.getPattern(groupRegex); // Pattern.compile(groupRegex);
         Matcher matcher = pattern.matcher(message);
         int beginIndex = 0;
@@ -303,7 +303,7 @@ public class StringUtils {
      * @return
      */
     public static String formatMappingPath(String... paths) {
-        StringBuffer pathBuffer = new StringBuffer("/");
+        StringBuilder pathBuffer = new StringBuilder("/");
         for (String path : paths) {
             if (path == null || path.length() == 0)
                 continue;
@@ -350,5 +350,4 @@ public class StringUtils {
             return null;
         }
     }
-
 }

@@ -3,8 +3,8 @@ package io.github.wycst.wast.common.template;
 import io.github.wycst.wast.common.compiler.MemoryClassLoader;
 import io.github.wycst.wast.common.compiler.MemoryJavaFileManager;
 import io.github.wycst.wast.common.compiler.MemoryJavaFileObject;
-import io.github.wycst.wast.common.utils.RegexUtils;
 import io.github.wycst.wast.common.exceptions.ParserException;
+import io.github.wycst.wast.common.utils.RegexUtils;
 
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;

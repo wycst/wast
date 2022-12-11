@@ -9,7 +9,8 @@ public class NumberUtils {
 
     // Double.MAX_VALUE 1.7976931348623157e+308
     final static double[] PositiveDecimalPower = new double[310];
-
+    //0-9a-f
+    final static char[] hexDigits = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
     static {
         // e0 ~ e360(e306)
         for (int i = 0, len = PositiveDecimalPower.length; i < len; ++i) {
@@ -371,5 +372,22 @@ public class NumberUtils {
             throw new NumberFormatException("For input string: \"" + ch + "\"");
         }
         return v1;
+    }
+
+    /**
+     * 将long类型的value转为长度为16的16进制字符串,缺省补字符0
+     *
+     * @param value
+     * @return
+     * @see Long#toHexString(long)
+     */
+    public static String toHexString16(long value) {
+        char[] chars = new char[16];
+        for (int i = 15 ; i > -1; --i) {
+            int val = (int) (value & 0xf);
+            chars[i] = hexDigits[val];
+            value >>= 4l;
+        }
+        return new String(chars);
     }
 }

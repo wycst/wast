@@ -163,7 +163,9 @@ class SnowflakeIdGeneratorProvider extends IdGenerator {
         this.bitType = bitType;
         if (bitType == 0) {
             this.generateLen = 64;
+            // 时间位（41+1符号）+10位实例+12位序列
             this.instanceBitLen = 10L;
+            // 每秒ID个数： (1 << 12) * 1000 = 4096000
             this.sequenceBits = 12L;
         } else {
             this.generateLen = 53;

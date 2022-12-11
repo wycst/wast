@@ -1,9 +1,11 @@
 package io.github.wycst.wast.common.idgenerate.providers;
 
+import io.github.wycst.wast.common.idgenerate.entity.IdInfo;
+import io.github.wycst.wast.common.utils.NumberUtils;
+
 import java.io.InputStream;
 import java.util.Properties;
 
-import io.github.wycst.wast.common.idgenerate.entity.IdInfo;
 
 /**
  * 分布式全局ID生成器
@@ -27,7 +29,7 @@ public abstract class IdGenerator {
         try {
             Properties props = new Properties();
             InputStream is = IdGenerator.class.getResourceAsStream("/generate.properties");
-            if(is != null) {
+            if (is != null) {
                 props.load(is);
             }
             ID_GENERATOR_ALGORITHM = props.getProperty("id.generate.algorithm");
@@ -84,6 +86,25 @@ public abstract class IdGenerator {
     }
 
     /**
+     * 生成唯一id（64位）
+     *
+     * @return
+     */
+    public static long id() {
+        return instance.generateId();
+    }
+
+    /**
+     * 生成16进制id
+     * note: 64位转16进制长度最大16位（如果不足16位高位补字符0）
+     *
+     * @return
+     */
+    public static String hex() {
+        return instance.generateHexString();
+    }
+
+    /**
      * 生成id
      *
      * @return
@@ -112,7 +133,7 @@ public abstract class IdGenerator {
      * @return
      */
     public String generateHexString() {
-        return Long.toHexString(generateId());
+        return NumberUtils.toHexString16(generateId());
     }
 
     /**

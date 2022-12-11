@@ -15,9 +15,4 @@ public class IllegalParematerException extends RuntimeException {
     public IllegalParematerException(String message) {
         super(message);
     }
-
-    public IllegalParematerException(String message, Throwable cause) {
-        super(message, cause);
-    }
-
 }

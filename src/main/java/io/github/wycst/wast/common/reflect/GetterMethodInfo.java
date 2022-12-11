@@ -3,7 +3,6 @@ package io.github.wycst.wast.common.reflect;
 import io.github.wycst.wast.common.exceptions.InvokeReflectException;
 
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 
 /**
  * 使用getter方法反射

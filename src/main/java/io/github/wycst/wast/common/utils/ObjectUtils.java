@@ -1,6 +1,6 @@
 package io.github.wycst.wast.common.utils;
 
-import io.github.wycst.wast.common.exceptions.LogicNullPointerException;
+import io.github.wycst.wast.common.beans.DateParser;
 import io.github.wycst.wast.common.exceptions.TypeNotMatchExecption;
 import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.common.reflect.GetterInfo;
@@ -8,16 +8,18 @@ import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.SetterInfo;
 
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.sql.Timestamp;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 @SuppressWarnings("unchecked")
 public class ObjectUtils {
 
     public static boolean contains(Object target, String key) {
-
-        if (target == null)
-            throw new LogicNullPointerException(" target is null !");
-
+        target.getClass();
         if (target instanceof Map) {
             return ((Map<?, ?>) target).containsKey(key);
         } else {
@@ -126,7 +128,7 @@ public class ObjectUtils {
         if (target == null)
             return null;
         field.getClass();
-        if(target instanceof Map) {
+        if (target instanceof Map) {
             return ((Map<?, ?>) target).get(field);
         }
         ReflectConsts.ClassCategory classCategory = ReflectConsts.getClassCategory(target.getClass());
@@ -187,10 +189,6 @@ public class ObjectUtils {
     public static void set(Object target, String key, Object value, boolean createIfMapNull) {
         if (target == null)
             return;
-
-        if (key == null)
-            throw new LogicNullPointerException(" key is null !");
-
         key = key.trim();
         /**
          *  判断是否为多级属性（key中是否包含.），如果是先取一级，递归获取
@@ -238,8 +236,6 @@ public class ObjectUtils {
     }
 
     public static Object[] get(Object target, List<String> keys) {
-        if (keys == null)
-            throw new LogicNullPointerException(" keys is null !");
         Object[] values = new Object[keys.size()];
         int index = 0;
         for (String key : keys) {
@@ -249,10 +245,8 @@ public class ObjectUtils {
     }
 
     public static Map<String, Object> toMap(Object target) {
-
         if (target == null)
             return null;
-
         if (target instanceof Map) {
             return (Map<String, Object>) target;
         }
@@ -339,4 +333,132 @@ public class ObjectUtils {
         }
     }
 
+    public static <E> E toType(Object value, Class<E> valueClass, ReflectConsts.ClassCategory classCategory) {
+        if(value == null) return null;
+
+        if (valueClass.isInstance(value) || valueClass == Object.class) {
+            return (E) value;
+        }
+        switch (classCategory) {
+            case CharSequence: {
+                if (valueClass == String.class) {
+                    if (value instanceof Date) {
+                        return (E) new io.github.wycst.wast.common.beans.Date(((Date) value).getTime()).format();
+                    } else if (value instanceof byte[]) {
+                        return (E) new String((byte[]) value);
+                    }
+                    return (E) value.toString();
+                }
+                break;
+            }
+            case NumberCategory: {
+                boolean isNumber = value instanceof Number;
+                Number numValue = null;
+                // number转化
+                if (isNumber) {
+                    numValue = (Number) value;
+                }
+                if (valueClass == Double.class || valueClass == double.class) {
+                    numValue = isNumber ? numValue.doubleValue() : Double.parseDouble(value.toString());
+                    return (E) numValue;
+                } else if (valueClass == Long.class || valueClass == long.class) {
+                    numValue = isNumber ? numValue.longValue() : Long.parseLong(value.toString());
+                    return (E) numValue;
+                } else if (valueClass == Integer.class || valueClass == int.class) {
+                    numValue = isNumber ? numValue.intValue() : Integer.parseInt(value.toString());
+                    return (E) numValue;
+                } else if (valueClass == Float.class || valueClass == float.class) {
+                    numValue = isNumber ? numValue.floatValue() : Float.parseFloat(value.toString());
+                    return (E) numValue;
+                } else if (valueClass == Short.class || valueClass == short.class) {
+                    numValue = isNumber ? numValue.shortValue() : Short.parseShort(value.toString());
+                    return (E) numValue;
+                } else if (valueClass == Byte.class || valueClass == byte.class) {
+                    numValue = isNumber ? numValue.byteValue() : Byte.parseByte(value.toString());
+                    return (E) numValue;
+                } else if (valueClass == BigDecimal.class) {
+                    numValue = new BigDecimal(value.toString());
+                    return (E) numValue;
+                } else if (valueClass == BigInteger.class) {
+                    numValue = new BigInteger(value.toString());
+                    return (E) numValue;
+                } else if (valueClass == AtomicInteger.class) {
+                    numValue = new AtomicInteger(isNumber ? numValue.intValue() : Integer.parseInt(value.toString()));
+                    return (E) numValue;
+                } else if (valueClass == AtomicLong.class) {
+                    numValue = new AtomicLong(isNumber ? numValue.longValue() : Long.parseLong(value.toString()));
+                    return (E) numValue;
+                }
+            }
+            case BoolCategory: {
+                if (value instanceof Number) {
+                    Boolean bool = ((Number) value).intValue() != 0;
+                    return (E) bool;
+                } else {
+                    String stringValue = value.toString().toLowerCase();
+                    if (stringValue.equals("yes") || stringValue.equals("on")) {
+                        return (E) Boolean.TRUE;
+                    } else if (stringValue.equals("no") || stringValue.equals("off")) {
+                        return (E) Boolean.FALSE;
+                    }
+                }
+                break;
+            }
+            case DateCategory: {
+                String dateValue = value.toString();
+                long time = DateParser.parseTime(dateValue);
+                if (valueClass == Date.class) {
+                    return (E) new Date(time);
+                } else if (valueClass == Timestamp.class) {
+                    return (E) new Timestamp(time);
+                }
+                break;
+            }
+            case EnumCategory: {
+                if (value instanceof Number) {
+                    Class<? extends Enum> enumCls = (Class<? extends Enum>) valueClass;
+                    Enum[] values = enumCls.getEnumConstants();
+                    int index = ((Number) value).intValue();
+                    Enum enumValue = index < values.length ? values[index] : null;
+                    return (E) enumValue;
+                } else {
+                    return (E) Enum.valueOf((Class<? extends Enum>) valueClass, value.toString());
+                }
+            }
+            case Binary: {
+                if(value instanceof String) {
+                    return (E) ((String) value).getBytes();
+                }
+            }
+            case ANY: {
+                return (E) value;
+            }
+            case ObjectCategory: {
+                ClassStructureWrapper structureWrapper = ClassStructureWrapper.get(valueClass);
+                if (structureWrapper.isTemporal()) {
+                    // jdk8+ time api
+                }
+                break;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 将value转化为valueClass的实例,缺省情况下返回0或者null
+     *
+     * @param value
+     * @param valueClass
+     * @param <E>
+     * @return
+     */
+    public static <E> E toType(Object value, Class<E> valueClass) {
+        if (value == null) {
+            return null;
+        }
+        if (valueClass == null) return (E) value;
+        ReflectConsts.ClassCategory classCategory = ReflectConsts.getClassCategory(valueClass);
+        return toType(value, valueClass, classCategory);
+    }
 }

@@ -10,12 +10,4 @@ public class TypeNotMatchExecption extends RuntimeException {
     public TypeNotMatchExecption(String message) {
         super(message);
     }
-
-    public TypeNotMatchExecption(String message, Throwable cause) {
-        super(message, cause);
-    }
-
-    public TypeNotMatchExecption(Throwable cause) {
-        super(cause);
-    }
 }
