@@ -53,9 +53,9 @@
 
 ## jdbc模块
 
-> 1 集成了类似JdbcTemplate,Mybatis-Plus或者jpa等操作习惯的api;
-> 2 代码轻量，没有任何代理，使用非常方便；
-> 3 兼容jdk1.6+；
+> 1 集成了类似JdbcTemplate,Mybatis-Plus或者jpa等操作习惯的api; <br>
+> 2 代码轻量，没有任何代理，使用非常方便；<br>
+> 3 兼容jdk1.6+；<br>
 
 ## 如何使用JSON模块
 
