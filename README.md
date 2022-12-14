@@ -489,7 +489,7 @@ public int executeUpdate(final String sql);
 // 执行一个脚本（文件，以分号结尾换行的多条sql）
 public void executeScript(InputStream is) throws IOException;
 
-// 批量操作（使用同一个sql）
+// 批量操作（使用同一个）
 sqlExecuter.executePipelined(new SqlExecuteCall<Object>() {
 
     @Override
