@@ -247,6 +247,8 @@ System.out.println(map);
 
 ### 9 SpringBoot(Spring MVC) 集成
 
+参考supports/json-springmvc/JSONHttpMessageConverter.java
+
 ```
   @Configuration
   public class AppConfiguration implements WebMvcConfigurer {
