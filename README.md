@@ -17,20 +17,8 @@
 <dependency>
     <groupId>io.github.wycst</groupId>
     <artifactId>wast</artifactId>
-    <version>0.0.10</version>
+    <version>0.0.10.1</version>
 </dependency>
-```
-
-## Groovy
-
-```
-implementation 'io.github.wycst:wast:0.0.10'
-```
-
-## Kotlin
-
-```
-implementation("io.github.wycst:wast:0.0.10")
 ```
 
 ## json模块
@@ -41,13 +29,6 @@ implementation("io.github.wycst:wast:0.0.10")
 > 4 代码轻量，使用安全，没有漏洞风险；<br>
 > 5 兼容jdk1.6+；
 
-关于本json库与主流json库性能评测数据 <br>
-[https://github.com/wycst/wast-jmh-test](https://github.com/wycst/wast-jmh-test)
-
-2022-09-25 json性能测试数据 <br>
-[https://github.com/wycst/wast-jmh-test/blob/main/README_0925_json.md](https://github.com/wycst/wast-jmh-test/blob/main/README_0925_json.md)
-
-
 ## yaml模块
 
 > 1 目前java语言解析yaml最快的库，性能大概是snakeyaml的5-20倍；<br>
@@ -56,7 +37,6 @@ implementation("io.github.wycst:wast:0.0.10")
 > 4 内置Yaml节点模型，支持路径查找(v0.0.4+)；<br>
 > 5 支持yaml反向转换为字符串或者文件(v0.0.4+)；<br>
 > 6 兼容jdk1.6+；
-
 
 ## 表达式引擎
 
@@ -67,7 +47,15 @@ implementation("io.github.wycst:wast:0.0.10")
 > 5 科学记数法支持，16进制，8进制等解析，支持大数运算（大数统一转为double类型）；<br>
 > 6 支持简单的三目运算；<br>
 > 7 代码轻量，使用安全，没有漏洞风险；<br>
-> 8 兼容jdk1.6+；
+> 8 支持超长文本表达式执行；<br>
+> 9 支持字节码进行表达式编译；<br>
+> 10 兼容jdk1.6+；
+
+## jdbc模块
+
+> 1 集成了类似JdbcTemplate,Mybatis-Plus或者jpa等操作习惯的api;
+> 2 代码轻量，没有任何代理，使用非常方便；
+> 3 兼容jdk1.6+；
 
 ## 如何使用JSON模块
 
@@ -350,8 +338,6 @@ System.out.println(map);
 
 ## 表达式引擎使用
 
-(支持编译模式，即将表达式生成字节码然后运行，虽然最快但需要缓存，特俗情况下可使用,不推荐，因为解析模式下已经快到极限了。)
-
 ### 1 直接运行模式
 
 ```
@@ -381,9 +367,41 @@ map.put("c", 30);
 varExpr.evaluate(map);     // 输出33
 ```
 
-### 3 函数和自定义函数使用
+### 3 编译模式
 
-参考light-test ExprFunctionTest类<br>
+使用原生java编译或者javassist（按需加载）将表达式动态编译为java类进行运行。
+
+```
+String el = "arg.a+arg.b+b+c";
+CompilerEnvironment compileEnvironment = new CompilerEnvironment();
+
+// 如果设置false会将表达式进行先解析再编译;
+// 如果设置为true将跳过解析在代码中直接return，此时最好使用setVariableType来声明变量类型
+// 不伦是否设置skipParse，使用setVariableType来声明变量类型都是不错的选择，能大大提高效率
+compileEnvironment.setSkipParse(true);
+compileEnvironment.setVariableType(int.class, "arg.a", "arg.b", "b", "c");
+
+// 输出编译的源代码
+System.out.println(CompilerExpression.generateJavaCode(el, compileEnvironment));
+CompilerExpression compiler = CompilerExpression.compile(el, compileEnvironment, CompilerExpression.Coder.Native);
+
+
+Map aa = new HashMap();
+aa.put("a", 120);
+aa.put("b", 150);
+
+Map var = new HashMap();
+var.put("arg", aa);
+var.put("b", 8);
+var.put("c", 1);
+
+// 执行
+System.out.println("==== eval result " + compiler.evaluate(var));
+
+```
+
+### 4 函数和自定义函数使用
+
 内置函数： max/min/sum/avg/abs/sqrt/lower/upper/size/ifNull <br>
 源码见： BuiltInFunction <br>
 自定义函数可以是全局函数不需要类名作为命名空间，使用@max直接调用，全局函数可以通过两种方式注册：<br>
@@ -421,13 +439,6 @@ varExpr.evaluate(map);     // 输出33
         EvaluateEnvironment evaluateEnvironment = EvaluateEnvironment.create(context);
         evaluateEnvironment.registerStaticMethods(Math.class, String.class);
 
-//        evaluateEnvironment.registerFunction("MAX", new ExprFunction<Object, Number>() {
-//            @Override
-//            public Number call(Object... params) {
-//                Arrays.sort(params);
-//                return (Number) params[params.length - 1];
-//            }
-//        });
         evaluateEnvironment.registerFunction("min", new ExprFunction<Object, Number>() {
             @Override
             public Number call(Object... params) {
@@ -436,26 +447,151 @@ varExpr.evaluate(map);     // 输出33
             }
         });
 
-//        Object result = Expression.eval("@Math.max(B6_AvgCpuUsed,(B5_AvgCpuUsed+B6_AvgCpuUsed))/2.0 + @Math.max(B6_AvgCpuUsed,B5_AvgCpuUsed)", evaluateEnvironment);
-
         System.out.println( Expression.eval("@min(@sum(a,b,c), 50, 125, 2, -11)", evaluateEnvironment));
         System.out.println( Expression.eval("@max(@sum(a,b,c), 50, 125, 55, 152)", evaluateEnvironment));
-
-        System.out.println("zasd".compareTo("50"));
-
-        Object result = null;
-        Expression expression = Expression.parse("@max(@sum(1,1,@avg(1, 2, 3, 400000 + 10000)), 3, 50, 12500, 55, -152)");
-        long begin = System.currentTimeMillis();
-        for(int i = 0 ; i < 100000; i ++) {
-//            result = Expression.eval("@Math.pow(b, a)", evaluateEnvironment);
-            result = expression.evaluate(evaluateEnvironment);
-//            result = expression.eval("1 + 2 - 3 * 4 / 5 - 6 + 8 - 0");
-
-//            result = Expression.eval("@min(9, 50, 125, 55, 152)", evaluateEnvironment);
-//            result = BuiltInFunction.max(9, 50, 125, 55, 152);
-//            result = Math.pow(12, 1);
-        }
-        long end = System.currentTimeMillis();
-        System.out.println(result);
-        System.out.println(" use " + (end - begin));
 ```
+## jdbc使用
+
+ ### 构建执行器
+```
+ DefaultSqlExecuter sqlExecuter = new DefaultSqlExecuter();
+```
+
+### 设置数据源
+```
+ sqlExecuter.setDataSource(datasource); // 
+```
+
+至此可以像JdbcTemplate一样操作数据库了
+
+### 面向sql操作
+
+以下是sqlExecuter常用的api：
+
+```
+// 查询列表(Map)
+public List<Map> queryList(final String sql, final Object... params);
+
+// 查询列表并将封装到指定类型（E）
+public <E> List<E> queryList(final String sql, final Class<E> cls, final Object... params);
+
+// 插入操作
+public Serializable insert(final String sql, final boolean returnGeneratedKeys, final Object... params) ;
+
+// 更新操作
+public int update(final String sql, final Object... params);
+
+// 执行一个sql语句（包括ddl）
+public int executeUpdate(final String sql);
+
+// 执行一个脚本（文件，以分号结尾换行的多条sql）
+public void executeScript(InputStream is) throws IOException;
+
+// 批量操作（使用同一个sql）
+sqlExecuter.executePipelined(new SqlExecuteCall<Object>() {
+
+    @Override
+    public Object execute(Connection connection) throws SQLException {
+        // 使用原生的jdbc语法操作
+        // 连接在这里不用关闭
+        return null;
+    }
+});
+
+// 分页查询
+public Page<Map> queryPage(final String sql, long pageNum, int limit, final Object... params);
+// 分页查询转对象
+public <E> Page<E> queryPage(final String sql, long pageNum, int limit, final Class<E> cls, final Object... params);
+// 根据构造好的page进行分页查询
+public <E> void queryPage(Page<E> page, final String sql, final Object... params);
+
+```
+
+### 面向模板操作
+
+模板语法和mybatis相似，sql中使用#{}占位替换?,使用${}占位进行值拼接
+
+比如：
+```
+select * from fact where type = #{type} and name like '%${name}%'
+```
+在运行时将转化为(假设name=test)：
+```
+select * from fact where type = ? and name like '%test%'
+```
+
+通过sqlExecuter获取模板执行对象(注：sqlExecuter的大部分sql操作的api都有对应的模板api)
+```
+TemplateSqlExecuter templateSqlExecuter = sqlExecuter.getTemplateExecutor();
+
+// 插入对象
+Fact fact = new Fact();
+fact.setId(1);
+fact.setName("test");
+
+// 插入
+sqlExecuter.getTemplateExecutor().insert("insert into fact(id, name) values(#{id}, #{name})", fact);
+
+// 查询
+Fact f = sqlExecuter.getTemplateExecutor().queryObject("select * from fact where id = #{id}", 1, Fact.class);
+```
+
+### 面向对象操作
+
+使用过jpa(hibernate)或者mybatis-plus的可以很快就上手。
+使用前在前面初始化基础上需要设置实体的扫描包集合
+```
+ EntityManagementFactory.defaultManagementFactory().scanPackages("com.xxx.entitys", "com.xxx.entitys1");
+```
+> 实体不用继承任何类或实现接口，但需要添加@Table注解，并指定表名，目前不会根据类名自动推导表名;<br>
+> 主键通过注解@Id来标识，支持自增（数据库自增策略），算法生成（雪花算法）以及程序代码设置等几种策略;<br>
+> 其他字段通过注解@Column来映射字段名称，如果没有注解@Column，字段会默认将属性的驼峰格式转为下划线名称作为字段映射;<br>
+
+获取实体对象操作执行者
+```
+EntityExecuter entityExecuter = sqlExecuter.getEntityExecuter();
+```
+
+实体对象
+```
+@Table(name = "t_fact")
+public class Fact {
+    @Id
+    private String id;
+   
+    @Column
+    private String name;
+    // setter getter 省略
+}
+
+```
+常用的面向对象操作
+```
+Fact fact = new Fact();
+fact.setId(1);
+fact.setName("test");
+
+// 插入对象
+entityExecuter.insert(fact);
+
+// 更新对象
+entityExecuter.update(fact);
+
+// 根据主键查询
+Fact record = entityExecuter.get(Fact.class, 1);
+
+// 根据主键删除
+entityExecuter.delete(Fact.class, 1);
+
+// 根据条件查询
+Fact param = new Fact();
+param.setId(1);
+List<Fact> factList = entityExecuter.queryBy(Fact.class, param)
+
+```
+更多操作可以自行发现。
+
+
+
+
+

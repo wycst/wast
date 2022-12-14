@@ -7,6 +7,6 @@ package io.github.wycst.wast;
  */
 public interface WastVersion {
 
-    public static String FLAG = "0.0.10";
+    public static String FLAG = "0.0.10.1";
 
 }
