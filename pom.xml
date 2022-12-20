@@ -5,7 +5,7 @@
 
     <groupId>io.github.wycst</groupId>
     <artifactId>wast</artifactId>
-    <version>0.0.10.1</version>
+    <version>0.0.10.2</version>
 <!--    <version>0.0.11-SNAPSHOT</version>-->
     <modelVersion>4.0.0</modelVersion>
     <packaging>jar</packaging>
@@ -15,6 +15,8 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <io.netty.version>4.1.86.Final</io.netty.version>
+        <org.javassist.version>3.29.2-GA</org.javassist.version>
     </properties>
 
     <licenses>
@@ -128,7 +130,7 @@
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-all</artifactId>
-            <version>4.1.85.Final</version>
+            <version>${io.netty.version}</version>
             <scope>provided</scope>
         </dependency>
 
@@ -136,7 +138,7 @@
         <dependency>
             <groupId>org.javassist</groupId>
             <artifactId>javassist</artifactId>
-            <version>3.29.2-GA</version>
+            <version>${org.javassist.version}</version>
             <scope>provided</scope>
         </dependency>
 
