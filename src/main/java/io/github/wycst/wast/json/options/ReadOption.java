@@ -1,7 +1,5 @@
 package io.github.wycst.wast.json.options;
 
-import io.github.wycst.wast.json.JSONSimpleParser;
-
 /**
  * JSON解析读取配置
  *
@@ -16,15 +14,15 @@ public enum ReadOption {
      */
     ByteArrayFromHexString,
 
-    /***
-     * 是否禁用转义符校验,再确保没有需要转义符的情况下可以使用
-     * <p> 不要将此配置项应用到全局配置
-     * <p> 小文本下微乎其微，一般场景下可以不用启用， 在大文本字符串解析时可显著提升性能（除非已确保没有需要转义处理的场景）
-     * （暂时弃用请使用JSONSimpleParser）
-     * @see JSONSimpleParser
-     */
-    @Deprecated
-    DisableEscapeValidate,
+//    /***
+//     * 是否禁用转义符校验,再确保没有需要转义符的情况下可以使用
+//     * <p> 不要将此配置项应用到全局配置
+//     * <p> 小文本下微乎其微，一般场景下可以不用启用， 在大文本字符串解析时可显著提升性能（除非已确保没有需要转义处理的场景）
+//     * （暂时弃用请使用JSONSimpleParser）
+//     * @see JSONSimpleParser
+//     */
+//    @Deprecated
+//    DisableEscapeValidate,
 
     /***
      * 非标准json特性：允许JSON存在注释，仅仅支持//和/+* *+/，默认关闭注释解析
@@ -40,6 +38,11 @@ public enum ReadOption {
      * 非标准json特性：允许JSON字段的key使用单引号
      */
     AllowSingleQuotes,
+
+    /**
+     * 是否允许对象属性或者集合元素中最后一个元素后面是逗号（非JSON标准格式）
+     */
+    AllowLastEndComma,
 
     /**
      * 不存在的枚举类型解析时默认抛出异常，开启后解析为null,
@@ -70,6 +73,11 @@ public enum ReadOption {
      * <p> 注：即使使用Double.parseDouble也无法保证100%精度完整；
      */
     UseNativeDoubleParser,
+
+    /**
+     * <p> 未匹配到类型的空字符串时返回null（空字符串是指: ""）
+     */
+    UnMatchedEmptyAsNull,
 
     /**
      * <p> 对于map的解析默认缓存了key值

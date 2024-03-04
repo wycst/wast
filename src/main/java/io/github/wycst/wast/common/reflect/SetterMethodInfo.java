@@ -23,12 +23,16 @@ final class SetterMethodInfo extends SetterInfo {
     /**
      * 反射调用
      */
-    public void invokeObjectValue(Object target, Object value) {
+    public void invoke(Object target, Object value) {
         try {
             method.invoke(target, value);
         } catch (Exception e) {
             throw new InvokeReflectException(e);
         }
+    }
+
+    public Object getDefaultFieldValue(Object instance) {
+        return null;
     }
 
     // 是否通过setter方法

@@ -1,5 +1,6 @@
 package io.github.wycst.wast.json.temporal;
 
+import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.json.JSONTemporalSerializer;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.options.JsonConfig;
@@ -14,7 +15,7 @@ import java.io.Writer;
  * @Author: wangy
  * @Date: 2022/8/13 15:06
  * @Description:
- * @see io.github.wycst.wast.common.beans.Date
+ * @see GregorianDate
  * @see io.github.wycst.wast.common.beans.DateTemplate
  */
 public class TemporalZonedDateTimeSerializer extends JSONTemporalSerializer {
@@ -40,12 +41,12 @@ public class TemporalZonedDateTimeSerializer extends JSONTemporalSerializer {
         int second = TemporalAloneInvoker.invokeZonedDateTimeSecond(value).intValue();
         int nano = TemporalAloneInvoker.invokeZonedDateTimeNano(value).intValue();
         int millisecond = nano / 1000000;
-        writer.append('"');
+        writer.write('"');
         // localDateTime
-        dateFormatter.formatTo(year, month, day, hour, minute, second, millisecond, writer);
+        writeDate(year, month, day, hour, minute, second, millisecond, dateFormatter, writer);
         String zoneId = TemporalAloneInvoker.invokeZonedDateTimeZone(value).toString();
         writeZoneId(writer, zoneId);
-        writer.append('"');
+        writer.write('"');
     }
 
     private void writeZoneId(Writer writer, String zoneId) throws IOException {

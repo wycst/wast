@@ -7,10 +7,6 @@ import java.math.BigInteger;
 import java.sql.Timestamp;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-
 /**
  * 反射常量
  *
@@ -18,97 +14,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * @Date: 2019/12/21 15:27
  * @Description:
  */
-public class ReflectConsts {
-
-    // 日期类型
-    public static final int CLASS_TYPE_DATE = 1;
-
-    // 基本类型，number类型，布尔值类型统一归纳为CLASS_TYPE_NUMBER
-    public static final int CLASS_TYPE_NUMBER = 100;
-    public static final int CLASS_TYPE_NUMBER_BYTE = 101;
-    public static final int CLASS_TYPE_NUMBER_SHORT = 102;
-    public static final int CLASS_TYPE_NUMBER_INTEGER = 103;
-    public static final int CLASS_TYPE_NUMBER_LONG = 104;
-    public static final int CLASS_TYPE_NUMBER_FLOAT = 105;
-    public static final int CLASS_TYPE_NUMBER_DOUBLE = 106;
-    public static final int CLASS_TYPE_NUMBER_ATOMIC_INTEGER = 107;
-    public static final int CLASS_TYPE_NUMBER_ATOMIC_LONG = 108;
-    public static final int CLASS_TYPE_NUMBER_BIGDECIMAL = 109;
-    public static final int CLASS_TYPE_NUMBER_BIG_INTEGER = 110;
-    public static final int CLASS_TYPE_NUMBER_CHARACTER = 111;
-    public static final int CLASS_TYPE_NUMBER_BOOLEAN = 112;
-    public static final int CLASS_TYPE_NUMBER_ATOMIC_BOOLEAN = 113;
-
-    public static final int CLASS_TYPE_STRING = 200;
-    public static final int CLASS_TYPE_STRING_BUFFER = 201;
-    public static final int CLASS_TYPE_STRING_BUILDER = 202;
-    public static final int CLASS_TYPE_CHAR_ARRAY = 203;
-    public static final int CLASS_TYPE_BYTE_ARRAY = 204;
-
-    public static final int CLASS_TYPE_JSON = 1000;
-    public static final int CLASS_TYPE_ARRAY = 2000;
-
-    public static int getParamClassType(Class<?> clazz) {
-        if (clazz != null) {
-            if (Date.class.isAssignableFrom(clazz)) {
-                return CLASS_TYPE_DATE;
-            } else if (clazz == String.class) {
-                return CLASS_TYPE_STRING;
-            } else if (isNumberType(clazz)) {
-                return CLASS_TYPE_NUMBER;
-            } else if (clazz == StringBuffer.class) {
-                return CLASS_TYPE_STRING_BUFFER;
-            } else if (clazz == StringBuilder.class) {
-                return CLASS_TYPE_STRING_BUILDER;
-            } else if (clazz == char[].class) {
-                return CLASS_TYPE_CHAR_ARRAY;
-            } else if (clazz == byte[].class) {
-                return CLASS_TYPE_BYTE_ARRAY;
-            } else if (Collection.class.isAssignableFrom(clazz) || clazz.isArray()) {
-                return CLASS_TYPE_ARRAY;
-            } else {
-
-            }
-        }
-        return CLASS_TYPE_JSON;
-    }
-
-    public static boolean isNumberType(Class<?> clazz) {
-        return clazz.isPrimitive() || Number.class.isAssignableFrom(clazz) || clazz == Boolean.class;
-    }
-
-    public static int getParamClassNumberType(Class<?> clazz) {
-        if (isNumberType(clazz)) {
-            if (clazz == int.class || clazz == Integer.class) {
-                return CLASS_TYPE_NUMBER_INTEGER;
-            } else if (clazz == float.class || clazz == Float.class) {
-                return CLASS_TYPE_NUMBER_FLOAT;
-            } else if (clazz == long.class || clazz == Long.class) {
-                return CLASS_TYPE_NUMBER_LONG;
-            } else if (clazz == double.class || clazz == Double.class) {
-                return CLASS_TYPE_NUMBER_DOUBLE;
-            } else if (clazz == boolean.class || clazz == Boolean.class) {
-                return CLASS_TYPE_NUMBER_BOOLEAN;
-            } else if (clazz == BigDecimal.class) {
-                return CLASS_TYPE_NUMBER_BIGDECIMAL;
-            } else if (clazz == byte.class || clazz == Byte.class) {
-                return CLASS_TYPE_NUMBER_BYTE;
-            } else if (clazz == short.class || clazz == Short.class) {
-                return CLASS_TYPE_NUMBER_SHORT;
-            } else if (clazz == char.class || clazz == Character.class) {
-                return CLASS_TYPE_NUMBER_CHARACTER;
-            } else if (clazz == AtomicInteger.class) {
-                return CLASS_TYPE_NUMBER_ATOMIC_INTEGER;
-            } else if (clazz == AtomicLong.class) {
-                return CLASS_TYPE_NUMBER_ATOMIC_LONG;
-            } else if (clazz == AtomicBoolean.class) {
-                return CLASS_TYPE_NUMBER_ATOMIC_BOOLEAN;
-            } else if (clazz == BigInteger.class) {
-                return CLASS_TYPE_NUMBER_BIG_INTEGER;
-            }
-        }
-        return 0;
-    }
+public final class ReflectConsts {
 
     /**
      * Cache type class classification
@@ -270,12 +176,13 @@ public class ReflectConsts {
     /***
      * 基本类型枚举
      */
-    enum PrimitiveType {
+    public enum PrimitiveType {
         PrimitiveByte(byte[].class, arrayBaseOffset(byte[].class), arrayIndexScale(byte[].class)) {
             @Override
             void putValue(Object target, long fieldOffset, Object value) {
                 UnsafeHelper.getUnsafe().putByte(target, fieldOffset, (Byte) value);
             }
+
             @Override
             Object getValue(Object target, long fieldOffset) {
                 return UnsafeHelper.getUnsafe().getByte(target, fieldOffset);
@@ -286,6 +193,7 @@ public class ReflectConsts {
             void putValue(Object target, long fieldOffset, Object value) {
                 UnsafeHelper.getUnsafe().putShort(target, fieldOffset, (Short) value);
             }
+
             @Override
             Object getValue(Object target, long fieldOffset) {
                 return UnsafeHelper.getUnsafe().getShort(target, fieldOffset);
@@ -294,8 +202,9 @@ public class ReflectConsts {
         PrimitiveInt(int[].class, arrayBaseOffset(int[].class), arrayIndexScale(int[].class)) {
             @Override
             void putValue(Object target, long fieldOffset, Object value) {
-                UnsafeHelper.getUnsafe().putInt(target, fieldOffset, (Integer) value);
+                UnsafeHelper.getUnsafe().putInt(target, fieldOffset, ((Number) value).intValue());
             }
+
             @Override
             Object getValue(Object target, long fieldOffset) {
                 return UnsafeHelper.getUnsafe().getInt(target, fieldOffset);
@@ -304,8 +213,9 @@ public class ReflectConsts {
         PrimitiveFloat(float[].class, arrayBaseOffset(float[].class), arrayIndexScale(float[].class)) {
             @Override
             void putValue(Object target, long fieldOffset, Object value) {
-                UnsafeHelper.getUnsafe().putFloat(target, fieldOffset, (Float) value);
+                UnsafeHelper.getUnsafe().putFloat(target, fieldOffset, ((Number) value).floatValue());
             }
+
             @Override
             Object getValue(Object target, long fieldOffset) {
                 return UnsafeHelper.getUnsafe().getFloat(target, fieldOffset);
@@ -314,8 +224,9 @@ public class ReflectConsts {
         PrimitiveLong(long[].class, arrayBaseOffset(long[].class), arrayIndexScale(long[].class)) {
             @Override
             void putValue(Object target, long fieldOffset, Object value) {
-                UnsafeHelper.getUnsafe().putLong(target, fieldOffset, (Long) value);
+                UnsafeHelper.getUnsafe().putLong(target, fieldOffset, ((Number) value).longValue());
             }
+
             @Override
             Object getValue(Object target, long fieldOffset) {
                 return UnsafeHelper.getUnsafe().getLong(target, fieldOffset);
@@ -324,8 +235,9 @@ public class ReflectConsts {
         PrimitiveDouble(double[].class, arrayBaseOffset(double[].class), arrayIndexScale(double[].class)) {
             @Override
             void putValue(Object target, long fieldOffset, Object value) {
-                UnsafeHelper.getUnsafe().putDouble(target, fieldOffset, (Double) value);
+                UnsafeHelper.getUnsafe().putDouble(target, fieldOffset, ((Number) value).doubleValue());
             }
+
             @Override
             Object getValue(Object target, long fieldOffset) {
                 return UnsafeHelper.getUnsafe().getDouble(target, fieldOffset);
@@ -336,6 +248,7 @@ public class ReflectConsts {
             void putValue(Object target, long fieldOffset, Object value) {
                 UnsafeHelper.getUnsafe().putBoolean(target, fieldOffset, (Boolean) value);
             }
+
             @Override
             Object getValue(Object target, long fieldOffset) {
                 return UnsafeHelper.getUnsafe().getBoolean(target, fieldOffset);
@@ -346,6 +259,7 @@ public class ReflectConsts {
             void putValue(Object target, long fieldOffset, Object value) {
                 UnsafeHelper.getUnsafe().putChar(target, fieldOffset, (Character) value);
             }
+
             @Override
             Object getValue(Object target, long fieldOffset) {
                 return UnsafeHelper.getUnsafe().getChar(target, fieldOffset);

@@ -46,6 +46,10 @@ class HttpClientRequestImpl implements HttpClientRequest {
         this.httpClientConfig = httpClientConfig;
     }
 
+    public boolean isKeepAliveOnTimeout() {
+        return httpClientConfig == null ? false : httpClientConfig.isKeepAliveOnTimeout();
+    }
+
     private void parseUrlInfo(String spec) {
         URL url = null;
         try {

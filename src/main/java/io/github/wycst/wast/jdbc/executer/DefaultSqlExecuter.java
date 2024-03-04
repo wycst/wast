@@ -5,11 +5,7 @@ import io.github.wycst.wast.jdbc.commands.SqlExecuteCall;
 import io.github.wycst.wast.jdbc.connection.ConnectionManager;
 import io.github.wycst.wast.jdbc.connection.ConnectionWraper;
 import io.github.wycst.wast.jdbc.connection.DefaultConnectionManager;
-import io.github.wycst.wast.jdbc.dialect.ClickHouseDialect;
-import io.github.wycst.wast.jdbc.dialect.Dialect;
-import io.github.wycst.wast.jdbc.dialect.MySqlDialect;
-import io.github.wycst.wast.jdbc.dialect.OracleDialect;
-import io.github.wycst.wast.jdbc.entity.SqlType;
+import io.github.wycst.wast.jdbc.dialect.*;
 import io.github.wycst.wast.jdbc.exception.SqlExecuteException;
 import io.github.wycst.wast.jdbc.interceptor.SqlInterceptor;
 import io.github.wycst.wast.jdbc.query.QueryExecutor;
@@ -59,12 +55,14 @@ public class DefaultSqlExecuter {
     private QueryExecutor queryExecutor = new QueryExecutor();
 
     private Dialect dialect;
+    private PageDialectAgent pageDialectAgent;
     private String databaseProductName;
 
     boolean supportBatchInsert;
     boolean clickHouse;
     boolean mysql;
-    String[] sqlTemplates = new String[SqlType.values().length];
+    boolean gbase;
+    String[] sqlTemplates = new String[SqlFunctionType.values().length];
 
     // api based on sql template
     private TemplateSqlExecuter templateExecutor = new TemplateSqlExecuter(this);
@@ -94,6 +92,13 @@ public class DefaultSqlExecuter {
 
     public void setSqlInterceptor(SqlInterceptor sqlInterceptor) {
         this.sqlInterceptor = sqlInterceptor;
+    }
+
+    public void setPageDialectAgent(PageDialectAgent pageDialectAgent) {
+        this.pageDialectAgent = pageDialectAgent;
+        if (this.dialect != null) {
+            this.dialect.setPageDialectAgent(pageDialectAgent);
+        }
     }
 
     public DataSource getDataSource() {
@@ -205,7 +210,7 @@ public class DefaultSqlExecuter {
         currentConnectionManager().rollbackTransaction(closeConnection);
     }
 
-    private ConnectionWraper getConnectionWraper() {
+    protected ConnectionWraper getConnectionWraper() {
         return currentConnectionManager().getConnectionWraper();
     }
 
@@ -233,6 +238,7 @@ public class DefaultSqlExecuter {
             boolean supportBatchInsert = false;
             boolean clickHouse = false;
             boolean mysql = false;
+            boolean gbase = false;
             if (databaseProductName != null) {
                 String upperName = databaseProductName.toUpperCase();
                 if (mysql = (upperName.indexOf("MYSQL") > -1)) {
@@ -242,15 +248,23 @@ public class DefaultSqlExecuter {
                 } else if ((clickHouse = upperName.indexOf("CLICKHOUSE") > -1)) {
                     // ClickHouse
                     this.dialect = new ClickHouseDialect();
-                    sqlTemplates[SqlType.UPDATE.ordinal()] = "ALTER TABLE %s UPDATE %s WHERE %s = #{%s}";
-                    sqlTemplates[SqlType.DELETE.ordinal()] = "ALTER TABLE %s DELETE WHERE %s = #{%s}";
+                    sqlTemplates[SqlFunctionType.UPDATE_BY_ID.ordinal()] = "ALTER TABLE %s UPDATE %s WHERE %s = %s";
+                    sqlTemplates[SqlFunctionType.UPDATE_BY_PARAMS.ordinal()] = "ALTER TABLE %s t UPDATE %s %s";
+                    sqlTemplates[SqlFunctionType.DELETE_BY_ID.ordinal()] = "ALTER TABLE %s DELETE WHERE %s = %s";
+                    sqlTemplates[SqlFunctionType.DELETE_BY_PARAMS.ordinal()] = "ALTER TABLE %s DELETE %s";
+                } else if (gbase = upperName.indexOf("GBASE") > -1) {
+                    // gbase
+                    this.dialect = new GbaseDialect();
                 } else {
+                    // default
+                    this.dialect = new DefaultDialect(pageDialectAgent);
                 }
                 supportBatchInsert = mysql || clickHouse;
             }
 
             this.clickHouse = clickHouse;
             this.mysql = mysql;
+            this.gbase = gbase;
             this.supportBatchInsert = supportBatchInsert;
 
         } catch (SQLException e) {
@@ -329,18 +343,18 @@ public class DefaultSqlExecuter {
                 sqlInterceptor.before(sql, params, methodName);
             }
             if (isShowSql() && sql != null) {
-                log.info("- {}", sql);
+                log.info("Sql: {}", sql);
             }
             if (isShowParameters() && params != null) {
                 List paramList = getParamList(params);
-                log.info("- {}", paramList);
+                log.info("Parameters: {}", paramList);
             }
             // 拦截器设计实现
             entity = command.doExecute(wraper);
             success = true;
             return entity;
         } catch (Throwable e) {
-            throw new SqlExecuteException(e.getMessage(), e);
+            throw e instanceof RuntimeException ? (RuntimeException) e : new SqlExecuteException(e.getMessage(), e);
         } finally {
             if (sqlInterceptor != null) {
                 sqlInterceptor.after(sql, params, methodName, entity);
@@ -350,7 +364,7 @@ public class DefaultSqlExecuter {
                 log.info("- api:[{}], exec: {}ms, success: {}", methodName, endMillis - beginMillis, success);
             }
             // handler close
-            if (wraper != null && command.closeable()) {
+            if (wraper != null && wraper.autoClose() && command.closeable()) {
                 connectionManager.closeConnection(wraper);
             }
         }
@@ -394,7 +408,7 @@ public class DefaultSqlExecuter {
             throw new RuntimeException(e);
         } finally {
             // handler close
-            if (wraper != null) {
+            if (wraper != null && wraper.autoClose()) {
                 connectionManager.closeConnection(wraper);
             }
         }
@@ -651,6 +665,17 @@ public class DefaultSqlExecuter {
     }
 
     /**
+     *
+     * @param sql
+     * @param offset
+     * @param pageSize
+     * @return
+     */
+    public String getLimitSql(String sql, long offset, int pageSize) {
+        return this.dialect.getLimitString(sql, offset, pageSize);
+    }
+
+    /**
      * query page
      *
      * @param page
@@ -661,7 +686,7 @@ public class DefaultSqlExecuter {
     private <E> void queryPage(Page page, final String sql, final Class<E> cls, final Object... params) {
 
         // 分页的sql
-        final String queryLimitSql = this.dialect.getLimitString(sql, page.getOffset(), page.getPageSize());
+        final String queryLimitSql = this.getLimitSql(sql, page.getOffset(), page.getPageSize());
         // 记录列表
         List<E> rows = queryList(queryLimitSql, cls, params);
         page.setRows(rows);
@@ -763,7 +788,7 @@ public class DefaultSqlExecuter {
                 try {
                     statement = conn.createStatement();
                     for (String sql : sqlList) {
-                        if(isShowSql()) {
+                        if (isShowSql()) {
                             log.info("-\n{}", sql);
                         }
                         statement.addBatch(sql);
@@ -781,4 +806,15 @@ public class DefaultSqlExecuter {
 
     }
 
+    public boolean isClickHouse() {
+        return clickHouse;
+    }
+
+    public boolean isMysql() {
+        return mysql;
+    }
+
+    public boolean isGbase() {
+        return gbase;
+    }
 }

@@ -1,8 +1,8 @@
 package io.github.wycst.wast.jdbc.util;
 
+import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import io.github.wycst.wast.common.utils.ObjectUtils;
-import io.github.wycst.wast.common.utils.StringUtils;
 import io.github.wycst.wast.jdbc.exception.ParameterException;
 import io.github.wycst.wast.jdbc.query.sql.Sql;
 
@@ -37,7 +37,7 @@ public class SqlUtil {
             if (sql.matches(uniconSelectRegex)) {
                 totalSql = "SELECT count(*) FROM (" + sql + ") t";
             } else if (sql.matches(baseSelectRegex)) {
-                totalSql = sql.replaceAll(baseSelectRegex, "$1 count(*) $2");
+                totalSql = sql.replaceAll(baseSelectRegex, "$1count(*)$2");
             } else {
                 // 如果是unicon或者其他情况
                 totalSql = "SELECT count(*) FROM (" + sql + ") t";
@@ -104,7 +104,7 @@ public class SqlUtil {
                                         }
                                         value = strValue;
                                     } else if (value instanceof Date) {
-                                        value = new io.github.wycst.wast.common.beans.Date(((Date) value).getTime()).format();
+                                        value = new GregorianDate(((Date) value).getTime()).format();
                                     }
                                 }
                                 builder.append(value);

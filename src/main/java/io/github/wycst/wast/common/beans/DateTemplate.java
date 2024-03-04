@@ -40,34 +40,10 @@ public final class DateTemplate {
     private int millisecondIndex = -1;
 
     private final List<DateFieldIndex> fieldIndexs = new ArrayList<DateFieldIndex>();
-
-    //    private final static String[] FORMAT_DIGITS = {"00", "01", "02", "03", "04", "05", "06", "07", "08", "09"};
     private final static String[] WEEK_DAYS = {"星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"};
-    final static char[] DigitOnes = {
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-    };
+    final static char[] DigitOnes = NumberUtils.copyDigitOnes();
 
-    final static char[] DigitTens = {
-            '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
-            '1', '1', '1', '1', '1', '1', '1', '1', '1', '1',
-            '2', '2', '2', '2', '2', '2', '2', '2', '2', '2',
-            '3', '3', '3', '3', '3', '3', '3', '3', '3', '3',
-            '4', '4', '4', '4', '4', '4', '4', '4', '4', '4',
-            '5', '5', '5', '5', '5', '5', '5', '5', '5', '5',
-            '6', '6', '6', '6', '6', '6', '6', '6', '6', '6',
-            '7', '7', '7', '7', '7', '7', '7', '7', '7', '7',
-            '8', '8', '8', '8', '8', '8', '8', '8', '8', '8',
-            '9', '9', '9', '9', '9', '9', '9', '9', '9', '9',
-    };
+    final static char[] DigitTens = NumberUtils.copyDigitTens();
 
     public static class DateFieldIndex implements Comparable<DateFieldIndex> {
         final int field;
@@ -86,7 +62,7 @@ public final class DateTemplate {
     }
 
     public DateTemplate(String template) {
-        template.getClass();
+        template = template.trim();
         this.pattern = template;
         int length = template.length();
         int count = 0;
@@ -147,7 +123,6 @@ public final class DateTemplate {
                     continue;
                 default:
                     j++;
-                    continue;
             }
         }
 
@@ -155,27 +130,27 @@ public final class DateTemplate {
             fullYearIndex = yearIndex;
         }
         if (fullYearIndex > -1) {
-            fieldIndexs.add(new DateFieldIndex(Date.YEAR, fullYearIndex, 4));
+            fieldIndexs.add(new DateFieldIndex(GregorianDate.YEAR, fullYearIndex, 4));
         } else if (yearIndex > -1) {
-            fieldIndexs.add(new DateFieldIndex(Date.YEAR, yearIndex, 2));
+            fieldIndexs.add(new DateFieldIndex(GregorianDate.YEAR, yearIndex, 2));
         }
         if (monthIndex > -1) {
-            fieldIndexs.add(new DateFieldIndex(Date.MONTH, monthIndex, 2));
+            fieldIndexs.add(new DateFieldIndex(GregorianDate.MONTH, monthIndex, 2));
         }
         if (dayIndex > -1) {
-            fieldIndexs.add(new DateFieldIndex(Date.DAY_OF_MONTH, dayIndex, 2));
+            fieldIndexs.add(new DateFieldIndex(GregorianDate.DAY_OF_MONTH, dayIndex, 2));
         }
         if (hourIndex > -1) {
-            fieldIndexs.add(new DateFieldIndex(Date.HOURS, hourIndex, 2));
+            fieldIndexs.add(new DateFieldIndex(GregorianDate.HOURS, hourIndex, 2));
         }
         if (minuteIndex > -1) {
-            fieldIndexs.add(new DateFieldIndex(Date.MINUTE, minuteIndex, 2));
+            fieldIndexs.add(new DateFieldIndex(GregorianDate.MINUTE, minuteIndex, 2));
         }
         if (secondIndex > -1) {
-            fieldIndexs.add(new DateFieldIndex(Date.SECOND, secondIndex, 2));
+            fieldIndexs.add(new DateFieldIndex(GregorianDate.SECOND, secondIndex, 2));
         }
         if (millisecondIndex > -1) {
-            fieldIndexs.add(new DateFieldIndex(Date.MILLISECOND, millisecondIndex, 3));
+            fieldIndexs.add(new DateFieldIndex(GregorianDate.MILLISECOND, millisecondIndex, 3));
         }
         Collections.sort(fieldIndexs);
     }
@@ -185,18 +160,18 @@ public final class DateTemplate {
         int factor = 0, bufLength = offset + len;
         for (DateFieldIndex fieldIndex : fieldIndexs) {
             switch (fieldIndex.field) {
-                case Date.YEAR: {
+                case GregorianDate.YEAR: {
                     int yearLen = fieldIndex.len;
                     // todo 如果要解析的字符中，年份是负数，需要判断第一个字符是否为'-',然后factor++,有需求再实现
                     if (yearLen == 2) {
                         year = NumberUtils.parseInt2(buf, yearIndex + offset + factor);
-                        year += new Date().getYear() / 100 * 100;
+                        year += new GregorianDate().getYear() / 100 * 100;
                     } else {
                         year = NumberUtils.parseInt4(buf, fullYearIndex + offset + factor);
                     }
                     continue;
                 }
-                case Date.MONTH: {
+                case GregorianDate.MONTH: {
                     int monOffset = monthIndex + offset + factor;
                     month = NumberUtils.parseInt1(buf, monOffset++);
                     if (monOffset < bufLength) {
@@ -209,7 +184,7 @@ public final class DateTemplate {
                     }
                     continue;
                 }
-                case Date.DAY_OF_MONTH: {
+                case GregorianDate.DAY_OF_MONTH: {
                     int dayOffset = dayIndex + offset + factor;
                     day = NumberUtils.parseInt1(buf, dayOffset++);
                     if (dayOffset < bufLength) {
@@ -222,7 +197,7 @@ public final class DateTemplate {
                     }
                     continue;
                 }
-                case Date.HOURS: {
+                case GregorianDate.HOURS: {
                     int hourOffset = hourIndex + offset + factor;
                     hour = NumberUtils.parseInt1(buf, hourOffset++);
                     if (hourOffset < bufLength) {
@@ -235,7 +210,7 @@ public final class DateTemplate {
                     }
                     continue;
                 }
-                case Date.MINUTE: {
+                case GregorianDate.MINUTE: {
                     int minOffset = minuteIndex + offset + factor;
                     minute = NumberUtils.parseInt1(buf, minOffset++);
                     if (minOffset < bufLength) {
@@ -248,7 +223,7 @@ public final class DateTemplate {
                     }
                     continue;
                 }
-                case Date.SECOND: {
+                case GregorianDate.SECOND: {
                     int secOffset = secondIndex + offset + factor;
                     second = NumberUtils.parseInt1(buf, secOffset++);
                     if (secOffset < bufLength) {
@@ -261,7 +236,7 @@ public final class DateTemplate {
                     }
                     continue;
                 }
-                case Date.MILLISECOND: {
+                case GregorianDate.MILLISECOND: {
                     // 只处理最多3位毫秒
                     int msOffset = millisecondIndex + offset + factor;
                     int digit = NumberUtils.digitDecimal(buf[msOffset++]);
@@ -296,18 +271,18 @@ public final class DateTemplate {
         int factor = 0, bufLength = offset + len;
         for (DateFieldIndex fieldIndex : fieldIndexs) {
             switch (fieldIndex.field) {
-                case Date.YEAR: {
+                case GregorianDate.YEAR: {
                     int yearLen = fieldIndex.len;
                     // todo 如果要解析的字符中，年份是负数，需要判断第一个字符是否为'-',然后factor++,有需求再实现
                     if (yearLen == 2) {
                         year = NumberUtils.parseInt2(buf, yearIndex + offset + factor);
-                        year += new Date().getYear() / 100 * 100;
+                        year += new GregorianDate().getYear() / 100 * 100;
                     } else {
                         year = NumberUtils.parseInt4(buf, fullYearIndex + offset + factor);
                     }
                     continue;
                 }
-                case Date.MONTH: {
+                case GregorianDate.MONTH: {
                     int monOffset = monthIndex + offset + factor;
                     month = NumberUtils.parseInt1(buf, monOffset++);
                     if (monOffset < bufLength) {
@@ -320,7 +295,7 @@ public final class DateTemplate {
                     }
                     continue;
                 }
-                case Date.DAY_OF_MONTH: {
+                case GregorianDate.DAY_OF_MONTH: {
                     int dayOffset = dayIndex + offset + factor;
                     day = NumberUtils.parseInt1(buf, dayOffset++);
                     if (dayOffset < bufLength) {
@@ -333,7 +308,7 @@ public final class DateTemplate {
                     }
                     continue;
                 }
-                case Date.HOURS: {
+                case GregorianDate.HOURS: {
                     int hourOffset = hourIndex + offset + factor;
                     hour = NumberUtils.parseInt1(buf, hourOffset++);
                     if (hourOffset < bufLength) {
@@ -346,7 +321,7 @@ public final class DateTemplate {
                     }
                     continue;
                 }
-                case Date.MINUTE: {
+                case GregorianDate.MINUTE: {
                     int minOffset = minuteIndex + offset + factor;
                     minute = NumberUtils.parseInt1(buf, minOffset++);
                     if (minOffset < bufLength) {
@@ -359,7 +334,7 @@ public final class DateTemplate {
                     }
                     continue;
                 }
-                case Date.SECOND: {
+                case GregorianDate.SECOND: {
                     int secOffset = secondIndex + offset + factor;
                     second = NumberUtils.parseInt1(buf, secOffset++);
                     if (secOffset < bufLength) {
@@ -372,7 +347,7 @@ public final class DateTemplate {
                     }
                     continue;
                 }
-                case Date.MILLISECOND: {
+                case GregorianDate.MILLISECOND: {
                     // 只处理最多3位毫秒
                     int msOffset = millisecondIndex + offset + factor;
                     int digit = NumberUtils.digitDecimal(buf[msOffset++]);
@@ -441,9 +416,9 @@ public final class DateTemplate {
      * @param timeZone 时钟
      * @return
      */
-    public Date parse(char[] buf, int offset, int len, TimeZone timeZone) {
+    public GregorianDate parse(char[] buf, int offset, int len, TimeZone timeZone) {
         GeneralDate generalDate = parseGeneralDate(buf, offset, len, timeZone);
-        return new Date(generalDate.year, generalDate.month, generalDate.dayOfMonth, generalDate.hourOfDay, generalDate.minute, generalDate.second, generalDate.millisecond, timeZone);
+        return new GregorianDate(generalDate.year, generalDate.month, generalDate.dayOfMonth, generalDate.hourOfDay, generalDate.minute, generalDate.second, generalDate.millisecond, timeZone);
     }
 
     /**
@@ -454,7 +429,7 @@ public final class DateTemplate {
      * @param len    字符长度
      * @return
      */
-    public Date parse(char[] buf, int offset, int len) {
+    public GregorianDate parse(char[] buf, int offset, int len) {
         return parse(buf, offset, len, null);
     }
 
@@ -465,7 +440,7 @@ public final class DateTemplate {
      * @param timeZone 时钟
      * @return
      */
-    public Date parse(String dateStr, TimeZone timeZone) {
+    public GregorianDate parse(String dateStr, TimeZone timeZone) {
         char[] buf = dateStr.toCharArray();
         return parse(buf, 0, buf.length, timeZone);
     }
@@ -476,7 +451,7 @@ public final class DateTemplate {
      * @param dateStr 字符串
      * @return
      */
-    public Date parse(String dateStr) {
+    public GregorianDate parse(String dateStr) {
         return parse(dateStr, null);
     }
 
@@ -485,10 +460,10 @@ public final class DateTemplate {
      *
      * @param date
      * @return
-     * @see Date#format(String)
-     * @see Date#formatTo(String, Appendable)
+     * @see GregorianDate#format(String)
+     * @see GregorianDate#formatTo(String, Appendable)
      */
-    public String format(Date date) {
+    public String format(GregorianDate date) {
         StringBuilder writer = new StringBuilder();
         date.formatTo(pattern, writer);
         return writer.toString();
@@ -499,9 +474,9 @@ public final class DateTemplate {
      *
      * @param date
      * @param appendable
-     * @see Date#formatTo(String, Appendable)
+     * @see GregorianDate#formatTo(String, Appendable)
      */
-    public void formatTo(Date date, Appendable appendable) {
+    public void formatTo(GregorianDate date, Appendable appendable) {
         date.formatTo(pattern, appendable);
     }
 
@@ -511,9 +486,9 @@ public final class DateTemplate {
      * @param date
      * @param appendable
      * @param escapeQuot 是否转义双引号
-     * @see Date#formatTo(String, Appendable)
+     * @see GregorianDate#formatTo(String, Appendable)
      */
-    public void formatTo(Date date, Appendable appendable, boolean escapeQuot) {
+    public void formatTo(GregorianDate date, Appendable appendable, boolean escapeQuot) {
         date.formatTo(pattern, appendable, escapeQuot);
     }
 
@@ -709,6 +684,210 @@ public final class DateTemplate {
         }
     }
 
+    public int write(int year, int month, int dayOfMonth, int hour, int minute, int second, int millisecond, char[] buf, int off) {
+        final int beginIndex = off;
+        try {
+            String pattern = this.pattern;
+            int len = pattern.length();
+            char prevChar = '\0';
+            int count = 0;
+            // 增加一位虚拟字符进行遍历
+            for (int i = 0; i <= len; i++) {
+                char ch = '\0';
+                if (i < len)
+                    ch = pattern.charAt(i);
+                if (ch == 'Y')
+                    ch = 'y';
+
+                if (prevChar == ch) {
+                    count++;
+                } else {
+                    // switch & case
+                    switch (prevChar) {
+                        case 'y': {
+                            // 年份
+                            if (year < 0) {
+                                buf[off++] = '-';
+                                year = -year;
+                            }
+                            int y2 = year % 100;
+                            if (count == 2) {
+                                // 输出2位数年份
+                                buf[off++] = DigitTens[y2];
+                                buf[off++] = DigitOnes[y2];
+                            } else {
+                                int y1 = year / 100;
+                                // 输出完整的年份
+                                buf[off++] = DigitTens[y1];
+                                buf[off++] = DigitOnes[y1];
+                                buf[off++] = DigitTens[y2];
+                                buf[off++] = DigitOnes[y2];
+                            }
+                            break;
+                        }
+                        case 'M': {
+                            // 月份
+                            buf[off++] = DigitTens[month];
+                            buf[off++] = DigitOnes[month];
+                            break;
+                        }
+                        case 'd': {
+                            buf[off++] = DigitTens[dayOfMonth];
+                            buf[off++] = DigitOnes[dayOfMonth];
+                            break;
+                        }
+                        case 'A':
+                        case 'a': {
+                            // 上午/下午
+                            if (hour < 12) {
+                                buf[off++] = '上';
+                                buf[off++] = '午';
+                            } else {
+                                buf[off++] = '下';
+                                buf[off++] = '午';
+                            }
+                            break;
+                        }
+                        case 'H': {
+                            // 0-23
+                            buf[off++] = DigitTens[hour];
+                            buf[off++] = DigitOnes[hour];
+                            break;
+                        }
+                        case 'h': {
+                            // 1-12 小时格式
+                            int h = hour % 12;
+                            if (h == 0)
+                                h = 12;
+                            buf[off++] = DigitTens[h];
+                            buf[off++] = DigitOnes[h];
+                            break;
+                        }
+                        case 'm': {
+                            // 分钟 0-59
+                            buf[off++] = DigitTens[minute];
+                            buf[off++] = DigitOnes[minute];
+                            break;
+                        }
+                        case 's': {
+                            // 秒 0-59
+                            buf[off++] = DigitTens[second];
+                            buf[off++] = DigitOnes[second];
+                            break;
+                        }
+                        case 'S': {
+                            // 统一3位毫秒
+                            char s1 = (char) (millisecond / 100 + 48);
+                            int v = millisecond % 100;
+                            buf[off++] = s1;
+                            buf[off++] = DigitTens[v];
+                            buf[off++] = DigitOnes[v];
+                            break;
+                        }
+                        default: {
+                            // 其他输出
+                            if (prevChar != '\0') {
+                                // 输出count个 prevChar
+                                int n = count;
+                                while (n-- > 0) {
+                                    if (prevChar == '"') {
+                                        buf[off++] = '\\';
+                                    }
+                                    buf[off++] = prevChar;
+                                }
+                            }
+                        }
+                    }
+                    count = 1;
+                }
+                prevChar = ch;
+            }
+
+            return off - beginIndex;
+        } catch (Throwable throwable) {
+            if (throwable instanceof RuntimeException) {
+                throw (RuntimeException) throwable;
+            }
+            throw new IllegalStateException(throwable.getMessage(), throwable);
+        }
+    }
+
+    public int estimateSize() {
+        int size = 0;
+        try {
+            String pattern = this.pattern;
+            int len = pattern.length();
+            char prevChar = '\0';
+            int count = 0;
+            // 增加一位虚拟字符进行遍历
+            for (int i = 0; i <= len; i++) {
+                char ch = '\0';
+                if (i < len)
+                    ch = pattern.charAt(i);
+                if (ch == 'Y')
+                    ch = 'y';
+
+                if (prevChar == ch) {
+                    count++;
+                } else {
+                    // switch & case
+                    switch (prevChar) {
+                        case 'y': {
+                            // 年份
+                            size += 4;
+                            break;
+                        }
+                        case 'M':
+                        case 'd':
+                        case 'A':
+                        case 'a':
+                        case 'H':
+                        case 'h':
+                        case 'm':
+                        case 'w':
+                        case 's': {
+                            size += 2;
+                            break;
+                        }
+                        case 'S':
+                        case 'E':
+                        case 'D':
+                        case 'F':
+                        case 'W': {
+                            size += 3;
+                            break;
+                        }
+                        case 'z': {
+                            size += 20;
+                            break;
+                        }
+                        default: {
+                            // 其他输出
+                            if (prevChar != '\0') {
+                                // 输出count个 prevChar
+                                int n = count;
+                                while (n-- > 0) {
+                                    if (prevChar == '"') {
+                                        ++size;
+                                    }
+                                    ++size;
+                                }
+                            }
+                        }
+                    }
+                    count = 1;
+                }
+                prevChar = ch;
+            }
+        } catch (Throwable throwable) {
+            if (throwable instanceof RuntimeException) {
+                throw (RuntimeException) throwable;
+            }
+            throw new IllegalStateException(throwable.getMessage(), throwable);
+        }
+        return size;
+    }
+
     /**
      * 以模板输出日期信息
      *
@@ -727,5 +906,12 @@ public final class DateTemplate {
 
     public void formatTo(int year, int month, int day, int hour, int minute, int second, int millisecond, Appendable appendable, boolean escape) {
         formatTo(year, month, day, hour, minute, second, millisecond, 0, 0, 0, 0, null, pattern, appendable, escape);
+    }
+
+    @Override
+    public String toString() {
+        return "DateTemplate{" +
+                "pattern='" + pattern + '\'' +
+                '}';
     }
 }

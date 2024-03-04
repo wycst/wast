@@ -1,5 +1,6 @@
 package io.github.wycst.wast.jdbc.generator;
 
+import io.github.wycst.wast.common.expression.Expression;
 import io.github.wycst.wast.common.template.StringTemplate;
 import io.github.wycst.wast.common.template.StringTemplateManager;
 import io.github.wycst.wast.common.utils.StringUtils;
@@ -185,12 +186,22 @@ public class CodeGenerator {
             fieldsBuffer.append("    private " + javaTypeName + " " + javaField + ";\n\n");
 
             if (!useLombok) {
-                // 生成getter&setter
-                getterSetterBuffer.append("    public " + javaTypeName + " get" + StringUtils.getCamelCase(javaField, true) + "() {\n");
+
+                // 生成getter prefix
+                String getterPrefix = javaTypeName.equals("boolean") ? "is" : "get";
+                // getter or setter suffix
+                String getterSuffix = javaField;
+                if (javaField.length() == 1 || !Character.isUpperCase(javaField.charAt(1))) {
+                    char[] chars = javaField.toCharArray();
+                    chars[0] = Character.toUpperCase(chars[0]);
+                    getterSuffix = new String(chars);
+                }
+
+                getterSetterBuffer.append("    public " + javaTypeName + " " + getterPrefix + getterSuffix + "() {\n");
                 getterSetterBuffer.append("        return ").append(javaField).append(";\n");
                 getterSetterBuffer.append("    }\n\n");
 
-                getterSetterBuffer.append("    public void set" + StringUtils.getCamelCase(javaField, true) + String.format("(%s %s) {\n", javaTypeName, javaField));
+                getterSetterBuffer.append("    public void set" + getterSuffix + String.format("(%s %s) {\n", javaTypeName, javaField));
                 getterSetterBuffer.append("        this.").append(javaField).append(" = ").append(javaField).append(";\n");
                 getterSetterBuffer.append("    }\n\n");
             }
@@ -225,24 +236,24 @@ public class CodeGenerator {
         vars.put("columns", tableColumns);
 
         if (context.isGenerateController() && controllerTemplate != null) {
-            String controllerCode = StringUtils.regexGroupExprReplace(controllerTemplate, "[$][{](.*?)[}]", "$", vars);
+            String controllerCode = Expression.renderTemplate(controllerTemplate, vars);
             generatorTable.setControllerCode(controllerCode);
         }
 
         if (context.isGenerateService()) {
             if (serviceTemplate != null) {
-                String serviceInfCode = StringUtils.regexGroupExprReplace(serviceTemplate, "[$][{](.*?)[}]", "$", vars);
+                String serviceInfCode = Expression.renderTemplate(serviceTemplate, vars);
                 generatorTable.setServiceInfCode(serviceInfCode);
             }
             if (serviceImplTemplate != null) {
-                String serviceImplCode = StringUtils.regexGroupExprReplace(serviceImplTemplate, "[$][{](.*?)[}]", "$", vars);
+                String serviceImplCode = Expression.renderTemplate(serviceImplTemplate, vars);
                 generatorTable.setServiceImplCode(serviceImplCode);
             }
         }
 
         if (context.isGenerateViews()) {
             if (apiJsTemplate != null) {
-                String apiJsCode = StringUtils.regexGroupExprReplace(apiJsTemplate, "[$][{](.*?)[}]", "$", vars);
+                String apiJsCode = Expression.renderTemplate(apiJsTemplate, vars);
                 generatorTable.setApiJsCode(apiJsCode);
             }
             if (vueTemplate != null) {
@@ -289,35 +300,112 @@ public class CodeGenerator {
                 int size = rsmd.getColumnDisplaySize(i);
                 // 字段类型
                 int columnType = rsmd.getColumnType(i);
-                String javaType = "Integer";
                 tableColumn.setColumnType(columnType);
-                if (columnType == Types.TIMESTAMP || columnType == Types.DATE) {
-                    javaType = "java.util.Date";
-                    tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_DATE);
-                } else if (columnType == Types.DOUBLE || columnType == Types.FLOAT) {
-                    javaType = "Double";
-                    tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_NUMBER);
-                } else if (columnType == Types.BIGINT) {
-                    javaType = "Long";
-                    tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_NUMBER);
-                } else if (columnType == Types.INTEGER) {
-                    javaType = "Integer";
-                    tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_NUMBER);
-                } else if (columnType == Types.VARCHAR || columnType == Types.NVARCHAR
-                        || columnType == Types.CLOB || columnType == Types.LONGVARCHAR) {
-                    javaType = "String";
-                    tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_STRING);
-                } else if (columnType == Types.CHAR) {
-                    // javaType = "boolean";
-                    javaType = "String";
-                    tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_STRING);
-                } else if (columnType == Types.LONGVARBINARY) {
-                    javaType = "byte[]";
-                    tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_BINARY);
-                } else {
-                    System.out.println(columnName);
-                    throw new RuntimeException(" type  validate error ");
+                tableColumn.setColumnSize(size);
+
+                String javaType;
+                switch (columnType) {
+                    case Types.CHAR:
+                    case Types.VARCHAR:
+                    case Types.LONGVARCHAR:
+                    case Types.NVARCHAR: {
+                        javaType = "String";
+                        tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_STRING);
+                        break;
+                    }
+                    case Types.NUMERIC:
+                    case Types.DECIMAL: {
+                        javaType = "BigDecimal";
+                        tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_NUMBER);
+                        break;
+                    }
+                    case Types.BIT: {
+                        javaType = "boolean";
+                        tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_BOOL);
+                        break;
+                    }
+                    case Types.TINYINT: {
+                        javaType = "byte";
+                        tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_NUMBER);
+                        break;
+                    }
+                    case Types.SMALLINT: {
+                        javaType = "short";
+                        tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_NUMBER);
+                        break;
+                    }
+                    case Types.INTEGER: {
+                        javaType = "int";
+                        tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_NUMBER);
+                        break;
+                    }
+                    case Types.BIGINT: {
+                        javaType = "long";
+                        tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_NUMBER);
+                        break;
+                    }
+                    case Types.REAL: {
+                        javaType = "float";
+                        tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_NUMBER);
+                        break;
+                    }
+                    case Types.FLOAT:
+                    case Types.DOUBLE: {
+                        javaType = "double";
+                        tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_NUMBER);
+                        break;
+                    }
+                    case Types.LONGVARBINARY:
+                    case Types.VARBINARY:
+                    case Types.BINARY: {
+                        javaType = "byte[]";
+                        tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_BINARY);
+                        break;
+                    }
+                    case Types.DATE:
+                    case Types.TIME: {
+                        javaType = "java.util.Date";
+                        tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_DATE);
+                        break;
+                    }
+                    case Types.TIMESTAMP: {
+                        javaType = "java.sql.Timestamp";
+                        tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_DATE);
+                        break;
+                    }
+                    default: {
+                        System.out.println(columnName);
+                        throw new RuntimeException(" type  validate error ");
+                    }
                 }
+
+//                if (columnType == Types.TIMESTAMP || columnType == Types.DATE) {
+//                    javaType = "java.util.Date";
+//                    tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_DATE);
+//                } else if (columnType == Types.DOUBLE || columnType == Types.FLOAT) {
+//                    javaType = "Double";
+//                    tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_NUMBER);
+//                } else if (columnType == Types.BIGINT) {
+//                    javaType = "Long";
+//                    tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_NUMBER);
+//                } else if (columnType == Types.INTEGER) {
+//                    javaType = "Integer";
+//                    tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_NUMBER);
+//                } else if (columnType == Types.VARCHAR || columnType == Types.NVARCHAR
+//                        || columnType == Types.CLOB || columnType == Types.LONGVARCHAR) {
+//                    javaType = "String";
+//                    tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_STRING);
+//                } else if (columnType == Types.CHAR) {
+//                    // javaType = "boolean";
+//                    javaType = "String";
+//                    tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_STRING);
+//                } else if (columnType == Types.LONGVARBINARY) {
+//                    javaType = "byte[]";
+//                    tableColumn.setJavaType(GeneratorTableColumn.JAVA_TYPE_BINARY);
+//                } else {
+//                    System.out.println(columnName);
+//                    throw new RuntimeException(" type  validate error ");
+//                }
                 tableColumn.setJavaTypeName(javaType);
                 if (primaryColumnName != null && primaryColumnName.equalsIgnoreCase(columnName)) {
                     tableColumn.setPrimary(true);

@@ -1,5 +1,5 @@
 /*
- * Copyright [2020-2022] [wangyunchao]
+ * Copyright [2020-2024] [wangyunchao]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import java.util.TimeZone;
  *
  * @author wangyunchao
  */
-public class LunarDate extends Date {
+public class LunarDate extends GregorianDate {
 
     // 农历年
     private int lunarYear;
@@ -225,7 +225,7 @@ public class LunarDate extends Date {
         // 比如农历1900.1.1 年是阳历1900.1.31日
         SPRING_FESTIVAL_DAY_INDEXS[0] = 31;
         // 1901.1.1 是阳历1901.2.19
-        Date date = new Date(1900, 1, 31);
+        GregorianDate date = new GregorianDate(1900, 1, 31);
         for (int next = 0; next < 18; next++) {
             int days = DAYS_COUNT_OF_YEAR[next];
             date.add(DAY_OF_MONTH, days);
@@ -291,11 +291,11 @@ public class LunarDate extends Date {
     public LunarDate() {
     }
 
-    public LunarDate(Date date) {
+    public LunarDate(GregorianDate date) {
         fromDate(date);
     }
 
-    private void fromDate(Date date) {
+    private void fromDate(GregorianDate date) {
         this.year = date.year;
         this.month = date.month;
         this.dayOfMonth = date.dayOfMonth;
@@ -440,7 +440,7 @@ public class LunarDate extends Date {
         int daysOfYear = this.daysOfYear;
         // 计算daysOfYear是否一致（最多因为闰年差1天）
         // 2.28（31+28）
-        if (endYear % 4 == 0) {
+        if ((endYear & 3) == 0) {
             if (daysOfYear > 59) {
                 daysOfYear++;
             }
@@ -902,6 +902,6 @@ public class LunarDate extends Date {
     }
 
     public static void main(String[] args) {
-        System.out.println(new LunarDate().add(DAY_OF_MONTH, 30));
+        System.out.println(new LunarDate().add(DAY_OF_MONTH, 0));
     }
 }

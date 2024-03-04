@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit;
  * @Date: 2021/8/9 22:42
  * @Description:
  */
-public class ExecutorServiceUtils {
+public final class ExecutorServiceUtils {
 
     /**
      * 关闭线程池
@@ -21,8 +21,11 @@ public class ExecutorServiceUtils {
             if (!executorService.awaitTermination(5000, TimeUnit.MILLISECONDS)) {
                 executorService.shutdownNow();
             }
-        } catch (InterruptedException e) {
-            executorService.shutdownNow();
+        } catch (Throwable e) {
+            try {
+                executorService.shutdownNow();
+            } catch (Throwable throwable) {
+            }
         }
     }
 

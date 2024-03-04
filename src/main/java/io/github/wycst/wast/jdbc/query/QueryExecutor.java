@@ -6,14 +6,15 @@ import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.SetterInfo;
 import io.github.wycst.wast.common.utils.ObjectUtils;
 import io.github.wycst.wast.common.utils.StringUtils;
-import io.github.wycst.wast.jdbc.annotations.Column;
 import io.github.wycst.wast.jdbc.commands.ResultSetCommand;
+import io.github.wycst.wast.jdbc.executer.EntityManagementFactory;
+import io.github.wycst.wast.jdbc.executer.EntitySqlMapping;
+import io.github.wycst.wast.jdbc.executer.FieldColumn;
 import io.github.wycst.wast.jdbc.util.StreamCursor;
 import io.github.wycst.wast.log.Log;
 import io.github.wycst.wast.log.LogFactory;
 
 import java.sql.*;
-import java.util.Date;
 import java.util.*;
 
 @SuppressWarnings({"unchecked", "rawtypes"})
@@ -134,7 +135,7 @@ public class QueryExecutor {
         E instance = null;
 
         ClassStructureWrapper classStructureWrapper = null;
-
+        EntitySqlMapping entitySqlMapping = null;
         // is map
         if (Map.class.isAssignableFrom(cls)) {
             isMap = true;
@@ -147,6 +148,7 @@ public class QueryExecutor {
         } else {
             classStructureWrapper = ClassStructureWrapper.get(cls);
             instance = (E) classStructureWrapper.newInstance();
+            entitySqlMapping = EntityManagementFactory.defaultManagementFactory().getEntitySqlMapping(cls);
         }
 
         int columnCount = rsmd.getColumnCount();
@@ -157,7 +159,17 @@ public class QueryExecutor {
             if (isMap) {
                 mapData.put(fieldName, fieldValue);
             } else {
-                if (classStructureWrapper != null) {
+                FieldColumn fieldColumn;
+                if (entitySqlMapping != null && (fieldColumn = entitySqlMapping.getFieldColumn(fieldName)) != null) {
+                    SetterInfo setterInfo = fieldColumn.getSetterInfo();
+                    Object value;
+                    if (fieldColumn.isUseTypeTransformer()) {
+                        value = fieldColumn.transform(fieldValue);
+                    } else {
+                        value = ObjectUtils.toType(fieldValue, setterInfo.getParameterType(), setterInfo.getGenericParameterizedType().getActualClassCategory());
+                    }
+                    setterInfo.invoke(instance, value);
+                } else {
                     SetterInfo setterInfo = classStructureWrapper.getSetterInfo(fieldName);
                     // 默认直接查找fieldName，如果没有，将fieldName转化为小写驼峰格式比如INDEX_NAME-> indexName
                     if (setterInfo == null) {

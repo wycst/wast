@@ -7,8 +7,8 @@ package io.github.wycst.wast.common.beans;
  */
 public class KeyValuePair<K, V> {
 
-    private final K key;
-    private final V value;
+    final K key;
+    final V value;
 
     public KeyValuePair(K k, V v) {
         this.key = k;

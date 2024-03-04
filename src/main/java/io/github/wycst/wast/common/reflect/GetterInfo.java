@@ -28,6 +28,12 @@ public class GetterInfo {
     // 输出值分类
     private ReflectConsts.ClassCategory classCategory;
 
+    public static GetterInfo fromField(Field field) {
+        GetterInfo getterInfo = new GetterInfo();
+        getterInfo.setField(field);
+        return getterInfo;
+    }
+
     /**
      * 获取Getter类型分类
      */

@@ -7,7 +7,7 @@ package io.github.wycst.wast.common.expression;
  * @Date: 2022/10/22 13:58
  * @Description:
  */
-public class ExprUtils {
+class ExprUtils {
 
     /**
      * 获取value值的负数运算

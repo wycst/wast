@@ -13,9 +13,13 @@ public class Sql {
 
     private String formalSql;
 
+    private String totalSql;
+
     private List<String> paramNames;
 
     private Object[] paramValues;
+
+    private List<Object[]> paramValuesList;
 
     // Variable replace
     private boolean replaced;
@@ -60,5 +64,19 @@ public class Sql {
         this.replaced = replaced;
     }
 
+    public List<Object[]> getParamValuesList() {
+        return paramValuesList;
+    }
 
+    public void setParamValuesList(List<Object[]> paramValuesList) {
+        this.paramValuesList = paramValuesList;
+    }
+
+    public String getTotalSql() {
+        return totalSql;
+    }
+
+    public void setTotalSql(String totalSql) {
+        this.totalSql = totalSql;
+    }
 }

@@ -1,5 +1,6 @@
 package io.github.wycst.wast.json.options;
 
+import io.github.wycst.wast.common.utils.StringUtils;
 import io.github.wycst.wast.json.util.FixedNameValueMap;
 
 import java.util.Arrays;
@@ -7,9 +8,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class Options {
-
-    // Format output character pool
-    public static final String writeFormatOutSymbol = "\n\t\t\t\t\t\t\t\t\t\t";
 
     // cache keys
     private static FixedNameValueMap<String> keyValueMap = new FixedNameValueMap<String>(4096);
@@ -22,7 +20,7 @@ public class Options {
             Set<String> keySet = new HashSet<String>(Arrays.asList(keys));
             for (String key : keySet) {
                 if (key == null || key.trim().length() == 0) continue;
-                keyValueMap.putValue(key, key);
+                keyValueMap.putValue(key, key.hashCode(), key);
             }
         }
     }
@@ -44,8 +42,8 @@ public class Options {
         //  len > 0
         String value = keyValueMap.getValue(buf, offset, offset + len, hashCode);
         if (value == null) {
-            value = new String(buf, offset, len);
-            keyValueMap.putValue(value, value);
+            value = StringUtils.create(buf, offset, len);
+            keyValueMap.putValue(value, value.hashCode() ,value);
         }
         return value;
     }
@@ -55,7 +53,7 @@ public class Options {
         String value = keyValueMap.getValue(bytes, offset, offset + len, hashCode);
         if (value == null) {
             value = new String(bytes, offset, len);
-            keyValueMap.putValue(value, value);
+            keyValueMap.putValue(value, value.hashCode(), value);
         }
         return value;
     }
@@ -66,8 +64,21 @@ public class Options {
                 case FormatOut:
                     jsonConfig.setFormatOut(true);
                     break;
+                case FormatIndentUseTab:
+                    jsonConfig.setFormatIndentUseSpace(false);
+                    break;
+                case FormatIndentUseSpace:
+                    jsonConfig.setFormatIndentUseSpace(true);
+                    break;
+                case FormatIndentUseSpace8:
+                    jsonConfig.setFormatIndentUseSpace(true);
+                    jsonConfig.setFormatIndentSpaceNum(8);
+                    break;
                 case FullProperty:
                     jsonConfig.setFullProperty(true);
+                    break;
+                case IgnoreNullProperty:
+                    jsonConfig.setFullProperty(false);
                     break;
                 case DateFormat:
                     jsonConfig.setDateFormat(true);
@@ -78,6 +89,15 @@ public class Options {
                     break;
                 case WriteEnumAsOrdinal:
                     jsonConfig.setWriteEnumAsOrdinal(true);
+                    break;
+                case WriteEnumAsName:
+                    jsonConfig.setWriteEnumAsOrdinal(false);
+                    break;
+                case WriteNumberAsString:
+                    jsonConfig.setWriteNumberAsString(true);
+                    break;
+                case WriteDecimalUseToString:
+                    jsonConfig.setWriteDecimalUseToString(true);
                     break;
                 case SkipCircularReference:
                     jsonConfig.setSkipCircularReference(true);
@@ -106,6 +126,9 @@ public class Options {
                 case CamelCaseToUnderline:
                     jsonConfig.setCamelCaseToUnderline(true);
                     break;
+                case WriteClassName:
+                    jsonConfig.setWriteClassName(true);
+                    break;
             }
         }
     }
@@ -114,34 +137,37 @@ public class Options {
         if (parseContext != null) {
             switch (option) {
                 case ByteArrayFromHexString:
-                    parseContext.setByteArrayFromHexString(true);
-                    break;
-                case DisableEscapeValidate:
-                    parseContext.setDisableEscapeMode(true);
+                    parseContext.byteArrayFromHexString = true;
                     break;
                 case UnknownEnumAsNull:
-                    parseContext.setUnknownEnumAsNull(true);
+                    parseContext.unknownEnumAsNull = true;
                     break;
                 case AllowSingleQuotes:
-                    parseContext.setAllowSingleQuotes(true);
+                    parseContext.allowSingleQuotes = true;
                     break;
                 case AllowUnquotedFieldNames:
-                    parseContext.setAllowUnquotedFieldNames(true);
+                    parseContext.allowUnquotedFieldNames = true;
                     break;
                 case AllowComment:
-                    parseContext.setAllowComment(true);
+                    parseContext.allowComment = true;
+                    break;
+                case AllowLastEndComma:
+                    parseContext.allowLastEndComma = true;
                     break;
                 case UseDefaultFieldInstance:
-                    parseContext.setUseDefaultFieldInstance(true);
+                    parseContext.useDefaultFieldInstance = true;
                     break;
                 case UseBigDecimalAsDefaultNumber:
-                    parseContext.setUseBigDecimalAsDefault(true);
+                    parseContext.useBigDecimalAsDefault = true;
                     break;
                 case UseNativeDoubleParser:
-                    parseContext.setUseNativeDoubleParser(true);
+                    parseContext.useNativeDoubleParser = true;
+                    break;
+                case UnMatchedEmptyAsNull:
+                    parseContext.unMatchedEmptyAsNull = true;
                     break;
                 case DisableCacheMapKey:
-                    parseContext.setDisableCacheMapKey(true);
+                    parseContext.disableCacheMapKey = true;
                     break;
 //                case UseFields:
 //                    parseContext.setUseFields(true);
@@ -150,15 +176,15 @@ public class Options {
         }
     }
 
-    public static void writeOptions(WriteOption[] options, JsonConfig jsonConfig) {
-        if (options == null) return;
+    public final static void writeOptions(WriteOption[] options, JsonConfig jsonConfig) {
+        if (options == null || options.length == 0) return;
         for (WriteOption option : options) {
             setWriteOption(option, jsonConfig);
         }
     }
 
-    public static void readOptions(ReadOption[] options, JSONParseContext parseContext) {
-        if (options == null) return;
+    public final static void readOptions(ReadOption[] options, JSONParseContext parseContext) {
+        if (options == null || options.length == 0) return;
         for (ReadOption option : options) {
             setParseContextOption(option, parseContext);
         }

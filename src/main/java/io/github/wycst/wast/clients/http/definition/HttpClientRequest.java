@@ -32,4 +32,6 @@ public interface HttpClientRequest {
     public void setHeaders(Map<String, String> headers);
 
     public void removeHeader(String name);
+
+    public boolean isKeepAliveOnTimeout();
 }

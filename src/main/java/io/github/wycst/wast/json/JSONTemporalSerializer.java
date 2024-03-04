@@ -1,7 +1,6 @@
 package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.common.beans.DateFormatter;
-import io.github.wycst.wast.common.beans.DateTemplate;
 import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.options.JsonConfig;
@@ -88,44 +87,7 @@ public abstract class JSONTemporalSerializer extends JSONTypeSerializer {
      */
     protected void writeDefault(Object value, Writer writer, JsonConfig jsonConfig, int indent) throws Exception {
         String temporal = value.toString();
-        STRING.serialize(temporal, writer, jsonConfig, indent);
-    }
-
-    protected final void writeYYYY_MM_dd_T_HH_mm_ss_SSS(Writer writer,
-                                                  int year,
-                                                  int month,
-                                                  int day,
-                                                  int hour,
-                                                  int minute,
-                                                  int second,
-                                                  int millisecond) throws Exception {
-        int y1 = year / 100, y2 = year - y1 * 100;
-        writer.write(DigitTens[y1]);
-        writer.write(DigitOnes[y1]);
-        writer.write(DigitTens[y2]);
-        writer.write(DigitOnes[y2]);
-        writer.write('-');
-        writer.write(DigitTens[month]);
-        writer.write(DigitOnes[month]);
-        writer.write('-');
-        writer.write(DigitTens[day]);
-        writer.write(DigitOnes[day]);
-        writer.write('T');
-        writer.write(DigitTens[hour]);
-        writer.write(DigitOnes[hour]);
-        writer.write(':');
-        writer.write(DigitTens[minute]);
-        writer.write(DigitOnes[minute]);
-        writer.write(':');
-        writer.write(DigitTens[second]);
-        writer.write(DigitOnes[second]);
-        writer.write('.');
-
-        char s1 = (char) (millisecond / 100 + 48);
-        int v = millisecond % 100;
-        writer.write(s1);
-        writer.write(DigitTens[v]);
-        writer.write(DigitOnes[v]);
+        CHAR_SEQUENCE.serialize(temporal, writer, jsonConfig, indent);
     }
 
 }

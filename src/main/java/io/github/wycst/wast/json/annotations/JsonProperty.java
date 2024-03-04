@@ -1,5 +1,7 @@
 package io.github.wycst.wast.json.annotations;
 
+import io.github.wycst.wast.common.beans.GregorianDate;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -38,7 +40,7 @@ public @interface JsonProperty {
      * 数据转换时日期序列化格式或字符串反序列化为日期
      *
      * @return
-     * @see io.github.wycst.wast.common.beans.Date#format(String)
+     * @see GregorianDate#format(String)
      */
     public String pattern() default "";
 
@@ -58,10 +60,22 @@ public @interface JsonProperty {
     public String timezone() default "";
 
     /**
-     * <p> 如果属性声明的类型为接口或者抽象类，可以为属性指定缺省实现类；
+     * <p> 如果属性声明的类型为接口或者抽象类，可以为属性指定缺省实现类(如果不是属性声明的子类会被忽略)；
      * <p> 如果不是接口或抽象类，此配置忽略；
+     * <p> Map/List等不需要指定
      *
      * @return
      */
     public Class<?> impl() default Object.class;
+
+
+    /**
+     * 是否不固定类型，比如属性的声明类型为父类存在很多子类实现，实际的值类型不确定是哪个场景
+     *
+     * <p>1.序列化会写入字段类型(@c)</p>
+     * <p>2.反序列化会第一时间读取类型（第一个字段@c）</p>
+     * <p>3.只针对pojo类型的字段生效</p>
+     * @return
+     */
+    public boolean unfixedType() default false;
 }

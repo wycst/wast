@@ -17,6 +17,8 @@ public final class AsciiStringSource extends AbstractCharSource implements CharS
 
     private final String input;
     private final byte[] bytes;
+    private boolean escape = true;
+    private int escapeOffset = -1;
 
     AsciiStringSource(String input, byte[] bytes) {
         super(0, bytes.length);
@@ -28,13 +30,24 @@ public final class AsciiStringSource extends AbstractCharSource implements CharS
      * 构建对象
      *
      * @param input
+     * @param bytes
+     * @return
+     */
+    public static AsciiStringSource of(String input, byte[] bytes) {
+        return new AsciiStringSource(input, bytes);
+    }
+
+    /**
+     * 构建对象
+     *
+     * @param input
      * @return
      */
     public static AsciiStringSource of(String input) {
-        byte coder = UnsafeHelper.getStringCoder(input);
-        if (coder == 1) {
-            throw new UnsupportedOperationException("only support LATIN1 input string.");
-        }
+//        byte coder = UnsafeHelper.getStringCoder(input);
+//        if (coder == 1) {
+//            throw new UnsupportedOperationException("only support LATIN1 input string.");
+//        }
         byte[] bytes = (byte[]) UnsafeHelper.getStringValue(input);
         return new AsciiStringSource(input, bytes);
     }

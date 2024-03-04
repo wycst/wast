@@ -1,6 +1,6 @@
 package io.github.wycst.wast.log;
 
-import io.github.wycst.wast.common.beans.Date;
+import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.common.utils.StringUtils;
 
 import java.util.logging.Formatter;
@@ -10,7 +10,7 @@ import java.util.logging.LogRecord;
 public class TextFormatter extends Formatter {
 
     public String formatDate(long millis) {
-        return new Date(millis).format("Y-M-d H:m:s.S");
+        return new GregorianDate(millis).format("Y-M-d H:m:s.S");
     }
 
     public String formatLoggerName(LogRecord record) {
@@ -20,7 +20,7 @@ public class TextFormatter extends Formatter {
     @Override
     public String format(LogRecord record) {
 
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         sb.append(formatDate(record.getMillis()));
         sb.append(" [");
         sb.append(Thread.currentThread().getName());
@@ -72,7 +72,7 @@ public class TextFormatter extends Formatter {
     private String formatLevel(Level level) {
         String levelName = level.getName();
         if (level == Level.INFO) {
-            return levelName + " ";
+            return "INFO ";
         } else if (level == Level.WARNING) {
             return "WARN ";
         } else if (level == Level.CONFIG) {

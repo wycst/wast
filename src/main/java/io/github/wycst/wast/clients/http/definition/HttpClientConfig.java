@@ -1,5 +1,6 @@
 package io.github.wycst.wast.clients.http.definition;
 
+import io.github.wycst.wast.common.idgenerate.providers.IdGenerator;
 import io.github.wycst.wast.common.tools.Base64;
 
 import java.io.File;
@@ -15,12 +16,22 @@ import java.util.*;
  */
 public class HttpClientConfig {
 
+    private static boolean defaultFollowRedirect = false;
+    private static boolean defaultUseCaches = false;
+    private static long defaultMaxConnectTimeout = 30000;
+    private static long defaultMaxReadTimeout = 30000;
+
     private boolean keepAlive;
-    private long maxConnectTimeout = 30000;
-    private long maxReadTimeout = 30000;
+    private long maxConnectTimeout = defaultMaxConnectTimeout;
+    private long maxReadTimeout = defaultMaxReadTimeout;
     private long maxCloseTimeout;
     private long maxContentLength;
-    private boolean useCaches;
+    private boolean useCaches = defaultUseCaches;
+    // If response status 302 requests a redirect address (read the location value in the response header)
+    private boolean followRedirect = defaultFollowRedirect;
+
+    // use by loadblance
+    private boolean keepAliveOnTimeout;
 
     private final Map<String, Serializable> headers = new HashMap<String, Serializable>();
     private final List<HttpClientParameter> parameterList = new ArrayList<HttpClientParameter>();
@@ -178,7 +189,7 @@ public class HttpClientConfig {
 
     private void initMultipart() {
         if (this.boundary == null) {
-            this.boundary = Base64.getEncoder().encodeToString(String.valueOf(1 + new Random().nextDouble()).getBytes());
+            this.boundary = IdGenerator.hex(); // Base64.getEncoder().encodeToString(String.valueOf(1 + new Random().nextDouble()).getBytes());
         }
         this.contentType = "multipart/form-data; boundary=" + boundary;
     }
@@ -233,4 +244,39 @@ public class HttpClientConfig {
         return boundary;
     }
 
+    public boolean isKeepAliveOnTimeout() {
+        return keepAliveOnTimeout;
+    }
+
+    public void setKeepAliveOnTimeout(boolean keepAliveOnTimeout) {
+        this.keepAliveOnTimeout = keepAliveOnTimeout;
+    }
+
+    public boolean isFollowRedirect() {
+        return followRedirect;
+    }
+
+    public void setFollowRedirect(boolean followRedirect) {
+        this.followRedirect = followRedirect;
+    }
+
+    public static HttpClientConfig create() {
+        return new HttpClientConfig();
+    }
+
+    public static void setDefaultFollowRedirect(boolean defaultFollowRedirect) {
+        HttpClientConfig.defaultFollowRedirect = defaultFollowRedirect;
+    }
+
+    public static void setDefaultUseCaches(boolean defaultUseCaches) {
+        HttpClientConfig.defaultUseCaches = defaultUseCaches;
+    }
+
+    public static void setDefaultMaxConnectTimeout(long defaultMaxConnectTimeout) {
+        HttpClientConfig.defaultMaxConnectTimeout = defaultMaxConnectTimeout;
+    }
+
+    public static void setDefaultMaxReadTimeout(long defaultMaxReadTimeout) {
+        HttpClientConfig.defaultMaxReadTimeout = defaultMaxReadTimeout;
+    }
 }

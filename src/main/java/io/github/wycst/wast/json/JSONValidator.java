@@ -48,7 +48,7 @@ public class JSONValidator extends JSONGeneral {
         this.parseContext = parseContext;
         this.showMessage = showMessage;
         try {
-            boolean allowComment = parseContext.isAllowComment();
+            boolean allowComment = parseContext.allowComment;
             if (allowComment && current == '/') {
                 /** 去除声明在头部的注释*/
                 fromIndex = clearCommentAndWhiteSpaces(buf, fromIndex + 1, toIndex, parseContext);
@@ -216,7 +216,7 @@ public class JSONValidator extends JSONGeneral {
                 }
 
                 if (ch == '\'') {
-                    if (parseContext.isAllowSingleQuotes()) {
+                    if (parseContext.allowSingleQuotes) {
                         while (i + 1 < toIndex && buf[++i] != '\'') ;
                         empty = false;
                         ++i;
@@ -229,7 +229,7 @@ public class JSONValidator extends JSONGeneral {
                         return;
                     }
                 } else {
-                    if (parseContext.isAllowUnquotedFieldNames()) {
+                    if (parseContext.allowUnquotedFieldNames) {
                         // 无引号key处理
                         // 直接锁定冒号（:）位置
                         while (i + 1 < toIndex && buf[++i] != ':') ;
@@ -386,7 +386,7 @@ public class JSONValidator extends JSONGeneral {
     private void validateNumber(int fromIndex, char endChar) throws Exception {
         try {
             JSONTypeDeserializer.NUMBER.deserializeDefault(buf, fromIndex, toIndex, endChar, parseContext);
-            offset = parseContext.getEndIndex();
+            offset = parseContext.endIndex;
         } catch (Throwable throwable) {
             result = false;
             if (showMessage) {

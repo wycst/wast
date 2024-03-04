@@ -9,23 +9,22 @@ import io.github.wycst.wast.json.util.FixedNameValueMap;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 对ClassStructureWrapper的进一步包装，提供给json模块使用
  *
  * @Author wangyunchao
  */
-public class ObjectStructureWrapper {
+public final class ObjectStructureWrapper {
 
     private static Map<Class<?>, ObjectStructureWrapper> objectStructureWarppers = new ConcurrentHashMap<Class<?>, ObjectStructureWrapper>();
 
     private final ClassStructureWrapper classStructureWrapper;
     private ClassStructureWrapper.ClassWrapperType classWrapperType;
     private final GenericParameterizedType genericType;
-    private final FixedNameValueMap<FieldDeserializer> fieldDeserializerMap;
+    private final FixedNameValueMap<FieldDeserializer> fixedFieldDeserializerValueMap;
     // deserializers
-    private List<FieldDeserializer> fieldDeserializers = new ArrayList<FieldDeserializer>();
+    private final List<FieldDeserializer> fieldDeserializers;
 
     // getter methods
     private FieldSerializer[] getterMethodSerializers;
@@ -78,47 +77,29 @@ public class ObjectStructureWrapper {
         }
         getterFieldSerializers = fieldSerializers.toArray(new FieldSerializer[fieldSerializers.size()]);
 
-        // deserializer info
-        this.fieldDeserializerMap = new FixedNameValueMap(classStructureWrapper.setterNames().size());
+        // 反序列化初始化
         this.genericType = GenericParameterizedType.actualType(classStructureWrapper.getSourceClass());
         Set<String> setterNames = classStructureWrapper.setterNames();
+
+        Map<String, FieldDeserializer> fieldSerializerMap = new HashMap<String, FieldDeserializer>();
         for (String setterName : setterNames) {
             SetterInfo setterInfo = classStructureWrapper.getSetterInfo(setterName);
             JsonProperty jsonProperty = (JsonProperty) setterInfo.getAnnotation(JsonProperty.class);
-            String mapperName = null;
+            String name = setterName;
             if (jsonProperty != null) {
                 if (!jsonProperty.deserialize())
                     continue;
-                mapperName = jsonProperty.name();
-            }
-            FieldDeserializer fieldDeserializer = new FieldDeserializer(setterName, setterInfo, jsonProperty);
-            fieldDeserializerMap.putValue(setterName, fieldDeserializer);
-            fieldDeserializers.add(fieldDeserializer);
-
-            // alias name
-            if (mapperName != null && (mapperName = mapperName.trim()).length() > 0) {
-                if (!mapperName.equals(setterName)) {
-                    fieldDeserializer = new FieldDeserializer(mapperName, setterInfo, jsonProperty);
-                    fieldDeserializerMap.putValue(mapperName, fieldDeserializer);
-                    fieldDeserializers.add(fieldDeserializer);
+                String mapperName = jsonProperty.name().trim();
+                if(mapperName.length() > 0) {
+                    name = mapperName;
                 }
             }
+            FieldDeserializer fieldDeserializer = new FieldDeserializer(name, setterInfo, jsonProperty);
+            fieldSerializerMap.put(name, fieldDeserializer);
         }
-
-        final AtomicBoolean atomicBoolean = new AtomicBoolean();
-        Collections.sort(fieldDeserializers, new Comparator<FieldDeserializer>() {
-            @Override
-            public int compare(FieldDeserializer o1, FieldDeserializer o2) {
-                Integer h1 = o1.getHash();
-                Integer h2 = o2.getHash();
-                int r = h1.compareTo(h2);
-                if (r == 0) {
-                    atomicBoolean.set(true);
-                }
-                return r;
-            }
-        });
-        this.collision = atomicBoolean.get();
+        this.fieldDeserializers = new ArrayList<FieldDeserializer>(fieldSerializerMap.values());
+        this.fixedFieldDeserializerValueMap = FixedNameValueMap.build(fieldSerializerMap);
+        this.collision = this.fixedFieldDeserializerValueMap.isCollision();
     }
 
     private void init() {
@@ -157,16 +138,16 @@ public class ObjectStructureWrapper {
         return classStructureWrapper.createConstructorArgs();
     }
 
-    public FieldDeserializer getFieldDeserializer(char[] buf, int beginIndex, int endIndex, int hashValue) {
-        return fieldDeserializerMap.getValue(buf, beginIndex, endIndex, hashValue);
+    public FieldDeserializer getFieldDeserializer(char[] buf, int beginIndex, int endIndex, long hashValue) {
+        return fixedFieldDeserializerValueMap.getValue(buf, beginIndex, endIndex, hashValue);
     }
 
-    public FieldDeserializer getFieldDeserializer(byte[] buf, int beginIndex, int endIndex, int hashValue) {
-        return fieldDeserializerMap.getValue(buf, beginIndex, endIndex, hashValue);
+    public FieldDeserializer getFieldDeserializer(byte[] buf, int beginIndex, int endIndex, long hashValue) {
+        return fixedFieldDeserializerValueMap.getValue(buf, beginIndex, endIndex, hashValue);
     }
 
     public FieldDeserializer getFieldDeserializer(String field) {
-        return fieldDeserializerMap.getValue(field);
+        return fixedFieldDeserializerValueMap.getValue(field);
     }
 
     /**
@@ -176,8 +157,16 @@ public class ObjectStructureWrapper {
      * @param hashValue
      * @return
      */
-    public FieldDeserializer getFieldDeserializer(int hashValue) {
-        return fieldDeserializerMap.getValueByHash(hashValue);
+    public FieldDeserializer getFieldDeserializer(long hashValue) {
+        return fixedFieldDeserializerValueMap.getValueByHash(hashValue);
+    }
+
+    public long hashChar(long rv, int c) {
+        return fixedFieldDeserializerValueMap.hash(rv, c);
+    }
+
+    public long hashChar(long hv, int c1, int c2) {
+        return fixedFieldDeserializerValueMap.hash(hv, c1, c2);
     }
 
     public static ObjectStructureWrapper get(Class<?> pojoClass) {

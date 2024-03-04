@@ -12,6 +12,7 @@ public class GeneratorTableColumn {
     public final static int JAVA_TYPE_NUMBER = 2;
     public final static int JAVA_TYPE_DATE = 3;
     public final static int JAVA_TYPE_BINARY = 4;
+    public final static int JAVA_TYPE_BOOL = 5;
 
     /**
      * 字段配置项
@@ -27,6 +28,11 @@ public class GeneratorTableColumn {
      * 字段类型
      */
     private int columnType;
+
+    /**
+     * 字段类型
+     */
+    private int columnSize;
 
     /**
      * 字段定义
@@ -129,5 +135,13 @@ public class GeneratorTableColumn {
 
     public void setColumnOption(GeneratorColumnOption columnOption) {
         this.columnOption = columnOption;
+    }
+
+    public int getColumnSize() {
+        return columnSize;
+    }
+
+    public void setColumnSize(int columnSize) {
+        this.columnSize = columnSize;
     }
 }

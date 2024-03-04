@@ -1,5 +1,5 @@
 /*
- * Copyright [2020-2022] [wangyunchao]
+ * Copyright [2020-2024] [wangyunchao]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@
  */
 package io.github.wycst.wast.yaml;
 
+import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
-import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.SetterInfo;
 
 import java.io.IOException;
@@ -374,8 +374,7 @@ public class YamlNode extends YamlLine {
                     if (yamlNode.array) {
                         value = yamlNode.toCollection(collCls, entityClass);
                     } else {
-                        int paramClassType = setterInfo.getParamClassType();
-                        if (paramClassType == ReflectConsts.CLASS_TYPE_DATE) {
+                        if (Date.class.isAssignableFrom(parameterType)) {
                             // 日期类型
                             value = yamlNode.getDate((Class<? extends Date>) parameterType);  // getDate(yamlNode.getValue(), (Class<? extends Date>) parameterType);
                         } else {
@@ -588,7 +587,7 @@ public class YamlNode extends YamlLine {
                 if (len > 20) {
                     millsecond = parseInt(buf, from + 20, len - 20, 10);
                 }
-                io.github.wycst.wast.common.beans.Date date = new io.github.wycst.wast.common.beans.Date(year, month, day, hour, minute, second, millsecond, timeZone);
+                GregorianDate date = new GregorianDate(year, month, day, hour, minute, second, millsecond, timeZone);
                 return date.getTime();
             } catch (Throwable throwable) {
             }

@@ -6,13 +6,14 @@ import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.Collection;
+import java.util.Map;
 
 /**
  * @Author: wangy
  * @Date: 2021/2/17 22:11
  * @Description:
  */
-public class ReflectUtils {
+public final class ReflectUtils {
 
     /**
      * 获取实例上的泛型或者父类上的泛型
@@ -117,5 +118,29 @@ public class ReflectUtils {
         Class invokerCls = invoker.getClass();
         ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(invokerCls);
         return classStructureWrapper.invokePublic(invoker, methodName, params);
+    }
+
+    /**
+     * 获取自定义map类的key和value类型，如果没有定义（比如伪泛型）则返回null
+     *
+     * @param mapClass
+     * @return
+     */
+    public static Class[] getMapDefinedClassTypes(Class<? extends Map> mapClass) {
+        Type type = mapClass.getGenericSuperclass();
+        int i = 0;
+        if (type instanceof ParameterizedType) {
+            ParameterizedType parameterizedType = (ParameterizedType) type;
+            Type[] actualTypeArguments = parameterizedType.getActualTypeArguments();
+            if(actualTypeArguments != null && actualTypeArguments.length == 2) {
+                if(actualTypeArguments[0] instanceof Class && actualTypeArguments[1] instanceof Class) {
+                	Class[] kvTypes = new Class[2];
+                    kvTypes[0] = (Class) actualTypeArguments[0];
+                    kvTypes[1] = (Class) actualTypeArguments[1];
+                    return kvTypes;
+                }
+            }
+        }
+        return null;
     }
 }

@@ -6,10 +6,10 @@ import io.github.wycst.wast.common.utils.StringUtils;
 import java.util.Map;
 
 public abstract class TemplateClass {
-    private final StringBuffer buffer;
+    private final StringBuilder buffer;
 
     public TemplateClass() {
-        buffer = new StringBuffer();
+        buffer = new StringBuilder();
     }
 
     /***

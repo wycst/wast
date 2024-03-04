@@ -1,9 +1,11 @@
 package io.github.wycst.wast.json.temporal;
 
-import io.github.wycst.wast.common.beans.GeneralDate;
+import io.github.wycst.wast.common.reflect.UnsafeHelper;
 
 import java.time.*;
+import java.util.Map;
 import java.util.TimeZone;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 提供Temporal的api访问
@@ -16,12 +18,14 @@ import java.util.TimeZone;
 class TemporalInterfaceImplProvider implements TemporalInterface {
 
     // 注：全局可变
-    private TimeZone defaultTimezone = GeneralDate.getDefaultTimeZone();
+    private TimeZone defaultTimezone = UnsafeHelper.getDefaultTimeZone();
     private ZoneId defaultZoneId = defaultTimezone.toZoneId();
+
+    private static Map<String, ZoneId> zoneIdMap = new ConcurrentHashMap<String, ZoneId>();
 
     @Override
     public Object getDefaultZoneId() throws Exception {
-        TimeZone timeZone = GeneralDate.getDefaultTimeZone();
+        TimeZone timeZone = UnsafeHelper.getDefaultTimeZone();
         if (timeZone == defaultTimezone) {
             return defaultZoneId;
         }
@@ -37,7 +41,12 @@ class TemporalInterfaceImplProvider implements TemporalInterface {
 
     @Override
     public Object ofZoneId(String zoneId) throws Exception {
-        return ZoneId.of(zoneId);
+        ZoneId value = zoneIdMap.get(zoneId);
+        if(value == null) {
+            value = ZoneId.of(zoneId);
+            zoneIdMap.put(zoneId, value);
+        }
+        return value;
     }
 
     @Override

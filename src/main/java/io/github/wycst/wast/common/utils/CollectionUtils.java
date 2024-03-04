@@ -13,19 +13,7 @@ import java.util.List;
  * @Date: 2020/3/25 0:09
  * @Description:
  */
-public class CollectionUtils {
-
-//    public static int indexOf(Object[] arr, Object obj) {
-//        if (arr == null || obj == null) return -1;
-//        Object e = null;
-//        for (int i = 0; i < arr.length; i++) {
-//            e = arr[i];
-//            if (e == obj || obj.equals(e)) {
-//                return i;
-//            }
-//        }
-//        return -1;
-//    }
+public final class CollectionUtils {
 
     /**
      * 返回数组中元素等于obj的索引位置,如果没有找到返回-1
@@ -147,17 +135,17 @@ public class CollectionUtils {
      */
     public static String join(Object[] arr, String delimiter) {
         if (arr == null) return null;
-        if (delimiter == null) delimiter = "";
-        StringBuffer buffer = new StringBuffer();
+        if (delimiter == null) delimiter = ",";
+        StringBuilder sb = new StringBuilder();
         boolean appendDelimiterFlag = false;
         for (Object val : arr) {
-            buffer.append(val).append(delimiter);
+            sb.append(val).append(delimiter);
             appendDelimiterFlag = true;
         }
         if (appendDelimiterFlag) {
-            buffer.delete(buffer.length() - delimiter.length(), buffer.length());
+            sb.delete(sb.length() - delimiter.length(), sb.length());
         }
-        return buffer.toString();
+        return sb.toString();
     }
 
     /**
@@ -174,11 +162,11 @@ public class CollectionUtils {
     /**
      * 判断集合类是否为null或者空
      *
-     * @param groups
+     * @param collection
      * @return
      */
-    public static boolean isEmpty(Collection groups) {
-        return groups == null || groups.size() == 0;
+    public static boolean isEmpty(Collection collection) {
+        return collection == null || collection.size() == 0;
     }
 
     /**
@@ -244,7 +232,7 @@ public class CollectionUtils {
                 throw new UnsupportedOperationException("不支持的集合赋值操作");
             }
         } else {
-            Object[] arr = null;
+            Object[] arr;
             arr = (Object[]) target;
             arr[index] = value;
         }

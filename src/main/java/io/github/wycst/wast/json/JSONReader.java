@@ -1,5 +1,5 @@
 /*
- * Copyright [2020-2022] [wangyunchao]
+ * Copyright [2020-2024] [wangyunchao]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,8 @@ import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.SetterInfo;
 import io.github.wycst.wast.common.tools.Base64;
+import io.github.wycst.wast.common.utils.ObjectUtils;
+import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.exceptions.JSONException;
 import io.github.wycst.wast.json.options.JSONParseContext;
 import io.github.wycst.wast.json.options.Options;
@@ -28,37 +30,31 @@ import io.github.wycst.wast.json.options.ReadOption;
 
 import java.io.*;
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 1,基于流的JSON解析:
  * <p> - 超大文件json文件解析（文件大小读取无限制）,无需将流内容读取到内存中再解析
  * <p> - 检测当前json类型是对象还是数组，其他类型处理无意义
- * <p> - 线性解析模式（无回溯）
  * <p> - 可按需终止
  * <p> - 支持异步
  * <br>
- * <p>
- * 2,Only strict JSON mode is supported:
- * <p> Attributes use double quotation marks ("), and key values use colons (:) for declarations
- * <p> Use commas (,) to split tokens
+ * 2, 流内容需要严格遵守JSON规范.
  *
- * <p>
- * for example:
- * <p>
+ * <br>
+ * <br>
+ * 例子:
+ * <pre>
  * final JSONReader reader = JSONReader.from(new File("/tmp/text.json"));
- * <p>
- * 1、Read complete stream
- * reader.read();
- * Object result = reader.getResult(); (map或者list)
- * <p>
+ * </pre>
+ * <p> 1、Read complete stream
+ * <pre>
+ *     reader.read();
+ *     Object result = reader.getResult(); (map或者list)
+ * </pre>
  * 2、On demand read stream
- * <p>
- * 构造ReaderCallback时指定模式： ReadParseMode.ExternalImpl
+ * <p> 构造ReaderCallback时指定模式： ReadParseMode.ExternalImpl
  * <pre>
  *         reader.read(new JSONReader.ReaderCallback(JSONReader.ReadParseMode.ExternalImpl) {
  *
@@ -71,7 +67,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *         }, true);
  * </pre>
  * <p>
- * Call abort() to terminate the reading of the stream at any time
+ * <p> 调用 abort() 可以随时终止流读取
  *
  * @author wangyunchao
  * @see ReaderCallback
@@ -80,7 +76,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * @see JSONReader#JSONReader(Reader)
  * @see JSON
  * @see JSONNode
- * @see JSONStringWriter
+ * @see JSONCharArrayWriter
  */
 public class JSONReader extends JSONGeneral {
 
@@ -150,7 +146,7 @@ public class JSONReader extends JSONGeneral {
     protected int readingOffset = -1;
 
     // 锁(也可以使用CountDownLatch)
-    private Object lock = new Object();
+    private volatile Object lock = new Object();
     // 是否异步标识
     private boolean async;
     // 默认超时60s
@@ -373,7 +369,6 @@ public class JSONReader extends JSONGeneral {
             // 以阻塞模式下读取
             this.executeReadStream();
         } else {
-            // 异步处理
             // 如果需要频繁的调用,可以使用Executors.newCachedThreadPool()在外部自行实现异步处理
             this.async = true;
             // 记录当前线程id
@@ -420,10 +415,6 @@ public class JSONReader extends JSONGeneral {
         synchronized (lock) {
             lock.notify();
         }
-    }
-
-    private void await() {
-        await(timeout);
     }
 
     private void await(long timeout) {
@@ -624,7 +615,7 @@ public class JSONReader extends JSONGeneral {
     }
 
     private Number readNumber(char endSyntax) throws Exception {
-        if (parseContext.isUseBigDecimalAsDefault()) {
+        if (parseContext.useBigDecimalAsDefault) {
             this.beginCurrent();
             while (readNext() > -1) {
                 if (current == ',' || current == endSyntax) {
@@ -653,7 +644,7 @@ public class JSONReader extends JSONGeneral {
                 readNext();
             }
 
-            double value = 0;
+            long value = 0;
             int decimalCount = 0;
             final int radix = 10;
             int expValue = 0;
@@ -664,152 +655,118 @@ public class JSONReader extends JSONGeneral {
             int specifySuffix = 0;
 
             do {
-                char ch = (char) current;
-                int digit = digitDecimal(ch);
-                if (digit == -1) {
-                    if (ch == ',' || ch == endSyntax) {
-                        break;
-                    }
-                    if (ch == '.') {
-                        if (mode != 0) {
-                            throwUnexpectedException();
-                            return value;
-                        }
-                        // 小数点模式
-                        mode = 1;
-                        ch = (char) readNext(true);
-                        digit = digitDecimal(ch);
-                    } else if (ch == 'E' || ch == 'e') {
-                        if (mode == 2) {
-                            throwUnexpectedException();
-                            return value;
-                        }
-                        // 科学计数法
-                        mode = 2;
-                        ch = (char) readNext(true);
-                        if (ch == '-') {
-                            expNegative = true;
-                            ch = (char) readNext(true);
-                        }
-                        digit = digitDecimal(ch);
+                while (isDigit(current)) {
+                    value = (value << 3) + (value << 1) + current - 48;
+                    readNext();
+                }
+                if (current == '.') {
+                    // 小数点模式
+                    mode = 1;
+                    // direct scan numbers
+                    while (isDigit(readNext())) {
+                        value = (value << 3) + (value << 1) + current - 48;
+                        ++decimalCount;
                     }
                 }
-
-                if (digit == -1) {
-                    boolean breakLoop = false;
-                    switch (ch) {
-                        case 'l':
-                        case 'L': {
-                            if (specifySuffix == 0) {
-                                specifySuffix = 1;
-                                while ((ch = (char) readNext()) <= ' ') ;
-                                if (ch == ',' || ch == endSyntax) {
-                                    breakLoop = true;
-                                    break;
-                                }
-                            }
-                            throwUnexpectedException();
-                            return value;
-                        }
-                        case 'f':
-                        case 'F': {
-                            if (specifySuffix == 0) {
-                                specifySuffix = 2;
-                                while ((ch = (char) readNext()) <= ' ') ;
-                                if (ch == ',' || ch == endSyntax) {
-                                    breakLoop = true;
-                                    break;
-                                }
-                            }
-                            throwUnexpectedException();
-                            return value;
-                        }
-                        case 'd':
-                        case 'D': {
-                            if (specifySuffix == 0) {
-                                specifySuffix = 3;
-                                while ((ch = (char) readNext()) <= ' ') ;
-                                if (ch == ',' || ch == endSyntax) {
-                                    breakLoop = true;
-                                    break;
-                                }
-                            }
-                            throwUnexpectedException();
-                            return value;
-                        }
-                        default: {
-                            if (ch <= ' ') {
-                                while ((ch = (char) readNext()) <= ' ') ;
-                                if (ch == ',' || ch == endSyntax) {
-                                    breakLoop = true;
-                                    break;
-                                }
-                                throwUnexpectedException();
-                                return value;
-                            }
+                if (current <= ' ') {
+                    while (readNext() <= ' ') ;
+                }
+                if (current == ',' || current == endSyntax) {
+                    break;
+                }
+                if (current == 'E' || current == 'e') {
+                    // 科学计数法(浮点模式)
+                    mode = 2;
+                    if ((expNegative = readNext() == '-') || current == '+') {
+                        readNext();
+                    }
+                    if (isDigit(current)) {
+                        expValue = current - 48;
+                        while (isDigit(readNext())) {
+                            expValue = (expValue << 3) + (expValue << 1) + current - 48;
                         }
                     }
-                    if (breakLoop) {
+                    if (current == ',' || current == endSyntax) {
                         break;
                     }
-                    throwUnexpectedException();
-                    return value;
                 }
-                switch (mode) {
-                    case 0:
-                        value *= radix;
-                        value += digit;
-                        break;
-                    case 1:
-                        value *= radix;
-                        value += digit;
-                        decimalCount++;
-                        break;
-                    case 2:
-                        expValue *= 10;
-                        expValue += digit;
-                        break;
+                switch (current) {
+                    case 'l':
+                    case 'L': {
+                        if (specifySuffix == 0) {
+                            specifySuffix = 1;
+                            while (readNext() <= ' ') ;
+                            if (current == ',' || current == endSyntax) {
+                                break;
+                            }
+                        }
+                        throwUnexpectedException();
+                        return value;
+                    }
+                    case 'f':
+                    case 'F': {
+                        if (specifySuffix == 0) {
+                            specifySuffix = 2;
+                            if (current == ',' || current == endSyntax) {
+                                break;
+                            }
+                        }
+                        throwUnexpectedException();
+                        return value;
+                    }
+                    case 'd':
+                    case 'D': {
+                        if (specifySuffix == 0) {
+                            specifySuffix = 3;
+                            if (current == ',' || current == endSyntax) {
+                                break;
+                            }
+                        }
+                        throwUnexpectedException();
+                        return value;
+                    }
+                    default: {
+                        throwUnexpectedException();
+                    }
                 }
-            } while (readNext() > -1);
+            } while (false);
 
             if (mode == 0) {
                 value = negative ? -value : value;
                 if (specifySuffix > 0) {
                     switch (specifySuffix) {
                         case 1:
-                            return (long) value;
+                            return value;
                         case 2:
                             return (float) value;
                     }
                     return value;
                 }
-                if (value <= Integer.MAX_VALUE && value > Integer.MIN_VALUE) {
+                if (value <= Integer.MAX_VALUE && value >= Integer.MIN_VALUE) {
                     return (int) value;
-                }
-                if (value <= Long.MAX_VALUE && value > Long.MIN_VALUE) {
-                    return (long) value;
                 }
                 return value;
             } else {
+                double doubleVal = value;
                 expValue = expNegative ? -expValue - decimalCount : expValue - decimalCount;
                 if (expValue > 0) {
                     double powValue = getDecimalPowerValue(expValue); // Math.pow(radix, expValue);
-                    value *= powValue;
+                    doubleVal *= powValue;
                 } else if (expValue < 0) {
                     double powValue = getDecimalPowerValue(-expValue);// Math.pow(radix, -expValue);
-                    value /= powValue;
+                    doubleVal /= powValue;
                 }
-                value = negative ? -value : value;
+                doubleVal = negative ? -doubleVal : doubleVal;
                 if (specifySuffix > 0) {
                     switch (specifySuffix) {
                         case 1:
-                            return (long) value;
+                            return (long) doubleVal;
                         case 2:
-                            return (float) value;
+                            return (float) doubleVal;
                     }
-                    return value;
+                    return doubleVal;
                 }
-                return value;
+                return doubleVal;
             }
         }
     }
@@ -951,12 +908,14 @@ public class JSONReader extends JSONGeneral {
 
                     GenericParameterizedType valueType = ofValueType == null ? null : ofValueType;
                     SetterInfo setterInfo = null;
+                    JsonProperty jsonProperty = null;
                     // if skip value
                     boolean isSkipValue = false;
                     if (!externalImpl && !assignableFromMap) {
                         setterInfo = classStructureWrapper.getSetterInfo(key);
                         isSkipValue = setterInfo == null;
                         if (!isSkipValue) {
+                            jsonProperty = (JsonProperty) setterInfo.getAnnotation(JsonProperty.class);
                             valueType = setterInfo.getGenericParameterizedType();
                         }
                     }
@@ -976,7 +935,7 @@ public class JSONReader extends JSONGeneral {
                                 break;
                             case '"':
                                 // 将字符串转化为指定类型
-                                value = parseStringTo(this.readString(), valueType);
+                                value = parseStringTo(this.readString(), valueType, jsonProperty);
                                 invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, mapInstane, instance, setterInfo);
                                 break;
                             case 'n':
@@ -1201,37 +1160,7 @@ public class JSONReader extends JSONGeneral {
 
         Number numValue = (Number) simpleValue;
         if (classCategory == ReflectConsts.ClassCategory.NumberCategory) {
-            int numberType = valueType.getParamClassNumberType();
-            switch (numberType) {
-                case ReflectConsts.CLASS_TYPE_NUMBER_BYTE:
-                    return numValue.byteValue();
-                case ReflectConsts.CLASS_TYPE_NUMBER_SHORT:
-                    return numValue.shortValue();
-                case ReflectConsts.CLASS_TYPE_NUMBER_INTEGER:
-                    return numValue.intValue();
-                case ReflectConsts.CLASS_TYPE_NUMBER_LONG:
-                    return numValue.longValue();
-                case ReflectConsts.CLASS_TYPE_NUMBER_FLOAT:
-                    return numValue.floatValue();
-                case ReflectConsts.CLASS_TYPE_NUMBER_DOUBLE:
-                    return numValue.doubleValue();
-                case ReflectConsts.CLASS_TYPE_NUMBER_ATOMIC_INTEGER: {
-                    return new AtomicInteger(numValue.intValue());
-                }
-                case ReflectConsts.CLASS_TYPE_NUMBER_ATOMIC_LONG: {
-                    return new AtomicLong(numValue.longValue());
-                }
-                case ReflectConsts.CLASS_TYPE_NUMBER_BIGDECIMAL: {
-                    return new BigDecimal(numValue.doubleValue());
-                }
-                case ReflectConsts.CLASS_TYPE_NUMBER_BIG_INTEGER:
-                    return new BigInteger(String.valueOf(numValue.longValue()));
-                default: {
-                    // not supported
-                    // throw new UnsupportedOperationException("Unsupported number type of " + parameterizedType.getActualType());
-                    return null;
-                }
-            }
+            return ObjectUtils.toTypeNumber(numValue, actualType);
         } else if (classCategory == ReflectConsts.ClassCategory.EnumCategory) {
             int ordinal = numValue.intValue();
             Enum[] values = (Enum[]) actualType.getEnumConstants();
@@ -1243,7 +1172,7 @@ public class JSONReader extends JSONGeneral {
         throw new JSONException("value " + numValue + " is mismatch type " + actualType);
     }
 
-    private Object parseStringTo(String value, GenericParameterizedType valueType) throws Exception {
+    private Object parseStringTo(String value, GenericParameterizedType valueType, JsonProperty jsonProperty) throws Exception {
         if (value == null) return null;
         if (valueType == null || valueType == GenericParameterizedType.AnyType) {
             return value;
@@ -1263,12 +1192,22 @@ public class JSONReader extends JSONGeneral {
                 dateChars[0] = '"';
                 System.arraycopy(chars, 0, dateChars, 1, chars.length);
                 dateChars[chars.length + 1] = '"';
-                String pattern = valueType.getDatePattern();
-                String timezone = valueType.getDateTimezone();
+                String pattern = null;
+                String timezone = null;
+                if (jsonProperty != null) {
+                    String patternAt = jsonProperty.pattern().trim();
+                    if (patternAt.length() > 0) {
+                        pattern = patternAt;
+                    }
+                    String timezoneAt = jsonProperty.timezone().trim();
+                    if (timezoneAt.length() > 0) {
+                        timezone = timezoneAt;
+                    }
+                }
                 return parseDateValue(0, dateChars.length, dateChars, pattern, timezone, (Class<? extends Date>) actualType);
             }
             case Binary: {
-                if (parseContext.isByteArrayFromHexString()) {
+                if (parseContext.byteArrayFromHexString) {
                     return hexString2Bytes(chars, 0, chars.length);
                 } else {
                     return Base64.getDecoder().decode(value);
@@ -1279,7 +1218,7 @@ public class JSONReader extends JSONGeneral {
                     Class enumCls = actualType;
                     return Enum.valueOf(enumCls, value);
                 } catch (RuntimeException exception) {
-                    if (parseContext.isUnknownEnumAsNull()) {
+                    if (parseContext.unknownEnumAsNull) {
                         return null;
                     } else {
                         throw exception;
@@ -1406,7 +1345,7 @@ public class JSONReader extends JSONGeneral {
                 }
                 case '"': {
                     // 3 string
-                    Object value = parseStringTo(this.readString(), valueType);
+                    Object value = parseStringTo(this.readString(), valueType, null);
                     this.parseCollectionElement(externalImpl, value, arrInstance, instance, elementIndex, nextPath);
                     break;
                 }

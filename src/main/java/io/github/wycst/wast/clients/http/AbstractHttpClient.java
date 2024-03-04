@@ -52,6 +52,15 @@ class AbstractHttpClient {
     }
 
     /**
+     * 超时时保持实例可用不移除（某些场景单向网络只发数据但无法接收响应可以配合超时实现数据推送）
+     *
+     * @param keepAliveOnTimeout
+     */
+    public void setKeepAliveOnTimeout(boolean keepAliveOnTimeout) {
+        httpClientExecutor.setKeepAliveOnTimeout(keepAliveOnTimeout);
+    }
+
+    /**
      * 通过http客户端发送通用请求,返回响应
      * httpClient 核心处理方法
      *

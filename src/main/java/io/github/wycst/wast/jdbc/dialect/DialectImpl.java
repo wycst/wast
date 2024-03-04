@@ -1,5 +1,7 @@
 package io.github.wycst.wast.jdbc.dialect;
 
+import io.github.wycst.wast.jdbc.exception.SqlExecuteException;
+
 import java.sql.*;
 import java.util.Date;
 
@@ -10,8 +12,15 @@ import java.util.Date;
  */
 public abstract class DialectImpl implements Dialect {
 
+    protected PageDialectAgent pageDialectAgent;
+
     @Override
     public boolean supportsLimit() {
+        return false;
+    }
+
+    @Override
+    public boolean supportsBackquote() {
         return false;
     }
 
@@ -33,7 +42,7 @@ public abstract class DialectImpl implements Dialect {
             } else {
                 ps.setDate(index, new java.sql.Date(((Date) param).getTime()));
             }
-        } else if(param instanceof Enum) {
+        } else if (param instanceof Enum) {
             ps.setString(index, param.toString());
         } else {
             ps.setObject(index, param);
@@ -49,5 +58,17 @@ public abstract class DialectImpl implements Dialect {
         } else {
             return conn.prepareStatement(sql);
         }
+    }
+
+    @Override
+    public void setPageDialectAgent(PageDialectAgent pageDialectAgent) {
+        this.pageDialectAgent = pageDialectAgent;
+    }
+
+    public PageDialectAgent getPageDialectAgent() {
+        if (pageDialectAgent == null) {
+            throw new SqlExecuteException("No dialect proxy is set for paging query");
+        }
+        return pageDialectAgent;
     }
 }

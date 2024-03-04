@@ -1,6 +1,7 @@
 package io.github.wycst.wast.json.temporal;
 
 import io.github.wycst.wast.common.beans.GeneralDate;
+import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.utils.NumberUtils;
 import io.github.wycst.wast.json.JSONTemporalDeserializer;
@@ -12,13 +13,13 @@ import io.github.wycst.wast.json.options.JSONParseContext;
  * @Author: wangy
  * @Date: 2022/8/13 15:06
  * @Description:
- * @see io.github.wycst.wast.common.beans.Date
+ * @see GregorianDate
  * @see io.github.wycst.wast.common.beans.DateTemplate
  */
 public class TemporalLocalDateDeserializer extends JSONTemporalDeserializer {
 
-    public TemporalLocalDateDeserializer(GenericParameterizedType genericParameterizedType) {
-        super(genericParameterizedType);
+    public TemporalLocalDateDeserializer(TemporalConfig temporalConfig) {
+        super(temporalConfig);
     }
 
     protected void checkClass(GenericParameterizedType genericParameterizedType) {
@@ -36,7 +37,7 @@ public class TemporalLocalDateDeserializer extends JSONTemporalDeserializer {
             return TemporalAloneInvoker.ofLocalDate(year, month, day);
         } else {
             // use dateTemplate && pattern
-            GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, null);
+            GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
             return TemporalAloneInvoker.ofLocalDate(generalDate.getYear(), generalDate.getMonth(), generalDate.getDay());
         }
     }
@@ -50,7 +51,7 @@ public class TemporalLocalDateDeserializer extends JSONTemporalDeserializer {
             return TemporalAloneInvoker.ofLocalDate(year, month, day);
         } else {
             // use dateTemplate && pattern
-            GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, null);
+            GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
             return TemporalAloneInvoker.ofLocalDate(generalDate.getYear(), generalDate.getMonth(), generalDate.getDay());
         }
     }

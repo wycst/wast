@@ -4,6 +4,7 @@ import io.github.wycst.wast.common.beans.CharSource;
 import io.github.wycst.wast.common.beans.DateTemplate;
 import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
+import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.exceptions.JSONException;
 import io.github.wycst.wast.json.options.JSONParseContext;
 import io.github.wycst.wast.json.temporal.*;
@@ -26,9 +27,9 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
     protected int patternType;
     protected DateTemplate dateTemplate;
 
-    protected JSONTemporalDeserializer(GenericParameterizedType parameterizedType) {
-        checkClass(parameterizedType);
-        String pattern = parameterizedType.getDatePattern();
+    protected JSONTemporalDeserializer(TemporalConfig temporalConfig) {
+        checkClass(temporalConfig.getGenericParameterizedType());
+        String pattern = temporalConfig.getDatePattern();
         patternType = getPatternType(pattern);
         if (patternType == 0) {
             createDefaultTemplate();
@@ -37,22 +38,23 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
         }
     }
 
-    static JSONTypeDeserializer getTemporalDeserializerInstance(ClassStructureWrapper.ClassWrapperType classWrapperType, GenericParameterizedType genericParameterizedType) {
+    static JSONTypeDeserializer getTemporalDeserializerInstance(ClassStructureWrapper.ClassWrapperType classWrapperType, GenericParameterizedType genericParameterizedType, JsonProperty property) {
+        TemporalConfig temporalConfig = TemporalConfig.of(genericParameterizedType, property);
         switch (classWrapperType) {
             case TemporalLocalDate: {
-                return new TemporalLocalDateDeserializer(genericParameterizedType);
+                return new TemporalLocalDateDeserializer(temporalConfig);
             }
             case TemporalLocalTime: {
-                return new TemporalLocalTimeDeserializer(genericParameterizedType);
+                return new TemporalLocalTimeDeserializer(temporalConfig);
             }
             case TemporalLocalDateTime: {
-                return new TemporalLocalDateTimeDeserializer(genericParameterizedType);
+                return new TemporalLocalDateTimeDeserializer(temporalConfig);
             }
             case TemporalZonedDateTime: {
-                return new TemporalZonedDateTimeDeserializer(genericParameterizedType);
+                return new TemporalZonedDateTimeDeserializer(temporalConfig);
             }
             case TemporalInstant: {
-                return new TemporalInstantDeserializer(genericParameterizedType);
+                return new TemporalInstantDeserializer(temporalConfig);
             }
             default: {
                 throw new UnsupportedOperationException();
@@ -84,8 +86,8 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
         char beginChar = buf[fromIndex];
         switch (beginChar) {
             case '"':
-                STRING.skip(charSource, buf, fromIndex, toIndex, jsonParseContext);
-                int endIndex = jsonParseContext.getEndIndex();
+                CHAR_SEQUENCE_STRING.skip(charSource, buf, fromIndex, toIndex, jsonParseContext);
+                int endIndex = jsonParseContext.endIndex;
                 try {
                     return deserializeTemporal(buf, fromIndex, endIndex, jsonParseContext);
                 } catch (Throwable throwable) {
@@ -125,8 +127,8 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
         char beginChar = (char) beginByte;
         switch (beginChar) {
             case '"':
-                STRING.skip(charSource, buf, fromIndex, toIndex, jsonParseContext);
-                int endIndex = jsonParseContext.getEndIndex();
+                CHAR_SEQUENCE_STRING.skip(charSource, buf, fromIndex, toIndex, jsonParseContext);
+                int endIndex = jsonParseContext.endIndex;
                 try {
                     return deserializeTemporal(buf, fromIndex, endIndex, jsonParseContext);
                 } catch (Throwable throwable) {
@@ -134,14 +136,14 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
                         throwable = ((InvocationTargetException) throwable).getTargetException();
                     }
                     String source = new String(buf, fromIndex + 1, endIndex - fromIndex - 1);
-                    String errorContextTextAt = JSONByteArrayParser.createErrorMessage(buf, fromIndex);
+                    String errorContextTextAt = createErrorContextText(buf, fromIndex);
                     throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', temporal text '" + source + "' cannot convert to the temporal type , exception: " + throwable.getMessage());
                 }
             case 'n':
-                return JSONByteArrayParser.parseNull(buf, fromIndex, toIndex, jsonParseContext);
+                return parseNull(buf, fromIndex, toIndex, jsonParseContext);
             default: {
                 // not support or custom handle ?
-                String errorContextTextAt = JSONByteArrayParser.createErrorMessage(buf, fromIndex);
+                String errorContextTextAt = createErrorContextText(buf, fromIndex);
                 throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected token character '" + beginChar + "' for Temporal Type, expected '\"' ");
             }
         }

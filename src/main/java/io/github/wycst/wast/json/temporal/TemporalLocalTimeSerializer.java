@@ -1,5 +1,6 @@
 package io.github.wycst.wast.json.temporal;
 
+import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.json.JSONTemporalSerializer;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.options.JsonConfig;
@@ -13,7 +14,7 @@ import java.io.Writer;
  * @Author: wangy
  * @Date: 2022/8/13 15:06
  * @Description:
- * @see io.github.wycst.wast.common.beans.Date
+ * @see GregorianDate
  * @see io.github.wycst.wast.common.beans.DateTemplate
  */
 public class TemporalLocalTimeSerializer extends JSONTemporalSerializer {
@@ -36,10 +37,9 @@ public class TemporalLocalTimeSerializer extends JSONTemporalSerializer {
         int second = TemporalAloneInvoker.invokeLocalTimeSecond(value).intValue();
         int nano = TemporalAloneInvoker.invokeLocalTimeNano(value).intValue();
         int millisecond = nano / 1000000;
-
-        writer.append('"');
-        dateFormatter.formatTo(1970, 1, 1, hour, minute, second, millisecond, writer);
-        writer.append('"');
+        writer.write('"');
+        writeDate(1970, 1, 1, hour, minute, second, millisecond, dateFormatter, writer);
+        writer.write('"');
     }
 
     @Override
@@ -52,16 +52,8 @@ public class TemporalLocalTimeSerializer extends JSONTemporalSerializer {
         int millisecond = nano / 1000000;
 
         writer.write('"');
-        writer.write(DigitTens[hour]);
-        writer.write(DigitOnes[hour]);
-        writer.write(':');
-        writer.write(DigitTens[minute]);
-        writer.write(DigitOnes[minute]);
-        writer.write(':');
-        writer.write(DigitTens[second]);
-        writer.write(DigitOnes[second]);
+        writeHH_mm_SS(hour, minute, second, writer);
         writer.write('.');
-
         char s1 = (char) (millisecond / 100 + 48);
         int v = millisecond % 100;
         writer.write(s1);

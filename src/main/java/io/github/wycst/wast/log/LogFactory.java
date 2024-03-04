@@ -44,4 +44,9 @@ public class LogFactory {
         }
     }
 
+    public static void setConsoleLevel(String consoleLevel) {
+        Level levelValue = Level.parse(consoleLevel);
+        LoggerManagerHandler.setConsoleLevel(levelValue);
+    }
+
 }

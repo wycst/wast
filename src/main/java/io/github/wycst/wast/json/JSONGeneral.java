@@ -1,19 +1,21 @@
 package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.common.beans.DateTemplate;
+import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import io.github.wycst.wast.common.utils.NumberUtils;
 import io.github.wycst.wast.json.exceptions.JSONException;
 import io.github.wycst.wast.json.options.JSONParseContext;
-import io.github.wycst.wast.json.options.Options;
+import io.github.wycst.wast.json.options.JsonConfig;
 import io.github.wycst.wast.json.options.ReadOption;
+import io.github.wycst.wast.json.util.FixedNameValueMap;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Writer;
 import java.lang.reflect.Constructor;
-import java.nio.ByteOrder;
+import java.lang.reflect.Modifier;
 import java.sql.Time;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,17 +26,25 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 class JSONGeneral {
 
+    // Format output character pool
+    static final char[] FORMAT_OUT_SYMBOL_TABS = "\n\t\t\t\t\t\t\t\t\t\t".toCharArray();
+    static final char[] FORMAT_OUT_SYMBOL_SPACES = new char[32];
+    static {
+        Arrays.fill(FORMAT_OUT_SYMBOL_SPACES, ' ');
+    }
     // null
     protected final static char[] NULL = new char[]{'n', 'u', 'l', 'l'};
     protected final static char[] EMPTY_ARRAY = new char[]{'[', ']'};
     protected final static char[] EMPTY_OBJECT = new char[]{'{', '}'};
 
-    protected final static byte Zero            = 0;
-    protected final static byte Comma           = ',';
-    protected final static byte DoubleQuotation = '"';
-    protected final static byte EndArray        = ']';
-    protected final static byte EndObject       = '}';
-    protected final static byte WhiteSpace      = ' ';
+    protected final static byte ZERO = 0;
+    protected final static byte COMMA = ',';
+    protected final static byte DOUBLE_QUOTATION = '"';
+    protected final static byte COLON_SIGN = ':';
+    protected final static byte END_ARRAY = ']';
+    protected final static byte END_OBJECT = '}';
+    protected final static byte WHITE_SPACE = ' ';
+    protected final static byte ESCAPE = '\\';
 
     // 转义字符与字符串映射（0-159）（序列化）
     protected final static String[] escapes = new String[160];
@@ -49,45 +59,20 @@ class JSONGeneral {
 
     // String structure determination, true if the jdk version > 8, and the value of String is byte[] not char[]
     protected static final boolean StringCoder;
-    protected static final float JDK_VERSION;
-
-    protected static final boolean JDK_17_ABOVE;
-    protected static final boolean JDK_9_ABOVE;
 
     // 是否小端模式
 //    protected static final boolean LE;
 //    protected static final int HI_BYTE_SHIFT;
 //    protected static final int LO_BYTE_SHIFT;
 
-    protected final static char[] DigitOnes = {
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-    };
+    protected final static char[] DigitOnes = NumberUtils.copyDigitOnes();
 
-    protected final static char[] DigitTens = {
-            '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
-            '1', '1', '1', '1', '1', '1', '1', '1', '1', '1',
-            '2', '2', '2', '2', '2', '2', '2', '2', '2', '2',
-            '3', '3', '3', '3', '3', '3', '3', '3', '3', '3',
-            '4', '4', '4', '4', '4', '4', '4', '4', '4', '4',
-            '5', '5', '5', '5', '5', '5', '5', '5', '5', '5',
-            '6', '6', '6', '6', '6', '6', '6', '6', '6', '6',
-            '7', '7', '7', '7', '7', '7', '7', '7', '7', '7',
-            '8', '8', '8', '8', '8', '8', '8', '8', '8', '8',
-            '9', '9', '9', '9', '9', '9', '9', '9', '9', '9',
-    };
+    protected final static char[] DigitTens = NumberUtils.copyDigitTens();
 
     protected final static char[] EscapeChars = new char[160];
+
     static {
-        for(int i = 0; i < 160; i++) {
+        for (int i = 0; i < 160; i++) {
             EscapeChars[i] = (char) i;
         }
         EscapeChars['\''] = '\'';
@@ -99,10 +84,6 @@ class JSONGeneral {
         EscapeChars['f'] = '\f';
     }
 
-
-    // Double.MAX_VALUE 1.7976931348623157e+308
-    final static double[] PositiveDecimalPower = new double[310];
-
     protected final static int DIRECT_READ_BUFFER_SIZE = 8192;
 
     // 时间钟加入缓存
@@ -111,16 +92,16 @@ class JSONGeneral {
     // zero zone
     public final static TimeZone ZERO_TIME_ZONE = TimeZone.getTimeZone("GMT+00:00");
 
-    // yyyy-MM-dd HH:mm:ss
-    protected final static ThreadLocal<char[]> CachedChars_20 = new ThreadLocal<char[]>() {
+    // 24
+    protected final static ThreadLocal<char[]> CACHED_CHARS_24 = new ThreadLocal<char[]>() {
         @Override
         protected char[] initialValue() {
-            return new char[20];
+            return new char[24];
         }
     };
 
     // yyyy-MM-dd HH:mm:ss
-    protected final static ThreadLocal<char[]> CachedCharsDate_19 = new ThreadLocal<char[]>() {
+    protected final static ThreadLocal<char[]> CACHED_CHARS_DATE_19 = new ThreadLocal<char[]>() {
         @Override
         protected char[] initialValue() {
             char[] chars = new char[21];
@@ -131,6 +112,14 @@ class JSONGeneral {
             return chars;
         }
     };
+
+//    protected final static Charset ISO_8859_1 ;
+//
+//    static {
+//        // jdk 17
+//        Charset iso_8859_1 = (Charset) UnsafeHelper.getStaticFieldValue("sun.nio.cs.ISO_8859_1", "INSTANCE");
+//        ISO_8859_1 = iso_8859_1;
+//    }
 
     public static String toEscapeString(int ch) {
         return String.format("\\u%04x", ch);
@@ -182,11 +171,6 @@ class JSONGeneral {
             }
         }
 
-        // e0 ~ e360(e306)
-        for (int i = 0, len = PositiveDecimalPower.length; i < len; ++i) {
-            PositiveDecimalPower[i] = Math.pow(10, i);
-        }
-
         String[] availableIDs = TimeZone.getAvailableIDs();
         for (String availableID : availableIDs) {
             GMT_TIME_ZONE_MAP.put(availableID, TimeZone.getTimeZone(availableID));
@@ -202,29 +186,6 @@ class JSONGeneral {
 
         long stringCoderOffset = UnsafeHelper.getStringCoderOffset();
         StringCoder = stringCoderOffset > -1;
-
-        float jdkVersion = 1.8f;
-        try {
-            // 规范版本号
-            String version = System.getProperty("java.specification.version");
-            if (version != null) {
-                jdkVersion = Float.parseFloat(version);
-            }
-        } catch (Throwable throwable) {
-        }
-        JDK_VERSION = jdkVersion;
-        JDK_9_ABOVE = JDK_VERSION > 1.8;
-        JDK_17_ABOVE = JDK_VERSION >= 17;
-
-        // JDK9+ 可以直接使用地址判断是否小端模式
-//        LE = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
-//        if (LE) {
-//            HI_BYTE_SHIFT = 0;
-//            LO_BYTE_SHIFT = 8;
-//        } else {
-//            HI_BYTE_SHIFT = 8;
-//            LO_BYTE_SHIFT = 0;
-//        }
     }
 
     /**
@@ -234,10 +195,7 @@ class JSONGeneral {
      * @return
      */
     protected static double getDecimalPowerValue(int expValue) {
-        if (expValue < PositiveDecimalPower.length) {
-            return PositiveDecimalPower[expValue];
-        }
-        return Math.pow(10, expValue);
+        return NumberUtils.getDecimalPowerValue(expValue);
     }
 
     /**
@@ -279,6 +237,20 @@ class JSONGeneral {
     }
 
     /**
+     * n 位数字（ 0 < n < 5）
+     *
+     * @param buf
+     * @param fromIndex
+     * @param n
+     * @return
+     * @throws NumberFormatException
+     */
+    protected final static int parseIntWithin5(byte[] buf, int fromIndex, int n)
+            throws NumberFormatException {
+        return NumberUtils.parseIntWithin5(buf, fromIndex, n);
+    }
+
+    /**
      * escape next
      *
      * @param buf
@@ -289,13 +261,145 @@ class JSONGeneral {
      * @param jsonParseContext
      * @return
      */
-    protected final static int escapeNext(char[] buf, char next, int i, int beginIndex, JSONStringWriter writer, JSONParseContext jsonParseContext) {
-
+    protected final static int escapeNext(char[] buf, char next, int i, int beginIndex, JSONCharArrayWriter writer, JSONParseContext jsonParseContext) {
         if (i > beginIndex) {
             writer.write(buf, beginIndex, i - beginIndex);
         }
-        if(next == 'u') {
+        if (next == 'u') {
             int c = hex4(buf, i + 2);
+            writer.append((char) c);
+            i += 4;
+            beginIndex = ++i + 1;
+        } else if (next < 160) {
+            writer.append(EscapeChars[next]);
+            beginIndex = ++i + 1;
+        } else {
+            writer.append(next);
+            beginIndex = ++i + 1;
+        }
+        jsonParseContext.endIndex = i;
+        return beginIndex;
+    }
+
+    /**
+     * escape next
+     *
+     * @param bytes
+     * @param next
+     * @param i
+     * @param beginIndex
+     * @param writer
+     * @param jsonParseContext
+     * @return
+     */
+    final static int escape(byte[] bytes, byte next, int i, int beginIndex, JSONCharArrayWriter writer, JSONParseContext jsonParseContext) {
+        int len;
+        switch (next) {
+            case '\'':
+            case '"':
+                if (i > beginIndex) {
+                    writer.writeBytes(bytes, beginIndex, i - beginIndex + 1);
+                    writer.setCharAt(writer.size() - 1, (char) next);
+                } else {
+                    writer.append((char) next);
+                }
+                beginIndex = ++i + 1;
+                break;
+            case 'n':
+                len = i - beginIndex;
+                writer.writeBytes(bytes, beginIndex, len + 1);
+                writer.setCharAt(writer.size() - 1, '\n');
+                beginIndex = ++i + 1;
+                break;
+            case 'r':
+                len = i - beginIndex;
+                writer.writeBytes(bytes, beginIndex, len + 1);
+                writer.setCharAt(writer.size() - 1, '\r');
+                beginIndex = ++i + 1;
+                break;
+            case 't':
+                len = i - beginIndex;
+                writer.writeBytes(bytes, beginIndex, len + 1);
+                writer.setCharAt(writer.size() - 1, '\t');
+                beginIndex = ++i + 1;
+                break;
+            case 'b':
+                len = i - beginIndex;
+                writer.writeBytes(bytes, beginIndex, len + 1);
+                writer.setCharAt(writer.size() - 1, '\b');
+                beginIndex = ++i + 1;
+                break;
+            case 'f':
+                len = i - beginIndex;
+                writer.writeBytes(bytes, beginIndex, len + 1);
+                writer.setCharAt(writer.size() - 1, '\f');
+                beginIndex = ++i + 1;
+                break;
+            case 'u':
+                len = i - beginIndex;
+                writer.writeBytes(bytes, beginIndex, len + 1);
+
+                int c;
+                int j = i + 2;
+                try {
+                    int c1 = hex(bytes[j++]);
+                    int c2 = hex(bytes[j++]);
+                    int c3 = hex(bytes[j++]);
+                    int c4 = hex(bytes[j++]);
+                    c = (c1 << 12) | (c2 << 8) | (c3 << 4) | c4;
+                } catch (Throwable throwable) {
+                    // \\u parse error
+                    String errorContextTextAt = createErrorContextText(bytes, i + 1);
+                    throw new JSONException("Syntax error, from pos " + (i + 1) + ", context text by '" + errorContextTextAt + "', " + throwable.getMessage());
+                }
+
+                writer.setCharAt(writer.size() - 1, (char) c);
+                i += 4;
+                beginIndex = ++i + 1;
+                break;
+            default: {
+                // other case delete char '\\'
+                len = i - beginIndex;
+                writer.writeBytes(bytes, beginIndex, len + 1);
+                writer.setCharAt(writer.size() - 1, (char) next);
+                beginIndex = ++i + 1;
+            }
+        }
+        jsonParseContext.endIndex = i;
+        return beginIndex;
+    }
+
+    /**
+     * escape next
+     *
+     * @param source
+     * @param bytes
+     * @param next
+     * @param i                escapeIndex
+     * @param beginIndex
+     * @param writer
+     * @param jsonParseContext
+     * @return 返回转义内容处理完成后的下一个未知字符位置
+     */
+    final static int escapeAscii(String source, byte[] bytes, byte next, int i, int beginIndex, JSONCharArrayWriter writer, JSONParseContext jsonParseContext) {
+
+        if (i > beginIndex) {
+            writer.writeString(source, beginIndex, i - beginIndex);
+        }
+        if(next == 'u') {
+            int c;
+            int j = i + 2;
+            try {
+                int c1 = hex(bytes[j++]);
+                int c2 = hex(bytes[j++]);
+                int c3 = hex(bytes[j++]);
+                int c4 = hex(bytes[j]);
+                c = (c1 << 12) | (c2 << 8) | (c3 << 4) | c4;
+            } catch (Throwable throwable) {
+                // \\u parse error
+                String errorContextTextAt = createErrorContextText(bytes, i + 1);
+                throw new JSONException("Syntax error, from pos " + (i + 1) + ", context text by '" + errorContextTextAt + "', " + throwable.getMessage());
+            }
             writer.append((char) c);
             i += 4;
             beginIndex = ++i + 1;
@@ -303,75 +407,10 @@ class JSONGeneral {
             writer.append(EscapeChars[next]);
             beginIndex = ++i + 1;
         } else {
-            writer.append(next);
+            writer.append((char) next);
             beginIndex = ++i + 1;
         }
-
-//        int len;
-//        switch (next) {
-//            case '\'':
-//            case '"':
-//                if (i > beginIndex) {
-//                    writer.write(buf, beginIndex, i - beginIndex);
-//                }
-//                writer.append(next);
-//                beginIndex = ++i + 1;
-//                break;
-//            case 'n':
-//                if (i > beginIndex) {
-//                    writer.write(buf, beginIndex, i - beginIndex);
-//                }
-//                writer.append('\n');
-//                beginIndex = ++i + 1;
-//                break;
-//            case 'r':
-//                if (i > beginIndex) {
-//                    writer.write(buf, beginIndex, i - beginIndex);
-//                }
-//                writer.append('\r');
-//                beginIndex = ++i + 1;
-//                break;
-//            case 't':
-//                if (i > beginIndex) {
-//                    writer.write(buf, beginIndex, i - beginIndex);
-//                }
-//                writer.append('\t');
-//                beginIndex = ++i + 1;
-//                break;
-//            case 'b':
-//                if (i > beginIndex) {
-//                    writer.write(buf, beginIndex, i - beginIndex);
-//                }
-//                writer.append('\b');
-//                beginIndex = ++i + 1;
-//                break;
-//            case 'f':
-//                if (i > beginIndex) {
-//                    writer.write(buf, beginIndex, i - beginIndex);
-//                }
-//                writer.append('\f');
-//                beginIndex = ++i + 1;
-//                break;
-//            case 'u':
-//                int c = hex4(buf, i + 2);
-//                len = i - beginIndex;
-//                if(len > 0) {
-//                    writer.write(buf, beginIndex, i - beginIndex);
-//                }
-//                writer.append((char) c);
-//                i += 4;
-//                beginIndex = ++i + 1;
-//                break;
-//            default: {
-//                // other case delete char '\\'
-//                if (i > beginIndex) {
-//                    writer.write(buf, beginIndex, i - beginIndex);
-//                }
-//                writer.append(next);
-//                beginIndex = ++i + 1;
-//            }
-//        }
-        jsonParseContext.setEndIndex(i);
+        jsonParseContext.endIndex = i;
         return beginIndex;
     }
 
@@ -388,7 +427,7 @@ class JSONGeneral {
         if (beginIndex == -1) return str;
 
         JSONParseContext jsonParseContext = new JSONParseContext();
-        JSONStringWriter writer = getContextWriter(jsonParseContext);
+        JSONCharArrayWriter writer = getContextWriter(jsonParseContext);
         try {
             char[] chars = getChars(str);
             char next = chars[beginIndex + 1];
@@ -398,7 +437,7 @@ class JSONGeneral {
                 if (chars[i] != '\\') continue;
                 next = chars[i + 1];
                 beginIndex = escapeNext(chars, next, i, beginIndex, writer, jsonParseContext);
-                i = jsonParseContext.getEndIndex();
+                i = jsonParseContext.endIndex;
             }
             writer.write(chars, beginIndex, max - beginIndex);
             return writer.toString();
@@ -482,6 +521,23 @@ class JSONGeneral {
      */
     protected static int digitDecimal(int ch) {
         return NumberUtils.digitDecimal(ch);
+    }
+
+    protected static final boolean isDigit(int c) {
+        switch (c) {
+            case '0':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9':
+                return true;
+            default: return false;
+        }
     }
 
     /**
@@ -631,9 +687,6 @@ class JSONGeneral {
         String timezoneIdAt = timezone;
         try {
             switch (patternType) {
-                case 0: {
-                    return matchDate(buf, from + 1, to - 1, timezone, dateCls);
-                }
                 case 1: {
                     // yyyy-MM-dd HH:mm:ss or yyyy/MM/dd HH:mm:ss
                     int year = parseInt4(buf, from + 1);
@@ -661,20 +714,18 @@ class JSONGeneral {
                     int second = parseInt2(buf, from + 13);
                     return parseDate(year, month, day, hour, minute, second, 0, timezoneIdAt, dateCls);
                 }
-                default: {
+                case 4: {
                     TimeZone timeZone = getTimeZone(timezoneIdAt);
                     long time = dateTemplate.parseTime(buf, from + 1, to - from - 2, timeZone);
-                    if (dateCls == Date.class) {
-                        return new Date(time);
-                    }
-                    Constructor<? extends Date> constructor = dateCls.getConstructor(long.class);
-                    constructor.setAccessible(true);
-                    return constructor.newInstance(time);
+                    return parseDate(time, dateCls);
+                }
+                default: {
+                    return matchDate(buf, from + 1, to - 1, timezone, dateCls);
                 }
             }
         } catch (Throwable throwable) {
-            if (throwable instanceof JSONException) {
-                throw (JSONException) throwable;
+            if (throwable instanceof RuntimeException) {
+                throw (RuntimeException) throwable;
             }
             String dateSource = new String(buf, from + 1, to - from - 2);
             if (patternType > 0) {
@@ -865,12 +916,7 @@ class JSONGeneral {
                 default: {
                     TimeZone timeZone = getTimeZone(timezoneIdAt);
                     long time = dateTemplate.parseTime(bytes, from + 1, to - from - 2, timeZone);
-                    if (dateCls == Date.class) {
-                        return new Date(time);
-                    }
-                    Constructor<? extends Date> constructor = dateCls.getConstructor(long.class);
-                    constructor.setAccessible(true);
-                    return constructor.newInstance(time);
+                    return parseDate(time, dateCls);
                 }
             }
         } catch (Throwable throwable) {
@@ -984,26 +1030,99 @@ class JSONGeneral {
     }
 
     /**
-     * 格式化缩进
+     * 清除注释和空白
+     *
+     * @param bytes
+     * @param beginIndex       开始位置
+     * @param toIndex          最大允许结束位置
+     * @param jsonParseContext 上下文配置
+     * @return 去掉注释后的第一个非空字节位置（Non empty character position after removing comments）
+     * @see ReadOption#AllowComment
+     */
+    protected static int clearCommentAndWhiteSpaces(byte[] bytes, int beginIndex, int toIndex, JSONParseContext jsonParseContext) {
+        int i = beginIndex;
+        if (i >= toIndex) {
+            throw new JSONException("Syntax error, unexpected token character '/', position " + (beginIndex - 1));
+        }
+        // 注释和 /*注释
+        // / or *
+        byte b = bytes[beginIndex];
+        if (b == '/') {
+            // End with newline \ n
+            while (i < toIndex && bytes[i] != '\n') {
+                ++i;
+            }
+            // continue clear WhiteSpaces
+            b = '\0';
+            while (i + 1 < toIndex && (b = bytes[++i]) <= ' ') ;
+            if (b == '/') {
+                // 递归清除
+                i = clearCommentAndWhiteSpaces(bytes, i + 1, toIndex, jsonParseContext);
+            }
+        } else if (b == '*') {
+            // End with */
+            byte prev = 0;
+            boolean matched = false;
+            while (i + 1 < toIndex) {
+                b = bytes[++i];
+                if (b == '/' && prev == '*') {
+                    matched = true;
+                    break;
+                }
+                prev = b;
+            }
+            if (!matched) {
+                throw new JSONException("Syntax error, not found the close comment '*/' util the end ");
+            }
+            // continue clear WhiteSpaces
+            b = '\0';
+            while (i + 1 < toIndex && (b = bytes[++i]) <= ' ') ;
+            if (b == '/') {
+                // 递归清除
+                i = clearCommentAndWhiteSpaces(bytes, i + 1, toIndex, jsonParseContext);
+            }
+        } else {
+            throw new JSONException("Syntax error, unexpected token character '" + (char) b + "', position " + beginIndex);
+        }
+        return i;
+    }
+
+    /**
+     * 格式化缩进,默认使用\t来进行缩进
      *
      * @param content
      * @param level
      * @param formatOut
      * @throws IOException
      */
-    protected final static void writeFormatSymbolOut(Writer content, int level, boolean formatOut) throws IOException {
+    protected final static void writeFormatSymbolOut(Writer content, int level, boolean formatOut, JsonConfig jsonConfig) throws IOException {
         if (formatOut && level > -1) {
-            String symbol = Options.writeFormatOutSymbol;
-            int symbolLen = 11;
-            if (symbolLen - 1 > level) {
-                content.write(symbol, 0, level + 1);
+            boolean formatIndentUseSpace = jsonConfig.isFormatIndentUseSpace();
+            if(formatIndentUseSpace) {
+                content.write('\n');
+                if(level == 0) return;
+                int totalSpaceNum = level * jsonConfig.getFormatIndentSpaceNum();
+                int symbolSpaceNum = FORMAT_OUT_SYMBOL_SPACES.length;
+                while (totalSpaceNum >= symbolSpaceNum) {
+                    content.write(FORMAT_OUT_SYMBOL_SPACES);
+                    totalSpaceNum -= symbolSpaceNum;
+                }
+                while (totalSpaceNum-- > 0) {
+                    content.write(' ');
+                }
             } else {
-                // 全部的symbol
-                content.append(symbol);
-                // 补齐差的\t个数
-                int appendTabLen = level - symbolLen + 1;
-                while (appendTabLen-- > 0) {
-                    content.append('\t');
+                char[] symbol = FORMAT_OUT_SYMBOL_TABS;
+                int symbolLen = 11;
+                if (symbolLen - 1 > level) {
+                    content.write(symbol, 0, level + 1);
+                } else {
+                    // 全部的symbol
+                    content.write(symbol);
+                    // 补齐差的\t个数
+                    int appendTabLen = level - symbolLen + 1;
+                    while (appendTabLen-- > 0) {
+                        content.write('\t');
+                    }
                 }
             }
         }
@@ -1020,14 +1139,14 @@ class JSONGeneral {
 
     private static Date parseDate(int year, int month, int day, int hour, int minute, int second, int millsecond, String timeZoneId, Class<? extends Date> dateCls) {
         TimeZone timeZone = getTimeZone(timeZoneId);
-        long timeInMillis = io.github.wycst.wast.common.beans.Date.getTime(year, month, day, hour, minute, second, millsecond, timeZone);
+        long timeInMillis = GregorianDate.getTime(year, month, day, hour, minute, second, millsecond, timeZone);
         return parseDate(timeInMillis, dateCls);
     }
 
     // 获取时钟，默认GMT
     static TimeZone getTimeZone(String timeZoneId) {
-        TimeZone timeZone = null;
         if (timeZoneId != null && timeZoneId.trim().length() > 0) {
+            TimeZone timeZone;
             if (GMT_TIME_ZONE_MAP.containsKey(timeZoneId)) {
                 timeZone = GMT_TIME_ZONE_MAP.get(timeZoneId);
             } else {
@@ -1040,8 +1159,10 @@ class JSONGeneral {
                     GMT_TIME_ZONE_MAP.put(timeZoneId, timeZone);
                 }
             }
+            return timeZone;
+        } else {
+            return UnsafeHelper.getDefaultTimeZone();
         }
-        return timeZone;
     }
 
     // 将时间戳转化为指定类型的日期对象
@@ -1152,13 +1273,36 @@ class JSONGeneral {
         }
     }
 
+    protected static void handleCatchException(Throwable ex, char[] buf, int toIndex) {
+        // There is only one possibility to control out of bounds exceptions when indexing toindex
+        if (ex instanceof IndexOutOfBoundsException) {
+            String errorContextTextAt = createErrorContextText(buf, toIndex);
+            throw new JSONException("Syntax error, context text by '" + errorContextTextAt + "', JSON format error, and the end token may be missing, such as '\"' or ', ' or '}' or ']'.");
+        }
+        if (ex instanceof RuntimeException) {
+            throw (RuntimeException) ex;
+        }
+    }
+
+    protected static void handleCatchException(Throwable ex, byte[] bytes, int toIndex) {
+        // There is only one possibility to control out of bounds exceptions when indexing toindex
+        if (ex instanceof IndexOutOfBoundsException) {
+            ex.printStackTrace();
+            String errorContextTextAt = createErrorContextText(bytes, toIndex);
+            throw new JSONException("Syntax error, context text by '" + errorContextTextAt + "', JSON format error, and the end token may be missing, such as '\"' or ', ' or '}' or ']'.");
+        }
+        if (ex instanceof RuntimeException) {
+            throw (RuntimeException) ex;
+        }
+    }
+
     // 常规日期格式分类
     protected static int getPatternType(String pattern) {
         if (pattern != null) {
             if (pattern.equalsIgnoreCase("yyyy-MM-dd HH:mm:ss")
                     || pattern.equalsIgnoreCase("yyyy/MM/dd HH:mm:ss")
                     || pattern.equalsIgnoreCase("yyyy-MM-ddTHH:mm:ss")
-                ) {
+            ) {
                 return 1;
             } else if (pattern.equalsIgnoreCase("yyyy-MM-dd") || pattern.equalsIgnoreCase("yyyy/MM/dd")) {
                 return 2;
@@ -1194,7 +1338,33 @@ class JSONGeneral {
         return UnsafeHelper.arrayValueAt(arr, index);
     }
 
-    protected static Collection createCollectionInstance(Class<?> collectionCls) {
+    protected static final int COLLECTION_ARRAYLIST_TYPE = 1;
+    protected static final int COLLECTION_HASHSET_TYPE = 2;
+    protected static final int COLLECTION_OTHER_TYPE = 3;
+
+    protected final static int getCollectionType(Class<?> actualType) {
+        if (actualType == List.class || actualType == ArrayList.class || actualType.isAssignableFrom(ArrayList.class)) {
+            return COLLECTION_ARRAYLIST_TYPE;
+        } else if (actualType == Set.class || actualType == HashSet.class || actualType.isAssignableFrom(HashSet.class)) {
+            return COLLECTION_HASHSET_TYPE;
+        } else {
+            if (actualType.isInterface() || Modifier.isAbstract(actualType.getModifiers())) {
+                throw new UnsupportedOperationException("Unsupported for collection type '" + actualType + "', Please specify an implementation class");
+            } else {
+                return COLLECTION_OTHER_TYPE;
+            }
+        }
+    }
+
+    protected final static FixedNameValueMap<Enum> buildEnumValueMap(Enum[] values) {
+        Map<String, Enum> enumValues = new HashMap<String, Enum>();
+        for (Enum value : values) {
+            enumValues.put(value.name(), value);
+        }
+        return FixedNameValueMap.build(enumValues);
+    }
+
+    protected final static Collection createCollectionInstance(Class<?> collectionCls) {
         if (collectionCls.isInterface()) {
             if (collectionCls == List.class || collectionCls == Collection.class) {
                 return new ArrayList<Object>();
@@ -1264,10 +1434,30 @@ class JSONGeneral {
         }
     }
 
-    protected static JSONStringWriter getContextWriter(JSONParseContext jsonParseContext) {
-        JSONStringWriter jsonWriter = jsonParseContext.getContextWriter();
+    /**
+     * 报错位置取前后18个字符，最多一共40个字符(字节)
+     */
+    protected static String createErrorContextText(byte[] bytes, int at) {
+        try {
+            int len = bytes.length;
+            byte[] text = new byte[40];
+            int count;
+            int begin = Math.max(at - 18, 0);
+            System.arraycopy(bytes, begin, text, 0, count = at - begin);
+            text[count++] = '^';
+            int end = Math.min(len, at + 18);
+            System.arraycopy(bytes, at, text, count, end - at);
+            count += end - at;
+            return new String(text, 0, count);
+        } catch (Throwable throwable) {
+            return "";
+        }
+    }
+
+    protected final static JSONCharArrayWriter getContextWriter(JSONParseContext jsonParseContext) {
+        JSONCharArrayWriter jsonWriter = jsonParseContext.getContextWriter();
         if (jsonWriter == null) {
-            jsonParseContext.setContextWriter(jsonWriter = new JSONStringWriter());
+            jsonParseContext.setContextWriter(jsonWriter = new JSONCharArrayWriter());
         }
         return jsonWriter;
     }
@@ -1278,20 +1468,7 @@ class JSONGeneral {
      * @param value
      * @return
      */
-    protected static char[] getChars(String value) {
+    protected final static char[] getChars(String value) {
         return UnsafeHelper.getChars(value);
     }
-
-//    /**
-//     * 修改字符
-//     *
-//     * @param bytes
-//     * @param index
-//     * @param c
-//     */
-//    static void putUtf16CharAt(byte[] bytes, int index, char c) {
-//        index <<= 1;
-//        bytes[index++] = (byte) (c >> HI_BYTE_SHIFT);
-//        bytes[index] = (byte) (c >> LO_BYTE_SHIFT);
-//    }
 }

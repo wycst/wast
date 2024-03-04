@@ -4,6 +4,7 @@ import io.github.wycst.wast.clients.http.definition.HttpClientRequest;
 import io.github.wycst.wast.clients.http.loadbalance.LoadBalanceStrategy;
 
 import java.net.MalformedURLException;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -62,7 +63,7 @@ public interface ServiceProvider {
      *
      * @param doms
      */
-    void clearIfNotExist(List<String> doms);
+    void clearIfNotExist(Collection<String> doms);
 
     /**
      * 组件销毁

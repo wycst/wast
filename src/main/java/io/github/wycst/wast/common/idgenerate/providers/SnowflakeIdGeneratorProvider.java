@@ -191,7 +191,7 @@ class SnowflakeIdGeneratorProvider extends IdGenerator {
 
         long instance = this.instance;
 
-        //如果系统时钟回退过这个时候应当抛出异常
+        // 如果系统时钟回退过
         if (currentTime < lastTime) {
             // 如果使用currentTime = lastTime 相当于消费未来时间的id，如果时间校对后或程序重启可能会出现重复的id
             // 一般程序启动后只要不修改服务器的时间都没有问题

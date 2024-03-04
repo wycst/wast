@@ -7,11 +7,14 @@ import java.sql.SQLException;
 
 public class ConnectionWraper {
 
-    private Connection physicalConn;
+    protected Connection physicalConn;
 
     private long currentInfluencingRows;
 
     private boolean transaction;
+
+    ConnectionWraper() {
+    }
 
     public ConnectionWraper(Connection physicalConn) {
         this.physicalConn = physicalConn;
@@ -48,11 +51,14 @@ public class ConnectionWraper {
                 physicalConn.close();
             }
         } catch (SQLException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
         }
 
         physicalConn = null;
+    }
+
+    public boolean autoClose() {
+        return true;
     }
 
     /**

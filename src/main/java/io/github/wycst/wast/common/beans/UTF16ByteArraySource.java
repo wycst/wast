@@ -35,11 +35,17 @@ public final class UTF16ByteArraySource extends AbstractCharSource implements Ch
      * @param input
      * @return
      */
+    public static UTF16ByteArraySource of(String input, char[] source, byte[] bytes) {
+        return new UTF16ByteArraySource(input, source, bytes);
+    }
+
+    /**
+     * 构建对象
+     *
+     * @param input
+     * @return
+     */
     public static UTF16ByteArraySource of(String input, char[] source) {
-        byte coder = UnsafeHelper.getStringCoder(input);
-        if (coder == 0) {
-            throw new UnsupportedOperationException("only support UTF16 input");
-        }
         byte[] bytes = (byte[]) UnsafeHelper.getStringValue(input);
         return new UTF16ByteArraySource(input, source, bytes);
     }

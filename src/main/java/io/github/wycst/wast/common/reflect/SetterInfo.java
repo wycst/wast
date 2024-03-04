@@ -1,7 +1,5 @@
 package io.github.wycst.wast.common.reflect;
 
-import io.github.wycst.wast.common.exceptions.InvokeReflectException;
-
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -12,12 +10,7 @@ public class SetterInfo {
     // field of class
     private Field field;
     // field memory offset
-    private long fieldOffset = -1;
-    // is primitive
-    private boolean fieldPrimitive;
-    // primitive type
-    private ReflectConsts.PrimitiveType primitiveType;
-
+    long fieldOffset = -1;
     private String name;
     private Class<?> parameterType;
 
@@ -47,27 +40,18 @@ public class SetterInfo {
     // invoke时禁用field
     private boolean fieldDisabled;
 
+    public static SetterInfo fromField(Field field) {
+        boolean primitive = field.getType().isPrimitive();
+        SetterInfo setterInfo = primitive ? new SetterInfo.PrimitiveSetterInfo() : new SetterInfo();
+        setterInfo.setField(field);
+        return setterInfo;
+    }
+
     /**
      * 反射动作
      */
-    public final void invoke(Object target, Object value) {
-        if (fieldOffset > -1) {
-            if (fieldPrimitive) {
-                UnsafeHelper.putPrimitiveValue(target, fieldOffset, value, primitiveType);
-            } else {
-                UnsafeHelper.putObjectValue(target, fieldOffset, value);
-            }
-            return;
-        }
-        invokeObjectValue(target, value);
-    }
-
-    protected void invokeObjectValue(Object target, Object value) {
-        try {
-            field.set(target, value);
-        } catch (Exception e) {
-            throw new InvokeReflectException(e);
-        }
+    public void invoke(Object target, Object value) {
+        UnsafeHelper.putObjectValue(target, fieldOffset, value);
     }
 
     public String getName() {
@@ -102,7 +86,7 @@ public class SetterInfo {
         this.nonInstanceType = nonInstanceType;
     }
 
-    public Map<Class<? extends Annotation>, Annotation> getAnnotations() {
+    Map<Class<? extends Annotation>, Annotation> getAnnotations() {
         return annotations;
     }
 
@@ -114,17 +98,9 @@ public class SetterInfo {
         this.field = field;
         try {
             this.fieldOffset = UnsafeHelper.objectFieldOffset(field);
-            this.fieldPrimitive = getFieldType().isPrimitive();
-            if (this.fieldPrimitive) {
-                this.primitiveType = ReflectConsts.PrimitiveType.typeOf(getFieldType());
-            }
         } catch (Throwable throwable) {
             this.fieldOffset = -1;
         }
-    }
-
-    public Class<?> getFieldType() {
-        return field == null ? null : field.getType();
     }
 
     public GenericParameterizedType getGenericParameterizedType() {
@@ -139,12 +115,11 @@ public class SetterInfo {
      * 获取默认值
      */
     public Object getDefaultFieldValue(Object instance) {
-        if (field == null) return null;
         try {
             if (existDefault == Boolean.FALSE) {
                 return null;
             }
-            Object fieldValue = field.get(instance);
+            Object fieldValue = getFieldValue(instance);
             this.existDefault = fieldValue != null;
             if (fieldValue != null) {
                 return fieldValue;
@@ -155,23 +130,19 @@ public class SetterInfo {
         return null;
     }
 
+    Object getFieldValue(Object instance) {
+        return UnsafeHelper.getObjectValue(instance, fieldOffset);
+    }
+
     public Annotation getAnnotation(Class<? extends Annotation> annotationType) {
         return annotations.get(annotationType);
-    }
-
-    public int getParamClassType() {
-        return genericParameterizedType.getParamClassType();
-    }
-
-    public int getParamClassNumberType() {
-        return genericParameterizedType.getParamClassNumberType();
     }
 
     public boolean isMethod() {
         return false;
     }
 
-    public boolean isPrimate() {
+    public boolean isPrivate() {
         return Modifier.isPrivate(field.getModifiers());
     }
 
@@ -189,6 +160,24 @@ public class SetterInfo {
 
     public boolean isFieldDisabled() {
         return fieldDisabled;
+    }
+
+    static final class PrimitiveSetterInfo extends SetterInfo {
+        private ReflectConsts.PrimitiveType primitiveType;
+
+        @Override
+        public void invoke(Object target, Object value) {
+            primitiveType.put(target, fieldOffset, value);
+        }
+
+        Object getFieldValue(Object instance) {
+            return primitiveType.get(instance, fieldOffset);
+        }
+
+        void setField(Field field) {
+            super.setField(field);
+            this.primitiveType = ReflectConsts.PrimitiveType.typeOf(field.getType());
+        }
     }
 }
 

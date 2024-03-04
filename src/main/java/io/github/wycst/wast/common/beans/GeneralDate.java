@@ -53,6 +53,8 @@ import java.util.TimeZone;
  * @Description:
  */
 public class GeneralDate {
+    // 最小时间：公元元年时间（0001-01-01 00:00:00.000）
+//    public static final GeneralDate MIN_DATE = GeneralDate.of(1, 1, 1, 0, 0, 0, 0);
 
     public static final int YEAR = 1;
     public static final int MONTH = 2;

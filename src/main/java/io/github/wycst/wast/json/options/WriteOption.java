@@ -9,21 +9,42 @@ package io.github.wycst.wast.json.options;
 public enum WriteOption {
 
     /**
-     * Default: filter empty attributes without formatting and indentation
+     * none options
      */
     Default,
 
     /**
-     * 格式化缩进输出
+     * 格式化缩进输出（默认使用制表符号\t）
      * Format indented output
      */
     FormatOut,
+
+    /**
+     * 格式化缩进使用TAB模式(缺省配置)
+     */
+    FormatIndentUseTab,
+
+    /**
+     * 格式化缩进使用空格模式(默认每级4个空格)
+     */
+    FormatIndentUseSpace,
+
+    /**
+     * 格式化缩进每级使用8个空格缩进模式
+     */
+    FormatIndentUseSpace8,
 
     /**
      * 输出全属性
      * Output all attributes
      */
     FullProperty,
+
+    /**
+     * 过滤null字段(缺省配置)
+     *
+     */
+    IgnoreNullProperty,
 
     /**
      * 跳过循环引用，防止序列化过程中出现死循环
@@ -55,6 +76,22 @@ public enum WriteOption {
     WriteEnumAsOrdinal,
 
     /**
+     * <p> 序列号枚举时以枚举的name写入。(缺省配置)
+     */
+    WriteEnumAsName,
+
+    /**
+     * <p> 将number按字符串输出
+     */
+    WriteNumberAsString,
+
+    /**
+     * <p> 默认情况下序列化时float类型保留7位有效数字第8位四舍五入；double保留16位有效数字，第17位四舍五入；再不追求精度的情况下，性能极致；</p>
+     * <p> 开启配置后，浮点小数（double/float）直接使用本地的toString结果进行序列化；</p>
+     */
+    WriteDecimalUseToString,
+
+    /**
      * 默认情况下byte数组会输出为base64字符串，开启配置后将bytes数组输出为16进制字符串
      */
     BytesArrayToHex,
@@ -70,6 +107,7 @@ public enum WriteOption {
      * <p> 换言之如果存在需要转义的信息如"，\n,\r等不要开启此配置
      *
      */
+    @Deprecated
     DisableEscapeValidate,
 
     /***
@@ -96,5 +134,10 @@ public enum WriteOption {
     /**
      * 针对实体bean的驼峰字段名称序列化为下划线模式，eg: userName -> user_name
      */
-    CamelCaseToUnderline
+    CamelCaseToUnderline,
+
+    /**
+     * 是否在序列化对象时将类名写入到json字符串（只针对{}类型）
+     */
+    WriteClassName,
 }

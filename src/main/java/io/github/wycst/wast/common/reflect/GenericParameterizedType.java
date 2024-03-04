@@ -2,7 +2,11 @@ package io.github.wycst.wast.common.reflect;
 
 import java.lang.reflect.*;
 import java.math.BigDecimal;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 解决多层泛型类型解析
@@ -16,7 +20,7 @@ public final class GenericParameterizedType<T> {
     }
 
     // cache
-    private static final Map<Class, GenericParameterizedType> GENERIC_PARAMETERIZED_TYPE_MAP = new HashMap<Class, GenericParameterizedType>();
+    private static final Map<Class, GenericParameterizedType> GENERIC_PARAMETERIZED_TYPE_MAP = new ConcurrentHashMap<Class, GenericParameterizedType>();
 
     /**
      * 字符串类型
@@ -60,16 +64,6 @@ public final class GenericParameterizedType<T> {
      * 实际类型： Map类型(key和value两个泛型)/Collection类型（value一个泛型）/其他实体类（0-n个）
      */
     Class<?> actualType;
-
-    /**
-     * 类型编号
-     */
-    private int paramClassType;
-
-    /**
-     * 类型
-     */
-    private int paramClassNumberType;
 
     // ClassCategory
     ReflectConsts.ClassCategory actualClassCategory;
@@ -116,12 +110,13 @@ public final class GenericParameterizedType<T> {
      * @return
      */
     public static <T> GenericParameterizedType<T> actualType(Class<T> actualType) {
+        if (actualType == null) return AnyType;
         GenericParameterizedType genericParameterizedType = GENERIC_PARAMETERIZED_TYPE_MAP.get(actualType);
         if (genericParameterizedType == null) {
             genericParameterizedType = new GenericParameterizedType();
             genericParameterizedType.setActualType(actualType);
             genericParameterizedType.actualClassCategory = ReflectConsts.getClassCategory(actualType);
-            genericParameterizedType.initParamClassType();
+//            genericParameterizedType.initParamClassType();
             GENERIC_PARAMETERIZED_TYPE_MAP.put(actualType, genericParameterizedType);
         }
         return genericParameterizedType;
@@ -138,7 +133,7 @@ public final class GenericParameterizedType<T> {
         GenericParameterizedType genericParameterizedType = new GenericParameterizedType();
         genericParameterizedType.setActualType(actualType);
         genericParameterizedType.actualClassCategory = ReflectConsts.getClassCategory(actualType);
-        genericParameterizedType.initParamClassType();
+//        genericParameterizedType.initParamClassType();
         return genericParameterizedType;
     }
 
@@ -163,7 +158,7 @@ public final class GenericParameterizedType<T> {
 
         GenericParameterizedType valueType = new GenericParameterizedType();
         valueType.setActualType(valueActualType);
-        valueType.initParamClassType();
+//        valueType.initParamClassType();
 
         parameterizedType.valueType = valueType;
         return parameterizedType;
@@ -184,7 +179,7 @@ public final class GenericParameterizedType<T> {
         parameterizedType.mapKeyClass = mapKeyClass;
 
         parameterizedType.valueType = valueType;
-        valueType.initParamClassType();
+//        valueType.initParamClassType();
         return parameterizedType;
     }
 
@@ -249,7 +244,7 @@ public final class GenericParameterizedType<T> {
         parameterizedType.generic = true;
         parameterizedType.setActualType(collectionClass);
         parameterizedType.valueType = valueType;
-        valueType.initParamClassType();
+//        valueType.initParamClassType();
         return parameterizedType;
     }
 
@@ -443,18 +438,8 @@ public final class GenericParameterizedType<T> {
         return generic;
     }
 
-    void initParamClassType() {
-        this.paramClassType = ReflectConsts.getParamClassType(actualType);
-        this.paramClassNumberType = ReflectConsts.getParamClassNumberType(actualType);
-    }
-
-    public int getParamClassType() {
-        return paramClassType;
-    }
-
-    public int getParamClassNumberType() {
-        return paramClassNumberType;
-    }
+//    void initParamClassType() {
+//    }
 
     public boolean isCamouflage() {
         return camouflage;
@@ -471,22 +456,65 @@ public final class GenericParameterizedType<T> {
         return actualClassCategory = ReflectConsts.getClassCategory(actualType);
     }
 
-    private String datePattern;
-    private String dateTimezone;
-
-    public void setDatePattern(String datePattern) {
-        this.datePattern = datePattern;
+    public boolean isAssignableFrom(Class<?> childClass) {
+        return actualType == childClass || actualType.isAssignableFrom(childClass);
     }
 
-    public String getDatePattern() {
-        return datePattern;
-    }
-
-    public String getDateTimezone() {
-        return dateTimezone;
-    }
-
-    public void setDateTimezone(String dateTimezone) {
-        this.dateTimezone = dateTimezone;
+    /**
+     * 通过Type构建GenericParameterizedType实例
+     *
+     * @param type
+     * @return
+     */
+    public static GenericParameterizedType of(Type type) {
+        if (type instanceof Class<?>) {
+            return actualType((Class<?>) type);
+        }
+        try {
+            if (type instanceof ParameterizedType) {
+                ParameterizedType pt = (ParameterizedType) type;
+                Type[] actualTypeArguments = pt.getActualTypeArguments();
+                Type rawType = pt.getRawType();
+                if (rawType instanceof Class<?>) {
+                    Class<?> rawClass = (Class<?>) rawType;
+                    if (Collection.class.isAssignableFrom(rawClass)) {
+                        Type actualTypeArgument = actualTypeArguments[0];
+                        if (actualTypeArgument instanceof Class<?>) {
+                            return collectionType(rawClass, (Class<?>) actualTypeArgument);
+                        } else {
+                            return collectionType(rawClass, of(actualTypeArgument));
+                        }
+                    } else if (Map.class.isAssignableFrom(rawClass)) {
+                        return genericMapType(rawClass, actualTypeArguments[0], actualTypeArguments[1]);
+                    } else {
+                        // maybe an entity<T>
+                        return genericEntityType(rawClass, actualTypeArguments[0].getTypeName());
+                    }
+                }
+            }
+            if (type instanceof GenericArrayType) {
+                GenericArrayType genericArrayType = (GenericArrayType) type;
+                Type genericComponentType = genericArrayType.getGenericComponentType();
+                return GenericParameterizedType.genericArrayType(genericComponentType);
+            }
+            if (type instanceof TypeVariable) {
+                TypeVariable typeVariable = (TypeVariable) type;
+                Type[] bounds = typeVariable.getBounds();
+                if (bounds.length > 0) {
+                    return of(bounds[bounds.length - 1]);
+                }
+            }
+            if (type instanceof WildcardType) {
+                WildcardType wildcardType = (WildcardType) type;
+                Type[] upperBounds = wildcardType.getUpperBounds();
+                if (upperBounds.length > 0) {
+                    return of(upperBounds[upperBounds.length - 1]);
+                }
+                return AnyType;
+            }
+            return null;
+        } catch (Throwable throwable) {
+            return null;
+        }
     }
 }

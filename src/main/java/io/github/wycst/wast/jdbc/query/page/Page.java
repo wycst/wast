@@ -7,9 +7,9 @@ import java.util.List;
 @SuppressWarnings({"unchecked"})
 public abstract class Page<E> {
 
-    private long page;
+    private long page = 1;
 
-    private int pageSize;
+    private int pageSize = 10;
 
     private List<E> rows;
 
@@ -29,6 +29,14 @@ public abstract class Page<E> {
     public static <T> Page<T> pageInstance(Class<T> cls) {
         return new Page<T>(cls) {
         };
+    }
+
+    public static <T> Page<T> pageInstance(Class<T> cls, long pageNum, int pageSize) {
+        Page<T> pageInstance = new Page<T>(cls) {
+        };
+        pageInstance.setPageSize(pageSize);
+        pageInstance.setPage(pageNum);
+        return pageInstance;
     }
 
     public Class<E> actualType() {

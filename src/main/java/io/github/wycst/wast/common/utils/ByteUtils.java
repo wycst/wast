@@ -9,7 +9,7 @@ import java.io.InputStream;
  * @Author: wangy
  * @Description:
  */
-public class ByteUtils {
+public final class ByteUtils {
 
     /**
      * 指定每个字节为c,返回指定length长度的byte数组
@@ -72,119 +72,132 @@ public class ByteUtils {
         return bytes;
     }
 
-    /**
-     * 比较两个bytes数组在指定的长度内是否一致
+    /***
+     * 将int值写入buf数组(大端模式)
      *
-     * @param a
+     * @param buf
+     * @param offset
+     * @param value
+     */
+    public static int writeInt(byte[] buf, int offset, int value) {
+        buf[offset++] = (byte) (value >> 24 & 0xff);
+        buf[offset++] = (byte) (value >> 16 & 0xff);
+        buf[offset++] = (byte) (value >> 8 & 0xff);
+        buf[offset] = (byte) (value & 0xff);
+        return 4;
+    }
+
+    /***
+     * 将long值写入buf数组(大端模式)
+     *
+     * @param buf
+     * @param offset
+     * @param value
+     */
+    public static int writeLong(byte[] buf, int offset, long value) {
+        buf[offset++] = (byte) (value >> 56 & 0xff);
+        buf[offset++] = (byte) (value >> 48 & 0xff);
+        buf[offset++] = (byte) (value >> 40 & 0xff);
+        buf[offset++] = (byte) (value >> 32 & 0xff);
+        buf[offset++] = (byte) (value >> 24 & 0xff);
+        buf[offset++] = (byte) (value >> 16 & 0xff);
+        buf[offset++] = (byte) (value >> 8 & 0xff);
+        buf[offset] = (byte) (value & 0xff);
+        return 8;
+    }
+
+    /***
+     * 读取一个int值(大端模式)
+     *
+     * @param buf
+     * @param offset
+     */
+    public static int readInt(byte[] buf, int offset) {
+        int value = 0;
+        value |= (buf[offset++] & 0xFF) << 24;
+        value |= (buf[offset++] & 0xFF) << 16;
+        value |= (buf[offset++] & 0xFF) << 8;
+        value |= buf[offset] & 0xFF;
+        return value;
+    }
+
+    /***
+     * 读取一个long值(大端模式)
+     *
+     * @param buf
+     * @param offset
+     */
+    public static long readLong(byte[] buf, int offset) {
+        long value = 0;
+        long mask = 0xFF;
+        value |= (buf[offset++] & mask) << 56;
+        value |= (buf[offset++] & mask) << 48;
+        value |= (buf[offset++] & mask) << 40;
+        value |= (buf[offset++] & mask) << 32;
+        value |= (buf[offset++] & mask) << 24;
+        value |= (buf[offset++] & mask) << 16;
+        value |= (buf[offset++] & mask) << 8;
+        value |= buf[offset] & mask;
+        return value;
+    }
+
+    public static float readFloat(byte[] buf, int off) {
+        int bits = readInt(buf, off);
+        return Float.intBitsToFloat(bits);
+    }
+
+    public static double readDouble(byte[] buf, int off) {
+        long bits = readLong(buf, off);
+        return Double.longBitsToDouble(bits);
+    }
+
+    /**
+     * 将字节数组以二进制序列输出
+     *
      * @param b
-     * @param count
+     * @param splitChar
      * @return
      */
-    public static boolean differByte(byte[] a, byte[] b, int count) {
-        boolean flag = false;
-        int length = a.length < b.length ? a.length : b.length;
-        if (count <= length) {
-            for (int i = 0; i < count; i++) {
-                if (a[i] != b[i]) {
-                    flag = true;
-                    break;
-                }
+    public static String toBinaryString(byte[] b, char splitChar) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < b.length; i++) {
+            String bits = Integer.toBinaryString(b[i] & 0xFF);
+            int count = bits.length();
+            while (count++ < 8) {
+                builder.append('0');
+            }
+            builder.append(bits);
+            if (splitChar > 0) {
+                builder.append(splitChar);
             }
         }
-        return flag;
+        return builder.toString();
     }
 
     /**
-     * 获取int值（32位）占位4个字节的数组
+     * 16进制字符串转二进制序列
      *
-     * @param num
+     * @param hexString
      * @return
      */
-    public static byte[] int2bytes(int num) {
-        byte[] b = new byte[4];
-        for (int i = 0; i < 4; i++) {
-            b[i] = (byte) (num >>> 24 - i * 8);
+    public static String hexToBinaryString(String hexString) {
+        StringBuilder builder = new StringBuilder();
+        char[] chars = hexString.toCharArray();
+        for (char ch : chars) {
+            int numIndex = ch > '9' ? ch - 55 : ch - 48;
+            if (numIndex < 0 || numIndex >= 16) {
+                builder.append(ch);
+                continue;
+            }
+            String bits = Integer.toBinaryString(numIndex);
+            int count = bits.length();
+            while (count++ < 4) {
+                builder.append('0');
+            }
+            builder.append(bits);
         }
-        return b;
+        return builder.toString();
     }
-
-    /**
-     * 获取int值（32位）占位4个字节的数组并反转
-     *
-     * @param num
-     * @return
-     */
-    public static byte[] int2bytesReverse(int num) {
-        byte[] b = new byte[4];
-        for (int i = 0; i < 4; i++) {
-            b[3 - i] = (byte) (num >>> 24 - i * 8);
-        }
-        return b;
-    }
-
-    /**
-     * 将字节数组转化为int数，
-     * <p> 约定 b.length == 4
-     *
-     * @param b
-     * @return
-     */
-    public static int bytes2int(byte[] b) {
-        int s = 0;
-        for (int i = 0; i < b.length; i++) {
-            s |= (b[i] & 0xFF) << (b.length - i - 1) * 8;
-        }
-        return s;
-    }
-
-    /**
-     * 将字节数组反转后转化为int数
-     * <p> 约定 b.length == 4
-     *
-     * @param b
-     * @return
-     */
-    public static int bytes2intReverse(byte[] b) {
-        byte[] tmp = new byte[4];
-        for (int i = 0; i < 4; i++) {
-            tmp[i] = b[(3 - i)];
-        }
-        return bytes2int(tmp);
-    }
-
-//    public static int checkSum(byte[] arr) {
-//        byte[] tmp = new byte[4];
-//        int sum = 0;
-//        for (int i = 0; i < arr.length; i += 4) {
-//            System.arraycopy(arr, i, tmp, 0, 4);
-//            int t = bytes2intReverse(tmp);
-//            sum ^= t;
-//        }
-//        return sum;
-//    }
-//
-//    public static int checkSum(byte[] arr, int len) {
-//        byte[] tmp = new byte[len];
-//        System.arraycopy(arr, 0, tmp, 0, len);
-//        return checkSum(tmp);
-//    }
-//
-//    public static String getHex(int num) {
-//        char[] digits = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
-//        int length = 32;
-//        StringBuffer sb = new StringBuffer();
-//        char[] result = new char[length];
-//        String tmp = "0x0";
-//        do {
-//            result[(--length)] = digits[(num & 0xF)];
-//            num >>>= 4;
-//        } while (num != 0);
-//        for (int i = length; i < result.length; i++) {
-//            sb.append(result[i]);
-//        }
-//        tmp = tmp + new String(sb);
-//        return tmp;
-//    }
 
     /**
      * 将byte数组转化为16进制输出（每个字节转化为2位16进制）
@@ -269,28 +282,4 @@ public class ByteUtils {
     public static byte[] readStreamBytes(InputStream is) throws IOException {
         return IOUtils.readBytes(is);
     }
-
-//    public static int readStreamBytes(InputStream is, byte[] buffers) throws IOException {
-//        int b = -1;
-//        int length = 0;
-//        while ((b = is.read()) > -1) {
-//            buffers[length++] = (byte) b;
-//        }
-//        is.close();
-//        return length;
-//    }
-
-//    private static byte[] readStreamBytes(InputStream is, boolean closed) throws IOException {
-//        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-//        int b;
-//        while ((b = is.read()) > -1) {
-//            byteArrayOutputStream.write(b);
-//        }
-//        if (closed) {
-//            is.close();
-//        }
-//        byteArrayOutputStream.close();
-//        return byteArrayOutputStream.toByteArray();
-//    }
-
 }

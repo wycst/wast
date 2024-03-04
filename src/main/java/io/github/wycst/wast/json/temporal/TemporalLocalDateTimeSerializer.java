@@ -1,6 +1,6 @@
 package io.github.wycst.wast.json.temporal;
 
-import io.github.wycst.wast.json.JSONStringWriter;
+import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.json.JSONTemporalSerializer;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.options.JsonConfig;
@@ -14,7 +14,7 @@ import java.io.Writer;
  * @Author: wangy
  * @Date: 2022/8/13 15:06
  * @Description:
- * @see io.github.wycst.wast.common.beans.Date
+ * @see GregorianDate
  * @see io.github.wycst.wast.common.beans.DateTemplate
  */
 public class TemporalLocalDateTimeSerializer extends JSONTemporalSerializer {
@@ -40,10 +40,9 @@ public class TemporalLocalDateTimeSerializer extends JSONTemporalSerializer {
         int second = TemporalAloneInvoker.invokeLocalDateTimeSecond(value).intValue();
         int nano = TemporalAloneInvoker.invokeLocalDateTimeNano(value).intValue();
         int millisecond = nano / 1000000;
-
-        writer.append('"');
-        dateFormatter.formatTo(year, month, day, hour, minute, second, millisecond, writer);
-        writer.append('"');
+        writer.write('"');
+        writeDate(year, month, day, hour, minute, second, millisecond, dateFormatter, writer);
+        writer.write('"');
     }
 
     // yyyy-MM-ddTHH:mm:ss.SSS

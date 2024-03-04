@@ -14,7 +14,7 @@ import java.util.Map;
  * @Date: 2019/12/7 11:48
  * @Description:
  */
-public class BeanUtils {
+public final class BeanUtils {
 
     /**
      * 拷贝对象（指针拷贝）

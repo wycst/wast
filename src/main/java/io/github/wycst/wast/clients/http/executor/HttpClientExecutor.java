@@ -1,14 +1,14 @@
 package io.github.wycst.wast.clients.http.executor;
 
 import io.github.wycst.wast.clients.http.definition.*;
-import io.github.wycst.wast.clients.http.impl.DefaultServiceProvider;
+import io.github.wycst.wast.clients.http.provider.DefaultServiceProvider;
 import io.github.wycst.wast.clients.http.provider.RequestServiceInstance;
 import io.github.wycst.wast.clients.http.provider.ServiceProvider;
-import io.github.wycst.wast.clients.http.definition.*;
 import io.github.wycst.wast.clients.http.exception.ConnectException;
 import io.github.wycst.wast.clients.http.exception.SocketTimeoutException;
 import io.github.wycst.wast.clients.http.exception.UnknownHostException;
 import io.github.wycst.wast.clients.http.provider.ServiceInstance;
+import io.github.wycst.wast.common.idgenerate.providers.IdGenerator;
 
 import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
@@ -25,6 +25,7 @@ public abstract class HttpClientExecutor {
 
     private ServiceProvider serviceProvider = new DefaultServiceProvider();
     private boolean enableLoadBalance = false;
+    private boolean keepAliveOnTimeout;
 
     protected abstract HttpClientResponse doExecuteRequest(HttpClientRequest httpRequest) throws Throwable;
 
@@ -88,7 +89,7 @@ public abstract class HttpClientExecutor {
             // 追加query时注意是否存在？或者#问题
             int deleteIndex = url.indexOf("#");
             if(deleteIndex > -1) {
-                url = url.substring(0, deleteIndex);
+                url = new String(url.substring(0, deleteIndex));
             }
             StringBuffer queryParamBuffer = new StringBuffer();
             if(url.indexOf("?") == -1) {
@@ -129,6 +130,14 @@ public abstract class HttpClientExecutor {
 
     public boolean isEnableLoadBalance() {
         return enableLoadBalance;
+    }
+
+    public boolean isKeepAliveOnTimeout() {
+        return keepAliveOnTimeout;
+    }
+
+    public void setKeepAliveOnTimeout(boolean keepAliveOnTimeout) {
+        this.keepAliveOnTimeout = keepAliveOnTimeout;
     }
 
     private void handleExecuteRequestThrowable(Throwable e, HttpClientRequest httpRequest) {

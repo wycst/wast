@@ -1,6 +1,7 @@
 package io.github.wycst.wast.common.utils;
 
 import io.github.wycst.wast.common.beans.DateParser;
+import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.common.exceptions.TypeNotMatchExecption;
 import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.common.reflect.GetterInfo;
@@ -16,7 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 @SuppressWarnings("unchecked")
-public class ObjectUtils {
+public final class ObjectUtils {
 
     public static boolean contains(Object target, String key) {
         target.getClass();
@@ -284,9 +285,10 @@ public class ObjectUtils {
             List<GetterInfo> getterInfos = classStructureWrapper.getGetterInfos();
             for (GetterInfo getterInfo : getterInfos) {
                 Object val = getterInfo.invoke(target);
-                if (val != null && !val.equals("") && !val.toString().equals("0")) {
-                    fields.add(getterInfo.getName());
-                }
+                if (val == null || val.equals("")) continue;
+                // exclude zero val
+                if (Number.class.isInstance(val) && val.toString().equals("0")) continue;
+                fields.add(getterInfo.getName());
             }
         }
         return fields;
@@ -333,9 +335,37 @@ public class ObjectUtils {
         }
     }
 
-    public static <E> E toType(Object value, Class<E> valueClass, ReflectConsts.ClassCategory classCategory) {
-        if(value == null) return null;
+    public static Number toTypeNumber(Number value, Class<?> numberType) {
+        value.getClass();
+        if (numberType.isInstance(value) || numberType == Object.class || numberType == Number.class) {
+            return value;
+        }
+        if (numberType == Double.class || numberType == double.class) {
+            return value.doubleValue();
+        } else if (numberType == Long.class || numberType == long.class) {
+            return value.longValue();
+        } else if (numberType == Integer.class || numberType == int.class) {
+            return value.intValue();
+        } else if (numberType == Float.class || numberType == float.class) {
+            return value.floatValue();
+        } else if (numberType == Short.class || numberType == short.class) {
+            return value.shortValue();
+        } else if (numberType == Byte.class || numberType == byte.class) {
+            return value.byteValue();
+        } else if (numberType == BigDecimal.class) {
+            return new BigDecimal(value.toString());
+        } else if (numberType == BigInteger.class) {
+            return new BigInteger(value.toString());
+        } else if (numberType == AtomicInteger.class) {
+            return new AtomicInteger(value.intValue());
+        } else if (numberType == AtomicLong.class) {
+            return new AtomicLong(value.longValue());
+        }
+        return null;
+    }
 
+    public static <E> E toType(Object value, Class<E> valueClass, ReflectConsts.ClassCategory classCategory) {
+        if (value == null) return null;
         if (valueClass.isInstance(value) || valueClass == Object.class) {
             return (E) value;
         }
@@ -343,7 +373,7 @@ public class ObjectUtils {
             case CharSequence: {
                 if (valueClass == String.class) {
                     if (value instanceof Date) {
-                        return (E) new io.github.wycst.wast.common.beans.Date(((Date) value).getTime()).format();
+                        return (E) new GregorianDate(((Date) value).getTime()).format();
                     } else if (value instanceof byte[]) {
                         return (E) new String((byte[]) value);
                     }
@@ -353,52 +383,41 @@ public class ObjectUtils {
             }
             case NumberCategory: {
                 boolean isNumber = value instanceof Number;
-                Number numValue = null;
-                // number转化
+                Number numValue;
                 if (isNumber) {
                     numValue = (Number) value;
-                }
-                if (valueClass == Double.class || valueClass == double.class) {
-                    numValue = isNumber ? numValue.doubleValue() : Double.parseDouble(value.toString());
-                    return (E) numValue;
-                } else if (valueClass == Long.class || valueClass == long.class) {
-                    numValue = isNumber ? numValue.longValue() : Long.parseLong(value.toString());
-                    return (E) numValue;
-                } else if (valueClass == Integer.class || valueClass == int.class) {
-                    numValue = isNumber ? numValue.intValue() : Integer.parseInt(value.toString());
-                    return (E) numValue;
-                } else if (valueClass == Float.class || valueClass == float.class) {
-                    numValue = isNumber ? numValue.floatValue() : Float.parseFloat(value.toString());
-                    return (E) numValue;
-                } else if (valueClass == Short.class || valueClass == short.class) {
-                    numValue = isNumber ? numValue.shortValue() : Short.parseShort(value.toString());
-                    return (E) numValue;
-                } else if (valueClass == Byte.class || valueClass == byte.class) {
-                    numValue = isNumber ? numValue.byteValue() : Byte.parseByte(value.toString());
-                    return (E) numValue;
-                } else if (valueClass == BigDecimal.class) {
-                    numValue = new BigDecimal(value.toString());
-                    return (E) numValue;
-                } else if (valueClass == BigInteger.class) {
-                    numValue = new BigInteger(value.toString());
-                    return (E) numValue;
-                } else if (valueClass == AtomicInteger.class) {
-                    numValue = new AtomicInteger(isNumber ? numValue.intValue() : Integer.parseInt(value.toString()));
-                    return (E) numValue;
-                } else if (valueClass == AtomicLong.class) {
-                    numValue = new AtomicLong(isNumber ? numValue.longValue() : Long.parseLong(value.toString()));
-                    return (E) numValue;
+                    return (E) toTypeNumber(numValue, valueClass);
+                } else {
+                    if (valueClass == Double.class || valueClass == double.class) {
+                        numValue = Double.parseDouble(value.toString());
+                        return (E) numValue;
+                    }
+                    if (valueClass == Float.class || valueClass == float.class) {
+                        numValue = Float.parseFloat(value.toString());
+                        return (E) numValue;
+                    }
+                    if (valueClass == BigDecimal.class) {
+                        numValue = new BigDecimal(value.toString());
+                    } else if (valueClass == BigInteger.class) {
+                        numValue = new BigInteger(value.toString());
+                    } else {
+                        numValue = Long.parseLong(value.toString());
+                    }
+                    return (E) toTypeNumber(numValue, valueClass);
                 }
             }
             case BoolCategory: {
+                if (value == Boolean.TRUE || value == Boolean.FALSE) {
+                    return (E) value;
+                }
                 if (value instanceof Number) {
                     Boolean bool = ((Number) value).intValue() != 0;
                     return (E) bool;
                 } else {
                     String stringValue = value.toString().toLowerCase();
-                    if (stringValue.equals("yes") || stringValue.equals("on")) {
+                    if (stringValue.equals("true") || stringValue.equals("yes") || stringValue.equals("on")) {
                         return (E) Boolean.TRUE;
-                    } else if (stringValue.equals("no") || stringValue.equals("off")) {
+                    } else if (stringValue.equals("false") || stringValue.equals("no") || stringValue.equals("off")) {
                         return (E) Boolean.FALSE;
                     }
                 }
@@ -426,7 +445,7 @@ public class ObjectUtils {
                 }
             }
             case Binary: {
-                if(value instanceof String) {
+                if (value instanceof String) {
                     return (E) ((String) value).getBytes();
                 }
             }

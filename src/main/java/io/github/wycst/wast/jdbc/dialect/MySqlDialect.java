@@ -12,7 +12,11 @@ public class MySqlDialect extends DialectImpl implements Dialect {
     protected static final String SQL_END_SYMBOL = ";";
 
     public boolean supportsLimit() {
-        // TODO Auto-generated method stub
+        return true;
+    }
+
+    @Override
+    public boolean supportsBackquote() {
         return true;
     }
 

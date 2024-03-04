@@ -1,5 +1,6 @@
 package io.github.wycst.wast.common.expression.functions;
 
+import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.common.expression.ExpressionException;
 
 import java.lang.reflect.Array;
@@ -230,7 +231,7 @@ public final class BuiltInFunction {
      *
      * @param offset 偏移量（单位秒） 0代表当前时间
      * @return
-     * @see io.github.wycst.wast.common.beans.Date#format(String)
+     * @see GregorianDate#format(String)
      */
     public static String date(long offset) {
         return date_format(offset, "Y-M-d H:m:s");
@@ -242,10 +243,10 @@ public final class BuiltInFunction {
      * @param offset 偏移量（单位秒）
      * @param template
      * @return
-     * @see io.github.wycst.wast.common.beans.Date#format(String)
+     * @see GregorianDate#format(String)
      */
     public static String date_format(long offset, String template) {
         long current = System.currentTimeMillis();
-        return new io.github.wycst.wast.common.beans.Date(current + offset * 1000).format(template);
+        return new GregorianDate(current + offset * 1000).format(template);
     }
 }

@@ -8,7 +8,7 @@ import java.util.Arrays;
  * @Author wangyunchao
  * @Date 2022/9/16 12:11
  */
-public class IOUtils {
+public final class IOUtils {
 
     /***
      * 读取UTF-8编码的字节数组转化为字符数组
@@ -16,7 +16,7 @@ public class IOUtils {
      * @param bytes
      * @return
      */
-    public final static char[] readUTF8Bytes(byte[] bytes) {
+    public static char[] readUTF8Bytes(byte[] bytes) {
         if (bytes == null) return null;
         int len = bytes.length;
         char[] chars = new char[len];

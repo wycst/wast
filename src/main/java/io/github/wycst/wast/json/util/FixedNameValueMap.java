@@ -1,5 +1,9 @@
 package io.github.wycst.wast.json.util;
 
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
+
 /**
  * 固定长度的map结构
  *
@@ -9,10 +13,96 @@ package io.github.wycst.wast.json.util;
  */
 public class FixedNameValueMap<T> {
 
-    private final int capacity;
-    private final NameValueEntryNode<T>[] valueEntryNodes;
-    private int count;
-    private final int maxCount;
+    final int capacity;
+    final NameValueEntryNode<T>[] valueEntryNodes;
+    int count;
+    final int maxCount;
+
+    int primeValue;
+
+    boolean collision;
+
+    static final int[] PRIMES = new int[] {5, 7, 11, 13, 17, 19, 23, 29, 31};
+
+    public static <E> FixedNameValueMap<E> build(Map<String, E> values) {
+        int size = values.size();
+        BHFixedNameValueMap<E> bhNameValueMap = new BHFixedNameValueMap<E>(size << 1);
+        final int capacity = bhNameValueMap.capacity;
+        NameValueEntryNode<E>[] valueEntryNodes = bhNameValueMap.valueEntryNodes;
+
+        String[] names = values.keySet().toArray(new String[size]);
+        long[] hashValues = new long[size];
+        int[] remValues = new int[size];
+        Set<Integer> remSet = new LinkedHashSet<Integer>();
+        int bits = 0;
+        while (bits < 15) {
+            remSet.clear();
+            for (int i = 0 ; i < size; ++i) {
+                String name = names[i];
+                long hashValue = bitHash(name, bits);
+                int rem = (int) (hashValue & capacity - 1);
+                hashValues[i] = hashValue;
+                remValues[i] = rem;
+                remSet.add(rem);
+            }
+            if (remSet.size() == size) {
+                for (int i = 0 ; i < size; ++i) {
+                    String name = names[i];
+                    long hashValue = hashValues[i];
+                    E value = values.get(name);
+                    valueEntryNodes[remValues[i]] = new NameValueEntryNode<E>(name.toCharArray(), value, hashValue);
+                }
+                if(bits == 0) {
+                    return new PHFixedNameValueMap<E>(size, capacity, valueEntryNodes);
+                }
+                bhNameValueMap.bits = bits;
+                bhNameValueMap.count = size;
+                return bhNameValueMap;
+            }
+            ++bits;
+        }
+
+        // use default
+        // Find the most suitable prime number to minimize conflicts
+        FixedNameValueMap<E> dftNameValueMap = new FixedNameValueMap<E>(size << 1);
+        Set<Long> hashValueSet = new LinkedHashSet<Long>();
+        int primeValue = 5;
+        for (int prime : PRIMES) {
+            primeValue= prime;
+            hashValueSet.clear();
+            remSet.clear();
+            for (int i = 0 ; i < size; ++i) {
+                String name = names[i];
+                long hashValue = primeHash(name, prime);
+                int rem = (int) (hashValue & capacity - 1);
+                hashValues[i] = hashValue;
+                remValues[i] = rem;
+                hashValueSet.add(hashValue);
+                remSet.add(rem);
+            }
+            if (remSet.size() == size) {
+                valueEntryNodes = dftNameValueMap.valueEntryNodes;
+                dftNameValueMap.primeValue = primeValue;
+                for (int i = 0 ; i < size; ++i) {
+                    String name = names[i];
+                    long hashValue = hashValues[i];
+                    E value = values.get(name);
+                    valueEntryNodes[remValues[i]] = new NameValueEntryNode<E>(name.toCharArray(), value, hashValue);
+                }
+                return dftNameValueMap;
+            }
+        }
+
+        dftNameValueMap.collision = hashValueSet.size() < size;
+        dftNameValueMap.primeValue = primeValue;
+        for (int i = 0 ; i < size; ++i) {
+            String name = names[i];
+            long hashValue = hashValues[i];
+            E value = values.get(name);
+            dftNameValueMap.putValue(name, hashValue, value);
+        }
+        return dftNameValueMap;
+    }
 
     public FixedNameValueMap(int size) {
         int capacity = tableSizeFor(size) << 1;
@@ -24,7 +114,13 @@ public class FixedNameValueMap<T> {
         valueEntryNodes = new NameValueEntryNode[capacity];
     }
 
-    public void putValue(String name, T value) {
+    FixedNameValueMap(int capacity, NameValueEntryNode[] valueEntryNodes) {
+        this.maxCount = capacity << 1;
+        this.capacity = capacity;
+        this.valueEntryNodes = valueEntryNodes;
+    }
+
+    public void putValue(String name, long keyHash, T value) {
         synchronized (this) {
             if (count >= maxCount) {
                 return;
@@ -32,8 +128,7 @@ public class FixedNameValueMap<T> {
             count++;
         }
         char[] keyChars = name.toCharArray();
-        int keyHash = name.hashCode();
-        int index = keyHash & capacity - 1;
+        int index = (int) (keyHash & capacity - 1);
         NameValueEntryNode valueEntryNode = new NameValueEntryNode(keyChars, value, keyHash);
         NameValueEntryNode oldEntryNode = valueEntryNodes[index];
         valueEntryNodes[index] = valueEntryNode;
@@ -67,15 +162,15 @@ public class FixedNameValueMap<T> {
      * @param hashValue
      * @return
      */
-    public T getValue(char[] buf, int beginIndex, int endIndex, int hashValue) {
+    public T getValue(char[] buf, int beginIndex, int endIndex, long hashValue) {
         int len = endIndex - beginIndex;
-        int index = hashValue & capacity - 1;
+        int index = (int) (hashValue & capacity - 1);
         NameValueEntryNode<T> entryNode = valueEntryNodes[index];
         if (entryNode == null) {
             return null;
         }
         // Is there an efficient logic that can determine the match?
-        while (!matchKey(buf, beginIndex, len, entryNode.key)) {
+        while (!equalsKey(buf, beginIndex, len, entryNode.key)) {
             entryNode = entryNode.next;
             if (entryNode == null) {
                 return null;
@@ -94,15 +189,15 @@ public class FixedNameValueMap<T> {
      * @param hashValue
      * @return
      */
-    public T getValue(byte[] bytes, int beginIndex, int endIndex, int hashValue) {
+    public T getValue(byte[] bytes, int beginIndex, int endIndex, long hashValue) {
         int len = endIndex - beginIndex;
-        int index = hashValue & capacity - 1;
+        int index = (int) (hashValue & capacity - 1);
         NameValueEntryNode<T> entryNode = valueEntryNodes[index];
         if (entryNode == null) {
             return null;
         }
         // Is there an efficient logic that can determine the match?
-        while (!matchKey(bytes, beginIndex, len, entryNode.key)) {
+        while (!equalsKey(bytes, beginIndex, len, entryNode.key)) {
             entryNode = entryNode.next;
             if (entryNode == null) {
                 return null;
@@ -118,8 +213,8 @@ public class FixedNameValueMap<T> {
      * @param hashValue
      * @return
      */
-    public T getValueByHash(int hashValue) {
-        int index = hashValue & capacity - 1;
+    public final T getValueByHash(long hashValue) {
+        int index = (int) (hashValue & capacity - 1);
         NameValueEntryNode<T> entryNode = valueEntryNodes[index];
         if (entryNode == null) {
             return null;
@@ -133,14 +228,23 @@ public class FixedNameValueMap<T> {
         return entryNode.value;
     }
 
+    public boolean isCollision() {
+        return collision;
+    }
+
+    public long hash(long hv, int c1, int c2) {
+        hv = hash(hv, c1);
+        return hash(hv, c2);
+    }
+
     static class NameValueEntryNode<T> {
-        public NameValueEntryNode(char[] key, T value, int keyHash) {
+        public NameValueEntryNode(char[] key, T value, long keyHash) {
             this.key = key;
             this.hash = keyHash;
             this.value = value;
         }
 
-        int hash;
+        long hash;
         char[] key;
         T value;
         NameValueEntryNode<T> next;
@@ -162,7 +266,7 @@ public class FixedNameValueMap<T> {
     }
 
     /**
-     * matchKey
+     * equalsKey
      *
      * @param buf
      * @param offset
@@ -170,16 +274,16 @@ public class FixedNameValueMap<T> {
      * @param key
      * @return
      */
-    private static boolean matchKey(char[] buf, int offset, int len, char[] key) {
+    private static boolean equalsKey(char[] buf, int offset, int len, char[] key) {
         if (len != key.length) return false;
-        for (int j = 0; j < len; j++) {
-            if (buf[offset + j] != key[j]) return false;
+        for (int j = 0; j < len; ++j) {
+            if (buf[offset++] != key[j]) return false;
         }
         return true;
     }
 
     /**
-     * matchKey
+     * equalsKey
      *
      * @param bytes
      * @param offset
@@ -187,13 +291,60 @@ public class FixedNameValueMap<T> {
      * @param key
      * @return
      */
-    private static boolean matchKey(byte[] bytes, int offset, int len, char[] key) {
+    private static boolean equalsKey(byte[] bytes, int offset, int len, char[] key) {
         if (len != key.length) return false;
-        for (int j = 0; j < len; j++) {
-            if (bytes[offset + j] != key[j]) return false;
+        for (int j = 0; j < len; ++j) {
+            if (bytes[offset++] != key[j]) return false;
         }
         return true;
     }
 
+    public long hash(long rv, int c) {
+        return rv * primeValue + c;
+    }
 
+    static final long bitHash(String name, int bits) {
+        long val = 0;
+        for (int i = 0 ; i < name.length(); ++i) {
+            val = (val << bits) + name.charAt(i);
+        }
+        return val;
+    }
+
+    static final long primeHash(String name, int primeValue) {
+        long val = 0;
+        for (int i = 0 ; i < name.length(); ++i) {
+            val = val * primeValue + name.charAt(i);
+        }
+        return val;
+    }
+
+    static class BHFixedNameValueMap<E> extends FixedNameValueMap {
+        private int bits;
+        public BHFixedNameValueMap(int size) {
+            super(size);
+        }
+        @Override
+        public final long hash(long rv, int c) {
+            return (rv << bits) + c;
+        }
+    }
+
+    static class PHFixedNameValueMap<E> extends FixedNameValueMap {
+
+        public PHFixedNameValueMap(int count, int capacity, NameValueEntryNode[] valueEntryNodes) {
+            super(capacity, valueEntryNodes);
+            this.count = count;
+        }
+
+        @Override
+        public final long hash(long rv, int c) {
+            return rv + c;
+        }
+
+        @Override
+        public long hash(long rv, int c1, int c2) {
+            return rv + c1 + c2;
+        }
+    }
 }

@@ -1,6 +1,7 @@
 package io.github.wycst.wast.common.reflect;
 
 import io.github.wycst.wast.common.exceptions.InvokeReflectException;
+import io.github.wycst.wast.common.tools.FNV;
 import io.github.wycst.wast.common.utils.StringUtils;
 
 import java.lang.annotation.Annotation;
@@ -20,7 +21,7 @@ public final class ClassStructureWrapper {
 
     // cache
     private static Map<Class<?>, ClassStructureWrapper> classStructureWarppers = new ConcurrentHashMap<Class<?>, ClassStructureWrapper>();
-
+    private static final Map<Class<?>, List> COMPATIBLE_TYPES = new HashMap<Class<?>, List>();
     // 内置类默认使用field序列化，可维护名称列表控制使用getter method
     private static String[] USE_GETTER_METHOD_TYPE_NAME_LIST = {
     };
@@ -30,6 +31,22 @@ public final class ClassStructureWrapper {
             Throwable.class,
             Error.class
     };
+
+    static {
+        COMPATIBLE_TYPES.put(double.class, Arrays.asList(Double.class, long.class, Long.class, Float.class, float.class, Integer.class, int.class, Short.class, short.class, byte.class, Byte.class));
+        COMPATIBLE_TYPES.put(float.class, Arrays.asList(long.class, Long.class, Float.class, Integer.class, int.class, Short.class, short.class, byte.class, Byte.class));
+        COMPATIBLE_TYPES.put(long.class, Arrays.asList(Long.class, Integer.class, int.class, Short.class, short.class, byte.class, Byte.class));
+        COMPATIBLE_TYPES.put(int.class, Arrays.asList(Integer.class, Short.class, short.class, byte.class, Byte.class));
+        COMPATIBLE_TYPES.put(short.class, Arrays.asList(Short.class, byte.class, Byte.class));
+        COMPATIBLE_TYPES.put(byte.class, Arrays.asList(Byte.class));
+
+        COMPATIBLE_TYPES.put(Double.class, Arrays.asList(double.class));
+        COMPATIBLE_TYPES.put(Float.class, Arrays.asList(float.class));
+        COMPATIBLE_TYPES.put(Long.class, Arrays.asList(long.class));
+        COMPATIBLE_TYPES.put(Integer.class, Arrays.asList(int.class));
+        COMPATIBLE_TYPES.put(Short.class, Arrays.asList(short.class));
+        COMPATIBLE_TYPES.put(Byte.class, Arrays.asList(byte.class));
+    }
 
     /**
      * 最大类结构缓存数（计划使用）
@@ -74,6 +91,10 @@ public final class ClassStructureWrapper {
     // getter的属性和GetInfo映射
     private Map<String, GetterInfo> getterInfoMap = new HashMap<String, GetterInfo>();
 
+    private FieldInfo[] fieldInfos;
+
+    private long fieldsCheckCode;
+
     /**
      * 构造方法参数
      */
@@ -88,7 +109,6 @@ public final class ClassStructureWrapper {
      * public 方法集合
      */
     private Map<String, List<Method>> publicMethods = null;
-    ;
 
     /**
      * 获取所有getter方法映射的GetterMethodInfo信息
@@ -135,6 +155,7 @@ public final class ClassStructureWrapper {
     }
 
     public Object newInstance() throws Exception {
+//        return UnsafeHelper.getUnsafe().allocateInstance(sourceClass);
         return defaultConstructor.newInstance(constructorArgs);
     }
 
@@ -252,7 +273,15 @@ public final class ClassStructureWrapper {
         Class<?> sourceClass = wrapper.sourceClass;
         Constructor<?>[] constructors = sourceClass.getDeclaredConstructors();
         if (constructors.length == 0) return;
-        Constructor<?> constructor = constructors[0];
+        Constructor<?> constructor = null; // constructors[0];
+        int maxParameterCount = 0;
+        for (Constructor<?> c : constructors) {
+            if (constructor == null || c.getParameterCount() > maxParameterCount) {
+                constructor = c;
+                maxParameterCount = constructor.getParameterCount();
+            }
+        }
+
         wrapper.defaultConstructor = constructor;
 
         List<GetterInfo> getterInfoOfFields = new ArrayList<GetterInfo>();
@@ -260,22 +289,33 @@ public final class ClassStructureWrapper {
         wrapper.getterInfos = getterInfoOfFields;
         try {
             // parameters数组
-            Object parameters = getParametersMethod.invoke(constructor);
-            int len = Array.getLength(parameters);
+            Object[] parameters = (Object[]) getParametersMethod.invoke(constructor);
+            int len = parameters.length;
             wrapper.fieldCount = len;
             Method parameterNameMethod = null;
             Type[] genericParameterTypes = constructor.getGenericParameterTypes();
 
             Object[] constructorArgs = new Object[len];
             wrapper.constructorArgs = constructorArgs;
+
+            List<FieldInfo> fieldInfos = new ArrayList<FieldInfo>();
+            long fieldsCheckCode = 0;
             for (int i = 0; i < len; i++) {
-                Object parameter = Array.get(parameters, i);
+                Object parameter = parameters[i];
                 if (parameterNameMethod == null) {
                     parameterNameMethod = parameter.getClass().getMethod("getName");
                     setAccessible(parameterNameMethod);
                 }
                 // invoke name
                 String name = (String) parameterNameMethod.invoke(parameter);
+                if(fieldsCheckCode == 0) {
+                    fieldsCheckCode = FNV.hash64(name);
+                } else {
+                    fieldsCheckCode = FNV.hash64(fieldsCheckCode, name);
+                }
+                FieldInfo fieldInfo = new FieldInfo();
+                fieldInfo.setName(name);
+                fieldInfo.setIndex(i);
 
                 Field nameField = sourceClass.getDeclaredField(name);
                 Method nameMethod = sourceClass.getDeclaredMethod(name);
@@ -298,7 +338,7 @@ public final class ClassStructureWrapper {
                 getterInfoOfFields.add(getterInfo);
 
                 // 构建setter
-                SetterInfo setterInfo = new SetterInfo();
+                SetterInfo setterInfo = SetterInfo.fromField(nameField);
                 setterInfo.setName(name);
                 setterInfo.setField(nameField);
                 setterInfo.setParameterType(fieldType);
@@ -310,10 +350,16 @@ public final class ClassStructureWrapper {
                 setterInfo.setAnnotations(annotationMap);
                 // put to setterInfos
                 wrapper.setterInfos.put(name, setterInfo);
+
+                fieldInfo.setGetterInfo(getterInfo);
+                fieldInfo.setSetterInfo(setterInfo);
+                fieldInfos.add(fieldInfo);
             }
+
+            wrapper.fieldInfos = fieldInfos.toArray(new FieldInfo[fieldInfos.size()]);
+            wrapper.fieldsCheckCode = fieldsCheckCode;
         } catch (Throwable throwable) {
         }
-
     }
 
     private static void wrapperWithMethodAndField(ClassStructureWrapper wrapper, Map<String, Class<?>> superGenericClassMap) {
@@ -384,8 +430,12 @@ public final class ClassStructureWrapper {
                 setAccessible(method);
                 GetterMethodInfo getterInfo = new GetterMethodInfo(method);
 
-                String fieldName = methodName.substring(startIndex, startIndex + 1).toLowerCase()
-                        + methodName.substring(startIndex + 1);
+                String fieldName = new String(methodName.substring(startIndex));
+                char[] fieldNameChars = UnsafeHelper.getChars(fieldName);
+                if (fieldNameChars.length == 1 || !Character.isUpperCase(fieldNameChars[1])) {
+                    fieldNameChars[0] = Character.toLowerCase(fieldNameChars[0]);
+                    fieldName = new String(fieldNameChars);
+                }
 
                 getterInfo.setName(fieldName);
                 getterInfo.setUnderlineName(StringUtils.camelCaseToSymbol(fieldName));
@@ -418,7 +468,14 @@ public final class ClassStructureWrapper {
                 setAccessible(method);
                 SetterMethodInfo setterInfo = new SetterMethodInfo(method);
 
-                String setFieldName = methodName.substring(3, 4).toLowerCase() + methodName.substring(4);
+//                String setFieldName = methodName.substring(3, 4).toLowerCase() + methodName.substring(4);
+                String setFieldName = new String(methodName.substring(3));
+                char[] fieldNameChars = UnsafeHelper.getChars(setFieldName);
+                if (fieldNameChars.length == 1 || !Character.isUpperCase(fieldNameChars[1])) {
+                    fieldNameChars[0] = Character.toLowerCase(fieldNameChars[0]);
+                    setFieldName = new String(fieldNameChars);
+                }
+
                 wrapper.setterInfos.put(setFieldName, setterInfo);
                 // Support underline to camelCase
                 String underlineName = StringUtils.camelCaseToSymbol(setFieldName);
@@ -441,7 +498,7 @@ public final class ClassStructureWrapper {
                     if (!Modifier.isStatic(field.getModifiers()) && !Modifier.isFinal(field.getModifiers())) {
                         // 确保unsafe能安全调用,需要判断参数类型和field类型一致或者是field类型的子类
                         // 通常情况下method都会被后续的同名的field构建的SetterInfo替换掉
-                        if (setAccessible(field) && field.getType().isAssignableFrom(parameterType)) {
+                        if (setAccessible(field) && compatibleType(field.getType(), parameterType)) {
                             setterInfo.setField(field);
                         } else {
                             // 以method为准,禁用field
@@ -473,6 +530,13 @@ public final class ClassStructureWrapper {
         if (wrapper.getterInfos.size() == 0 && wrapper.getterInfoOfFields != null && wrapper.getterInfoOfFields.size() > 0) {
             wrapper.forceUseFields = true;
         }
+    }
+
+    private static boolean compatibleType(Class<?> type, Class<?> parameterType) {
+        if(type.isAssignableFrom(parameterType)) return true;
+        List<Class<?>> types = COMPATIBLE_TYPES.get(type);
+        if(types == null) return false;
+        return types.indexOf(parameterType) > -1;
     }
 
     private static Object defaulTypeValue(Class<?> type) {
@@ -635,6 +699,9 @@ public final class ClassStructureWrapper {
         Class<?> target = sourceClass;
         Set<String> fieldNames = new HashSet<String>();
         List<GetterInfo> getterInfoOfFields = new ArrayList<GetterInfo>();
+        List<FieldInfo> fieldInfos = new ArrayList<FieldInfo>();
+        int cnt = 0, index = 0;
+        long fieldsCheckCode = 0;
         while (target != Object.class) {
             Field[] fields = target.getDeclaredFields();
             for (Field field : fields) {
@@ -646,6 +713,15 @@ public final class ClassStructureWrapper {
                     setAccessible(field);
                     clearFinalModifiers(field);
 
+                    FieldInfo fieldInfo = new FieldInfo();
+                    fieldInfo.setName(fieldName);
+                    fieldInfo.setIndex(index++);
+
+                    if(fieldsCheckCode == 0) {
+                        fieldsCheckCode = FNV.hash64(fieldName);
+                    } else {
+                        fieldsCheckCode = FNV.hash64(fieldsCheckCode, fieldName);
+                    }
                     Class<?> fieldType = field.getType();
                     // 构建getter
                     GetterInfo getterInfo = new GetterInfo();
@@ -657,9 +733,10 @@ public final class ClassStructureWrapper {
 
                     getterInfo.setAnnotations(annotationMap);
                     getterInfoOfFields.add(getterInfo);
+                    fieldInfo.setGetterInfo(getterInfo);
 
                     // create setter
-                    SetterInfo setterInfo = new SetterInfo();
+                    SetterInfo setterInfo = SetterInfo.fromField(field);
                     setterInfo.setName(fieldName);
                     setterInfo.setField(field);
                     setterInfo.setParameterType(fieldType);
@@ -671,15 +748,26 @@ public final class ClassStructureWrapper {
                     setterInfo.setAnnotations(annotationMap);
 
                     SetterInfo oldSetterInfo = wrapper.setterInfos.get(fieldName);
-                    // 如果同名setter方法中参数类型和field类型不适配，以setter方法为准，确保序列化和反序列化的个性化处理特性
                     if (oldSetterInfo == null || !oldSetterInfo.isFieldDisabled()) {
                         wrapper.setterInfos.put(fieldName, setterInfo);
                     }
+                    String underlineName = StringUtils.camelCaseToSymbol(fieldName);
+                    if (!underlineName.equals(fieldName)) {
+                        wrapper.setterInfos.put(underlineName, setterInfo);
+                    }
+                    fieldInfo.setSetterInfo(setterInfo);
+                    fieldInfos.add(fieldInfo);
                 }
             }
             target = target.getSuperclass();
+            // Avoid deadlock
+            if (++cnt == 100) {
+                break;
+            }
         }
         wrapper.getterInfoOfFields = Collections.unmodifiableList(getterInfoOfFields);
+        wrapper.fieldInfos = fieldInfos.toArray(new FieldInfo[fieldInfos.size()]);
+        wrapper.fieldsCheckCode = fieldsCheckCode;
     }
 
     static final Field modifierField;
@@ -797,6 +885,17 @@ public final class ClassStructureWrapper {
         }
     }
 
+    public Set<SetterInfo> setterSet() {
+        return new HashSet<SetterInfo>(setterInfos.values());
+    }
+
+    public FieldInfo[] getFieldInfos() {
+        return Arrays.copyOf(fieldInfos, fieldInfos.length);
+    }
+
+    public long getFieldsCheckCode() {
+        return fieldsCheckCode;
+    }
 
     public enum ClassWrapperType {
         /**

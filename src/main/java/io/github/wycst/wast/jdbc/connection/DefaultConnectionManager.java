@@ -40,16 +40,16 @@ public class DefaultConnectionManager extends AbstractConnectionManager implemen
         // 事务中
         ConnectionWraper wraper = currentConnectionWraper();
 
-        if (wraper != null && (physicalConn = wraper.getConnection()) != null) {
-            try {
-                if (!physicalConn.isClosed()) {
-                    return wraper;
-                }
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-        }
+        try {
+            if (wraper != null && (physicalConn = wraper.getConnection()) != null) {
+                    if (!physicalConn.isClosed()) {
+                        return wraper;
+                    }
 
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         // physicalConn is null
         try {
             // physical conn

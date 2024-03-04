@@ -74,6 +74,18 @@ public class HttpClient extends AbstractHttpClient {
         return httpResponse.getEntity(rtnType);
     }
 
+    /**
+     * 带配置的get请求
+     *
+     * @param url
+     * @param requestConfig
+     * @return
+     */
+    public HttpClientResponse get(String url, HttpClientConfig requestConfig) {
+        HttpClientRequest httpRequest = new HttpClientGet(url, requestConfig);
+        return executeRequest(httpRequest);
+    }
+
     public String stringify(Map<String, Object> params) {
         StringBuilder builder = new StringBuilder();
         int length = params.size();

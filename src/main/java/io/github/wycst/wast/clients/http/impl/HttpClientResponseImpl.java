@@ -1,10 +1,13 @@
 package io.github.wycst.wast.clients.http.impl;
 
 import io.github.wycst.wast.clients.http.definition.HttpClientResponse;
+import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.json.JSON;
+import io.github.wycst.wast.json.options.ReadOption;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -61,7 +64,21 @@ public class HttpClientResponseImpl extends AbstractHttpClientResponse {
         if (text.startsWith("{") && text.endsWith("}")) {
             return JSON.parseObject(text, entityCls);
         }
+
+        if (Collection.class.isAssignableFrom(entityCls) && text.startsWith("[") && text.endsWith("]")) {
+            Class<? extends Collection> collCls = (Class<? extends Collection>) entityCls;
+            return (E) JSON.parseCollection(text, collCls);
+        }
+
         return null;
+    }
+
+    @Override
+    public <E> E getEntity(GenericParameterizedType<E> parameterizedType, ReadOption...readOptions) {
+        byte[] content = content();
+        if (content == null)
+            return null;
+        return JSON.parse(content, parameterizedType, readOptions);
     }
 
     public <E> List<E> getEntityList(Class<E> entityCls) {
@@ -97,6 +114,6 @@ public class HttpClientResponseImpl extends AbstractHttpClientResponse {
 
     @Override
     public String toString() {
-        return "Response : " + status() + " " + reasonPhrase() + " " + contentType;
+        return "Response : " + status() + " " + reasonPhrase();
     }
 }

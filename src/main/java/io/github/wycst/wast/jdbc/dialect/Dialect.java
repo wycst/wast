@@ -13,15 +13,20 @@ public interface Dialect {
 
     public boolean supportsLimit();
 
+    /**
+     * 是否支持反引号
+     *
+     * @return
+     */
+    public boolean supportsBackquote();
+
     public String getLimitString(String sql, boolean hasOffset);
 
     public String getLimitString(String sql, long offset, int limit);
 
-    /**
-     * 设置参数
-     */
     public void setParameter(PreparedStatement ps, int index, Object param) throws SQLException;
 
     PreparedStatement prepareStatement(Connection conn, String sql, int type, int resultSetConcurrency) throws SQLException;
 
+    void setPageDialectAgent(PageDialectAgent pageDialectAgent);
 }

@@ -1,5 +1,7 @@
 package io.github.wycst.wast.clients.http.definition;
 
+import io.github.wycst.wast.common.utils.IOUtils;
+
 import java.io.*;
 
 /**
@@ -70,11 +72,15 @@ public class HttpClientParameter {
             if(file != null) {
                 // 文件流
                 InputStream is = new FileInputStream(file);
-                int b = -1;
-                while ((b = is.read()) > -1) {
-                    os.write(b);
-                }
-                is.close();
+                bytes = IOUtils.readBytes(is);
+                file = null;
+                os.write(bytes);
+//                byte[] buf = new byte[1024];
+//                int size;
+//                while ((size = is.read(buf)) > -1) {
+//                    os.write(buf, 0, size);
+//                }
+//                is.close();
             } else {
                 os.write(bytes);
             }

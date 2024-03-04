@@ -1,12 +1,13 @@
 package io.github.wycst.wast.jdbc.executer;
 
 import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
+import io.github.wycst.wast.common.reflect.GetterInfo;
 import io.github.wycst.wast.common.reflect.SetterInfo;
 import io.github.wycst.wast.common.utils.ClassUtils;
 import io.github.wycst.wast.common.utils.StringUtils;
 import io.github.wycst.wast.jdbc.annotations.*;
-import io.github.wycst.wast.jdbc.entity.*;
 import io.github.wycst.wast.jdbc.exception.EntityException;
+import io.github.wycst.wast.jdbc.exception.OqlParematerException;
 
 import java.lang.reflect.Field;
 import java.util.*;
@@ -30,8 +31,8 @@ public class EntityManagementFactory {
     // 单例
     final static EntityManagementFactory Default = new EntityManagementFactory();
 
-    // 关键字需要使用``包含转义
-    final static List<String> DatabaseKeyWords =
+    // 关键字需要使用``包含转义(mysql)
+    final static List<String> MysqlDatabaseKeyWords =
             Arrays.asList(
                     "table", "column", "describe", "order", "asc", "desc", "current_date", "terminated",
                     "by", "cursor", "distinct", "explain", "fulltext", "mod", "xor", "range", "limit", "rename"
@@ -113,9 +114,14 @@ public class EntityManagementFactory {
 
             Table table = entityCls.getAnnotation(Table.class);
             String tableName = table.name().trim();
+            String schame = table.schame();
             if (StringUtils.isEmpty(tableName)) {
-                tableName = entityCls.getSimpleName();
+                tableName = StringUtils.camelCaseToSymbol(entityCls.getSimpleName());
             }
+            if (StringUtils.isNotEmpty(schame)) {
+                tableName = schame + "." + tableName;
+            }
+
             Map<String, FieldColumn> fieldColumnMapping = new LinkedHashMap<String, FieldColumn>();
             Map<Class<?>, JoinEntityMapping> joinEntityMappings = new LinkedHashMap<Class<?>, JoinEntityMapping>();
 
@@ -137,6 +143,9 @@ public class EntityManagementFactory {
                 if (!classStructureWrapper.containsSetterKey(fieldName)) {
                     continue;
                 }
+                SetterInfo setterInfo = classStructureWrapper.getSetterInfo(fieldName);
+                GetterInfo getterInfo = classStructureWrapper.getGetterInfo(fieldName);
+
                 // join处理
                 if (field.getAnnotation(JoinField.class) != null) {
                     joinFields.put(fieldName, field.getAnnotation(JoinField.class));
@@ -152,8 +161,6 @@ public class EntityManagementFactory {
                         fieldTypeValue = 1;
                         targetEntityClass = fieldType;
                     } else if (List.class.isAssignableFrom(fieldType)) {
-                        // setter方法
-                        SetterInfo setterInfo = classStructureWrapper.getSetterInfo(fieldName);
                         // 如果是列表获取泛型类
                         Class<?> actualType = setterInfo.getActualTypeArgument();
                         if (entityClsSet.contains(actualType)) {
@@ -163,28 +170,14 @@ public class EntityManagementFactory {
                     }
                     if (targetEntityClass != null) {
                         CascadeFetch cascadeFetch = field.getAnnotation(CascadeFetch.class);
-                        String sourceFieldName = cascadeFetch.field();
-                        String targetFieldName = cascadeFetch.targetField();
-                        boolean cascade = cascadeFetch.cascade();
-                        boolean fetch = cascadeFetch.fetch();
-
-                        CascadeFetchMapping cascadeFetchMapping = new CascadeFetchMapping();
-                        cascadeFetchMapping.setFieldType(fieldTypeValue);
-                        cascadeFetchMapping.setTargetEntityClass(targetEntityClass);
-                        cascadeFetchMapping.setFieldName(sourceFieldName);
-                        cascadeFetchMapping.setCascadeFetchField(field);
-                        cascadeFetchMapping.setTargetFieldName(targetFieldName);
-                        cascadeFetchMapping.setFetch(fetch);
-                        cascadeFetchMapping.setCascade(cascade);
-
+                        CascadeFetchMapping cascadeFetchMapping = new CascadeFetchMapping(targetEntityClass, field, fieldTypeValue, cascadeFetch);
                         cascadeFetchMappings.add(cascadeFetchMapping);
-
                         continue;
                     }
 
                     throw new EntityException(" Entity " + entityCls + " " + field + " annotationPresent @CascadeFetch but the field type is not be an entity or the list generic is not an entity type");
                 }
-                String columnName = null;
+                String columnName;
                 Column column = field.getAnnotation(Column.class);
                 if (column != null) {
                     columnName = column.name();
@@ -194,16 +187,14 @@ public class EntityManagementFactory {
                 } else {
                     columnName = StringUtils.camelCaseToSymbol(fieldName);
                 }
-                if (DatabaseKeyWords.contains(columnName.toLowerCase())) {
-                    char[] chars = new char[columnName.length() + 2];
-                    chars[0] = chars[columnName.length() + 1] = '`';
-                    columnName.getChars(0, columnName.length(), chars, 1);
-                    columnName = new String(chars);
-                }
-                FieldColumn fieldColumn = new FieldColumn();
-                fieldColumn.setField(field);
-                fieldColumn.setColumn(column);
-                fieldColumn.setColumnName(columnName);
+                // todo only mysql mode
+//                if (MysqlDatabaseKeyWords.contains(columnName.toLowerCase())) {
+//                    char[] chars = new char[columnName.length() + 2];
+//                    chars[0] = chars[columnName.length() + 1] = '`';
+//                    columnName.getChars(0, columnName.length(), chars, 1);
+//                    columnName = new String(chars);
+//                }
+                FieldColumn fieldColumn = new FieldColumn(field, column, columnName, setterInfo, getterInfo);
                 fieldColumnMapping.put(fieldName, fieldColumn);
 
                 if (field.getAnnotation(Id.class) != null) {
@@ -235,7 +226,7 @@ public class EntityManagementFactory {
                 entityJoinFields.put(entityCls, joinFields);
             }
 
-            EntitySqlMapping entitySqlMapping = new EntitySqlMapping(entityCls, tableName, fieldColumnMapping, primary, joinEntityMappings, cascadeFetchMappings);
+            EntitySqlMapping entitySqlMapping = new EntitySqlMapping(entityCls, tableName, fieldColumnMapping, primary, joinEntityMappings, cascadeFetchMappings, table);
             entitySqlMappings.put(entityCls, entitySqlMapping);
         }
 
@@ -267,11 +258,11 @@ public class EntityManagementFactory {
                 }
                 EntitySqlMapping targetEntitySqlMapping = entitySqlMappings.get(target);
                 if (!joinEntityMappings.containsKey(target)) {
-                    throw new EntityException(" Entity Class " + entityCls + " , field " + fieldName + " annotation@JoinField target class '" + target + "' has not targetClass by annotation@Join ");
+                    throw new EntityException(" Entity Class " + entityCls + " , field " + fieldName + " with annotation@JoinField target class '" + target + "' has not targetClass by annotation@Join to mapping the conditions of the relation table");
                 }
                 JoinEntityMapping joinEntityMapping = joinEntityMappings.get(target);
                 joinEntityMapping.setTableName(targetEntitySqlMapping.getTableName());
-                JoinColumn joinColumn = new JoinColumn();
+                JoinColumn joinColumn = new JoinColumn(joinField);
                 joinColumn.setFieldName(fieldName);
 
                 // target join fieldName
@@ -300,11 +291,45 @@ public class EntityManagementFactory {
         entitySqlMappings.clear();
     }
 
+    public void clearCaches(Class<?>... entityClassList) {
+        for (Class<?> entityCls : entityClassList) {
+            EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
+            if (entitySqlMapping.isCacheable()) {
+                entitySqlMapping.getCacheableEntityHandler().resetCaches();
+            }
+        }
+    }
+
+    public void clearAllCaches() {
+        for (EntitySqlMapping entitySqlMapping : entitySqlMappings.values()) {
+            if (entitySqlMapping.isCacheable()) {
+                CacheableEntityHandler cacheableEntityHandler = (CacheableEntityHandler) entitySqlMapping.getEntityHandler();
+                cacheableEntityHandler.resetCaches();
+            }
+        }
+    }
+
+    public void clearExpiredCaches() {
+        for (EntitySqlMapping entitySqlMapping : entitySqlMappings.values()) {
+            if (entitySqlMapping.isCacheable()) {
+                CacheableEntityHandler cacheableEntityHandler = (CacheableEntityHandler) entitySqlMapping.getEntityHandler();
+                cacheableEntityHandler.clearExpiredCaches();
+            }
+        }
+    }
+
     public boolean existEntity(Class<?> entityCls) {
         return entitySqlMappings.containsKey(entityCls);
     }
 
     public EntitySqlMapping getEntitySqlMapping(Class entityCls) {
         return entitySqlMappings.get(entityCls);
+    }
+
+    public void checkEntityClass(Class<?> entityCls) {
+        entityCls.getClass();
+        if (!existEntity(entityCls)) {
+            throw new OqlParematerException("参数错误：" + entityCls + "没有纳入对象sql管理，请检查实体扫描配置");
+        }
     }
 }

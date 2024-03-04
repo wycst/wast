@@ -1,5 +1,5 @@
 /*
- * Copyright [2020-2022] [wangyunchao]
+ * Copyright [2020-2024] [wangyunchao]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -83,7 +83,7 @@ public class ExprParser extends Expression {
     public static final int NOT_TOKEN = 11;
 
     // 最大超过token数量时开启优化
-    static final int Max_Optimize_Count = (ExprEvaluator.Optimize_Depth_Value << 1) + 1;
+    static final int MAX_OPTIMIZE_COUNT = (ExprEvaluator.OPTIMIZE_DEPTH_VALUE << 1) + 1;
 
     // 表达式源
     private String exprSource;
@@ -182,7 +182,7 @@ public class ExprParser extends Expression {
     }
 
     private void checkOptimizeRequired() {
-        if (evaluatorCount > Max_Optimize_Count) {
+        if (evaluatorCount > MAX_OPTIMIZE_COUNT) {
             optimize();
         }
     }
@@ -481,7 +481,7 @@ public class ExprParser extends Expression {
         // bracketParserContext的endFlag设置为true时,当前递归栈结束；
         // 解析类型如果没有结束括号说明表达式错误
         if (!bracketParserContext.endFlag) {
-            String errorMessage = createErrorMessage(sourceChars, this.readIndex);
+            String errorMessage = createErrorContextText(sourceChars, this.readIndex);
             throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ",Expression[... " + errorMessage + " ...], missing closing symbol')'");
         }
         //  置换子表达式优先级
@@ -606,8 +606,7 @@ public class ExprParser extends Expression {
         int opsSymbolIndex = -1;
         // 是否减号操作符
         boolean isMinusSymbol = false;
-        if ((isDecimalDigitStart(currentChar) || (isMinusSymbol = currentChar == '-')) && getTokenTypeGroup(prevTokenType) != GROUP_TOKEN_VALUE) {
-            int start = this.readIndex;
+        if ((isDigit(currentChar) || (isMinusSymbol = currentChar == '-')) && getTokenTypeGroup(prevTokenType) != GROUP_TOKEN_VALUE) {
             int cnt = 0;
             int readIndex = ++this.readIndex;
             int numberRadix = 10;
@@ -623,140 +622,251 @@ public class ExprParser extends Expression {
                     secondeDigitChar = read(readIndex++);
                 }
             }
-
+            // 10进制值
+            long decimalValPlain = 0;
+            boolean valInitSet = false;
+            // 16进制或者8进制
+            long hexOrOctVal = 0;
+            // check 16进制/8进制/10进制(默认)
             if (firstDigitChar == '0') {
+                int val;
                 if (secondeDigitChar == 'x' || secondeDigitChar == 'X') {
                     numberRadix = 16;
                     // currentChar is already '0'
                     this.readIndex = readIndex;
                     ++cnt;
+                    while (readable() && (val = digit(currentChar = read(), 16)) != -1) {
+                        hexOrOctVal = (hexOrOctVal << 4)  | val;
+                        ++this.readIndex;
+                        ++cnt;
+                    }
+                    // only supported long suffix sush as 0x123L
+                    if(currentChar == 'l' || currentChar == 'L') {
+                        ++this.readIndex;
+                    }
                 } else {
                     if (Character.isDigit(secondeDigitChar)) {
                         numberRadix = 8;
                         this.readIndex = readIndex;
-                        currentChar = secondeDigitChar;
+                        hexOrOctVal = digit(secondeDigitChar, 8);
                         ++cnt;
+                        while (readable() && (val = digit(currentChar = read(), 8)) != -1) {
+                            hexOrOctVal = (hexOrOctVal << 3)  | val;
+                            ++this.readIndex;
+                            ++cnt;
+                        }
+                        // 8进制如果出现小数点或者相关后缀，转10进制处理
+                        switch (currentChar) {
+                            case 'E':
+                            case 'e':
+                            case 'f':
+                            case 'F':
+                            case 'D':
+                            case 'd':
+                            case '.': {
+                                numberRadix = 10;
+                                decimalValPlain = Integer.parseInt(Long.toString(hexOrOctVal, 8));
+                                valInitSet = true;
+                                break;
+                            }
+                            case 'L':
+                            case 'l': {
+                                ++this.readIndex;
+                                break;
+                            }
+                        }
                     }
                 }
             }
 
-            double value = isMinusSymbol ? 0 : digit(currentChar, numberRadix);
+            // use double
+            double value = 0;
             int mode = 0;
+            // supported number suffix such as 123.456d/12.05f/123456L
             int specifySuffix = 0;
+            // 科学计数法指数值
             int expValue = 0;
+            // 科学计数法指数是否为负数
             boolean expNegative = false;
+            // 小数位数
             int decimalCount = 0;
-            char prevChar = '\0';
-
-            Number numberValue = null;
-            while (readable() && isAvailableDigit(currentChar = read(), numberRadix)) {
-                if (currentChar == '-' && prevChar != 'E' && prevChar != 'e') {
-                    break;
+            // 默认10进制
+            if(numberRadix == 10) {
+                if(!isMinusSymbol && !valInitSet) {
+                    ++cnt;
+                    decimalValPlain = currentChar - 48;
                 }
-
-                // parse number
-                ++cnt;
-                int digit = digit(currentChar, numberRadix);
-                if (currentChar == '.') {
-                    if (mode != 0) {
-                        throwNumberFormatException(start);
-                        return;
-                    }
+                // 10进制
+                while (readable() && isDigit(currentChar = read())) {
+                    decimalValPlain = decimalValPlain * 10 + (currentChar - 48);
+                    ++this.readIndex;
+                    ++cnt;
+                }
+                // 小数点
+                if(currentChar == '.') {
+                    ++this.readIndex;
                     // 小数点模式
                     mode = 1;
-                    ++this.readIndex;
-                    if (readable()) {
-                        currentChar = read();
-                    } else {
-                        break;
+                    // direct scan numbers
+                    while (readable() && isDigit(currentChar = read())) {
+                        decimalValPlain = decimalValPlain * 10 + currentChar - 48;
+                        ++decimalCount;
+                        ++cnt;
+                        ++this.readIndex;
                     }
-                    digit = digit(currentChar, numberRadix);
-                } else if (currentChar == 'E' || currentChar == 'e') {
-                    if (mode == 2) {
-                        throwNumberFormatException(start);
-                        return;
-                    }
-                    // 科学计数法
+                }
+                if(currentChar == 'E' || currentChar == 'e') {
                     mode = 2;
                     ++this.readIndex;
-                    if (readable()) {
-                        currentChar = read();
-                    } else {
-                        break;
-                    }
-                    if (currentChar == '-') {
-                        expNegative = true;
+                    currentChar = read();
+                    if ((expNegative = currentChar == '-') || currentChar == '+') {
                         ++this.readIndex;
-                        if (readable()) {
-                            currentChar = read();
-                        } else {
-                            break;
-                        }
+                        currentChar = read();
                     }
-                    digit = digit(currentChar, numberRadix);
-                }
-
-                if (digit == -1) {
-                    switch (currentChar) {
-                        case 'l':
-                        case 'L': {
-                            if (specifySuffix == 0) {
-                                specifySuffix = 1;
-                                break;
-                            }
-                            throwNumberFormatException(start);
-                            return;
-                        }
-                        case 'f':
-                        case 'F': {
-                            if (specifySuffix == 0) {
-                                specifySuffix = 2;
-                                break;
-                            }
-                            throwNumberFormatException(start);
-                            return;
-                        }
-                        case 'd':
-                        case 'D': {
-                            if (specifySuffix == 0) {
-                                specifySuffix = 2;
-                                break;
-                            }
-                            throwNumberFormatException(start);
-                            return;
-                        }
-                        default: {
-                            if (currentChar <= ' ') {
-                                break;
-                            }
-                            throwNumberFormatException(start);
-                            return;
+                    if (isDigit(currentChar)) {
+                        expValue = currentChar - 48;
+                        ++this.readIndex;
+                        while (readable() && isDigit(currentChar = read())) {
+                            expValue = (expValue << 3) + (expValue << 1) + currentChar - 48;
+                            ++this.readIndex;
                         }
                     }
                 }
-                switch (mode) {
-                    case 0:
-                        value *= numberRadix;
-                        value += digit;
+                switch (currentChar) {
+                    case 'l':
+                    case 'L': {
+                        specifySuffix = 1;
+                        ++this.readIndex;
                         break;
-                    case 1:
-                        value *= numberRadix;
-                        value += digit;
-                        decimalCount++;
+                    }
+                    case 'f':
+                    case 'F': {
+                        specifySuffix = 2;
+                        ++this.readIndex;
                         break;
-                    case 2:
-                        // exp 模式只支持10进制
-                        expValue = (expValue << 3) + (expValue << 1);
-                        expValue += digit;
+                    }
+                    case 'd':
+                    case 'D': {
+                        specifySuffix = 3;
+                        ++this.readIndex;
                         break;
+                    }
                 }
-
-                ++this.readIndex;
-                prevChar = currentChar;
-                if (this.readIndex >= length()) {
-                    break;
-                }
+                // end
+                value = decimalValPlain;
+            } else {
+                // 16进制或者8进制值
+                value = hexOrOctVal;
             }
+            Number numberValue;
+//            while (readable() && isAvailableDigit(currentChar = read(), numberRadix)) {
+//                if (currentChar == '-' && prevChar != 'E' && prevChar != 'e') {
+//                    break;
+//                }
+//
+//                // parse number
+//                ++cnt;
+//                int digit = digit(currentChar, numberRadix);
+//                if (currentChar == '.') {
+//                    if (mode != 0) {
+//                        throwNumberFormatException(start);
+//                        return;
+//                    }
+//                    // 小数点模式
+//                    mode = 1;
+//                    ++this.readIndex;
+//                    if (readable()) {
+//                        currentChar = read();
+//                    } else {
+//                        break;
+//                    }
+//                    digit = digit(currentChar, numberRadix);
+//                } else if (currentChar == 'E' || currentChar == 'e') {
+//                    if (mode == 2) {
+//                        throwNumberFormatException(start);
+//                        return;
+//                    }
+//                    // 科学计数法
+//                    mode = 2;
+//                    ++this.readIndex;
+//                    if (readable()) {
+//                        currentChar = read();
+//                    } else {
+//                        break;
+//                    }
+//                    if (currentChar == '-') {
+//                        expNegative = true;
+//                        ++this.readIndex;
+//                        if (readable()) {
+//                            currentChar = read();
+//                        } else {
+//                            break;
+//                        }
+//                    }
+//                    digit = digit(currentChar, numberRadix);
+//                }
+//
+//                if (digit == -1) {
+//                    switch (currentChar) {
+//                        case 'l':
+//                        case 'L': {
+//                            if (specifySuffix == 0) {
+//                                specifySuffix = 1;
+//                                break;
+//                            }
+//                            throwNumberFormatException(start);
+//                            return;
+//                        }
+//                        case 'f':
+//                        case 'F': {
+//                            if (specifySuffix == 0) {
+//                                specifySuffix = 2;
+//                                break;
+//                            }
+//                            throwNumberFormatException(start);
+//                            return;
+//                        }
+//                        case 'd':
+//                        case 'D': {
+//                            if (specifySuffix == 0) {
+//                                specifySuffix = 2;
+//                                break;
+//                            }
+//                            throwNumberFormatException(start);
+//                            return;
+//                        }
+//                        default: {
+//                            if (currentChar <= ' ') {
+//                                break;
+//                            }
+//                            throwNumberFormatException(start);
+//                            return;
+//                        }
+//                    }
+//                }
+//                switch (mode) {
+//                    case 0:
+//                        value *= numberRadix;
+//                        value += digit;
+//                        break;
+//                    case 1:
+//                        value *= numberRadix;
+//                        value += digit;
+//                        decimalCount++;
+//                        break;
+//                    case 2:
+//                        // exp 模式只支持10进制
+//                        expValue = (expValue << 3) + (expValue << 1);
+//                        expValue += digit;
+//                        break;
+//                }
+//
+//                ++this.readIndex;
+//                prevChar = currentChar;
+//                if (this.readIndex >= length()) {
+//                    break;
+//                }
+//            }
             if (cnt == 0 && isMinusSymbol) {
                 // (子)表达式以'-'开始（RESET_TOKEN或者BRACKET_TOKEN）或者上一个是操作符号都识别为负数
                 switch (prevTokenType) {
@@ -783,6 +893,7 @@ public class ExprParser extends Expression {
                 }
             } else {
                 this.tokenType = NUM_TOKEN;
+                // Two negatives make a positive
                 if (exprParserContext.negate ^ isMinusSymbol) {
                     value = -value;
                 }
@@ -984,7 +1095,7 @@ public class ExprParser extends Expression {
                 while (readable() && (isVariableAppend(currentChar = read()))) {
                     if (currentChar == '.') {
                         if (readIndex == localOffset) {
-                            String errorMessage = createErrorMessage(sourceChars, this.readIndex);
+                            String errorMessage = createErrorContextText(sourceChars, this.readIndex);
                             throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ...],token '\'' is duplicate or conflict with [] ");
                         }
                         variableKeys.add(new String(sourceChars, localOffset + this.offset, readIndex - localOffset));
@@ -993,7 +1104,7 @@ public class ExprParser extends Expression {
                     }
                     if (currentChar == '[') {
                         if (readIndex == localOffset) {
-                            String errorMessage = createErrorMessage(sourceChars, this.readIndex);
+                            String errorMessage = createErrorContextText(sourceChars, this.readIndex);
                             throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ...],token '[' is duplicate or conflict with '.' ");
                         }
                         // 内层循环直到遇到]结束
@@ -1034,13 +1145,22 @@ public class ExprParser extends Expression {
                             ++this.readIndex;
                         }
                         if (currentChar != ']') {
-                            String errorMessage = createErrorMessage(sourceChars, this.readIndex);
+                            String errorMessage = createErrorContextText(sourceChars, this.readIndex);
                             throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ...],未找到与开始字符'['相匹配的结束字符 ']'");
                         }
                         if (stringKey) {
                             // 去除''
-                            String valueWithQuotation = new String(sourceChars, localOffset + this.offset, readIndex - localOffset).trim();
-                            variableKeys.add(valueWithQuotation.substring(1, valueWithQuotation.length() - 1));
+//                            String valueWithQuotation = new String(sourceChars, localOffset + this.offset, readIndex - localOffset).trim();
+//                            variableKeys.add(valueWithQuotation.substring(1, valueWithQuotation.length() - 1));
+                            int st = localOffset + this.offset;
+                            int et = readIndex + this.offset;
+                            while ((st < et) && (sourceChars[st] <= ' ')) {
+                                st++;
+                            }
+                            while ((st < et) && (sourceChars[et - 1] <= ' ')) {
+                                et--;
+                            }
+                            variableKeys.add(new String(sourceChars, st + 1, et - st - 2));
                         } else {
                             // 子表达式使用（）
                             char[] chars = new char[readIndex - localOffset + 2];
@@ -1079,7 +1199,7 @@ public class ExprParser extends Expression {
                         }
                     }
                     if (currentChar != ')') {
-                        String errorMessage = createErrorMessage(sourceChars, this.readIndex);
+                        String errorMessage = createErrorContextText(sourceChars, this.readIndex);
                         throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ",Expression[... " + errorMessage + " ...], end token ')' not found !");
                     }
                     String args = new String(sourceChars, localOffset + this.offset, this.readIndex - localOffset - 1);
@@ -1094,7 +1214,7 @@ public class ExprParser extends Expression {
                         this.tokenType = FUN_TOKEN;
                         checkTokenSyntaxError();
                         parseMethodToken(exprParserContext, variableKeys, identifierValue, args);
-                        // String errorMessage = createErrorMessage(sourceChars, this.readIndex);
+                        // String errorMessage = createErrorContextText(sourceChars, this.readIndex);
                         // throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ...],non static function token() is not supported temporarily !");
                     }
 
@@ -1140,7 +1260,7 @@ public class ExprParser extends Expression {
                 }
             }
             if (currentChar != '}') {
-                String errorMessage = createErrorMessage(sourceChars, this.readIndex);
+                String errorMessage = createErrorContextText(sourceChars, this.readIndex);
                 throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ...],未找到与开始字符'{'相匹配的结束字符 '}'");
             }
             this.tokenType = ARR_TOKEN;
@@ -1156,7 +1276,7 @@ public class ExprParser extends Expression {
                 ++this.readIndex;
                 // 以java标识符开头
                 if (!Character.isJavaIdentifierStart(currentChar = read())) {
-                    String errorMessage = createErrorMessage(sourceChars, this.readIndex);
+                    String errorMessage = createErrorContextText(sourceChars, this.readIndex);
                     throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ...], unexpected function start char  : '" + currentChar + "'");
                 }
             }
@@ -1174,7 +1294,7 @@ public class ExprParser extends Expression {
 
             // 查找'('
             if (currentChar != '(') {
-                String readSource = this.exprSource.substring(0, this.readIndex);
+                String readSource = new String(this.exprSource.substring(0, this.readIndex));
                 throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", source: '" + readSource + "' function start symbol '(' not found !");
             }
             String functionName = new String(sourceChars, start + this.offset, this.readIndex - start);
@@ -1207,7 +1327,7 @@ public class ExprParser extends Expression {
             return;
         } else {
             // 无法识别的字符
-            String errorMessage = createErrorMessage(sourceChars, this.readIndex);
+            String errorMessage = createErrorContextText(sourceChars, this.readIndex);
             throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ...], 表达式中未预期出现的token字符 '" + currentChar + "'");
         }
     }
@@ -1222,7 +1342,7 @@ public class ExprParser extends Expression {
             prevCh = currentChar;
         }
         if (currentChar != '\'' || prevCh == '\\') {
-            String errorMessage = createErrorMessage(sourceChars, this.readIndex);
+            String errorMessage = createErrorContextText(sourceChars, this.readIndex);
             throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ...],未找到与开始字符'\''相匹配的结束字符 '\''");
         }
     }
@@ -1290,21 +1410,21 @@ public class ExprParser extends Expression {
         int groupValue = getTokenTypeGroup(this.tokenType);
         if (preGroupValue == groupValue) {
             if (preGroupValue == GROUP_TOKEN_OPS) {
-                String readSource = createErrorMessage(sourceChars, this.readIndex);
+                String readSource = createErrorContextText(sourceChars, this.readIndex);
                 throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", duplicate operation type: '" + this.errorMsg + "', Expression[" + readSource + "]");
             } else if (preGroupValue == GROUP_TOKEN_VALUE) {
-                String readSource = createErrorMessage(sourceChars, this.readIndex);
+                String readSource = createErrorContextText(sourceChars, this.readIndex);
                 throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", missing operation symbol: '" + this.errorMsg + "', Expression[" + readSource + "]");
             }
         } else {
             // value token before is )
             if (groupValue == GROUP_TOKEN_VALUE && this.prevTokenType == BRACKET_END_TOKEN) {
-                String readSource = createErrorMessage(sourceChars, this.readIndex);
+                String readSource = createErrorContextText(sourceChars, this.readIndex);
                 throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", unexpected symbol : '" + this.errorMsg + "', Expression[" + readSource + "]");
             }
             // // ops token before is (
             if (groupValue == GROUP_TOKEN_OPS && this.prevTokenType == BRACKET_TOKEN) {
-                String readSource = createErrorMessage(sourceChars, this.readIndex);
+                String readSource = createErrorContextText(sourceChars, this.readIndex);
                 throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", unexpected symbol : '" + this.errorMsg + "', Expression[" + readSource + "]");
             }
         }
@@ -1315,7 +1435,7 @@ public class ExprParser extends Expression {
     private void checkBeforeBracketEndTokenSyntaxError() {
         int preGroupValue = getTokenTypeGroup(this.prevTokenType);
         if (this.prevTokenType == BRACKET_TOKEN || preGroupValue == GROUP_TOKEN_OPS) {
-            String readSource = createErrorMessage(sourceChars, this.readIndex);
+            String readSource = createErrorContextText(sourceChars, this.readIndex);
             throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ",unexpected symbol : '" + this.errorMsg + "', Expression[" + readSource + "]");
         }
     }
@@ -1325,19 +1445,19 @@ public class ExprParser extends Expression {
     private void checkBeforeBracketTokenSyntaxError() {
         int preGroupValue = getTokenTypeGroup(this.prevTokenType);
         if (this.prevTokenType == BRACKET_END_TOKEN && preGroupValue == GROUP_TOKEN_VALUE) {
-            String readSource = createErrorMessage(sourceChars, this.readIndex);
+            String readSource = createErrorContextText(sourceChars, this.readIndex);
             throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ",unexpected symbol : '" + this.errorMsg + "', Expression[" + readSource + "]");
         }
     }
 
     private void throwOperationNotSupported() {
-        String readSource = createErrorMessage(sourceChars, this.readIndex);
+        String readSource = createErrorContextText(sourceChars, this.readIndex);
         throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", unexpected symbol '" + this.errorMsg + "', Expression[" + readSource + "]");
     }
 
     private void throwNumberFormatException(int start) {
         String numberSource = new String(sourceChars, this.offset + start, this.readIndex - start);
-        String readSource = createErrorMessage(sourceChars, this.readIndex);
+        String readSource = createErrorContextText(sourceChars, this.readIndex);
         throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", invalid number text '" + numberSource + "', Expression[" + readSource + "]");
     }
 
@@ -1390,19 +1510,12 @@ public class ExprParser extends Expression {
     }
 
     /**
-     * 判断是否为10进制 0-9
-     */
-    private boolean isDigit(char c) {
-        return c >= 48 && c <= 57;
-    }
-
-    /**
      * 10进制数字开头
      *
      * @param c
      * @return
      */
-    private boolean isDecimalDigitStart(char c) {
+    private boolean isDigit(char c) {
         switch (c) {
             case '0':
             case '1':
@@ -1414,7 +1527,6 @@ public class ExprParser extends Expression {
             case '7':
             case '8':
             case '9':
-            case '.':
                 return true;
             default:
                 return false;
@@ -1729,7 +1841,7 @@ public class ExprParser extends Expression {
         }
     }
 
-    protected static String createErrorMessage(char[] buf, int at) {
+    protected static String createErrorContextText(char[] buf, int at) {
         try {
             int len = buf.length;
             char[] text = new char[40];

@@ -30,4 +30,17 @@ public @interface Table {
      */
     String schame() default "";
 
+    /**
+     * 当前表是否开启数据缓存(只对id查询有效)
+     *
+     * @return
+     */
+    boolean cacheable() default false;
+
+    /**
+     * cacheable为true时有效，缓存的过期时间
+     *
+     * @return
+     */
+    long expires() default 8 * 3600 * 1000;
 }

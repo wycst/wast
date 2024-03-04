@@ -32,11 +32,20 @@ public class UrlHttpClientExecutor extends AbstractUrlHttpClientExecutor {
         try {
             return this.doExecuteRequestInstance(requestServiceInstance, httpRequest);
         } catch (Throwable throwable) {
+            // Timeout or connection failure
             ServiceInstance serviceInstance = requestServiceInstance.getServiceInstance();
             // if null throw exception
             if(serviceInstance == null) {
+                // Non load balancing mode
                 throw throwable;
             }
+
+            // load balancing mode keepAlive instance
+            boolean keepAliveOnTimeout = isKeepAliveOnTimeout() || httpRequest.isKeepAliveOnTimeout();
+            if(keepAliveOnTimeout && throwable instanceof SocketTimeoutException) {
+                throw throwable;
+            }
+
             // mark instance disable and switch next instance
             // This step is crucial
             serviceInstance.setAlive(false);
@@ -50,7 +59,7 @@ public class UrlHttpClientExecutor extends AbstractUrlHttpClientExecutor {
 
         URL instanceUrl = requestServiceInstance.getUrl();
         String method = httpRequest.getMethod();
-        log.debug(" - request {} {} ", method, instanceUrl);
+        log.debug("{} {} ", method, instanceUrl);
         HttpClientConfig clientConfig = httpRequest.getHttpClientConfig();
         URL url = parseQueryUrl(instanceUrl, method, clientConfig);
         Proxy proxy = clientConfig.getProxy();
@@ -65,7 +74,7 @@ public class UrlHttpClientExecutor extends AbstractUrlHttpClientExecutor {
         httpConnection.setConnectTimeout((int) clientConfig.getMaxConnectTimeout());
         httpConnection.setReadTimeout((int) clientConfig.getMaxReadTimeout());
         httpConnection.setUseCaches(clientConfig.isUseCaches());
-        httpConnection.setInstanceFollowRedirects(false);
+        httpConnection.setInstanceFollowRedirects(clientConfig.isFollowRedirect());
 
         Map<String, Serializable> header = clientConfig.getHeaders();
         if (header != null) {
@@ -103,6 +112,7 @@ public class UrlHttpClientExecutor extends AbstractUrlHttpClientExecutor {
     private void postRequestData(HttpClientConfig clientConfig, HttpURLConnection httpConnection) throws IOException {
 
         byte[] postData = parsePostRequestData(clientConfig);
+        // There is actually no need to set content length here, Content-Length key value will auto calculation and write to the header by HttpURLConnection
         httpConnection.setRequestProperty("content-length", String.valueOf(postData.length));
 
         // Support IO streaming
@@ -129,7 +139,7 @@ public class UrlHttpClientExecutor extends AbstractUrlHttpClientExecutor {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             String formDataSeparator = "--" + boundary;
             byte[] lineSign = new byte[]{'\r', '\n'};
-            StringBuffer buffer = null;
+            StringBuilder builder = null;
             for (HttpClientParameter clientParameter : clientParameters) {
                 baos.write(formDataSeparator.getBytes());
                 baos.write(lineSign);
@@ -139,19 +149,19 @@ public class UrlHttpClientExecutor extends AbstractUrlHttpClientExecutor {
                 String itemContentType = clientParameter.getContentType();
                 long contentLength = clientParameter.getContentLength();
 
-                buffer = new StringBuffer();
+                builder = new StringBuilder();
                 if (clientParameter.isFileUpload()) {
-                    buffer.append("content-disposition: form-data; name=\"").append(name).append("\"; filename=\"").append(value).append("\"\r\n");
-                    buffer.append("content-length: ").append(contentLength).append("\r\n");
-                    buffer.append("content-type: ").append(itemContentType).append("\r\n");
-                    buffer.append("content-transfer-encoding: binary").append("\r\n");
+                    builder.append("content-disposition: form-data; name=\"").append(name).append("\"; filename=\"").append(value).append("\"\r\n");
+                    builder.append("content-transfer-encoding: binary").append("\r\n");
                 } else {
-                    buffer.append("content-disposition: form-data; name=\"").append(name).append("\"\r\n");
-                    buffer.append("content-length: ").append(contentLength).append("\r\n");
-                    buffer.append("content-type: ").append(itemContentType).append("\r\n");
+                    builder.append("content-disposition: form-data; name=\"").append(name).append("\"\r\n");
                 }
-                buffer.append("\r\n");
-                baos.write(buffer.toString().getBytes());
+                builder.append("content-length: ").append(contentLength).append("\r\n");
+                if(itemContentType != null && itemContentType.length() > 0) {
+                    builder.append("content-type: ").append(itemContentType).append("\r\n");
+                }
+                builder.append("\r\n");
+                baos.write(builder.toString().getBytes());
                 clientParameter.writeContentTo(baos);
                 baos.write(lineSign);
             }
@@ -175,16 +185,16 @@ public class UrlHttpClientExecutor extends AbstractUrlHttpClientExecutor {
                     return requestBody.toString().getBytes();
                 }
             } else {
-                StringBuffer buffer = new StringBuffer();
+                StringBuilder builder = new StringBuilder();
                 int length = clientParameters.size();
                 int i = 0;
                 for (HttpClientParameter clientParameter : clientParameters) {
-                    buffer.append(URLEncoder.encode(clientParameter.getName(), "UTF-8")).append('=').append(URLEncoder.encode(clientParameter.getValue(), "UTF-8"));
+                    builder.append(URLEncoder.encode(clientParameter.getName(), "UTF-8")).append('=').append(URLEncoder.encode(clientParameter.getValue(), "UTF-8"));
                     if (i++ < length - 1) {
-                        buffer.append('&');
+                        builder.append('&');
                     }
                 }
-                requestData = buffer.toString().getBytes();
+                requestData = builder.toString().getBytes();
             }
         }
         return requestData;

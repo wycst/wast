@@ -1,20 +1,16 @@
 package io.github.wycst.wast.clients.http.provider.nacos;
 
-import io.github.wycst.wast.clients.http.HttpClient;
 import io.github.wycst.wast.clients.http.definition.HttpClientConfig;
-import io.github.wycst.wast.clients.http.impl.DefaultServiceProvider;
+import io.github.wycst.wast.clients.http.provider.CloudServiceProvider;
+import io.github.wycst.wast.clients.http.provider.FetchPropertiesCallback;
 import io.github.wycst.wast.clients.http.provider.ServerZone;
-import io.github.wycst.wast.common.utils.ExecutorServiceUtils;
 import io.github.wycst.wast.json.JSON;
 import io.github.wycst.wast.log.Log;
 import io.github.wycst.wast.log.LogFactory;
 import io.github.wycst.wast.yaml.YamlDocument;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -27,50 +23,45 @@ import java.util.concurrent.TimeUnit;
  * @Author wangyunchao
  * @Date 2022/7/13 9:35
  */
-public class NacosServiceProvider extends DefaultServiceProvider {
+public class NacosServiceProvider extends CloudServiceProvider {
 
     private static Log log = LogFactory.getLog(NacosServiceProvider.class);
 
-    private final HttpClient httpClient = new HttpClient();
-    private final ScheduledExecutorService scheduledExecutorService;
-    private final Properties nacosProperties;
+    public static final String CLOUD_NACOS_SERVER_ADDR_KEY = "cloud.nacos.server_addr";
+    public static final String CLOUD_NACOS_USERNAME_KEY = "cloud.nacos.username";
+    public static final String CLOUD_NACOS_PASSWORD_KEY = "cloud.nacos.password";
+    public static final String CLOUD_NACOS_AUTH_ENABLED_KEY = "cloud.nacos.auth.enabled";
+    public static final String CLOUD_NACOS_AUTH_REFRESH_INTERVAL_KEY = "cloud.nacos.auth.tokenRefreshInterval";
 
-    // 配置加载回调
-    private FetchPropertiesCallback fetchPropertiesCallback;
-
-    private final String CLOUD_NACOS_SERVER_ADDR_KEY = "cloud.nacos.server_addr";
-    private final String CLOUD_NACOS_USERNAME_KEY = "cloud.nacos.username";
-    private final String CLOUD_NACOS_PASSWORD_KEY = "cloud.nacos.password";
-    private final String CLOUD_NACOS_AUTH_KEY = "cloud.nacos.auth.enabled";
-
-    private final String CLOUD_NACOS_CONFIG_DATAID_KEY = "cloud.nacos.config.dataIds";
-    private final String CLOUD_NACOS_CONFIG_GROUP_KEY = "cloud.nacos.config.groups";
-    private final String CLOUD_NACOS_CONFIG_TENANT_KEY = "cloud.nacos.config.tenants";
+    public static final String CLOUD_NACOS_CONFIG_DATA_IDS_KEY = "cloud.nacos.config.dataIds";
+    public static final String CLOUD_NACOS_CONFIG_GROUPS_KEY = "cloud.nacos.config.groups";
+    public static final String CLOUD_NACOS_CONFIG_TENANTS_KEY = "cloud.nacos.config.tenants";
 
     // 实例注册配置key
     // 实例IP
-    private final String CLOUD_NACOS_INSTANCE_IP_KEY = "cloud.nacos.instance.ip";
+    public static final String CLOUD_NACOS_INSTANCE_IP_KEY = "cloud.nacos.instance.ip";
     // nacos注册服务实例名称
-    private final String CLOUD_NACOS_INSTANCE_SERVICE_NAME_KEY = "cloud.nacos.instance.serviceName";
+    public static final String CLOUD_NACOS_INSTANCE_SERVICE_NAME_KEY = "cloud.nacos.instance.serviceName";
     // 当前服务的端口（如果获取不到获取本地服务的server.port）
-    private final String CLOUD_NACOS_INSTANCE_SERVICE_PORT_KEY = "cloud.nacos.instance.servicePort";
+    public static final String CLOUD_NACOS_INSTANCE_SERVICE_PORT_KEY = "cloud.nacos.instance.servicePort";
     // 命名空间id
-    private final String CLOUD_NACOS_INSTANCE_NAMESPACE_ID_KEY = "cloud.nacos.instance.namespaceId";
+    public static final String CLOUD_NACOS_INSTANCE_NAMESPACE_ID_KEY = "cloud.nacos.instance.namespaceId";
     // 通过注册代替发送心跳
-    private final String CLOUD_NACOS_INSTANCE_BEAT_METHOD_KEY = "cloud.nacos.instance.beat.method";
+    public static final String CLOUD_NACOS_INSTANCE_BEAT_METHOD_KEY = "cloud.nacos.instance.beat.method";
 
     // 检查间隔（上报健康状态，当nacos重启后会自动重连）
-    private final String CLOUD_NACOS_INSTANCE_CHECK_HEALTHY_INTERVAL_KEY = "cloud.nacos.instance.checkHealthyInterval";
+    public static final String CLOUD_NACOS_INSTANCE_CHECK_HEALTHY_INTERVAL_KEY = "cloud.nacos.instance.checkHealthyInterval";
     // 是否启用注册
-    private final String CLOUD_NACOS_INSTANCE_ENABLE_KEY = "cloud.nacos.instance.enable";
+    public static final String CLOUD_NACOS_INSTANCE_ENABLE_KEY = "cloud.nacos.instance.enable";
 
     private String serverAddr;
     private String username;
     private String password;
     private boolean auth;
-    private String accessTokenKeyAndValue = "";
+    private long authRefreshInterval;
+
+    private String accessTokenKeyAndValue;
     private String nacosServerName;
-    private boolean enableNacosClient;
 
     private String[] dataIds;
     private String[] groups;
@@ -82,85 +73,40 @@ public class NacosServiceProvider extends DefaultServiceProvider {
     private String instanceServiceName;
     private String instancePort;
     private String instanceNamespaceId;
-    private long instanceCheckHealthyInterval;
-    private boolean instanceEnable;
-    private boolean status;
-
-    private final long serviceUpdateInterval = 60;
 
     private String nacosAuthUrl;
+
+    private String baseNacosInstanceUrl;
+    private String baseNacosConfigsUrl;
+    private String baseNacosCheckHealthyUrl;
+
     private String nacosInstanceUrl;
     private String nacosConfigsUrl;
     private String nacosCheckHealthyUrl;
 
-    private ServiceListResponse serviceListResponse;
-
     public NacosServiceProvider(Properties nacosProperties) {
-        nacosProperties.getClass();
-        this.nacosProperties = nacosProperties;
-        this.scheduledExecutorService = Executors.newScheduledThreadPool(1);
-        resolverProperties();
+        this(nacosProperties, null);
     }
 
-    public void setFetchPropertiesCallback(FetchPropertiesCallback fetchPropertiesCallback) {
-        this.fetchPropertiesCallback = fetchPropertiesCallback;
+    public NacosServiceProvider(FetchPropertiesCallback fetchPropertiesCallback) {
+        this(null, fetchPropertiesCallback);
     }
 
-    private void resolverProperties() {
-        this.init();
-        if (!this.enableNacosClient) {
-            return;
-        }
-        // load config
-        this.fetchConfig();
-        // 设置服务提供者
-        this.setHttpClientServiceProvider();
-        // 开启任务加载服务
-        this.beginFetchService();
-
-        // 初始化实例信息
-        this.initInstanceInfo();
-        if (this.instanceEnable) {
-            // 注册实例(注意再获取配置结束后)
-            this.registerServiceInstance();
-            // 开启健康检查
-            this.beginHealthyCheck();
-        }
+    public NacosServiceProvider(Properties nacosProperties, FetchPropertiesCallback fetchPropertiesCallback) {
+        super(nacosProperties, fetchPropertiesCallback);
     }
 
-    private void beginFetchService() {
-        this.scheduledExecutorService.scheduleWithFixedDelay(new Runnable() {
-            public void run() {
-                if (status) {
-                    fetchServiceInstanceList();
-                }
-            }
-        }, 0, this.serviceUpdateInterval, TimeUnit.SECONDS);
-
-        // first fetch
-        scheduledExecutorService.execute(new Runnable() {
-            @Override
-            public void run() {
-                fetchServiceInstanceList();
-            }
-        });
-    }
-
-    private void setHttpClientServiceProvider() {
-        httpClient.setServiceProvider(this);
-        httpClient.setEnableLoadBalance(true);
-    }
-
-    private void fetchServiceInstanceList() {
+    protected void fetchServiceInstanceList() {
         try {
+            String accessTokenKeyAndValue = this.accessTokenKeyAndValue  == null ? "" : this.accessTokenKeyAndValue;
             String serviceListUrl = String.format("http://%s/nacos/v1/ns/service/list?pageNo=1&pageSize=100000&%s", this.nacosServerName, accessTokenKeyAndValue);
             if (this.instanceNamespaceId != null) {
                 serviceListUrl += "&namespaceId=" + this.instanceNamespaceId;
             }
 
-            this.serviceListResponse = httpClient.get(serviceListUrl, ServiceListResponse.class);
+            ServiceListResponse serviceListResponse = httpClient.get(serviceListUrl, ServiceListResponse.class);
             // nacos/v1/ns/instance/list?serviceName=nacos.test.1&healthyOnly=true
-            List<String> doms = this.serviceListResponse.getDoms();
+            List<String> doms = serviceListResponse.getDoms();
             clearIfNotExist(doms);
             for (String serviceName : doms) {
                 String instanceListUrl = String.format("http://%s/nacos/v1/ns/instance/list?serviceName=%s&healthyOnly=true&%s", this.nacosServerName, serviceName, accessTokenKeyAndValue);
@@ -185,38 +131,24 @@ public class NacosServiceProvider extends DefaultServiceProvider {
         }
     }
 
-    public void shutdownExecutorService() {
-        ExecutorServiceUtils.shutdownExecutorService(scheduledExecutorService);
-    }
-
-    private void beginHealthyCheck() {
-        if (this.instanceCheckHealthyInterval > 0) {
-            this.scheduledExecutorService.scheduleWithFixedDelay(new Runnable() {
-                public void run() {
-                    doHealthyCheck();
-                }
-            }, 0, this.instanceCheckHealthyInterval, TimeUnit.SECONDS);
-        }
-    }
-
-    private void doHealthyCheck() {
+    protected void doHealthyCheck() {
         try {
             if (!this.status) {
-                this.registerServiceInstance();
+                this.registerInstance();
             } else {
                 if (instanceBeatByRegister) {
-                    this.registerServiceInstance();
+                    this.registerInstance();
                 } else {
                     Map<String, String> beatInfo = new HashMap<String, String>();
                     beatInfo.put("port", this.instancePort);
                     beatInfo.put("ip", this.instanceIp);
-                    beatInfo.put("port", this.instancePort);
                     beatInfo.put("serviceName", this.instanceServiceName);
                     beatInfo.put("namespaceId", this.instanceNamespaceId);
                     beatInfo.put("healthy", "true");
                     beatInfo.put("weight", "1.0");
 
                     HttpClientConfig requestConfig = new HttpClientConfig();
+                    requestConfig.addTextParameter("namespaceId", this.instanceNamespaceId);
                     requestConfig.addTextParameter("serviceName", this.instanceServiceName);
                     requestConfig.addTextParameter("ephemeral", "false");
                     requestConfig.addTextParameter("beat", JSON.toJsonString(beatInfo));
@@ -233,9 +165,9 @@ public class NacosServiceProvider extends DefaultServiceProvider {
         }
     }
 
-    private void fetchConfig() {
+    protected void fetchClientConfig() {
         log.info("configCount {}", this.configCount);
-        if (this.configCount > 0) {
+        if (this.configCount > 0 && fetchPropertiesCallback != null) {
             for (int i = 0; i < this.configCount; i++) {
                 try {
                     String dataId = dataIds[i].trim();
@@ -243,13 +175,11 @@ public class NacosServiceProvider extends DefaultServiceProvider {
                     String configUrl = String.format("%sdataId=%s&group=%s&tenant=%s", this.nacosConfigsUrl, dataId, groups[i], tenants[i]);
                     log.info("fetch configUrl {}", configUrl);
                     InputStream is = httpClient.get(configUrl, InputStream.class);
-                    if (fetchPropertiesCallback != null) {
-                        if (isYaml) {
-                            Properties properties = YamlDocument.loadProperties(is);
-                            fetchPropertiesCallback.loadProperties(properties);
-                        } else {
-                            fetchPropertiesCallback.loadProperties(is);
-                        }
+                    if (isYaml) {
+                        Properties properties = YamlDocument.loadProperties(is);
+                        fetchPropertiesCallback.loadProperties(properties);
+                    } else {
+                        fetchPropertiesCallback.loadProperties(is);
                     }
                 } catch (Throwable throwable) {
                     log.debug(throwable.getMessage());
@@ -258,30 +188,24 @@ public class NacosServiceProvider extends DefaultServiceProvider {
         }
     }
 
-    public Properties fetchConfig(String dataId, String group, String tenant) throws IOException {
-        boolean isYaml = dataId.toLowerCase().endsWith(".yml") || dataId.toLowerCase().endsWith(".yaml");
-        String configUrl = String.format("%sdataId=%s&group=%s&tenant=%s", this.nacosConfigsUrl, dataId, group, tenant);
-        log.info("fetch configUrl {}", configUrl);
-        InputStream is = httpClient.get(configUrl, InputStream.class);
-        if (isYaml) {
-            return YamlDocument.loadProperties(is);
-        } else {
-            Properties properties = new Properties();
-            properties.load(is);
-            return properties;
-        }
-    }
-
-    public interface FetchPropertiesCallback {
-        void loadProperties(InputStream is);
-
-        void loadProperties(Properties properties);
-    }
+//    public Properties fetchConfig(String dataId, String group, String tenant) throws IOException {
+//        boolean isYaml = dataId.toLowerCase().endsWith(".yml") || dataId.toLowerCase().endsWith(".yaml");
+//        String configUrl = String.format("%sdataId=%s&group=%s&tenant=%s", this.nacosConfigsUrl, dataId, group, tenant);
+//        log.info("fetch configUrl {}", configUrl);
+//        InputStream is = httpClient.get(configUrl, InputStream.class);
+//        if (isYaml) {
+//            return YamlDocument.loadProperties(is);
+//        } else {
+//            Properties properties = new Properties();
+//            properties.load(is);
+//            return properties;
+//        }
+//    }
 
     /**
      * 注册实例
      */
-    private void registerServiceInstance() {
+    protected void registerInstance() {
 
         try {
             // 注册地址 http://${serverAddr}/nacos/v1/ns/instance?port=8848&healthy=true&ip=11.11.11.11&weight=1.0&serviceName=nacos.test.3&encoding=GBK&namespaceId=n1
@@ -303,20 +227,20 @@ public class NacosServiceProvider extends DefaultServiceProvider {
         }
     }
 
-    private void init() {
+    protected void initBase() {
         // load serverAddr
         this.serverAddr = getProperty(CLOUD_NACOS_SERVER_ADDR_KEY);
         if (this.serverAddr == null) {
-            log.info("nacos config {} is required ", CLOUD_NACOS_SERVER_ADDR_KEY);
+            log.info("nacos config '{}' is required ", CLOUD_NACOS_SERVER_ADDR_KEY);
             return;
         }
-        this.enableNacosClient = true;
+        this.enableClient = true;
         log.info("nacos serverAddr {}", this.serverAddr);
         this.username = getProperty(CLOUD_NACOS_USERNAME_KEY);
         this.password = getProperty(CLOUD_NACOS_PASSWORD_KEY);
-        this.auth = "true".equals(getProperty(CLOUD_NACOS_AUTH_KEY));
+        this.auth = "true".equals(getProperty(CLOUD_NACOS_AUTH_ENABLED_KEY));
 
-        // init urls
+        // initBase urls
         if (this.serverAddr.indexOf(",") == -1) {
             // 登录url
             // curl -X POST '127.0.0.1:8848/nacos/v1/auth/login' -d 'username=nacos&password=nacos'
@@ -342,35 +266,56 @@ public class NacosServiceProvider extends DefaultServiceProvider {
             this.nacosConfigsUrl = String.format("http://%s/nacos/v1/cs/configs?", this.nacosServerName);
         }
 
+        this.baseNacosInstanceUrl = this.nacosInstanceUrl;
+        this.baseNacosCheckHealthyUrl = this.nacosCheckHealthyUrl;
+        this.baseNacosConfigsUrl = this.nacosConfigsUrl;
+
         log.info("cloud.nacos.auth.enabled {}", auth);
         if (this.auth) {
-
-            // 提前获取accessToken
-            HttpClientConfig clientConfig = new HttpClientConfig();
-            clientConfig.addTextParameter("username", username);
-            clientConfig.addTextParameter("password", password);
-            String accessTokenKeyAndValue = "";
             try {
-                Map map = httpClient.post(this.nacosAuthUrl, Map.class, clientConfig);
-                if (map != null && map.containsKey("accessToken")) {
-                    String accessToken = map.get("accessToken").toString();
-                    accessTokenKeyAndValue = "accessToken=" + accessToken;
-                    this.nacosInstanceUrl += "?" + accessTokenKeyAndValue;
-                    this.nacosCheckHealthyUrl += "?" + accessTokenKeyAndValue;
-                    this.nacosConfigsUrl += accessTokenKeyAndValue + "&";
-                } else {
-                    log.warn("Failed to get Nacos accessToken ");
-                }
-
+                String authRefreshInterval = getProperty(CLOUD_NACOS_AUTH_REFRESH_INTERVAL_KEY);
+                this.authRefreshInterval = Long.parseLong(authRefreshInterval.trim());
             } catch (Throwable throwable) {
             }
-            this.accessTokenKeyAndValue = accessTokenKeyAndValue;
+            this.handleNacosAccessToken();
+            if (this.authRefreshInterval > 0) {
+                log.info("cloud.nacos.auth.refreshInterval {}", authRefreshInterval);
+                this.tokenRefreshScheduledFuture = this.scheduledExecutorService.scheduleWithFixedDelay(new Runnable() {
+                    public void run() {
+                        handleNacosAccessToken();
+                    }
+                }, this.authRefreshInterval, this.authRefreshInterval, TimeUnit.SECONDS);
+            }
         }
 
         this.initConfigParams();
     }
 
-    private void initInstanceInfo() {
+    void handleNacosAccessToken() {
+        // 提前获取accessToken
+        HttpClientConfig clientConfig = new HttpClientConfig();
+        clientConfig.addTextParameter("username", username);
+        clientConfig.addTextParameter("password", password);
+        String accessTokenKeyAndValue = "";
+        try {
+            Map map = httpClient.post(this.nacosAuthUrl, Map.class, clientConfig);
+            if (map != null && map.containsKey("accessToken")) {
+                // 过期时间 - tokenTtl
+                String accessToken = map.get("accessToken").toString();
+                accessTokenKeyAndValue = "accessToken=" + accessToken;
+                this.nacosInstanceUrl = this.baseNacosInstanceUrl + "?" + accessTokenKeyAndValue;
+                this.nacosCheckHealthyUrl = this.baseNacosCheckHealthyUrl + "?" + accessTokenKeyAndValue;
+                this.nacosConfigsUrl = this.baseNacosConfigsUrl + accessTokenKeyAndValue + "&";
+            } else {
+                log.warn("Failed to get Nacos accessToken ");
+            }
+
+        } catch (Throwable throwable) {
+        }
+        this.accessTokenKeyAndValue = accessTokenKeyAndValue;
+    }
+
+    protected void initInstanceConfig() {
         this.instanceIp = getProperty(CLOUD_NACOS_INSTANCE_IP_KEY);
         // 校验ip是否是本机IP
         this.instanceServiceName = getProperty(CLOUD_NACOS_INSTANCE_SERVICE_NAME_KEY);
@@ -387,35 +332,27 @@ public class NacosServiceProvider extends DefaultServiceProvider {
         } catch (Throwable throwable) {
             this.instanceCheckHealthyInterval = 30; // 30s
         }
-        String enable = getProperty(CLOUD_NACOS_INSTANCE_ENABLE_KEY);
-        this.instanceEnable = !"false".equals(enable);
+
+        if(this.instanceIp != null && this.instancePort != null && this.instanceServiceName != null) {
+            String enable = getProperty(CLOUD_NACOS_INSTANCE_ENABLE_KEY);
+            this.instanceEnable = enable != null && !"false".equals(enable);
+        } else {
+            log.warn("The instance cannot be registered because the ip, port, or serviceName is empty.");
+        }
     }
 
     private void initConfigParams() {
         try {
-            String dataIds = getProperty(CLOUD_NACOS_CONFIG_DATAID_KEY);
-            String groups = getProperty(CLOUD_NACOS_CONFIG_GROUP_KEY);
-            String tenants = getProperty(CLOUD_NACOS_CONFIG_TENANT_KEY);
-            this.dataIds = dataIds.trim().split(",");
-            this.groups = groups.trim().split(",");
-            this.tenants = tenants.trim().split(",");
+            String dataIds = getProperty(CLOUD_NACOS_CONFIG_DATA_IDS_KEY);
+            String groups = getProperty(CLOUD_NACOS_CONFIG_GROUPS_KEY);
+            String tenants = getProperty(CLOUD_NACOS_CONFIG_TENANTS_KEY);
+            this.dataIds = dataIds == null ? new String[0] : dataIds.trim().split(",");
+            this.groups = groups == null ? new String[0] : groups.trim().split(",");
+            this.tenants = tenants == null ? new String[0] : tenants.trim().split(",");
             this.configCount = Math.min(this.dataIds.length, Math.min(this.groups.length, this.tenants.length));
         } catch (Throwable throwable) {
-            log.debug("init config error： {}", throwable.getMessage());
+            log.debug("initBase config error: {}", throwable.getMessage());
         }
     }
 
-    /**
-     * 子类需要重写此方法来实现动态占位符表达式取值
-     *
-     * @param key
-     * @return
-     */
-    public String getProperty(String key) {
-        return nacosProperties.getProperty(key);
-    }
-
-    public void destroy() {
-        this.shutdownExecutorService();
-    }
 }

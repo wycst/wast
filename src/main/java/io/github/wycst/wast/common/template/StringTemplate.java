@@ -56,18 +56,18 @@ public final class StringTemplate {
     private final byte[] templateJavaSource;
     private TemplateClass templateClass;
     // 静态字符串临时缓冲区（优化）
-    private StringBuffer staticTempBuffer = new StringBuffer();
+    private StringBuilder staticTempBuffer = new StringBuilder();
     private boolean nextNewLine = false;
 
     public StringTemplate(String template) {
-        StringBuffer importPackages = new StringBuffer();
+        StringBuilder importPackages = new StringBuilder();
         importPackages.append("package " + PACKAGE_NAME + ";\r\n");
         importPackages.append("import java.util.*;\r\n");
 //        importPackages.append("import io.github.wycst.wast.common.template.TemplateClass;\r\n");
 //        importPackages.append("import io.github.wycst.wast.common.utils.*;\r\n");
 
         // 源代码
-        StringBuffer source = new StringBuffer();
+        StringBuilder source = new StringBuilder();
         String[] lines = template.split("\r\n", -1);
 
         boolean javaCodeBegin = false;
@@ -229,7 +229,7 @@ public final class StringTemplate {
         }
     }
 
-    private void appendIndent(StringBuffer source, int scopeLevel) {
+    private void appendIndent(StringBuilder source, int scopeLevel) {
         while (scopeLevel-- > 0) {
             source.append("\t");
         }
@@ -239,8 +239,8 @@ public final class StringTemplate {
         return String.format("StringTemplate$_%d", ATOMIC_LONG.getAndIncrement());
     }
 
-    private String getJavaCode(String className, StringBuffer importPackages, StringBuffer source) {
-        StringBuffer javaCodeBuffer = new StringBuffer();
+    private String getJavaCode(String className, StringBuilder importPackages, StringBuilder source) {
+        StringBuilder javaCodeBuffer = new StringBuilder();
         javaCodeBuffer.append(importPackages);
         javaCodeBuffer.append("public class ").append(className).append(" extends TemplateClass {\r\n");
         javaCodeBuffer.append("\r\n");
@@ -249,7 +249,7 @@ public final class StringTemplate {
         return javaCodeBuffer.toString();
     }
 
-    private void appendDefineSource(StringBuffer source, String line, String trimLine) {
+    private void appendDefineSource(StringBuilder source, String line, String trimLine) {
         this.persistBuffer(source);
         if (trimLine.startsWith(DEFINE_PREFIX)) {
             source.append("\t\t").append(trimLine.substring(DEFINE_PREFIX.length()));
@@ -276,14 +276,14 @@ public final class StringTemplate {
     /**
      * 解析上下文，模板核心代码
      */
-    private void appendPlaceHolderLine(StringBuffer source, String line, String contextName, int scopeLevel) {
+    private void appendPlaceHolderLine(StringBuilder source, String line, String contextName, int scopeLevel) {
         // 暂时只支持解析表达式，可拓展支持函数调用，后续支持
         String reg = "[$][{]([ ]*[0-9a-zA-Z_.$]+[ ]*)[}]";
         Pattern pattern = RegexUtils.getPattern(reg);
         Matcher matcher = pattern.matcher(line);
         int beginIndex = 0;
 
-        StringBuffer buffer = staticTempBuffer;
+        StringBuilder buffer = staticTempBuffer;
         boolean hasNewlineFlag = false;
         while (matcher.find()) {
             // 判断group开始是否为转义标识符\\,如果是就原group跳过
@@ -321,14 +321,14 @@ public final class StringTemplate {
     /**
      * 缓冲区持久化到source
      */
-    private void persistBuffer(StringBuffer source) {
+    private void persistBuffer(StringBuilder source) {
         persistBuffer(source, true);
     }
 
     /**
      * 缓冲区持久化到source
      */
-    private void persistBuffer(StringBuffer source, int level) {
+    private void persistBuffer(StringBuilder source, int level) {
         this.appendIndent(source, level);
         persistBuffer(source, true);
     }
@@ -336,7 +336,7 @@ public final class StringTemplate {
     /**
      * 缓冲区持久化到source
      */
-    private void persistBuffer(StringBuffer source, boolean newLine) {
+    private void persistBuffer(StringBuilder source, boolean newLine) {
         if (staticTempBuffer.length() > 0) {
             if (newLine) {
                 // 临时静态字符串持久化到source
@@ -349,7 +349,7 @@ public final class StringTemplate {
         }
     }
 
-    private boolean appendForLoopSource(StringBuffer source, String line, String trimLine) {
+    private boolean appendForLoopSource(StringBuilder source, String line, String trimLine) {
         Matcher matcher = FOR_LOOP_PATTERN.matcher(trimLine);
         boolean matched = false;
         if (matcher.find()) {
@@ -373,7 +373,7 @@ public final class StringTemplate {
         return matched;
     }
 
-    private boolean appendIfClauseSource(StringBuffer source, String line, String trimLine) {
+    private boolean appendIfClauseSource(StringBuilder source, String line, String trimLine) {
         Matcher matcher = IF_PATTERN.matcher(trimLine);
         boolean matched = false;
         if (matcher.find()) {
@@ -386,7 +386,7 @@ public final class StringTemplate {
         return matched;
     }
 
-    private boolean appendElseIfClauseSource(StringBuffer source, String line, String trimLine) {
+    private boolean appendElseIfClauseSource(StringBuilder source, String line, String trimLine) {
         Matcher matcher = ELSE_IF_PATTERN.matcher(trimLine);
         boolean matched = false;
         if (matcher.find()) {
@@ -399,7 +399,7 @@ public final class StringTemplate {
         return matched;
     }
 
-    private void appendElseClauseSource(StringBuffer source, String line, String trimLine) {
+    private void appendElseClauseSource(StringBuilder source, String line, String trimLine) {
         source.append("\t\t} else {\r\n\t");
     }
 

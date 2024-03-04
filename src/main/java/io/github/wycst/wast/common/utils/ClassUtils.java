@@ -14,7 +14,7 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
 @SuppressWarnings({"unchecked", "rawtypes"})
-public class ClassUtils {
+public final class ClassUtils {
 
     public static void loadJars(String lib) {
         File jarLib = new File(lib);

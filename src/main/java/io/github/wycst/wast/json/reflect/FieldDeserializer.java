@@ -27,11 +27,6 @@ public class FieldDeserializer extends JSONTypeDeserializer {
     private final String name;
 
     /**
-     * hash
-     */
-    private final int hash;
-
-    /**
      * setter信息
      */
     private final SetterInfo setterInfo;
@@ -73,7 +68,6 @@ public class FieldDeserializer extends JSONTypeDeserializer {
             throw new IllegalArgumentException("setterInfo is null");
         }
         this.name = name;
-        this.hash = name.hashCode();
         this.setterInfo = setterInfo;
         this.jsonProperty = jsonProperty;
         this.genericParameterizedType = setterInfo.getGenericParameterizedType();
@@ -98,20 +92,32 @@ public class FieldDeserializer extends JSONTypeDeserializer {
     }
 
     void initDeserializer() {
-        if (setterInfo.isNonInstanceType()) {
-            if (genericParameterizedType.getActualType() == Serializable.class) {
-                this.deserializer = SERIALIZABLE_DESERIALIZER;
-            } else {
-                this.deserializer = null;
-            }
-            Class impl;
-            if (jsonProperty != null && (impl = jsonProperty.impl()) != Object.class) {
+        Class impl;
+        boolean unfixedType = false;
+        if (jsonProperty != null) {
+            if((impl = jsonProperty.impl()) != Object.class) {
                 if (isAvailableImpl(impl)) {
                     implClass = impl;
                 }
             }
+            unfixedType = jsonProperty.unfixedType();
+        }
+        if(implClass != null) {
+            this.deserializer = getTypeDeserializer(implClass);
         } else {
-            this.deserializer = getDeserializer(genericParameterizedType);
+            if (setterInfo.isNonInstanceType()) {
+                if (genericParameterizedType.getActualType() == Serializable.class) {
+                    this.deserializer = SERIALIZABLE_DESERIALIZER;
+                } else {
+                    this.deserializer = null;
+                }
+            } else {
+                if(genericParameterizedType.getActualClassCategory() == ReflectConsts.ClassCategory.ObjectCategory && unfixedType) {
+                    this.deserializer = null;
+                } else {
+                    this.deserializer = getDeserializer(genericParameterizedType);
+                }
+            }
         }
     }
 
@@ -142,10 +148,6 @@ public class FieldDeserializer extends JSONTypeDeserializer {
         return name;
     }
 
-    public int getHash() {
-        return hash;
-    }
-
     public boolean isCustomDeserialize() {
         return customDeserialize;
     }
@@ -166,20 +168,12 @@ public class FieldDeserializer extends JSONTypeDeserializer {
         throw new UnsupportedOperationException();
     }
 
-    public ReflectConsts.ClassCategory getClassCategory() {
-        return classCategory;
-    }
-
     public JSONTypeDeserializer getDeserializer() {
         return deserializer;
     }
 
     public Object getDefaultFieldValue(Object instance) {
         return setterInfo.getDefaultFieldValue(instance);
-    }
-
-    public boolean isNonInstanceType() {
-        return setterInfo.isNonInstanceType();
     }
 
     public int getIndex() {

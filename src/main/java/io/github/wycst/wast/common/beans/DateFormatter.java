@@ -13,6 +13,8 @@ public class DateFormatter {
 
     private DateTemplate dateTemplate;
 
+    private int estimateSize = -1;
+
     public static final DateFormatter YMDHMS_S_17 = new DateFormatterYMDHMS_S_17();
     public static final DateFormatter YMDHMS_14 = new DateFormatterYMDHMS_14();
     public static final DateFormatter YMD_8 = new DateFormatterYMD_8();
@@ -64,6 +66,10 @@ public class DateFormatter {
         dateFormatterMap.put("H/m/s", temp);
     }
 
+    public int getEstimateSize() {
+        return estimateSize;
+    }
+
     /**
      * 通用表达式
      *
@@ -78,6 +84,7 @@ public class DateFormatter {
         // not cache
         DateFormatter dateFormatter = new DateFormatter();
         dateFormatter.dateTemplate = new DateTemplate(pattern);
+        dateFormatter.estimateSize = dateFormatter.dateTemplate.estimateSize();
         return dateFormatter;
     }
 
@@ -132,7 +139,7 @@ public class DateFormatter {
      * @param date
      * @return
      */
-    public String format(Date date) {
+    public String format(GregorianDate date) {
         StringBuilder builder = new StringBuilder();
         dateTemplate.formatTo(date, builder);
         return builder.toString();
@@ -190,7 +197,7 @@ public class DateFormatter {
      * @param date
      * @return
      */
-    public void formatTo(Date date, Appendable appendable) {
+    public void formatTo(GregorianDate date, Appendable appendable) {
         dateTemplate.formatTo(date, appendable);
     }
 
@@ -248,7 +255,7 @@ public class DateFormatter {
         }
 
         @Override
-        public void formatTo(Date date, Appendable appendable) {
+        public void formatTo(GregorianDate date, Appendable appendable) {
             formatTo(date.year, date.month, date.dayOfMonth, date.hourOfDay, date.minute, date.second, appendable);
         }
 
@@ -268,9 +275,8 @@ public class DateFormatter {
         }
     }
 
+    // yyyy?MM?dd?HH?mm?ss
     static class DateFormatterYMDHMS_19 extends PatternedFormatter {
-        public static final String DatePattern = "yyyy?MM?dd?HH?mm?ss";
-
         private final char dateToken;
         private final char timeToken;
         private final char concat;
@@ -282,13 +288,18 @@ public class DateFormatter {
         }
 
         @Override
+        public int getEstimateSize() {
+            return 19;
+        }
+
+        @Override
         public void formatTo(int year, int month, int dayOfMonth, int hour, int minute, int second, Appendable appendable) {
             try {
                 if (year < 0) {
                     appendable.append('-');
                     year = -year;
                 }
-                int y1 = year / 100, y2 = year - y1 * 100;
+                int y1 = year / 100, y2 = year % 100;
                 char[] DigitTens = DateTemplate.DigitTens;
                 char[] DigitOnes = DateTemplate.DigitOnes;
                 appendable.append(DigitTens[y1]);
@@ -314,16 +325,52 @@ public class DateFormatter {
                 throw new UnsupportedOperationException(e);
             }
         }
+
+        public int write(int year, int month, int dayOfMonth, int hour, int minute, int second, int millisecond, char[] buf, int off) {
+            int size = 19;
+            if (year < 0) {
+                ++size;
+                buf[off++] = '-';
+                year = -year;
+            }
+            int y1 = year / 100, y2 = year % 100;
+            char[] DigitTens = DateTemplate.DigitTens;
+            char[] DigitOnes = DateTemplate.DigitOnes;
+            buf[off++] = DigitTens[y1];
+            buf[off++] = DigitOnes[y1];
+            buf[off++] = DigitTens[y2];
+            buf[off++] = DigitOnes[y2];
+            buf[off++] = dateToken;
+            buf[off++] = DigitTens[month];
+            buf[off++] = DigitOnes[month];
+            buf[off++] = dateToken;
+            buf[off++] = DigitTens[dayOfMonth];
+            buf[off++] = DigitOnes[dayOfMonth];
+            buf[off++] = concat;
+            buf[off++] = DigitTens[hour];
+            buf[off++] = DigitOnes[hour];
+            buf[off++] = timeToken;
+            buf[off++] = DigitTens[minute];
+            buf[off++] = DigitOnes[minute];
+            buf[off++] = timeToken;
+            buf[off++] = DigitTens[second];
+            buf[off] = DigitOnes[second];
+            return size;
+        }
     }
 
+    // yyyy?MM?dd?HH?mm?ss.S+
     static class DateFormatterYMDHMS_S_23 extends PatternedFormatter {
-        public static final String DatePattern = "yyyy?MM?dd?HH?mm?ss.S+";
-
         private final DateFormatterYMDHMS_19 dateFormatterYMDHMS_19;
 
         private DateFormatterYMDHMS_S_23(DateFormatterYMDHMS_19 dateFormatterYMDHMS_19) {
             dateFormatterYMDHMS_19.getClass();
             this.dateFormatterYMDHMS_19 = dateFormatterYMDHMS_19;
+        }
+
+        @Override
+        public int getEstimateSize() {
+            return 24;
         }
 
         @Override
@@ -341,15 +388,28 @@ public class DateFormatter {
                 throw new UnsupportedOperationException(e);
             }
         }
+
+        public int write(int year, int month, int dayOfMonth, int hour, int minute, int second, int millisecond, char[] buf, int off) {
+            int size = dateFormatterYMDHMS_19.write(year, month, dayOfMonth, hour, minute, second, millisecond, buf, off);
+            char s1 = (char) (millisecond / 100 + 48);
+            int v = millisecond % 100;
+            buf[off++] = s1;
+            buf[off++] = DateTemplate.DigitTens[v];
+            buf[off] = DateTemplate.DigitOnes[v];
+            return size + 3;
+        }
     }
 
     /**
      * yyyyMMddHHmmss
      */
     static class DateFormatterYMDHMS_14 extends PatternedFormatter {
-        public static final String DatePattern = "yyyyMMddHHmmss";
-
         private DateFormatterYMDHMS_14() {
+        }
+
+        @Override
+        public int getEstimateSize() {
+            return 15;
         }
 
         @Override
@@ -359,7 +419,7 @@ public class DateFormatter {
                     appendable.append('-');
                     year = -year;
                 }
-                int y1 = year / 100, y2 = year - y1 * 100;
+                int y1 = year / 100, y2 = year % 100;
                 char[] DigitTens = DateTemplate.DigitTens;
                 char[] DigitOnes = DateTemplate.DigitOnes;
                 appendable.append(DigitTens[y1]);
@@ -380,15 +440,46 @@ public class DateFormatter {
                 throw new UnsupportedOperationException(e);
             }
         }
+
+        public int write(int year, int month, int dayOfMonth, int hour, int minute, int second, int millisecond, char[] buf, int off) {
+            int size = 14;
+            if (year < 0) {
+                ++size;
+                buf[off++] = '-';
+                year = -year;
+            }
+            int y1 = year / 100, y2 = year % 100;
+            char[] DigitTens = DateTemplate.DigitTens;
+            char[] DigitOnes = DateTemplate.DigitOnes;
+            buf[off++] = DigitTens[y1];
+            buf[off++] = DigitOnes[y1];
+            buf[off++] = DigitTens[y2];
+            buf[off++] = DigitOnes[y2];
+            buf[off++] = DigitTens[month];
+            buf[off++] = DigitOnes[month];
+            buf[off++] = DigitTens[dayOfMonth];
+            buf[off++] = DigitOnes[dayOfMonth];
+
+            buf[off++] = DigitTens[hour];
+            buf[off++] = DigitOnes[hour];
+            buf[off++] = DigitTens[minute];
+            buf[off++] = DigitOnes[minute];
+            buf[off++] = DigitTens[second];
+            buf[off] = DigitOnes[second];
+            return size;
+        }
     }
 
     /**
      * yyyyMMddHHmmssSSS
      */
     static class DateFormatterYMDHMS_S_17 extends PatternedFormatter {
-        public static final String DatePattern = "yyyyMMddHHmmssSSS";
-
         private DateFormatterYMDHMS_S_17() {
+        }
+
+        @Override
+        public int getEstimateSize() {
+            return 18;
         }
 
         @Override
@@ -398,7 +489,7 @@ public class DateFormatter {
                     appendable.append('-');
                     year = -year;
                 }
-                int y1 = year / 100, y2 = year - y1 * 100;
+                int y1 = year / 100, y2 = year % 100;
                 char[] DigitTens = DateTemplate.DigitTens;
                 char[] DigitOnes = DateTemplate.DigitOnes;
                 appendable.append(DigitTens[y1]);
@@ -425,10 +516,44 @@ public class DateFormatter {
         public void formatTo(int year, int month, int dayOfMonth, int hour, int minute, int second, Appendable appendable) {
             formatTo(year, month, dayOfMonth, hour, minute, second, 0, appendable);
         }
+
+        public int write(int year, int month, int dayOfMonth, int hour, int minute, int second, int millisecond, char[] buf, int off) {
+            int size = 17;
+            if (year < 0) {
+                ++size;
+                buf[off++] = '-';
+                year = -year;
+            }
+            int y1 = year / 100, y2 = year % 100;
+            char[] DigitTens = DateTemplate.DigitTens;
+            char[] DigitOnes = DateTemplate.DigitOnes;
+            buf[off++] = DigitTens[y1];
+            buf[off++] = DigitOnes[y1];
+            buf[off++] = DigitTens[y2];
+            buf[off++] = DigitOnes[y2];
+            buf[off++] = DigitTens[month];
+            buf[off++] = DigitOnes[month];
+            buf[off++] = DigitTens[dayOfMonth];
+            buf[off++] = DigitOnes[dayOfMonth];
+
+            buf[off++] = DigitTens[hour];
+            buf[off++] = DigitOnes[hour];
+            buf[off++] = DigitTens[minute];
+            buf[off++] = DigitOnes[minute];
+            buf[off++] = DigitTens[second];
+            buf[off++] = DigitOnes[second];
+
+            char s1 = (char) (millisecond / 100 + 48);
+            int v = millisecond % 100;
+            buf[off++] = s1;
+            buf[off++] = DigitTens[v];
+            buf[off] = DigitOnes[v];
+            return size;
+        }
     }
 
+    // yyyy?MM?dd
     static class DateFormatterYMD_10 extends PatternedFormatter {
-        public static final String DatePattern = "yyyy?MM?dd";
         private final char dateToken;
 
         private DateFormatterYMD_10(char dateToken) {
@@ -436,35 +561,8 @@ public class DateFormatter {
         }
 
         @Override
-        public void formatTo(int year, int month, int dayOfMonth, int hour, int minute, int second, Appendable appendable) {
-            try {
-                if (year < 0) {
-                    appendable.append('-');
-                    year = -year;
-                }
-                int y1 = year / 100, y2 = year - y1 * 100;
-                char[] DigitTens = DateTemplate.DigitTens;
-                char[] DigitOnes = DateTemplate.DigitOnes;
-                appendable.append(DigitTens[y1]);
-                appendable.append(DigitOnes[y1]);
-                appendable.append(DigitTens[y2]);
-                appendable.append(DigitOnes[y2]);
-                appendable.append(dateToken);
-                appendable.append(DigitTens[month]);
-                appendable.append(DigitOnes[month]);
-                appendable.append(dateToken);
-                appendable.append(DigitTens[dayOfMonth]);
-                appendable.append(DigitOnes[dayOfMonth]);
-            } catch (IOException e) {
-                throw new UnsupportedOperationException(e);
-            }
-        }
-    }
-
-    static class DateFormatterYMD_8 extends PatternedFormatter {
-        public static final String DatePattern = "yyyyMMdd";
-
-        private DateFormatterYMD_8() {
+        public int getEstimateSize() {
+            return 11;
         }
 
         @Override
@@ -474,7 +572,67 @@ public class DateFormatter {
                     appendable.append('-');
                     year = -year;
                 }
-                int y1 = year / 100, y2 = year - y1 * 100;
+                int y1 = year / 100, y2 = year % 100;
+                char[] DigitTens = DateTemplate.DigitTens;
+                char[] DigitOnes = DateTemplate.DigitOnes;
+                appendable.append(DigitTens[y1]);
+                appendable.append(DigitOnes[y1]);
+                appendable.append(DigitTens[y2]);
+                appendable.append(DigitOnes[y2]);
+                appendable.append(dateToken);
+                appendable.append(DigitTens[month]);
+                appendable.append(DigitOnes[month]);
+                appendable.append(dateToken);
+                appendable.append(DigitTens[dayOfMonth]);
+                appendable.append(DigitOnes[dayOfMonth]);
+            } catch (IOException e) {
+                throw new UnsupportedOperationException(e);
+            }
+        }
+
+        public int write(int year, int month, int dayOfMonth, int hour, int minute, int second, int millisecond, char[] buf, int off) {
+            int size = 10;
+            if (year < 0) {
+                ++size;
+                buf[off++] = '-';
+                year = -year;
+            }
+            int y1 = year / 100, y2 = year % 100;
+            char[] DigitTens = DateTemplate.DigitTens;
+            char[] DigitOnes = DateTemplate.DigitOnes;
+            buf[off++] = DigitTens[y1];
+            buf[off++] = DigitOnes[y1];
+            buf[off++] = DigitTens[y2];
+            buf[off++] = DigitOnes[y2];
+            buf[off++] = dateToken;
+            buf[off++] = DigitTens[month];
+            buf[off++] = DigitOnes[month];
+            buf[off++] = dateToken;
+            buf[off++] = DigitTens[dayOfMonth];
+            buf[off] = DigitOnes[dayOfMonth];
+            return size;
+        }
+    }
+
+    // yyyyMMdd
+    static class DateFormatterYMD_8 extends PatternedFormatter {
+
+        private DateFormatterYMD_8() {
+        }
+
+        @Override
+        public int getEstimateSize() {
+            return 9;
+        }
+
+        @Override
+        public void formatTo(int year, int month, int dayOfMonth, int hour, int minute, int second, Appendable appendable) {
+            try {
+                if (year < 0) {
+                    appendable.append('-');
+                    year = -year;
+                }
+                int y1 = year / 100, y2 = year % 100;
                 char[] DigitTens = DateTemplate.DigitTens;
                 char[] DigitOnes = DateTemplate.DigitOnes;
                 appendable.append(DigitTens[y1]);
@@ -489,10 +647,36 @@ public class DateFormatter {
                 throw new UnsupportedOperationException(e);
             }
         }
+
+        public int write(int year, int month, int dayOfMonth, int hour, int minute, int second, int millisecond, char[] buf, int off) {
+            int size = 8;
+            if (year < 0) {
+                ++size;
+                buf[off++] = '-';
+                year = -year;
+            }
+            int y1 = year / 100, y2 = year % 100;
+            char[] DigitTens = DateTemplate.DigitTens;
+            char[] DigitOnes = DateTemplate.DigitOnes;
+            buf[off++] = DigitTens[y1];
+            buf[off++] = DigitOnes[y1];
+            buf[off++] = DigitTens[y2];
+            buf[off++] = DigitOnes[y2];
+            buf[off++] = DigitTens[month];
+            buf[off++] = DigitOnes[month];
+            buf[off++] = DigitTens[dayOfMonth];
+            buf[off] = DigitOnes[dayOfMonth];
+            return size;
+        }
     }
 
+    // HHmmss
     static class DateFormatterHMS_6 extends PatternedFormatter {
-        public static final String DatePattern = "HHmmss";
+
+        @Override
+        public int getEstimateSize() {
+            return 6;
+        }
 
         @Override
         public void formatTo(int year, int month, int dayOfMonth, int hour, int minute, int second, Appendable appendable) {
@@ -509,10 +693,22 @@ public class DateFormatter {
                 throw new UnsupportedOperationException(e);
             }
         }
+
+        public int write(int year, int month, int dayOfMonth, int hour, int minute, int second, int millisecond, char[] buf, int off) {
+            char[] DigitTens = DateTemplate.DigitTens;
+            char[] DigitOnes = DateTemplate.DigitOnes;
+            buf[off++] = DigitTens[hour];
+            buf[off++] = DigitOnes[hour];
+            buf[off++] = DigitTens[minute];
+            buf[off++] = DigitOnes[minute];
+            buf[off++] = DigitTens[second];
+            buf[off] = DigitOnes[second];
+            return 6;
+        }
     }
 
+    // HH?mm?ss
     static class DateFormatterHMS_8 extends PatternedFormatter {
-        public static final String DatePattern = "HH?mm?ss";
         private char timeToken;
 
         private DateFormatterHMS_8(char timeToken) {
@@ -520,6 +716,11 @@ public class DateFormatter {
         }
 
         @Override
+        public int getEstimateSize() {
+            return 8;
+        }
+
+        @Override
         public void formatTo(int year, int month, int dayOfMonth, int hour, int minute, int second, Appendable appendable) {
             try {
                 char[] DigitTens = DateTemplate.DigitTens;
@@ -536,5 +737,23 @@ public class DateFormatter {
                 throw new UnsupportedOperationException(e);
             }
         }
+
+        public int write(int year, int month, int dayOfMonth, int hour, int minute, int second, int millisecond, char[] buf, int off) {
+            char[] DigitTens = DateTemplate.DigitTens;
+            char[] DigitOnes = DateTemplate.DigitOnes;
+            buf[off++] = DigitTens[hour];
+            buf[off++] = DigitOnes[hour];
+            buf[off++] = timeToken;
+            buf[off++] = DigitTens[minute];
+            buf[off++] = DigitOnes[minute];
+            buf[off++] = timeToken;
+            buf[off++] = DigitTens[second];
+            buf[off] = DigitOnes[second];
+            return 8;
+        }
+    }
+
+    public int write(int year, int month, int dayOfMonth, int hour, int minute, int second, int millisecond, char[] buf, int off) {
+        return dateTemplate.write(year, month, dayOfMonth, hour, minute, second, millisecond, buf, off);
     }
 }

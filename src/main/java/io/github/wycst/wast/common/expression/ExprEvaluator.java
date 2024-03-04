@@ -1,5 +1,5 @@
 /*
- * Copyright [2020-2022] [wangyunchao]
+ * Copyright [2020-2024] [wangyunchao]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -76,19 +76,19 @@ public class ExprEvaluator {
     /**
      * 优化深度
      */
-    static final int Optimize_Depth_Value = 1 << 10;
+    static final int OPTIMIZE_DEPTH_VALUE = 1 << 10;
 
-    // 字符串拼接
-    private static ThreadLocal<StringBuilder> localBuilder = new ThreadLocal<StringBuilder>() {
-        @Override
-        protected StringBuilder initialValue() {
-            return new StringBuilder();
-        }
-    };
+//    // 字符串拼接
+//    private static ThreadLocal<StringBuilder> localBuilder = new ThreadLocal<StringBuilder>() {
+//        @Override
+//        protected StringBuilder initialValue() {
+//            return new StringBuilder();
+//        }
+//    };
 
-    protected static StringBuilder getLocalBuilder() {
-        return localBuilder.get();
-    }
+//    protected static StringBuilder getLocalBuilder() {
+//        return localBuilder.get();
+//    }
 
     // use by code()
     public boolean isStaticExpr() {
@@ -166,7 +166,7 @@ public class ExprEvaluator {
                         strings = new String[strings.length << 1];
                         System.arraycopy(tmp, 0, strings, 0, tmp.length);
                     }
-                    String val = splitStr.substring(beginIndex, i).trim();
+                    String val = new String(splitStr.substring(beginIndex, i)).trim();
                     strings[arrLen++] = val;
                     beginIndex = i + 1;
                 }
@@ -178,7 +178,7 @@ public class ExprEvaluator {
             System.arraycopy(tmp, 0, strings, 0, tmp.length);
         }
         // 添加最后一个
-        strings[arrLen++] = splitStr.substring(beginIndex, length).trim();
+        strings[arrLen++] = new String(splitStr.substring(beginIndex, length)).trim();
         // 设置输出长度
         atomicInteger.set(arrLen);
         strArr.set(isStrArr);
@@ -228,7 +228,7 @@ public class ExprEvaluator {
             if (isStrArr) {
                 // 字符串数组
                 if (val.startsWith("'") && val.endsWith("'")) {
-                    val = val.substring(1, val.length() - 1);
+                    val = new String(val.substring(1, val.length() - 1));
                 } /*else if (val.startsWith("\"") && val.endsWith("\"")) {
                     val = val.substring(1, val.length() - 1);
                 } */ else {
@@ -706,13 +706,20 @@ public class ExprEvaluator {
                     return ((Number) leftValue).longValue() + ((Number) rightValue).longValue();
                 }
             }
+
+            String leftStrValue = String.valueOf(leftValue);
+            String rightStrValue = String.valueOf(rightValue);
+            char[] chars = new char[leftStrValue.length() + rightStrValue.length()];
+            leftStrValue.getChars(0, leftStrValue.length(), chars, 0);
+            rightStrValue.getChars(0, rightStrValue.length(), chars, leftStrValue.length());
+            return new String(chars);
             // 字符串加法
-            StringBuilder builder = getLocalBuilder();
-            try {
-                return builder.append(leftValue).append(rightValue).toString();
-            } finally {
-                builder.setLength(0);
-            }
+//            StringBuilder builder = getLocalBuilder();
+//            try {
+//                return builder.append(leftValue).append(rightValue).toString();
+//            } finally {
+//                builder.setLength(0);
+//            }
         }
     }
 
@@ -1368,6 +1375,8 @@ public class ExprEvaluator {
 
         // 以@作为标记
         public void setFunction(String funName, String params, ExprParser global) {
+
+            this.functionName = funName.trim();
             if (params.isEmpty()) {
                 this.paramLength = 0;
                 this.paramExprs = new String[0];
@@ -1380,7 +1389,6 @@ public class ExprEvaluator {
             AtomicBoolean doubleArr = new AtomicBoolean(true);
             String[] paramExprs = parseStringArr(params, atomicInteger, strArr, doubleArr);
 
-            this.functionName = funName.trim();
             this.paramExprs = paramExprs;
             this.paramLength = atomicInteger.get();
 
@@ -1572,7 +1580,7 @@ public class ExprEvaluator {
     ExprEvaluator optimizeDepth(ExprEvaluator target, int depth) {
         if(left == null) return target;
         // 每1024优化一次left
-        if(++depth > Optimize_Depth_Value) {
+        if(++depth > OPTIMIZE_DEPTH_VALUE) {
             ExprEvaluatorStackSplitImpl stackSplit = new ExprEvaluatorStackSplitImpl(target, left);
             ExprEvaluatorContextValueHolderImpl valueHolder = new ExprEvaluatorContextValueHolderImpl();
             // update target left

@@ -2,8 +2,35 @@ package io.github.wycst.wast.json.options;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TimeZone;
 
 public class JsonConfig {
+
+    private static boolean defaultFullProperty;
+    private static String defaultDateFormatPattern;
+    private static boolean defaultFormatIndentUseSpace;
+    private static int defaultFormatIndentSpaceNum = 4;
+    private static boolean defaultWriteEnumAsOrdinal;
+
+    public static void setDefaultFullProperty(boolean defaultFullProperty) {
+        JsonConfig.defaultFullProperty = defaultFullProperty;
+    }
+
+    public static void setDefaultDateFormatPattern(String defaultDateFormatPattern) {
+        JsonConfig.defaultDateFormatPattern = defaultDateFormatPattern;
+    }
+
+    public static void setDefaultFormatIndentUseSpace(boolean defaultFormatIndentUseSpace) {
+        JsonConfig.defaultFormatIndentUseSpace = defaultFormatIndentUseSpace;
+    }
+
+    public static void setDefaultFormatIndentSpaceNum(int defaultFormatIndentSpaceNum) {
+        JsonConfig.defaultFormatIndentSpaceNum = defaultFormatIndentSpaceNum;
+    }
+
+    public static void setDefaultWriteEnumAsOrdinal(boolean defaultWriteEnumAsOrdinal) {
+        JsonConfig.defaultWriteEnumAsOrdinal = defaultWriteEnumAsOrdinal;
+    }
 
     /**
      * 格式化输出
@@ -11,9 +38,19 @@ public class JsonConfig {
     private boolean formatOut;
 
     /**
+     * 格式化缩进使用空格模式
+     */
+    private boolean formatIndentUseSpace = defaultFormatIndentUseSpace;
+
+    /**
+     * 缩进空格数量,默认4个空格
+     */
+    private int formatIndentSpaceNum = Math.max(defaultFormatIndentSpaceNum, 1);
+
+    /**
      * 输出全属性
      */
-    private boolean fullProperty;
+    private boolean fullProperty = defaultFullProperty;
 
     /**
      * 以yyyy-MM-dd HH:mm:ss 格式化日期对象
@@ -28,7 +65,17 @@ public class JsonConfig {
     /**
      * 是否序列化日期为时间戳
      */
-    private boolean writeEnumAsOrdinal;
+    private boolean writeEnumAsOrdinal = defaultWriteEnumAsOrdinal;
+
+    /**
+     * 是否将数字类序列化位字符串
+     */
+    private boolean writeNumberAsString;
+
+    /**
+     * 是否使用toString序列化浮点数
+     */
+    private boolean writeDecimalUseToString;
 
     /**
      * 跳过循环序列化
@@ -38,7 +85,7 @@ public class JsonConfig {
     /**
      * 日期格式默认： yyyy-MM-dd HH:mm:ss
      */
-    private String dateFormatPattern;
+    private String dateFormatPattern = defaultDateFormatPattern;
 
     /**
      * 是否将byte[]数组按数组序列化
@@ -82,19 +129,40 @@ public class JsonConfig {
     private boolean camelCaseToUnderline;
 
     /**
+     * 是否序列化类型
+     */
+    private boolean writeClassName;
+
+    /**
      * 指定时区
      */
-    private String timezone;
+    private TimeZone timezone;
 
     private static ThreadLocal<Map<Integer, Integer>> identityHashCodes = new ThreadLocal<Map<Integer, Integer>>();
 
-    private char[] contextChars;
+//    private char[] contextChars;
 
     public JsonConfig() {
     }
 
     public JsonConfig(WriteOption[] writeOptions) {
         Options.writeOptions(writeOptions, this);
+    }
+
+    public boolean isFormatIndentUseSpace() {
+        return formatIndentUseSpace;
+    }
+
+    public void setFormatIndentUseSpace(boolean formatIndentUseSpace) {
+        this.formatIndentUseSpace = formatIndentUseSpace;
+    }
+
+    public int getFormatIndentSpaceNum() {
+        return formatIndentSpaceNum;
+    }
+
+    public void setFormatIndentSpaceNum(int formatIndentSpaceNum) {
+        this.formatIndentSpaceNum = Math.max(formatIndentSpaceNum, 1);
     }
 
     public boolean isWriteDateAsTime() {
@@ -113,11 +181,11 @@ public class JsonConfig {
         this.dateFormatPattern = dateFormatPattern;
     }
 
-    public String getTimezone() {
+    public TimeZone getTimezone() {
         return timezone;
     }
 
-    public void setTimezone(String timezone) {
+    public void setTimezone(TimeZone timezone) {
         this.timezone = timezone;
     }
 
@@ -221,8 +289,24 @@ public class JsonConfig {
         return writeEnumAsOrdinal;
     }
 
+    public boolean isWriteNumberAsString() {
+        return writeNumberAsString;
+    }
+
+    public void setWriteNumberAsString(boolean writeNumberAsString) {
+        this.writeNumberAsString = writeNumberAsString;
+    }
+
     public void setWriteEnumAsOrdinal(boolean writeEnumAsOrdinal) {
         this.writeEnumAsOrdinal = writeEnumAsOrdinal;
+    }
+
+    public boolean isWriteClassName() {
+        return writeClassName;
+    }
+
+    public void setWriteClassName(boolean writeClassName) {
+        this.writeClassName = writeClassName;
     }
 
     public void setStatus(int hashcode, int status) {
@@ -250,13 +334,16 @@ public class JsonConfig {
     }
 
     public void clear() {
-        identityHashCodes.remove();
+        if(skipCircularReference) {
+            identityHashCodes.remove();
+        }
     }
 
-    public char[] getContextChars() {
-        if (contextChars == null) {
-            contextChars = new char[20];
-        }
-        return contextChars;
+    public void setWriteDecimalUseToString(boolean writeDecimalUseToString) {
+        this.writeDecimalUseToString = writeDecimalUseToString;
+    }
+
+    public boolean isWriteDecimalUseToString() {
+        return writeDecimalUseToString;
     }
 }

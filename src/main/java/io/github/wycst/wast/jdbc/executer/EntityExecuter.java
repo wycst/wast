@@ -1,17 +1,13 @@
 package io.github.wycst.wast.jdbc.executer;
 
+import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.common.utils.ObjectUtils;
 import io.github.wycst.wast.common.utils.StringUtils;
-import io.github.wycst.wast.jdbc.entity.CascadeFetchMapping;
-import io.github.wycst.wast.jdbc.entity.EntitySqlMapping;
-import io.github.wycst.wast.jdbc.entity.FieldColumn;
-import io.github.wycst.wast.jdbc.entity.SqlType;
 import io.github.wycst.wast.jdbc.exception.EntityException;
 import io.github.wycst.wast.jdbc.exception.OqlParematerException;
 import io.github.wycst.wast.jdbc.exception.SqlExecuteException;
-import io.github.wycst.wast.jdbc.oql.OqlExecuter;
-import io.github.wycst.wast.jdbc.oql.OqlQuery;
 import io.github.wycst.wast.jdbc.query.page.Page;
+import io.github.wycst.wast.jdbc.query.sql.Sql;
 import io.github.wycst.wast.jdbc.util.StreamCursor;
 
 import java.io.Serializable;
@@ -26,7 +22,7 @@ import java.util.*;
  */
 public final class EntityExecuter implements OqlExecuter {
 
-    private DefaultSqlExecuter sqlExecuter;
+    private final DefaultSqlExecuter sqlExecuter;
 
     EntityExecuter(DefaultSqlExecuter sqlExecuter) {
         this.sqlExecuter = sqlExecuter;
@@ -47,7 +43,7 @@ public final class EntityExecuter implements OqlExecuter {
         id.getClass();
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        E result = getById(entitySqlMapping, entityCls, id);
+        E result = entitySqlMapping.getEntityHandler().getById(sqlExecuter, entityCls, id); // getById(entitySqlMapping, entityCls, id);
         if (fetch && result != null) {
             this.handleFetch(entitySqlMapping, result);
         }
@@ -70,6 +66,11 @@ public final class EntityExecuter implements OqlExecuter {
     }
 
     @Override
+    public <E> long queryCount(Class<E> entityCls) {
+        return queryCount(entityCls, (Map<String, Object>) null);
+    }
+
+    @Override
     public <E> long queryCount(Class<E> entityCls, Map<String, Object> params) {
         return executeQueryCount(entityCls, params);
     }
@@ -77,6 +78,14 @@ public final class EntityExecuter implements OqlExecuter {
     @Override
     public <E> long queryCount(Class<E> entityCls, E params) {
         return executeQueryCount(entityCls, params);
+    }
+
+    public <E> long queryCount(Class<E> cls, OqlQuery query, Object params) {
+        checkEntityClass(cls);
+        EntitySqlMapping entitySqlMapping = getEntitySqlMapping(cls);
+
+        Sql countSqlObject = entitySqlMapping.getCountSqlObject(query, params);
+        return sqlExecuter.queryValue(countSqlObject.getFormalSql(), long.class, countSqlObject.getParamValues());
     }
 
     @Override
@@ -93,8 +102,9 @@ public final class EntityExecuter implements OqlExecuter {
     public <E> List<E> queryList(Class<E> entityCls, OqlQuery query, Object params) {
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        String selectTemplate = entitySqlMapping.getSelectTemplate(query);
-        return sqlExecuter.getTemplateExecutor().queryList(selectTemplate, params, entityCls);
+
+        Sql sqlObject = entitySqlMapping.getSelectSqlObject(query, params);
+        return sqlExecuter.queryList(sqlObject.getFormalSql(), entityCls, sqlObject.getParamValues());
     }
 
     @Override
@@ -111,8 +121,9 @@ public final class EntityExecuter implements OqlExecuter {
     public <E> StreamCursor<E> queryStream(Class<E> entityCls, OqlQuery query, Object params) {
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        String selectTemplate = entitySqlMapping.getSelectTemplate(query);
-        return sqlExecuter.getTemplateExecutor().queryStream(selectTemplate, params, entityCls);
+
+        Sql sqlObject = entitySqlMapping.getSelectSqlObject(query, params);
+        return sqlExecuter.queryStream(sqlObject.getFormalSql(), entityCls, sqlObject.getParamValues());
     }
 
     @Override
@@ -151,22 +162,29 @@ public final class EntityExecuter implements OqlExecuter {
     }
 
     @Override
-    public <E> void queryPage(Page<E> page, OqlQuery query, Object params) {
-        Class entityCls = page.actualType();
+    public <E> Page<E> queryPage(Page<E> page, OqlQuery query, Object params) {
+        Class<E> entityCls = page.actualType();
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        String selectTemplate = entitySqlMapping.getSelectTemplate(query);
-        sqlExecuter.getTemplateExecutor().queryPage(page, selectTemplate, params);
+
+        Sql sqlObject = entitySqlMapping.getSelectSqlObject(query, params, true);
+        this.executeQueryPage(page, entityCls, sqlObject);
+        return page;
     }
 
     @Override
-    public <E> void queryPage(Page<E> page, Map<String, Object> params) {
-        executeQueryPage(page, params);
+    public <E> Page<E> queryPage(Page<E> page) {
+        return queryPage(page, (Map<String, Object>) null);
     }
 
     @Override
-    public <E> void queryPage(Page<E> page, E params) {
-        executeQueryPage(page, params);
+    public <E> Page<E> queryPage(Page<E> page, Map<String, Object> params) {
+        return executeQueryPage(page, params);
+    }
+
+    @Override
+    public <E> Page<E> queryPage(Page<E> page, E params) {
+        return executeQueryPage(page, params);
     }
 
     @Override
@@ -174,8 +192,9 @@ public final class EntityExecuter implements OqlExecuter {
         Class entityCls = entity.getClass();
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        String insertTemplate = entitySqlMapping.getInsertTemplate(entity);
-        return sqlExecuter.getTemplateExecutor().insert(insertTemplate, true, entity);
+
+        Sql sqlObject = entitySqlMapping.getInsertSqlObject(entity);
+        return sqlExecuter.insert(sqlObject.getFormalSql(), true, sqlObject.getParamValues());
     }
 
     @Override
@@ -186,16 +205,20 @@ public final class EntityExecuter implements OqlExecuter {
         Class entityCls = entityList.get(0).getClass();
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        if (entitySqlMapping.isPrimaryCodeGenerate()) {
-            // 如果主键使用代码生成需要遍历实体，为每个实体单独生成主键
-            // 无法使用jdbc的批量保存api
-            for (Object entity : entityList) {
-                String insertTemplate = entitySqlMapping.getInsertTemplate(entity);
-                sqlExecuter.getTemplateExecutor().insert(insertTemplate, false, entity);
+
+        if(entitySqlMapping.isUsePlaceholderOnInsert()) {
+            if(isSupportBatchInsert()) {
+                Sql batchInsertSqlObject = entitySqlMapping.getBatchInsertSqlObject(entityList);
+                sqlExecuter.update(batchInsertSqlObject.getFormalSql(), batchInsertSqlObject.getParamValues());
+            } else {
+                for (E e : entityList) {
+                    Sql sqlObject = entitySqlMapping.getInsertSqlObject(e);
+                    sqlExecuter.insert(sqlObject.getFormalSql(), true, sqlObject.getParamValues());
+                }
             }
         } else {
-            String insertTemplate = entitySqlMapping.getInsertTemplate();
-            sqlExecuter.getTemplateExecutor().updateCollection(insertTemplate, entityList);
+            Sql sqlObject = entitySqlMapping.getInsertSqlObjectList(entityList);
+            sqlExecuter.updateCollection(sqlObject.getFormalSql(), sqlObject.getParamValuesList());
         }
     }
 
@@ -210,16 +233,9 @@ public final class EntityExecuter implements OqlExecuter {
         Class entityCls = entityList.get(0).getClass();
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        if (entitySqlMapping.isPrimaryCodeGenerate()) {
-            for (Object entity : entityList) {
-                String insertTemplate = entitySqlMapping.getInsertTemplate(entity);
-                sqlExecuter.getTemplateExecutor().insert(insertTemplate, false, entity);
-            }
-            return 0;
-        } else {
-            String insertTemplate = entitySqlMapping.getInsertTemplate();
-            return sqlExecuter.getTemplateExecutor().mysqlBatchInsert(insertTemplate, entityList);
-        }
+
+        Sql batchInsertSqlObject = entitySqlMapping.getBatchInsertSqlObject(entityList);
+        return sqlExecuter.update(batchInsertSqlObject.getFormalSql(), batchInsertSqlObject.getParamValues());
     }
 
     @Override
@@ -227,17 +243,41 @@ public final class EntityExecuter implements OqlExecuter {
         Class entityCls = entity.getClass();
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        String sqlStringFormat = getSqlStringFormat(SqlType.UPDATE);
-        String updateTemplate = entitySqlMapping.getUpdateTemplate(sqlStringFormat);
-        if (updateTemplate == null) {
-            throw new OqlParematerException("配置错误：" + entityCls + "可能没有定义@Id,请检查配置");
+        return entitySqlMapping.getEntityHandler().updateEntity(sqlExecuter, entity);
+    }
+
+    @Override
+    public <E> int updateBy(Class<E> entityCls, OqlQuery query, E params, String... fields) {
+        return handleUpdateByParams(entityCls, query, params, fields);
+    }
+
+    @Override
+    public <E> int updateBy(Class<E> entityCls, OqlQuery query, Map<String,Object> params, String... fields) {
+        return handleUpdateByParams(entityCls, query, params, fields);
+    }
+
+    <E> int handleUpdateByParams(Class<E> entityCls, OqlQuery query, Object params, String... fields) {
+        if(fields.length == 0) return 0;
+        if(params == null) {
+            throw new SqlExecuteException("params is null");
         }
-        return sqlExecuter.getTemplateExecutor().update(updateTemplate, entity);
+
+        checkEntityClass(entityCls);
+        EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
+
+        String sqlStringFormat = getSqlStringFormat(SqlFunctionType.UPDATE_BY_PARAMS);
+        Sql sqlObject = entitySqlMapping.getUpdateSqlObject(sqlStringFormat, query, params, fields);
+        return sqlExecuter.update(sqlObject.getFormalSql(), sqlObject.getParamValues());
     }
 
     @Override
     public <E> int updateFields(E e, String... fields) {
         return updateFields(e, Arrays.asList(fields), false);
+    }
+
+    @Override
+    public <E> int updateFields(E e, boolean isExclude, String... fields) {
+        return updateFields(e, Arrays.asList(fields), isExclude);
     }
 
     @Override
@@ -250,12 +290,17 @@ public final class EntityExecuter implements OqlExecuter {
         Class entityCls = entity.getClass();
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        String sqlStringFormat = getSqlStringFormat(SqlType.UPDATE);
-        String updateTemplate = entitySqlMapping.getUpdateTemplate(sqlStringFormat, fields, isExclude);
-        if (updateTemplate == null) {
+        String sqlStringFormat = getSqlStringFormat(SqlFunctionType.UPDATE_BY_ID);
+
+        Sql sqlObject = entitySqlMapping.getUpdateSqlObject(sqlStringFormat, entity, fields, isExclude);
+        if (sqlObject == null) {
             throw new OqlParematerException("配置错误：" + entityCls + "可能没有定义@Id,请检查配置");
         }
-        return sqlExecuter.getTemplateExecutor().update(updateTemplate, entity);
+        try {
+            return sqlExecuter.update(sqlObject.getFormalSql(), sqlObject.getParamValues());
+        } finally {
+            entitySqlMapping.getEntityHandler().afterUpdate(sqlExecuter, entity);
+        }
     }
 
     @Override
@@ -273,17 +318,11 @@ public final class EntityExecuter implements OqlExecuter {
         id.getClass();
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        String sqlStringFormat = getSqlStringFormat(SqlType.DELETE);
-        String deleteTemplate = null;
-        deleteTemplate = entitySqlMapping.getDeleteTemplate(sqlStringFormat);
-        if (deleteTemplate == null) {
-            throw new OqlParematerException("配置错误：" + entityCls + "可能没有定义@Id,请检查配置");
-        }
         if (cascade) {
             // handle cascadeDelete
             this.executeCascadeDelete(entitySqlMapping, id);
         }
-        return sqlExecuter.getTemplateExecutor().delete(deleteTemplate, id);
+        return entitySqlMapping.getEntityHandler().deleteById(sqlExecuter, entityCls, id);
     }
 
     @Override
@@ -292,35 +331,42 @@ public final class EntityExecuter implements OqlExecuter {
             return 0;
         }
         int influenceRows = 0;
+        Class<?> entityCls = entityList.get(0).getClass();
+        checkEntityClass(entityCls);
+        EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
+        String sqlStringFormat = getSqlStringFormat(SqlFunctionType.DELETE_BY_ID);
+        String deleteSql = entitySqlMapping.getDeleteSql(sqlStringFormat);
+        if (deleteSql == null) {
+            throw new OqlParematerException("配置错误：" + entityCls + "可能没有定义@Id,请检查配置");
+        }
         for (Object entity : entityList) {
-            Class<?> entityCls = entity.getClass();
-            checkEntityClass(entityCls);
-            EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-            String sqlStringFormat = getSqlStringFormat(SqlType.DELETE);
-            String deleteTemplate = null;
-            deleteTemplate = entitySqlMapping.getDeleteTemplate(sqlStringFormat);
-            if (deleteTemplate == null) {
-                throw new OqlParematerException("配置错误：" + entityCls + "可能没有定义@Id,请检查配置");
-            }
-            influenceRows += sqlExecuter.getTemplateExecutor().delete(deleteTemplate, entity);
+            Serializable id = entitySqlMapping.getId(entity);
+            influenceRows += sqlExecuter.update(deleteSql, id);
+        }
+        if (influenceRows > 0) {
+            entitySqlMapping.getEntityHandler().afterBatchDelete();
         }
         return influenceRows;
     }
 
     @Override
-    public <E> int deleteByIds(Class<E> entityCls, List<Serializable> ids) {
+    public <E> int deleteByIds(Class<E> entityCls, List<? extends Serializable> ids) {
         if (ids == null || ids.size() == 0) {
             return 0;
         }
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        String sqlStringFormat = getSqlStringFormat(SqlType.DELETE);
-        String deleteTemplate = entitySqlMapping.getDeleteTemplate(sqlStringFormat);
-        if (deleteTemplate == null) {
+        String sqlStringFormat = getSqlStringFormat(SqlFunctionType.DELETE_BY_ID);
+        String deleteSql = entitySqlMapping.getDeleteSql(sqlStringFormat);
+        if (deleteSql == null) {
             throw new OqlParematerException("配置错误：" + entityCls + "可能没有定义@Id,请检查配置");
         }
-        sqlExecuter.getTemplateExecutor().updateCollection(deleteTemplate, ids);
-        return 0;
+        List<Object[]> dataList = new ArrayList<Object[]>();
+        for (Serializable id : ids) {
+            dataList.add(new Object[]{id});
+        }
+        sqlExecuter.updateCollection(deleteSql, dataList);
+        return ids.size();
     }
 
     @Override
@@ -330,39 +376,35 @@ public final class EntityExecuter implements OqlExecuter {
 
     @Override
     public <E> int deleteBy(Class<E> entityCls, E params) {
-        checkEntityClass(entityCls);
-        EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        String deleteTemplateBy = entitySqlMapping.getDeleteTemplateBy(params);
-        return sqlExecuter.getTemplateExecutor().delete(deleteTemplateBy, params);
+        return handleDeleteBy(entityCls, params);
     }
 
     @Override
     public <E> int deleteBy(Class<E> entityCls, Map<String, Object> params) {
+        return handleDeleteBy(entityCls, params);
+    }
+
+    <E> int handleDeleteBy(Class<E> entityCls, Object params) {
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        String deleteTemplateBy = entitySqlMapping.getDeleteTemplateBy(params);
-        return sqlExecuter.getTemplateExecutor().delete(deleteTemplateBy, params);
+
+        String sqlTemplate = getSqlStringFormat(SqlFunctionType.DELETE_BY_PARAMS);
+        Sql sqlObject = entitySqlMapping.getDeleteSqlObjectByParams(sqlTemplate, params);
+        try {
+            return sqlExecuter.update(sqlObject.getFormalSql(), sqlObject.getParamValues());
+        } finally {
+            entitySqlMapping.getEntityHandler().afterBatchDelete();
+        }
     }
 
     @Override
     public <E> int deleteBy(Class<E> entityCls, OqlQuery query, Object params) {
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        String selectTemplate = entitySqlMapping.getSelectTemplate(query);
-        List<?> entityList = sqlExecuter.getTemplateExecutor().queryList(selectTemplate,
-                params, entityCls);
-        int influenceRows = 0;
 
-        String sqlStringFormat = getSqlStringFormat(SqlType.DELETE);
-        String deleteTemplateById = entitySqlMapping.getDeleteTemplate(sqlStringFormat);
-        if (deleteTemplateById == null) {
-            throw new OqlParematerException("配置错误：" + entityCls + "可能没有定义@Id,请检查配置");
-        }
-        for (Object entity : entityList) {
-            // delete by id
-            influenceRows += sqlExecuter.getTemplateExecutor().delete(deleteTemplateById, entity);
-        }
-        return influenceRows;
+        Sql sqlObject = entitySqlMapping.getSelectSqlObject(query, params);
+        List<E> entityList = sqlExecuter.queryList(sqlObject.getFormalSql(), entityCls, sqlObject.getParamValues());
+        return deleteList(entityList);
     }
 
     @Override
@@ -380,10 +422,7 @@ public final class EntityExecuter implements OqlExecuter {
     }
 
     void checkEntityClass(Class<?> entityCls) {
-        entityCls.getClass();
-        if (!EntityManagementFactory.defaultManagementFactory().existEntity(entityCls)) {
-            throw new OqlParematerException("参数错误：" + entityCls + "没有纳入对象sql管理，请检查实体扫描配置");
-        }
+        EntityManagementFactory.defaultManagementFactory().checkEntityClass(entityCls);
     }
 
     EntitySqlMapping getEntitySqlMapping(Class<?> entityCls) {
@@ -400,7 +439,6 @@ public final class EntityExecuter implements OqlExecuter {
             if (params == null) {
                 return;
             }
-            Field fetchField = cascadeFetchMapping.getCascadeFetchField();
             int fieldTypeValue = cascadeFetchMapping.getFieldType();
             Class<?> targetEntityClass = cascadeFetchMapping.getTargetEntityClass();
             List list = executeQueryBy(targetEntityClass, params);
@@ -413,101 +451,103 @@ public final class EntityExecuter implements OqlExecuter {
                 fetchFieldVal = list;
             }
             if (fetchFieldVal != null) {
-                // list
-                fetchField.setAccessible(true);
-                try {
-                    fetchField.set(result, fetchFieldVal);
-                } catch (IllegalAccessException e) {
-                    e.printStackTrace();
-                }
+                cascadeFetchMapping.setFetchFieldValue(result, fetchFieldVal);
             }
         }
     }
 
     Map<String, Object> getCascadeFetchParams(CascadeFetchMapping cascadeFetchMapping, EntitySqlMapping entitySqlMapping, Object result) {
-        String targetFieldName = cascadeFetchMapping.getTargetFieldName();
         String fieldName = cascadeFetchMapping.getFieldName();
         FieldColumn fieldColumn = entitySqlMapping.getFieldColumnMapping().get(fieldName);
-        Field fetchField = cascadeFetchMapping.getCascadeFetchField();
         if (fieldColumn == null) {
+            Field fetchField = cascadeFetchMapping.getCascadeFetchField();
             Class<?> clazz = entitySqlMapping.getEntityClass();
             throw new EntityException(" Entity Class " + clazz + " and field[" + fetchField.getName() + "] is AnnotationPresent @CascadeFetch, but field '" + fieldName + "' is not exist");
         }
-        Field field = fieldColumn.getField();
-        field.setAccessible(true);
         Map<String, Object> params = null;
-        try {
-            Object val = field.get(result);
-            if (val != null) {
-                params = new HashMap<String, Object>();
-                params.put(targetFieldName, val);
-            }
-        } catch (IllegalAccessException e) {
+        Object val = entitySqlMapping.getFieldColumnValue(false, fieldColumn, result);
+        if (val != null) {
+            String targetFieldName = cascadeFetchMapping.getTargetFieldName();
+            params = new HashMap<String, Object>();
+            params.put(targetFieldName, val);
         }
-        return params;
-    }
 
-    <E> E getById(EntitySqlMapping entitySqlMapping, Class<E> entityCls, Serializable id) {
-        String selectSql = entitySqlMapping.getSelectSql();
-        if (selectSql == null) {
-            throw new OqlParematerException("配置错误：" + entityCls + "可能没有定义@Id,请检查配置");
-        }
-        return sqlExecuter.queryObject(selectSql, entityCls, id);
+        return params;
     }
 
     <E> E executeQueryOne(Class<E> entityCls, Object params) {
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        String selectTemplate = entitySqlMapping.getSelectTemplateBy(params);
-        return sqlExecuter.getTemplateExecutor().queryObject(selectTemplate, params, entityCls);
+
+        Sql sqlObject = entitySqlMapping.getSelectSqlObject(params);
+        return sqlExecuter.queryObject(sqlObject.getFormalSql(), entityCls, sqlObject.getParamValues());
     }
 
     long executeQueryCount(Class<?> entityCls, Object params) {
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        String countTemplate = entitySqlMapping.getCountTemplateBy(params);
-        return sqlExecuter.getTemplateExecutor().queryValue(countTemplate, params, long.class);
+
+        Sql countSqlObject = entitySqlMapping.getCountSqlObject(params);
+        return sqlExecuter.queryValue(countSqlObject.getFormalSql(), long.class, countSqlObject.getParamValues());
     }
 
     <E> E executeQueryUnique(Class<E> entityCls, Object params) {
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        String selectTemplate = entitySqlMapping.getSelectTemplateBy(params);
-        return sqlExecuter.getTemplateExecutor().queryUniqueObject(selectTemplate, params, entityCls);
+
+        Sql sqlObject = entitySqlMapping.getSelectSqlObject(params);
+        return sqlExecuter.queryUniqueObject(sqlObject.getFormalSql(), entityCls, sqlObject.getParamValues());
     }
 
     <E> StreamCursor<E> executeQueryStreamBy(Class<E> entityCls, Object params) {
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        String selectTemplate = entitySqlMapping.getSelectTemplateBy(params);
-        return sqlExecuter.getTemplateExecutor().queryStream(selectTemplate, params, entityCls);
+
+        Sql sqlObject = entitySqlMapping.getSelectSqlObject(params);
+        return sqlExecuter.queryStream(sqlObject.getFormalSql(), entityCls, sqlObject.getParamValues());
     }
 
     <E> List<E> executeQueryBy(Class<E> entityCls, Object params) {
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        String selectTemplate = entitySqlMapping.getSelectTemplateBy(params);
-        return sqlExecuter.getTemplateExecutor().queryList(selectTemplate, params, entityCls);
+
+        return entitySqlMapping.getEntityHandler().executeQueryBy(sqlExecuter, entityCls, params);
     }
 
-    <E> void executeQueryPage(Page<E> page, Object params) {
-        Class entityCls = page.actualType();
+    <E> Page<E> executeQueryPage(Page<E> page, Object params) {
+        Class<E> entityCls = page.actualType();
         checkEntityClass(entityCls);
-        OqlQuery query = OqlQuery.create();
-        query.addConditions(ObjectUtils.getNonEmptyFields(params));
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        String selectTemplate = entitySqlMapping.getSelectTemplate(query);
-        sqlExecuter.getTemplateExecutor().queryPage(page, selectTemplate, params);
+
+        Sql sqlObject = entitySqlMapping.getSelectSqlObject(params, true);
+        executeQueryPage(page, entityCls, sqlObject);
+        return page;
     }
 
-    String getSqlStringFormat(SqlType sqlType) {
-        return sqlExecuter.sqlTemplates[sqlType.ordinal()];
+    <E> void executeQueryPage(Page<E> page, Class<E> entityCls, Sql sqlObject) {
+        String totalSql = sqlObject.getTotalSql();
+        String formalSql = sqlObject.getFormalSql();
+        Object[] paramValues = sqlObject.getParamValues();
+
+        // 分页的sql
+        final String limitSql = sqlExecuter.getLimitSql(formalSql, page.getOffset(), page.getPageSize());
+        // 列表
+        List<E> rows = sqlExecuter.queryList(limitSql, entityCls, paramValues);
+        page.setRows(rows);
+
+        long total = sqlExecuter.queryValue(totalSql, long.class, paramValues);
+        page.setTotal(total);
+    }
+    
+
+    String getSqlStringFormat(SqlFunctionType sqlFunctionType) {
+        return sqlExecuter.sqlTemplates[sqlFunctionType.ordinal()];
     }
 
     void executeCascadeDelete(EntitySqlMapping entitySqlMapping, Serializable id) {
         List<CascadeFetchMapping> cascadeFetchMappings = entitySqlMapping.getCascadeFetchMappings();
         Class<?> clazz = entitySqlMapping.getEntityClass();
-        Object result = getById(entitySqlMapping, clazz, id);
+        Object result = entitySqlMapping.getEntityHandler().getById(sqlExecuter, clazz, id);
         for (CascadeFetchMapping cascadeFetchMapping : cascadeFetchMappings) {
             if (!cascadeFetchMapping.isCascade()) {
                 continue;
@@ -517,10 +557,7 @@ public final class EntityExecuter implements OqlExecuter {
                 return;
             }
             Class<?> entityClass = cascadeFetchMapping.getTargetEntityClass();
-            // 调用deleteTemplateBy
-            EntitySqlMapping targetEntitySqlMapping = getEntitySqlMapping(entityClass);
-            String deleteTemplateBy = targetEntitySqlMapping.getDeleteTemplateBy(params);
-            sqlExecuter.getTemplateExecutor().delete(deleteTemplateBy, params);
+            deleteBy(entityClass, params);
         }
     }
 
@@ -570,7 +607,7 @@ public final class EntityExecuter implements OqlExecuter {
                 values.append(value);
             } else {
                 if (value instanceof Date) {
-                    value = new io.github.wycst.wast.common.beans.Date(((Date) value).getTime()).format();
+                    value = new GregorianDate(((Date) value).getTime()).format();
                 } else if (value instanceof String) {
                     // 一个\使用\\\\替换
                     value = ((String) value).replace("\\", "\\\\");
@@ -594,5 +631,45 @@ public final class EntityExecuter implements OqlExecuter {
 
     public boolean isSupportBatchInsert() {
         return sqlExecuter.isSupportBatchInsert();
+    }
+
+    public <E> void clearCache(Class<E> entityCls) {
+        checkEntityClass(entityCls);
+        EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
+        if (entitySqlMapping.isCacheable()) {
+            entitySqlMapping.getCacheableEntityHandler().resetCaches();
+        }
+    }
+
+    public <E> void clearAllCache() {
+        EntityManagementFactory.defaultManagementFactory().clearAllCaches();
+    }
+
+    public void beginTransaction() {
+        sqlExecuter.beginTransaction();
+    }
+
+    public void endTransaction() {
+        sqlExecuter.endTransaction();
+    }
+
+    public void rollbackTransaction() {
+        rollbackTransaction(true);
+    }
+
+    public void rollbackTransaction(boolean closeConnection) {
+        sqlExecuter.rollbackTransaction(closeConnection);
+    }
+
+    public void commitTransaction() {
+        sqlExecuter.commitTransaction();
+    }
+
+    public void commitTransaction(boolean closeConnection) {
+        sqlExecuter.commitTransaction(closeConnection);
+    }
+
+    public void close() {
+        sqlExecuter.close();
     }
 }

@@ -1,6 +1,7 @@
 package io.github.wycst.wast.json.temporal;
 
 import io.github.wycst.wast.common.beans.DateTemplate;
+import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.json.JSONTemporalDeserializer;
 import io.github.wycst.wast.json.options.JSONParseContext;
@@ -11,13 +12,13 @@ import io.github.wycst.wast.json.options.JSONParseContext;
  * @Author: wangy
  * @Date: 2022/8/13 15:06
  * @Description:
- * @see io.github.wycst.wast.common.beans.Date
+ * @see GregorianDate
  * @see io.github.wycst.wast.common.beans.DateTemplate
  */
 public class TemporalInstantDeserializer extends JSONTemporalDeserializer {
 
-    public TemporalInstantDeserializer(GenericParameterizedType genericParameterizedType) {
-        super(genericParameterizedType);
+    public TemporalInstantDeserializer(TemporalConfig temporalConfig) {
+        super(temporalConfig);
     }
 
     protected void checkClass(GenericParameterizedType genericParameterizedType) {

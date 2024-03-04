@@ -33,11 +33,11 @@ public class VariableUtils {
         List<String> variableKeys = new ArrayList<String>();
         int beginIndex = 0, splitIndex = elKey.indexOf('.');
         while (splitIndex > -1) {
-            variableKeys.add(elKey.substring(beginIndex, splitIndex));
+            variableKeys.add(new String(elKey.substring(beginIndex, splitIndex)));
             beginIndex = ++splitIndex;
             splitIndex = elKey.indexOf('.', splitIndex);
         }
-        variableKeys.add(elKey.substring(beginIndex));
+        variableKeys.add(new String(elKey.substring(beginIndex)));
         return build(variableKeys, variableNodeInvokes, tailNodeInvokes);
     }
 
@@ -62,9 +62,9 @@ public class VariableUtils {
             VariableInvoker variableInvoke = variableInvokes.get(path);
             if (variableInvoke == null) {
                 if(isRoot) {
-                    variableInvoke = isChildEL ? new VariableInvoker.ChildElVariableInvoke(key.substring(1, key.length() - 1)) : new VariableInvoker.RootVariableInvoke(key.intern());
+                    variableInvoke = isChildEL ? new VariableInvoker.ChildElVariableInvoke(new String(key.substring(1, key.length() - 1))) : new VariableInvoker.RootVariableInvoke(key.intern());
                 } else {
-                    variableInvoke = isChildEL ? new VariableInvoker.ChildElVariableInvoke(key.substring(1, key.length() - 1), prev) : new VariableInvoker(key, prev);
+                    variableInvoke = isChildEL ? new VariableInvoker.ChildElVariableInvoke(new String(key.substring(1, key.length() - 1)), prev) : new VariableInvoker(key, prev);
                 }
                 variableInvokes.put(path, variableInvoke);
             }
@@ -112,7 +112,7 @@ public class VariableUtils {
         boolean isChildEL = key.charAt(0) == '(';
         VariableInvoker variableInvoke = variableInvokes.get(key);
         if (variableInvoke == null) {
-            variableInvoke = isChildEL ? new VariableInvoker.ChildElVariableInvoke(key.substring(1, key.length() - 1)) : new VariableInvoker.RootVariableInvoke(key);
+            variableInvoke = isChildEL ? new VariableInvoker.ChildElVariableInvoke(new String(key.substring(1, key.length() - 1))) : new VariableInvoker.RootVariableInvoke(key);
             variableInvokes.put(key, variableInvoke);
         }
         // add or replace
