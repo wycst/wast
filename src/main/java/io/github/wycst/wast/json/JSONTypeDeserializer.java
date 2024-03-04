@@ -231,14 +231,6 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                 // cannot use singleton because the pattern of each field may be different
                 return property == null ? DATE : new DateDeserializer.DateInstanceDeserializer(genericParameterizedType, property);
             }
-            case ObjectCategory: {
-                ObjectStructureWrapper objectStructureWrapper = ObjectStructureWrapper.get(genericParameterizedType.getActualType());
-                // Like the date type, the temporal type cannot use singletons also
-                if (objectStructureWrapper.isTemporal()) {
-                    ClassStructureWrapper.ClassWrapperType classWrapperType = objectStructureWrapper.getClassWrapperType();
-                    return JSONTemporalDeserializer.getTemporalDeserializerInstance(classWrapperType, genericParameterizedType, property);
-                }
-            }
         }
 
         // singleton from cache

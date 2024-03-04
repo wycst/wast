@@ -179,15 +179,11 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
             }
             case ObjectCategory: {
                 ObjectStructureWrapper objectStructureWrapper = ObjectStructureWrapper.get(type);
-                if (objectStructureWrapper.isTemporal()) {
-                    return JSONTemporalSerializer.getTemporalSerializerInstance(objectStructureWrapper, jsonProperty);
-                } else {
-                    if(jsonProperty != null && jsonProperty.unfixedType()) {
-                        // auto type
-                        return new ObjectSerializer.ObjectWithTypeSerializer();
-                    }
-                    return getTypeSerializer(type);
+                if(jsonProperty != null && jsonProperty.unfixedType()) {
+                    // auto type
+                    return new ObjectSerializer.ObjectWithTypeSerializer();
                 }
+                return getTypeSerializer(type);
             }
         }
         // others by classCategory
