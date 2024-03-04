@@ -8,14 +8,13 @@
     <version>0.0.11</version>
     <modelVersion>4.0.0</modelVersion>
     <packaging>jar</packaging>
-    <description>java framework and tool lib </description>
+    <description>Wast is a high-performance Java toolset library package that includes JSON, YAML, CSV, and EL engines</description>
     <name>wast</name>
     <url>https://github.com/wycst/wast</url>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <io.netty.version>4.1.86.Final</io.netty.version>
-        <org.javassist.version>3.29.2-GA</org.javassist.version>
+        <org.javassist.version>3.30.2-GA</org.javassist.version>
         <maven.compiler.source>1.7</maven.compiler.source>
         <maven.compiler.target>1.7</maven.compiler.target>
     </properties>
@@ -122,19 +121,6 @@
     </profiles>
 
     <dependencies>
-<!--        <dependency>-->
-<!--            <groupId>org.springframework</groupId>-->
-<!--            <artifactId>spring-web</artifactId>-->
-<!--            <version>5.3.23</version>-->
-<!--            <scope>provided</scope>-->
-<!--        </dependency>-->
-        <dependency>
-            <groupId>io.netty</groupId>
-            <artifactId>netty-all</artifactId>
-            <version>${io.netty.version}</version>
-            <scope>provided</scope>
-        </dependency>
-
         <!-- https://mvnrepository.com/artifact/org.javassist/javassist -->
         <dependency>
             <groupId>org.javassist</groupId>
