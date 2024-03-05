@@ -426,7 +426,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
         }
 
         // common
-        Object deserializeString(CharSource source, char[] buf, int fromIndex, int toIndex, char endChar, GenericParameterizedType parameterizedType, JSONParseContext jsonParseContext) {
+        final Object deserializeString(CharSource source, char[] buf, int fromIndex, int toIndex, char endChar, GenericParameterizedType parameterizedType, JSONParseContext jsonParseContext) {
             int beginIndex = fromIndex + 1;
             JSONCharArrayWriter writer = null;
             char ch;
@@ -564,7 +564,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             @Override
             final Object charSequenceResult(char[] buf, int beginIndex, int len, boolean unEscape, JSONCharArrayWriter writer, GenericParameterizedType parameterizedType) {
                 if (unEscape) {
-                    return StringUtils.create(buf, beginIndex, len);
+                    return new String(buf, beginIndex, len);
                 } else {
                     writer.write(buf, beginIndex, len);
                     return writer.toString();

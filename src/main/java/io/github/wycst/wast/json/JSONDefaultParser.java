@@ -463,35 +463,35 @@ public final class JSONDefaultParser extends JSONGeneral {
             return writer.toString();
         }
 
-        return (String) JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(null, buf, from, toIndex, endCh, GenericParameterizedType.StringType, jsonParseContext);
-//        char ch, next;
-//        int i = beginIndex;
-//        int len;
-//        boolean escape = false;
-//        for (; ; ++i) {
-//            while ((ch = buf[i]) != '\\' && ch != endCh) {
-//                ++i;
-//            }
-//            // ch is \\ or "
-//            if (ch == '\\') {
-//                next = buf[i + 1];
-//                if (writer == null) {
-//                    writer = getContextWriter(jsonParseContext);
-//                    escape = true;
-//                }
-//                beginIndex = escapeNext(buf, next, i, beginIndex, writer, jsonParseContext);
-//                i = jsonParseContext.endIndex;
-//            } else {
-//                jsonParseContext.endIndex = i;
-//                len = i - beginIndex;
-//                if (escape) {
-//                    writer.write(buf, beginIndex, len);
-//                    return writer.toString();
-//                } else {
-//                    return len == 0 ? "" : new String(buf, beginIndex, len);
-//                }
-//            }
-//        }
+//        return (String) JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(null, buf, from, toIndex, endCh, GenericParameterizedType.StringType, jsonParseContext);
+        char ch, next;
+        int i = beginIndex;
+        int len;
+        boolean escape = false;
+        for (; ; ++i) {
+            while ((ch = buf[i]) != '\\' && ch != endCh) {
+                ++i;
+            }
+            // ch is \\ or "
+            if (ch == '\\') {
+                next = buf[i + 1];
+                if (writer == null) {
+                    writer = getContextWriter(jsonParseContext);
+                    escape = true;
+                }
+                beginIndex = escapeNext(buf, next, i, beginIndex, writer, jsonParseContext);
+                i = jsonParseContext.endIndex;
+            } else {
+                jsonParseContext.endIndex = i;
+                len = i - beginIndex;
+                if (escape) {
+                    writer.write(buf, beginIndex, len);
+                    return writer.toString();
+                } else {
+                    return len == 0 ? "" : new String(buf, beginIndex, len);
+                }
+            }
+        }
     }
 
     static String parseMapKeyByCache(char[] buf, int from, int toIndex, char endCh, JSONParseContext jsonParseContext) {

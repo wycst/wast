@@ -69,19 +69,20 @@ class JSONGeneral {
 
     protected final static char[] DigitTens = NumberUtils.copyDigitTens();
 
-    protected final static char[] EscapeChars = new char[160];
+    protected final static int[] ESCAPE_CHARS = new int[160];
 
     static {
         for (int i = 0; i < 160; i++) {
-            EscapeChars[i] = (char) i;
+            ESCAPE_CHARS[i] = i;
         }
-        EscapeChars['\''] = '\'';
-        EscapeChars['"'] = '"';
-        EscapeChars['n'] = '\n';
-        EscapeChars['r'] = '\r';
-        EscapeChars['t'] = '\t';
-        EscapeChars['b'] = '\b';
-        EscapeChars['f'] = '\f';
+//        ESCAPE_CHARS['\''] = '\'';
+//        ESCAPE_CHARS['"'] = '"';
+        ESCAPE_CHARS['n'] = '\n';
+        ESCAPE_CHARS['r'] = '\r';
+        ESCAPE_CHARS['t'] = '\t';
+        ESCAPE_CHARS['b'] = '\b';
+        ESCAPE_CHARS['f'] = '\f';
+        ESCAPE_CHARS['u'] = -1;
     }
 
     protected final static int DIRECT_READ_BUFFER_SIZE = 8192;
@@ -265,18 +266,34 @@ class JSONGeneral {
         if (i > beginIndex) {
             writer.write(buf, beginIndex, i - beginIndex);
         }
-        if (next == 'u') {
-            int c = hex4(buf, i + 2);
-            writer.append((char) c);
-            i += 4;
-            beginIndex = ++i + 1;
-        } else if (next < 160) {
-            writer.append(EscapeChars[next]);
-            beginIndex = ++i + 1;
+        if(next < ESCAPE_CHARS.length) {
+            int escapeChar = ESCAPE_CHARS[next];
+            if(escapeChar > -1) {
+                writer.append((char) escapeChar);
+                beginIndex = ++i + 1;
+            } else {
+                // \\u
+                int c = hex4(buf, i + 2);
+                writer.append((char) c);
+                i += 4;
+                beginIndex = ++i + 1;
+            }
         } else {
             writer.append(next);
             beginIndex = ++i + 1;
         }
+//        if (next == 'u') {
+//            int c = hex4(buf, i + 2);
+//            writer.append((char) c);
+//            i += 4;
+//            beginIndex = ++i + 1;
+//        } else if (next < 160) {
+//            writer.append(ESCAPE_CHARS[next]);
+//            beginIndex = ++i + 1;
+//        } else {
+//            writer.append(next);
+//            beginIndex = ++i + 1;
+//        }
         jsonParseContext.endIndex = i;
         return beginIndex;
     }
@@ -403,8 +420,8 @@ class JSONGeneral {
             writer.append((char) c);
             i += 4;
             beginIndex = ++i + 1;
-        } else if(next < 160) {
-            writer.append(EscapeChars[next]);
+        } else if(next < ESCAPE_CHARS.length) {
+            writer.append((char) ESCAPE_CHARS[next]);
             beginIndex = ++i + 1;
         } else {
             writer.append((char) next);

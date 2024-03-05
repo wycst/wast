@@ -1,6 +1,5 @@
 package io.github.wycst.wast.json.options;
 
-import io.github.wycst.wast.common.utils.StringUtils;
 import io.github.wycst.wast.json.util.FixedNameValueMap;
 
 import java.util.Arrays;
@@ -42,7 +41,7 @@ public class Options {
         //  len > 0
         String value = keyValueMap.getValue(buf, offset, offset + len, hashCode);
         if (value == null) {
-            value = StringUtils.create(buf, offset, len);
+            value = new String(buf, offset, len);
             keyValueMap.putValue(value, value.hashCode() ,value);
         }
         return value;
