@@ -23,8 +23,8 @@ public class ExpressionTemplateTest {
         String msg = null;
 
         long begin = System.currentTimeMillis();
-        for (int i = 0 ; i < 10000000; i++) {
-            msg = Expression.renderTemplate(template, "{", "}" ,context);
+        for (int i = 0 ; i < 1000000; i++) {
+            msg = Expression.renderTemplate(template, "${", "}" ,context);
 //              msg = StringUtils.replaceGroupRegex(template, context);
         }
         long end = System.currentTimeMillis();

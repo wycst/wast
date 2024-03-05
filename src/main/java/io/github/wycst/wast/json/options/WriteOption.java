@@ -137,7 +137,7 @@ public enum WriteOption {
     CamelCaseToUnderline,
 
     /**
-     * 是否在序列化对象时将类名写入到json字符串（只针对{}类型）
+     * 是否在序列化对象时将实体类名(pojo)写入到json字符串（map和list类型无效）
      */
     WriteClassName,
 }

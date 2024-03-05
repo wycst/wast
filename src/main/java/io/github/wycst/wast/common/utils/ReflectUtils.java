@@ -126,9 +126,8 @@ public final class ReflectUtils {
      * @param mapClass
      * @return
      */
-    public static Class[] getMapDefinedClassTypes(Class<? extends Map> mapClass) {
+    public static Class[] getMapDefinedKVTypes(Class<? extends Map> mapClass) {
         Type type = mapClass.getGenericSuperclass();
-        int i = 0;
         if (type instanceof ParameterizedType) {
             ParameterizedType parameterizedType = (ParameterizedType) type;
             Type[] actualTypeArguments = parameterizedType.getActualTypeArguments();

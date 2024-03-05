@@ -36,7 +36,7 @@ public class FieldDeserializer extends JSONTypeDeserializer {
     /**
      * 类型信息
      */
-    private final GenericParameterizedType genericParameterizedType;
+    private GenericParameterizedType genericParameterizedType;
 
     /**
      * 类型分类
@@ -104,6 +104,7 @@ public class FieldDeserializer extends JSONTypeDeserializer {
         }
         if(implClass != null) {
             this.deserializer = getTypeDeserializer(implClass);
+            this.genericParameterizedType = GenericParameterizedType.actualType(implClass);
         } else {
             if (setterInfo.isNonInstanceType()) {
                 if (genericParameterizedType.getActualType() == Serializable.class) {
@@ -197,7 +198,15 @@ public class FieldDeserializer extends JSONTypeDeserializer {
     }
 
     public boolean isAvailableImpl(Class<?> cls) {
-        return genericParameterizedType.getActualType().isAssignableFrom(cls) && ReflectConsts.getClassCategory(cls) == ReflectConsts.ClassCategory.ObjectCategory;
+        boolean assignableFrom = genericParameterizedType.getActualType().isAssignableFrom(cls);
+        if(!assignableFrom) return false;
+        switch (classCategory) {
+            case MapCategory:
+            case CollectionCategory:
+            case ObjectCategory:
+                return true;
+        }
+        return false;
     }
 
     public boolean isInstance(Object value) {

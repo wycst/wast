@@ -134,7 +134,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                 }
                 case MapCategory: {
                     // key/value
-                    Class[] kvTypes = ReflectUtils.getMapDefinedClassTypes(type);
+                    Class[] kvTypes = ReflectUtils.getMapDefinedKVTypes(type);
                     if (kvTypes == null) {
                         typeDeserializer = MAP;
                     } else {
