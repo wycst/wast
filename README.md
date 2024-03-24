@@ -560,7 +560,7 @@ Fact f = sqlExecuter.getTemplateExecutor().queryObject("select * from fact where
 ```
  EntityManagementFactory.defaultManagementFactory().scanPackages("com.xxx.entitys", "com.xxx.entitys1");
 ```
-> 实体不用继承任何类或实现接口，但需要添加@Table注解，并指定表名，目前不会根据类名自动推导表名;<br>
+> 实体不用继承任何类或实现接口;<br>
 > 主键通过注解@Id来标识，支持自增（数据库自增策略），算法生成（雪花算法）以及程序代码设置等几种策略;<br>
 > 其他字段通过注解@Column来映射字段名称，如果没有注解@Column，字段会默认将属性的驼峰格式转为下划线名称作为字段映射;<br>
 
