@@ -527,9 +527,9 @@ class JSONCharArrayWriter extends JSONWriter {
                     System.arraycopy(chars, beginIndex, buf, count, length);
                     count += length;
                 }
-                for (int j = 0; j < escapeStr.length(); ++j) {
-                    buf[count++] = escapeStr.charAt(j);
-                }
+                int escapesLen = escapeStr.length();
+                escapeStr.getChars(0, escapesLen, buf, count);
+                count += escapesLen;
                 beginIndex = i + 1;
             }
             int length = len - beginIndex;
@@ -584,9 +584,9 @@ class JSONCharArrayWriter extends JSONWriter {
                     value.getChars(beginIndex, i, buf, count);
                     count += length;
                 }
-                int escapeLen = escapeStr.length();
-                escapeStr.getChars(0, escapeLen, buf, count);
-                count += escapeLen;
+                int escapesLen = escapeStr.length();
+                escapeStr.getChars(0, escapesLen, buf, count);
+                count += escapesLen;
                 beginIndex = i + 1;
             }
         }
