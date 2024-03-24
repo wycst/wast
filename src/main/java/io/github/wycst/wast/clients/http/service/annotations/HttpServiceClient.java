@@ -46,4 +46,12 @@ public @interface HttpServiceClient {
      * @return
      */
     public long timeout() default 0;
+
+    /**
+     * 负载均衡模式下发生超时时是否保持服务实例可用；
+     * 默认设置alive = false,下次请求将跳过该实例；
+     *
+     * @return
+     */
+    public boolean keepAliveOnTimeout() default false;
 }

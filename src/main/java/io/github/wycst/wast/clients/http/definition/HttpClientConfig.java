@@ -1,13 +1,15 @@
 package io.github.wycst.wast.clients.http.definition;
 
 import io.github.wycst.wast.common.idgenerate.providers.IdGenerator;
-import io.github.wycst.wast.common.tools.Base64;
 
 import java.io.File;
 import java.io.Serializable;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * @Author: wangy

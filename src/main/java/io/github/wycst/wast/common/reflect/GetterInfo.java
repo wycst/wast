@@ -134,6 +134,10 @@ public class GetterInfo {
         return Modifier.isPrivate(field.getModifiers());
     }
 
+    public boolean isPrimitive() {
+        return fieldPrimitive;
+    }
+
     public String getMethodName() {
         return null;
     }

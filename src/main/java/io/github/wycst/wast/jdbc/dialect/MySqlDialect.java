@@ -26,17 +26,17 @@ public class MySqlDialect extends DialectImpl implements Dialect {
         // 如果存在结束符号，重构后还原结束符
         boolean hasSqlEndSymbol = sql.endsWith(SQL_END_SYMBOL);
 
-        StringBuffer buffer = new StringBuffer(sql.length() + 10);
-        buffer.append(sql);
+        StringBuilder builder = new StringBuilder(sql.length() + 10);
+        builder.append(sql);
 
         String limit = hasOffset ? " limit ?,? " : " limit ? ";
         if (hasSqlEndSymbol) {
-            buffer.insert(buffer.length() - 1, limit);
+            builder.insert(builder.length() - 1, limit);
         } else {
-            buffer.append(limit);
+            builder.append(limit);
         }
 
-        return buffer.toString();
+        return builder.toString();
     }
 
     public String getLimitString(String sql, long offset, int limit) {
@@ -45,20 +45,20 @@ public class MySqlDialect extends DialectImpl implements Dialect {
         // 如果存在结束符号，重构后还原结束符
         boolean hasSqlEndSymbol = sql.endsWith(SQL_END_SYMBOL);
 
-        StringBuffer buffer = new StringBuffer(sql.length() + 10);
-        buffer.append(sql);
+        StringBuilder builder = new StringBuilder(sql.length() + 10);
+        builder.append(sql);
         if (hasSqlEndSymbol) {
-            buffer.delete(buffer.length() - SQL_END_SYMBOL.length(), buffer.length());
+            builder.delete(builder.length() - SQL_END_SYMBOL.length(), builder.length());
         }
         if (offset > 0) {
-            buffer.append(" limit ").append(offset).append(',').append(limit);
+            builder.append(" limit ").append(offset).append(',').append(limit);
         } else {
-            buffer.append(" limit ").append(limit);
+            builder.append(" limit ").append(limit);
         }
         if (hasSqlEndSymbol) {
-            buffer.append(SQL_END_SYMBOL);
+            builder.append(SQL_END_SYMBOL);
         }
-        return buffer.toString();
+        return builder.toString();
     }
 
     @Override

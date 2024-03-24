@@ -3,7 +3,7 @@
 //import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 //import io.github.wycst.wast.common.reflect.UnsafeHelper;
 //import io.github.wycst.wast.json.exceptions.JSONException;
-//import io.github.wycst.wast.json.options.JSONParseContext;
+//import io.github.wycst.wast.json.JSONParseContext;
 //
 //import java.io.Serializable;
 //import java.util.ArrayList;
@@ -337,7 +337,7 @@
 //            int endIndex = jsonParseContext.endIndex;
 //            if (endIndex != toIndex - 1) {
 //                int wordNum = Math.min(50, bytes.length - endIndex - 1);
-//                String errorContextTextAt = JSONByteArrayParser.createErrorContextText(bytes, endIndex + 1);
+//                String errorContextTextAt = createErrorContextText(bytes, endIndex + 1);
 //                throw new JSONException("Syntax error, at pos " + endIndex + ", context text by '" + errorContextTextAt + "', extra characters found, '" + new String(bytes, endIndex + 1, wordNum) + " ...'");
 //            }
 //            return result;
@@ -392,17 +392,17 @@
 //                    break;
 //                }
 //                case 'n':
-//                    value = JSONByteArrayParser.parseNull(bytes, i, toIndex, jsonParseContext);
+//                    value = JSONTypeDeserializer.parseNull(bytes, i, toIndex, jsonParseContext);
 //                    i = jsonParseContext.endIndex;
 //                    list.add(value);
 //                    break;
 //                case 't':
-//                    value = JSONByteArrayParser.parseTrue(bytes, i, toIndex, jsonParseContext);
+//                    value = JSONTypeDeserializer.parseTrue(bytes, i, toIndex, jsonParseContext);
 //                    i = jsonParseContext.endIndex;
 //                    list.add(value);
 //                    break;
 //                case 'f':
-//                    value = JSONByteArrayParser.parseFalse(bytes, i, toIndex, jsonParseContext);
+//                    value = JSONTypeDeserializer.parseFalse(bytes, i, toIndex, jsonParseContext);
 //                    i = jsonParseContext.endIndex;
 //                    list.add(value);
 //                    break;
@@ -431,7 +431,7 @@
 //                jsonParseContext.endIndex = i;
 //                return list;
 //            }
-//            String errorContextTextAt = JSONByteArrayParser.createErrorContextText(bytes, i);
+//            String errorContextTextAt = createErrorContextText(bytes, i);
 //            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + b + "', expected ',' or ']'");
 //        }
 ////        throw new JSONException("Syntax error, cannot find closing symbol ']' matching '['");
@@ -475,7 +475,7 @@
 //                    ++i;
 //                }
 //                if (!isNullKey) {
-//                    String errorContextTextAt = JSONByteArrayParser.createErrorContextText(bytes, j);
+//                    String errorContextTextAt = createErrorContextText(bytes, j);
 //                    throw new JSONException("Syntax error, at pos " + j + ", context text by '" + errorContextTextAt + "', unexpected token character '" + b + "', expected '\"'");
 //                }
 //            }
@@ -512,17 +512,17 @@
 //                        break;
 //                    }
 //                    case 'n':
-//                        value = JSONByteArrayParser.parseNull(bytes, i, toIndex, jsonParseContext);
+//                        value = JSONTypeDeserializer.parseNull(bytes, i, toIndex, jsonParseContext);
 //                        i = jsonParseContext.endIndex;
 //                        instance.put(key, value);
 //                        break;
 //                    case 't':
-//                        value = JSONByteArrayParser.parseTrue(bytes, i, toIndex, jsonParseContext);
+//                        value = JSONTypeDeserializer.parseTrue(bytes, i, toIndex, jsonParseContext);
 //                        i = jsonParseContext.endIndex;
 //                        instance.put(key, value);
 //                        break;
 //                    case 'f':
-//                        value = JSONByteArrayParser.parseFalse(bytes, i, toIndex, jsonParseContext);
+//                        value = JSONTypeDeserializer.parseFalse(bytes, i, toIndex, jsonParseContext);
 //                        i = jsonParseContext.endIndex;
 //                        instance.put(key, value);
 //                        break;
@@ -549,7 +549,7 @@
 //                    jsonParseContext.endIndex = i;
 //                    return instance;
 //                }
-//                String errorContextTextAt = JSONByteArrayParser.createErrorContextText(bytes, i);
+//                String errorContextTextAt = createErrorContextText(bytes, i);
 //                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + b + "', expected ',' or '}'");
 //            } else {
 //                throw new JSONException("Syntax error, at pos " + i + ", unexpected token character '" + b + "', Colon character ':' is expected.");

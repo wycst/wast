@@ -3,8 +3,11 @@ package io.github.wycst.wast.json.temporal;
 import io.github.wycst.wast.common.beans.GeneralDate;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.utils.NumberUtils;
+import io.github.wycst.wast.json.JSONParseContext;
 import io.github.wycst.wast.json.JSONTemporalDeserializer;
-import io.github.wycst.wast.json.options.JSONParseContext;
+import io.github.wycst.wast.json.exceptions.JSONException;
+
+import java.time.temporal.Temporal;
 
 /**
  * 参考java.util.Date反序列化，使用反射实现
@@ -20,211 +23,197 @@ public class TemporalZonedDateTimeDeserializer extends JSONTemporalDeserializer 
     }
 
     protected void checkClass(GenericParameterizedType genericParameterizedType) {
-        if (genericParameterizedType.getActualType() != TemporalAloneInvoker.zonedDateTimeClass) {
-            throw new UnsupportedOperationException("Not Support for class " + genericParameterizedType.getActualType());
-        }
     }
 
+    // use dateTemplate
     protected Object deserializeTemporal(char[] buf, int fromIndex, int endIndex, JSONParseContext jsonParseContext) throws Exception {
-        if (patternType == 0) {
-            return autoMatchZoneDateTime(buf, fromIndex, endIndex, jsonParseContext);
-        } else {
-            // Resolve the offset of zoneId
-            /* Parsing matches the zone ID step by step as follows.
-             * <ul>
-             * <li>If the zone ID equals 'Z', the result is {@code ZoneOffset.UTC}.
-             * <li>If the zone ID consists of a single letter, the zone ID is invalid
-             *  and {@code DateTimeException} is thrown.
-             * <li>If the zone ID starts with '+' or '-', the ID is parsed as a
-             *  {@code ZoneOffset} using {@link ZoneOffset#of(String)}.
-             * <li>If the zone ID equals 'GMT', 'UTC' or 'UT' then the result is a {@code ZoneId}
-             *  with the same ID and rules equivalent to {@code ZoneOffset.UTC}.
-             * <li>If the zone ID starts with 'UTC+', 'UTC-', 'GMT+', 'GMT-', 'UT+' or 'UT-'
-             *  then the ID is a prefixed offset-based ID. The ID is split in two, with
-             *  a two or three letter prefix and a suffix starting with the sign.
-             *  The suffix is parsed as a {@link ZoneOffset#of(String) ZoneOffset}.
-             *  The result will be a {@code ZoneId} with the specified UTC/GMT/UT prefix
-             *  and the normalized offset ID as per {@link ZoneOffset#getId()}.
-             *  The rules of the returned {@code ZoneId} will be equivalent to the
-             *  parsed {@code ZoneOffset}.
-             * <li>All other IDs are parsed as region-based zone IDs. Region IDs must
-             *  match the regular expression <code>[A-Za-z][A-Za-z0-9~/._+-]+</code>
-             *  otherwise a {@code DateTimeException} is thrown. If the zone ID is not
-             *  in the configured set of IDs, {@code ZoneRulesException} is thrown.
-             *  The detailed format of the region ID depends on the group supplying the data.
-             *  The default set of data is supplied by the IANA Time Zone Database (TZDB).
-             *  This has region IDs of the form '{area}/{city}', such as 'Europe/Paris' or 'America/New_York'.
-             *  This is compatible with most IDs from {@link java.util.TimeZone}.
-             */
-            String zoneId = null;
-            // yyyy-MM-ddTHH:mm:ss.SSS+XX:YY
-            int j = endIndex, ch;
-            // len = endIndex - fromIndex - 1 > 19
-            while (j > fromIndex + 20) {
-                // Check whether the time zone ID exists in the date
-                // Check for '+' or '-' or 'Z' or '['
-                if ((ch = buf[--j]) == '.') break;
-                if (ch == '+' || ch == '-' || ch == 'Z') {
-                    zoneId = new String(buf, j, endIndex - j);
-                    endIndex = j;
-                    break;
-                }
-                if (ch == '[' && buf[endIndex - 1] == ']') {
-                    // eg: [Asia/Shanghai]
-                    zoneId = new String(buf, j + 1, endIndex - j - 2);
-                    endIndex = j;
-                    break;
-                }
+        String zoneId = null;
+        int j = endIndex, ch;
+        while (j > fromIndex + 20) {
+            if ((ch = buf[--j]) == '.') break;
+            if (ch == '+' || ch == '-' || ch == 'Z') {
+                zoneId = new String(buf, j, endIndex - j);
+                endIndex = j;
+                break;
             }
-
-            GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
-            Object zoneObject;
-            if (zoneId == null) {
-                // default
-                zoneObject = TemporalAloneInvoker.getDefaultZoneId();
-            } else {
-                zoneObject = TemporalAloneInvoker.ofZoneId(zoneId);
+            if (ch == '[' && buf[endIndex - 1] == ']') {
+                // eg: [Asia/Shanghai]
+                zoneId = new String(buf, j + 1, endIndex - j - 2);
+                endIndex = j;
+                break;
             }
-            return TemporalAloneInvoker.ofZonedDateTime(generalDate.getYear(), generalDate.getMonth(), generalDate.getDay(), generalDate.getHourOfDay(), generalDate.getMinute(), generalDate.getSecond(), generalDate.getMillisecond() * 1000000, zoneObject);
         }
+        GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
+        Object zoneObject;
+        if (zoneId == null) {
+            // default
+            zoneObject = getDefaultZoneId();
+        } else {
+            zoneObject = TemporalAloneInvoker.ofZoneId(zoneId);
+        }
+        return ofTemporalDateTime(generalDate.getYear(), generalDate.getMonth(), generalDate.getDay(), generalDate.getHourOfDay(), generalDate.getMinute(), generalDate.getSecond(), generalDate.getMillisecond() * 1000000, zoneObject);
     }
 
     protected Object deserializeTemporal(byte[] buf, int fromIndex, int endIndex, JSONParseContext jsonParseContext) throws Exception {
-        if (patternType == 0) {
-            return autoMatchZoneDateTime(buf, fromIndex, endIndex, jsonParseContext);
+        String zoneId = null;
+        int j = endIndex, ch;
+        while (j > fromIndex + 20) {
+            if ((ch = buf[--j]) == '.') break;
+            if (ch == '+' || ch == '-' || ch == 'Z') {
+                zoneId = new String(buf, j, endIndex - j);
+                endIndex = j;
+                break;
+            }
+            if (ch == '[' && buf[endIndex - 1] == ']') {
+                // eg: [Asia/Shanghai]
+                zoneId = new String(buf, j + 1, endIndex - j - 2);
+                endIndex = j;
+                break;
+            }
+        }
+        GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
+        Object zoneObject;
+        if (zoneId == null) {
+            // default
+            zoneObject = getDefaultZoneId();
         } else {
-            String zoneId = null;
-            // yyyy-MM-ddTHH:mm:ss.SSS+XX:YY
-            int j = endIndex, ch;
-            // len = endIndex - fromIndex - 1 > 19
-            while (j > fromIndex + 20) {
-                // Check whether the time zone ID exists in the date
-                // Check for '+' or '-' or 'Z' or '['
-                if ((ch = buf[--j]) == '.') break;
-                if (ch == '+' || ch == '-' || ch == 'Z') {
-                    zoneId = new String(buf, j, endIndex - j);
-                    endIndex = j;
-                    break;
-                }
-                if (ch == '[' && buf[endIndex - 1] == ']') {
-                    // eg: [Asia/Shanghai]
-                    zoneId = new String(buf, j + 1, endIndex - j - 2);
-                    endIndex = j;
-                    break;
-                }
-            }
-
-            GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
-            Object zoneObject;
-            if (zoneId == null) {
-                // default
-                zoneObject = TemporalAloneInvoker.getDefaultZoneId();
-            } else {
-                zoneObject = TemporalAloneInvoker.ofZoneId(zoneId);
-            }
-            return TemporalAloneInvoker.ofZonedDateTime(generalDate.getYear(), generalDate.getMonth(), generalDate.getDay(), generalDate.getHourOfDay(), generalDate.getMinute(), generalDate.getSecond(), generalDate.getMillisecond() * 1000000, zoneObject);
+            zoneObject = TemporalAloneInvoker.ofZoneId(zoneId);
         }
+        return ofTemporalDateTime(generalDate.getYear(), generalDate.getMonth(), generalDate.getDay(), generalDate.getHourOfDay(), generalDate.getMinute(), generalDate.getSecond(), generalDate.getMillisecond() * 1000000, zoneObject);
     }
 
-    private Object autoMatchZoneDateTime(char[] buf, int fromIndex, int endIndex, JSONParseContext jsonParseContext) throws Exception {
-        int len = endIndex - fromIndex - 1;
-        if (len == 19) {
-            GeneralDate generalDate = GeneralDate.parseGeneralDate_Standard_19(buf, fromIndex + 1, null);
-            Object zoneObject = TemporalAloneInvoker.getDefaultZoneId();
-            return TemporalAloneInvoker.ofZonedDateTime(generalDate.getYear(), generalDate.getMonth(), generalDate.getDay(), generalDate.getHourOfDay(), generalDate.getMinute(), generalDate.getSecond(), generalDate.getMillisecond() * 1000000, zoneObject);
-        }
-        if(len >= 23) {
-            // yyyy-MM-ddTHH:mm:ss.SSS+08:00[Asia/Shanghai]
-            int year = parseInt4(buf, fromIndex + 1);
-            int month = parseInt2(buf, fromIndex + 6);
-            int day = parseInt2(buf, fromIndex + 9);
-            int hour = parseInt2(buf, fromIndex + 12);
-            int minute = parseInt2(buf, fromIndex + 15);
-            int second = parseInt2(buf, fromIndex + 18);
-            int millisecond = NumberUtils.parseInt3(buf[fromIndex + 21], buf[fromIndex + 22], buf[fromIndex + 23]);
-
-            Object zoneObject;
-            String zoneId = null;
-            if(len > 23) {
-                int j = endIndex, ch;
-                // len = endIndex - fromIndex - 1 > 19
-                while (j > fromIndex + 20) {
-                    // Check whether the time zone ID exists in the date
-                    // Check for '+' or '-' or 'Z' or '['
-                    if ((ch = buf[--j]) == '.') break;
-                    if (ch == '+' || ch == '-' || ch == 'Z') {
-                        zoneId = new String(buf, j, endIndex - j);
-                        break;
-                    }
-                    if (ch == '[' && buf[endIndex - 1] == ']') {
-                        // eg: [Asia/Shanghai]
-                        zoneId = new String(buf, j + 1, endIndex - j - 2);
-                        break;
-                    }
-                }
+    // default format yyyy-MM-ddTHH:mm:ss.SSS+08:00[Asia/Shanghai] not supported 'T'
+    @Override
+    protected Object deserializeDefaultTemporal(char[] buf, int offset, char endChar, JSONParseContext jsonParseContext) throws Exception {
+        int year = NumberUtils.parseInt4(buf, offset);
+        int month = NumberUtils.parseInt2(buf, offset + 5);
+        int day = NumberUtils.parseInt2(buf, offset + 8);
+        int hour = NumberUtils.parseInt2(buf, offset + 11);
+        int minute = NumberUtils.parseInt2(buf, offset + 14);
+        int second = NumberUtils.parseInt2(buf, offset + 17);
+        int nanoOfSecond = 0;
+        offset += 19;
+        char c = buf[offset];
+        if(c == '.') {
+            int cnt = 9;
+            while (isDigit((c = buf[++offset]))) {
+                nanoOfSecond = (nanoOfSecond << 3) + (nanoOfSecond << 1) + c - 48;
+                --cnt;
             }
-            if (zoneId == null) {
-                // default
-                zoneObject = TemporalAloneInvoker.getDefaultZoneId();
+            if(cnt > 0) {
+                nanoOfSecond *= NANO_OF_SECOND_PADDING[cnt];
+            }
+        }
+        Object zoneObject = getDefaultZoneId();
+        switch (c) {
+            case 'z':
+            case 'Z': {
+                zoneObject = TemporalAloneInvoker.getZeroZoneId();
+                c = buf[++offset];
+                break;
+            }
+            case '+':
+            case '-': {
+                int zoneBeginOff = offset;
+                // parse +08:00
+                while (isDigit(c = buf[++offset]) || c == ':');
+                zoneObject = TemporalAloneInvoker.ofZoneId(new String(buf, offset, offset - zoneBeginOff));
+                break;
+            }
+        }
+        if(c == '[') {
+            if (supportedZoneRegion()) {
+                int zoneRegionOff = offset;
+                while (buf[++offset] != ']');
+                zoneObject = TemporalAloneInvoker.ofZoneId(new String(buf, zoneRegionOff + 1, offset - zoneRegionOff - 1));
+                c = buf[++offset];
             } else {
-                zoneObject = TemporalAloneInvoker.ofZoneId(zoneId);
+                while (buf[++offset] != ']');
+                c = buf[++offset];
             }
-            return TemporalAloneInvoker.ofZonedDateTime(year, month, day, hour, minute, second, millisecond * 1000000, zoneObject);
+        }
+        if(c == endChar) {
+            jsonParseContext.endIndex = offset;
+            return ofTemporalDateTime(year, month, day, hour, minute, second, nanoOfSecond, zoneObject);
         }
 
-        // reflect public static ZonedDateTime parse(CharSequence text)
-        return TemporalAloneInvoker.parseZonedDateTime(new String(buf, fromIndex + 1, endIndex - fromIndex - 1));
+        String errorContextTextAt = createErrorContextText(buf, offset);
+        throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', unexpected token '" + c + "', expected '" + endChar + "'");
     }
 
-    private Object autoMatchZoneDateTime(byte[] buf, int fromIndex, int endIndex, JSONParseContext jsonParseContext) throws Exception {
-        int len = endIndex - fromIndex - 1;
-        if (len == 19) {
-            GeneralDate generalDate = GeneralDate.parseGeneralDate_Standard_19(buf, fromIndex + 1, null);
-            Object zoneObject = TemporalAloneInvoker.getDefaultZoneId();
-            return TemporalAloneInvoker.ofZonedDateTime(generalDate.getYear(), generalDate.getMonth(), generalDate.getDay(), generalDate.getHourOfDay(), generalDate.getMinute(), generalDate.getSecond(), generalDate.getMillisecond() * 1000000, zoneObject);
-        }
-
-        if(len >= 23) {
-            // yyyy-MM-ddTHH:mm:ss.SSS+08:00[Asia/Shanghai]
-            int year = NumberUtils.parseInt4(buf, fromIndex + 1);
-            int month = NumberUtils.parseInt2(buf, fromIndex + 6);
-            int day = NumberUtils.parseInt2(buf, fromIndex + 9);
-            int hour = NumberUtils.parseInt2(buf, fromIndex + 12);
-            int minute = NumberUtils.parseInt2(buf, fromIndex + 15);
-            int second = NumberUtils.parseInt2(buf, fromIndex + 18);
-            int millisecond = NumberUtils.parseInt3(buf[fromIndex + 21], buf[fromIndex + 22], buf[fromIndex + 23]);
-
-            Object zoneObject;
-            String zoneId = null;
-            if(len > 23) {
-                int j = endIndex, ch;
-                // len = endIndex - fromIndex - 1 > 19
-                while (j > fromIndex + 20) {
-                    // Check whether the time zone ID exists in the date
-                    // Check for '+' or '-' or 'Z' or '['
-                    if ((ch = buf[--j]) == '.') break;
-                    if (ch == '+' || ch == '-' || ch == 'Z') {
-                        zoneId = new String(buf, j, endIndex - j);
-                        break;
-                    }
-                    if (ch == '[' && buf[endIndex - 1] == ']') {
-                        // eg: [Asia/Shanghai]
-                        zoneId = new String(buf, j + 1, endIndex - j - 2);
-                        break;
-                    }
-                }
+    // default format yyyy*MM*dd*HH*mm*ss.SSS+08:00[Asia/Shanghai] not supported 'T'
+    @Override
+    protected Object deserializeDefaultTemporal(byte[] buf, int offset, char endChar, JSONParseContext jsonParseContext) throws Exception {
+        int year = NumberUtils.parseInt4(buf, offset);
+        int month = NumberUtils.parseInt2(buf, offset + 5);
+        int day = NumberUtils.parseInt2(buf, offset + 8);
+        int hour = NumberUtils.parseInt2(buf, offset + 11);
+        int minute = NumberUtils.parseInt2(buf, offset + 14);
+        int second = NumberUtils.parseInt2(buf, offset + 17);
+        int nanoOfSecond = 0;
+        offset += 19;
+        byte c = buf[offset];
+        if(c == '.') {
+            int cnt = 9;
+            while (isDigit((c = buf[++offset]))) {
+                nanoOfSecond = (nanoOfSecond << 3) + (nanoOfSecond << 1) + c - 48;
+                --cnt;
             }
-            if (zoneId == null) {
-                // default
-                zoneObject = TemporalAloneInvoker.getDefaultZoneId();
+            if(cnt > 0) {
+                nanoOfSecond *= NANO_OF_SECOND_PADDING[cnt];
+            }
+        }
+        Object zoneObject = getDefaultZoneId();
+        switch (c) {
+            case 'z':
+            case 'Z': {
+                zoneObject = TemporalAloneInvoker.getZeroZoneId();
+                c = buf[++offset];
+                break;
+            }
+            case '+':
+            case '-': {
+                int zoneBeginOff = offset;
+                // parse +08:00
+                while (isDigit(c = buf[++offset]) || c == ':');
+                zoneObject = TemporalAloneInvoker.ofZoneId(new String(buf, offset, offset - zoneBeginOff));
+                break;
+            }
+        }
+        if(c == '[') {
+            if (supportedZoneRegion()) {
+                int zoneRegionOff = offset;
+                while (buf[++offset] != ']');
+                zoneObject = TemporalAloneInvoker.ofZoneId(new String(buf, zoneRegionOff + 1, offset - zoneRegionOff - 1));
+                c = buf[++offset];
             } else {
-                zoneObject = TemporalAloneInvoker.ofZoneId(zoneId);
+                while (buf[++offset] != ']');
+                c = buf[++offset];
             }
-            return TemporalAloneInvoker.ofZonedDateTime(year, month, day, hour, minute, second, millisecond * 1000000, zoneObject);
         }
-        // reflect public static ZonedDateTime parse(CharSequence text)
-        return TemporalAloneInvoker.parseZonedDateTime(new String(buf, fromIndex + 1, endIndex - fromIndex - 1));
+        if(c == endChar) {
+            jsonParseContext.endIndex = offset;
+            return ofTemporalDateTime(year, month, day, hour, minute, second, nanoOfSecond, zoneObject);
+        }
+
+        String errorContextTextAt = createErrorContextText(buf, offset);
+        throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', unexpected token '" + (char) c + "', expected '" + endChar + "'");
     }
 
+    protected boolean supportedZoneRegion() {
+        return true;
+    }
+
+    protected Object getDefaultZoneId() throws Exception {
+        return TemporalAloneInvoker.getDefaultZoneId();
+    }
+
+//    protected Object parseDateTime(CharSequence charSequence) throws Exception {
+//        return TemporalAloneInvoker.parseZonedDateTime(charSequence);
+//    }
+
+    protected Temporal ofTemporalDateTime(int year, int month, int dayOfMonth, int hour, int minute, int second, int nanoOfSecond, Object zone) throws Exception {
+        return (Temporal) TemporalAloneInvoker.ofZonedDateTime(year, month, dayOfMonth, hour, minute, second, nanoOfSecond, zone);
+    }
 
 }

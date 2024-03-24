@@ -7,6 +7,7 @@ import java.math.BigInteger;
 import java.sql.Timestamp;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * 反射常量
  *
@@ -187,6 +188,16 @@ public final class ReflectConsts {
             Object getValue(Object target, long fieldOffset) {
                 return UnsafeHelper.getUnsafe().getByte(target, fieldOffset);
             }
+
+            @Override
+            public int arrayLength(Object objects) {
+                return ((byte[]) objects).length;
+            }
+
+            @Override
+            public Byte elementAt(Object objects, int index) {
+                return ((byte[]) objects)[index];
+            }
         },
         PrimitiveShort(short[].class, arrayBaseOffset(short[].class), arrayIndexScale(short[].class)) {
             @Override
@@ -197,6 +208,16 @@ public final class ReflectConsts {
             @Override
             Object getValue(Object target, long fieldOffset) {
                 return UnsafeHelper.getUnsafe().getShort(target, fieldOffset);
+            }
+
+            @Override
+            public int arrayLength(Object objects) {
+                return ((short[]) objects).length;
+            }
+
+            @Override
+            public Short elementAt(Object objects, int index) {
+                return ((short[]) objects)[index];
             }
         },
         PrimitiveInt(int[].class, arrayBaseOffset(int[].class), arrayIndexScale(int[].class)) {
@@ -209,6 +230,16 @@ public final class ReflectConsts {
             Object getValue(Object target, long fieldOffset) {
                 return UnsafeHelper.getUnsafe().getInt(target, fieldOffset);
             }
+
+            @Override
+            public int arrayLength(Object objects) {
+                return ((int[]) objects).length;
+            }
+
+            @Override
+            public Integer elementAt(Object objects, int index) {
+                return ((int[]) objects)[index];
+            }
         },
         PrimitiveFloat(float[].class, arrayBaseOffset(float[].class), arrayIndexScale(float[].class)) {
             @Override
@@ -219,6 +250,16 @@ public final class ReflectConsts {
             @Override
             Object getValue(Object target, long fieldOffset) {
                 return UnsafeHelper.getUnsafe().getFloat(target, fieldOffset);
+            }
+
+            @Override
+            public int arrayLength(Object objects) {
+                return ((float[]) objects).length;
+            }
+
+            @Override
+            public Float elementAt(Object objects, int index) {
+                return ((float[]) objects)[index];
             }
         },
         PrimitiveLong(long[].class, arrayBaseOffset(long[].class), arrayIndexScale(long[].class)) {
@@ -231,6 +272,16 @@ public final class ReflectConsts {
             Object getValue(Object target, long fieldOffset) {
                 return UnsafeHelper.getUnsafe().getLong(target, fieldOffset);
             }
+
+            @Override
+            public int arrayLength(Object objects) {
+                return ((long[]) objects).length;
+            }
+
+            @Override
+            public Long elementAt(Object objects, int index) {
+                return ((long[]) objects)[index];
+            }
         },
         PrimitiveDouble(double[].class, arrayBaseOffset(double[].class), arrayIndexScale(double[].class)) {
             @Override
@@ -241,6 +292,16 @@ public final class ReflectConsts {
             @Override
             Object getValue(Object target, long fieldOffset) {
                 return UnsafeHelper.getUnsafe().getDouble(target, fieldOffset);
+            }
+
+            @Override
+            public int arrayLength(Object objects) {
+                return ((double[]) objects).length;
+            }
+
+            @Override
+            public Double elementAt(Object objects, int index) {
+                return ((double[]) objects)[index];
             }
         },
         PrimitiveBoolean(boolean[].class, arrayBaseOffset(boolean[].class), arrayIndexScale(boolean[].class)) {
@@ -253,6 +314,16 @@ public final class ReflectConsts {
             Object getValue(Object target, long fieldOffset) {
                 return UnsafeHelper.getUnsafe().getBoolean(target, fieldOffset);
             }
+
+            @Override
+            public int arrayLength(Object objects) {
+                return ((boolean[]) objects).length;
+            }
+
+            @Override
+            public Boolean elementAt(Object objects, int index) {
+                return ((boolean[]) objects)[index];
+            }
         },
         PrimitiveCharacter(char[].class, arrayBaseOffset(char[].class), arrayIndexScale(char[].class)) {
             @Override
@@ -264,6 +335,16 @@ public final class ReflectConsts {
             Object getValue(Object target, long fieldOffset) {
                 return UnsafeHelper.getUnsafe().getChar(target, fieldOffset);
             }
+
+            @Override
+            public int arrayLength(Object objects) {
+                return ((char[]) objects).length;
+            }
+
+            @Override
+            public Character elementAt(Object objects, int index) {
+                return ((char[]) objects)[index];
+            }
         };
 
         final Class genericArrayType;
@@ -274,6 +355,14 @@ public final class ReflectConsts {
             this.genericArrayType = genericArrayType;
             this.arrayBaseOffset = arrayBaseOffset;
             this.arrayIndexScale = arrayIndexScale;
+        }
+
+        public int arrayLength(Object objects) {
+            return 0;
+        }
+
+        public Object elementAt(Object objects, int index) {
+            return null;
         }
 
         void put(Object target, long fieldOffset, Object value) {

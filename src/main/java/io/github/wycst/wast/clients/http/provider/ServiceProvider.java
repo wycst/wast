@@ -5,7 +5,6 @@ import io.github.wycst.wast.clients.http.loadbalance.LoadBalanceStrategy;
 
 import java.net.MalformedURLException;
 import java.util.Collection;
-import java.util.List;
 
 /**
  * @Author: wangy

@@ -2,8 +2,8 @@ package io.github.wycst.wast.json.custom;
 
 import io.github.wycst.wast.common.beans.CharSource;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
+import io.github.wycst.wast.json.JSONParseContext;
 import io.github.wycst.wast.json.JSONTypeDeserializer;
-import io.github.wycst.wast.json.options.JSONParseContext;
 
 /**
  * 自定义反序列化抽象类（Custom deserialization abstract class）

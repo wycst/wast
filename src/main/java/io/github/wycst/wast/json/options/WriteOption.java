@@ -11,7 +11,7 @@ public enum WriteOption {
     /**
      * none options
      */
-    Default,
+    DefaultNone,
 
     /**
      * 格式化缩进输出（默认使用制表符号\t）

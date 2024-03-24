@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 固定长度的map结构
+ * 固定容量的map结构
  *
  * @Author: wangy
  * @Date: 2022/7/9 11:57
@@ -14,6 +14,7 @@ import java.util.Set;
 public class FixedNameValueMap<T> {
 
     final int capacity;
+    final int mask;
     final NameValueEntryNode<T>[] valueEntryNodes;
     int count;
     final int maxCount;
@@ -111,12 +112,14 @@ public class FixedNameValueMap<T> {
         }
         this.maxCount = size;
         this.capacity = capacity;
+        this.mask = capacity - 1;
         valueEntryNodes = new NameValueEntryNode[capacity];
     }
 
     FixedNameValueMap(int capacity, NameValueEntryNode[] valueEntryNodes) {
         this.maxCount = capacity << 1;
         this.capacity = capacity;
+        this.mask = capacity - 1;
         this.valueEntryNodes = valueEntryNodes;
     }
 
@@ -128,7 +131,7 @@ public class FixedNameValueMap<T> {
             count++;
         }
         char[] keyChars = name.toCharArray();
-        int index = (int) (keyHash & capacity - 1);
+        int index = (int) (keyHash & mask);
         NameValueEntryNode valueEntryNode = new NameValueEntryNode(keyChars, value, keyHash);
         NameValueEntryNode oldEntryNode = valueEntryNodes[index];
         valueEntryNodes[index] = valueEntryNode;
@@ -164,7 +167,7 @@ public class FixedNameValueMap<T> {
      */
     public T getValue(char[] buf, int beginIndex, int endIndex, long hashValue) {
         int len = endIndex - beginIndex;
-        int index = (int) (hashValue & capacity - 1);
+        int index = (int) (hashValue & mask);
         NameValueEntryNode<T> entryNode = valueEntryNodes[index];
         if (entryNode == null) {
             return null;
@@ -191,7 +194,7 @@ public class FixedNameValueMap<T> {
      */
     public T getValue(byte[] bytes, int beginIndex, int endIndex, long hashValue) {
         int len = endIndex - beginIndex;
-        int index = (int) (hashValue & capacity - 1);
+        int index = (int) (hashValue & mask);
         NameValueEntryNode<T> entryNode = valueEntryNodes[index];
         if (entryNode == null) {
             return null;
@@ -214,18 +217,21 @@ public class FixedNameValueMap<T> {
      * @return
      */
     public final T getValueByHash(long hashValue) {
-        int index = (int) (hashValue & capacity - 1);
+        int index = (int) (hashValue & mask);
         NameValueEntryNode<T> entryNode = valueEntryNodes[index];
-        if (entryNode == null) {
-            return null;
+        if(entryNode != null && entryNode.hash == hashValue) {
+            return entryNode.value;
         }
-        while (hashValue != entryNode.hash) {
+        if(entryNode != null) {
             entryNode = entryNode.next;
-            if (entryNode == null) {
-                return null;
+            while (entryNode != null) {
+                if(entryNode.hash == hashValue) {
+                    return entryNode.value;
+                }
+                entryNode = entryNode.next;
             }
         }
-        return entryNode.value;
+        return null;
     }
 
     public boolean isCollision() {
@@ -243,7 +249,6 @@ public class FixedNameValueMap<T> {
             this.hash = keyHash;
             this.value = value;
         }
-
         long hash;
         char[] key;
         T value;
@@ -318,7 +323,6 @@ public class FixedNameValueMap<T> {
         }
         return val;
     }
-
     static class BHFixedNameValueMap<E> extends FixedNameValueMap {
         private int bits;
         public BHFixedNameValueMap(int size) {
@@ -329,14 +333,11 @@ public class FixedNameValueMap<T> {
             return (rv << bits) + c;
         }
     }
-
     static class PHFixedNameValueMap<E> extends FixedNameValueMap {
-
         public PHFixedNameValueMap(int count, int capacity, NameValueEntryNode[] valueEntryNodes) {
             super(capacity, valueEntryNodes);
             this.count = count;
         }
-
         @Override
         public final long hash(long rv, int c) {
             return rv + c;

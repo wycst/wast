@@ -14,16 +14,6 @@ public enum ReadOption {
      */
     ByteArrayFromHexString,
 
-//    /***
-//     * 是否禁用转义符校验,再确保没有需要转义符的情况下可以使用
-//     * <p> 不要将此配置项应用到全局配置
-//     * <p> 小文本下微乎其微，一般场景下可以不用启用， 在大文本字符串解析时可显著提升性能（除非已确保没有需要转义处理的场景）
-//     * （暂时弃用请使用JSONSimpleParser）
-//     * @see JSONSimpleParser
-//     */
-//    @Deprecated
-//    DisableEscapeValidate,
-
     /***
      * 非标准json特性：允许JSON存在注释，仅仅支持//和/+* *+/，默认关闭注释解析
      */
@@ -64,7 +54,7 @@ public enum ReadOption {
      * 开启后在不确定number类型情况下，统一转化为BigDecimal；
      * <p> BigDecimal在存储结构上比普通number类型多很多字段，即使不调用toString占用内存也高得多，如果对于精度没有要求不建议启用
      */
-    UseBigDecimalAsDefaultNumber,
+    UseBigDecimalAsDefault,
 
     /**
      * <p>
@@ -72,7 +62,7 @@ public enum ReadOption {
      * <p> 当java类型确定为double类型时可以启用此配置，程序将使用jdk内置的Double.parseDouble来解析；
      * <p> 注：即使使用Double.parseDouble也无法保证100%精度完整；
      */
-    UseNativeDoubleParser,
+    UseJDKDoubleParser,
 
     /**
      * <p> 未匹配到类型的空字符串时返回null（空字符串是指: ""）
@@ -85,7 +75,6 @@ public enum ReadOption {
      * <p> 设置此项配置可禁用cache key
      *
      * @see io.github.wycst.wast.json.util.FixedNameValueMap
-     * @see Options#getCacheKey(char[], int, int, int)
      */
     DisableCacheMapKey
 

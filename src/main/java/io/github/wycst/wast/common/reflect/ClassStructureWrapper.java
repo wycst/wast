@@ -56,6 +56,8 @@ public final class ClassStructureWrapper {
     // jdk invoke
     private Class<?> sourceClass;
 
+    private boolean privateFlag;
+
     // type
     private ClassWrapperType classWrapperType = ClassWrapperType.Normal;
 
@@ -232,6 +234,7 @@ public final class ClassStructureWrapper {
 
                 wrapper = new ClassStructureWrapper();
                 wrapper.sourceClass = sourceClass;
+                wrapper.privateFlag = Modifier.isPrivate(sourceClass.getModifiers());
                 wrapper.assignableFromMap = Map.class.isAssignableFrom(sourceClass);
                 wrapper.checkClassStructure();
 
@@ -425,7 +428,11 @@ public final class ClassStructureWrapper {
                 int startIndex = startsWithGet ? 3 : 2;
                 if (methodName.length() == startIndex)
                     continue;
-
+                boolean boolGetter = !startsWithGet;
+                if(boolGetter && returnType != boolean.class) {
+                    // isXXX only supported boolean
+                    continue;
+                }
                 // getter方法
                 setAccessible(method);
                 GetterMethodInfo getterInfo = new GetterMethodInfo(method);
@@ -443,10 +450,11 @@ public final class ClassStructureWrapper {
                 // load annotations
                 Map<Class<? extends Annotation>, Annotation> annotationMap = new HashMap<Class<? extends Annotation>, Annotation>();
                 addAnnotations(annotationMap, method.getAnnotations());
+                // 查找和getter method匹配的声明field（不考虑继承过来的field）
                 try {
                     // 属性
                     Field field = sourceClass.getDeclaredField(fieldName);
-                    if (!Modifier.isStatic(field.getModifiers()) && !Modifier.isFinal(field.getModifiers())) {
+                    if (!Modifier.isStatic(field.getModifiers())) {
                         // 当声明属性的类型和getter方法返回的类型不一致时，如果触发invoke，则以method的call为准
                         if (setAccessible(field) && field.getType().isAssignableFrom(returnType)) {
                             getterInfo.setField(field);
@@ -454,6 +462,19 @@ public final class ClassStructureWrapper {
                     }
                     addAnnotations(annotationMap, field.getAnnotations());
                 } catch (Exception e) {
+                    if(boolGetter) {
+                        // isXXX
+                        try {
+                            Field field = sourceClass.getDeclaredField(methodName);
+                            if (!Modifier.isStatic(field.getModifiers())) {
+                                // 当声明属性的类型和getter方法返回的类型不一致时，如果触发invoke，则以method的call为准
+                                if (setAccessible(field) && field.getType() == boolean.class) {
+                                    getterInfo.setField(field);
+                                }
+                            }
+                        } catch (Exception exception) {
+                        }
+                    }
                 }
                 getterInfo.setAnnotations(annotationMap);
                 getterInfos.add(getterInfo);
@@ -596,6 +617,9 @@ public final class ClassStructureWrapper {
                 this.temporal = true;
             } else if (className.equals("java.time.ZonedDateTime")) {
                 this.classWrapperType = ClassWrapperType.TemporalZonedDateTime;
+                this.temporal = true;
+            } else if(className.equals("java.time.OffsetDateTime")) {
+                this.classWrapperType = ClassWrapperType.TemporalOffsetDateTime;
                 this.temporal = true;
             }
         }
@@ -897,6 +921,10 @@ public final class ClassStructureWrapper {
         return fieldsCheckCode;
     }
 
+    public boolean isPrivate() {
+        return privateFlag;
+    }
+
     public enum ClassWrapperType {
         /**
          * 普通的pojo
@@ -931,6 +959,11 @@ public final class ClassStructureWrapper {
         /**
          * ZonedDateTime(jdk8+) support
          */
-        TemporalZonedDateTime
+        TemporalZonedDateTime,
+
+        /**
+         * OffsetDateTime(jdk8+) support
+         */
+        TemporalOffsetDateTime
     }
 }

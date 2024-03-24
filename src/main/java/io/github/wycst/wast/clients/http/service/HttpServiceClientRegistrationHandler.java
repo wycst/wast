@@ -1,14 +1,13 @@
 //package io.github.wycst.wast.clients.http.service;
 //
-//import io.github.wycst.wast.clients.http.impl.DefaultServiceProvider;
 //import io.github.wycst.wast.clients.http.HttpClient;
 //import io.github.wycst.wast.clients.http.definition.HttpClientConfig;
+//import io.github.wycst.wast.clients.http.provider.DefaultServiceProvider;
 //import io.github.wycst.wast.clients.http.provider.ServerZone;
 //import io.github.wycst.wast.clients.http.provider.ServiceProvider;
 //import io.github.wycst.wast.clients.http.service.annotations.EnableHttpServiceClient;
 //import io.github.wycst.wast.clients.http.service.annotations.HttpServiceClient;
 //import io.github.wycst.wast.clients.http.service.annotations.ServiceEndpoint;
-//import io.github.wycst.wast.clients.http.service.annotations.type.*;
 //import io.github.wycst.wast.clients.http.service.annotations.type.*;
 //import io.github.wycst.wast.clients.http.service.entity.ServiceEndpointMapping;
 //import io.github.wycst.wast.clients.http.service.interceptor.HttpServiceClientMethodInterceptor;
@@ -83,6 +82,7 @@
 //        String contextPath = client.contextPath().trim();
 //        String[] serverHosts = client.serverHosts();
 //        long globalTimeout = client.timeout();
+//        boolean keepAliveOnTimeout = client.keepAliveOnTimeout();
 //
 //        ServiceProvider serviceProvider = httpClient.getServiceProvider();
 //        if (serviceProvider == null) {
@@ -93,7 +93,7 @@
 //        if (serverHosts.length > 0) {
 //            serviceProvider.registerServer(new ServerZone(serviceName, serverHosts, true));
 //        }
-//        if (!contextPath.startsWith("/")) {
+//        if (!contextPath.startsWith("/") && contextPath.length() > 0) {
 //            contextPath = "/" + contextPath;
 //        }
 //        String protocol = client.protocol();
@@ -114,6 +114,7 @@
 //            serviceEndpointMapping.setReturnType(method.getReturnType());
 //            serviceEndpointMapping.setServiceEndpoint(serviceEndpoint);
 //            serviceEndpointMapping.setTimeout(timeout > 0 ? timeout : globalTimeout);
+//            serviceEndpointMapping.setKeepAliveOnTimeout(keepAliveOnTimeout);
 //
 //            Class<?>[] parameterTypes = method.getParameterTypes();
 //            String[] parameterAliasNames = new String[parameterTypes.length];
@@ -173,13 +174,6 @@
 //
 //    @Override
 //    protected Object invoke(Object obj, Method method, Object[] objects) throws Throwable {
-//
-////        Class<?> httpServiceClientCls = obj.getClass().getSuperclass();
-////        if (httpServiceClientCls == Object.class) {
-////            // 接口
-////        } else {
-////            // 抽象类
-////        }
 //        ServiceEndpointMapping serviceEndpointMapping = serviceEndpointMappingMap.get(method);
 //        if (serviceEndpointMapping == null) {
 //            return null;
@@ -202,6 +196,7 @@
 //            clientConfig.setMaxConnectTimeout(timeout);
 //            clientConfig.setMaxReadTimeout(timeout);
 //        }
+//        clientConfig.setKeepAliveOnTimeout(serviceEndpointMapping.isKeepAliveOnTimeout());
 //
 //        Map<String, Object> context = new HashMap<String, Object>();
 //        String[] aliasNames = serviceEndpointMapping.getParameterAliasNames();

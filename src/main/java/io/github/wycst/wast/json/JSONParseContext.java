@@ -1,6 +1,4 @@
-package io.github.wycst.wast.json.options;
-
-import io.github.wycst.wast.json.JSONCharArrayWriter;
+package io.github.wycst.wast.json;
 
 /**
  * json解析上下文配置
@@ -66,7 +64,7 @@ public class JSONParseContext {
     /**
      * 使用Double.parse来处理声明为double类型的属性的解析操作
      */
-    public boolean useNativeDoubleParser;
+    public boolean useJDKDoubleParser;
 
 //    /**
 //     * 使用字段反序列化
@@ -90,12 +88,12 @@ public class JSONParseContext {
         return writer;
     }
     
-    public final String getCacheKey(char[] buf, int offset, int len, int hashCode) {
-        return Options.getCacheKey(buf, offset, len, hashCode);
+    public final String getCacheKey(char[] buf, int offset, int len, long hashCode) {
+        return JSONOptions.getCacheKey(buf, offset, len, hashCode);
     }
 
-    public final String getCacheKey(byte[] bytes, int offset, int len, int hashCode) {
-        return Options.getCacheKey(bytes, offset, len, hashCode);
+    public final String getCacheKey(byte[] bytes, int offset, int len, long hashCode) {
+        return JSONOptions.getCacheKey(bytes, offset, len, hashCode);
     }
 
     public void clear() {
@@ -107,7 +105,7 @@ public class JSONParseContext {
     private boolean escape = true;
     private int escapeOffset = -1;
 
-    public boolean checkEscapeUseChar(String input, int fromIndex, int endIndex) {
+    public final boolean checkEscapeUseChar(String input, int fromIndex, int endIndex) {
         if(!escape || endIndex < escapeOffset) return false;
         if(fromIndex > escapeOffset) {
             escapeOffset = input.indexOf('\\', fromIndex);
@@ -117,7 +115,7 @@ public class JSONParseContext {
         return endIndex > escapeOffset;
     }
 
-    public boolean checkEscapeUseString(String input, int fromIndex, int endIndex) {
+    public final boolean checkEscapeUseString(String input, int fromIndex, int endIndex) {
         if(!escape || endIndex < escapeOffset) return false;
         if(fromIndex > escapeOffset) {
             escapeOffset = input.indexOf("\\", fromIndex);
@@ -127,7 +125,7 @@ public class JSONParseContext {
         return endIndex > escapeOffset;
     }
 
-    public int getEscapeOffset() {
+    public final int getEscapeOffset() {
         return escapeOffset;
     }
 }

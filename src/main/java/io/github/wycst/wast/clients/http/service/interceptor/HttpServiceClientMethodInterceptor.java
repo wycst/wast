@@ -1,9 +1,9 @@
 //package io.github.wycst.wast.clients.http.service.interceptor;
 //
-//import net.sf.cglib.proxy.*;
 //import io.github.wycst.wast.core.bean.BeanRegistrationHandler;
 //import io.github.wycst.wast.core.config.PropertiesHandler;
 //import io.github.wycst.wast.core.factory.BeanFactory;
+//import net.sf.cglib.proxy.*;
 //
 //import java.lang.reflect.Method;
 //import java.lang.reflect.Modifier;

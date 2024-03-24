@@ -23,43 +23,6 @@ import java.util.regex.Pattern;
  */
 public final class StringUtils {
 
-    static final StringConstructor stringConstructor;
-
-    static {
-        StringConstructor instance;
-        try {
-            if(EnvUtils.JDK_VERSION >= 1.8f) {
-                Class<?> lamadaSupportedClass = Class.forName("io.github.wycst.wast.common.utils.StringConstructorLamada");
-                instance = (StringConstructor) lamadaSupportedClass.newInstance();
-            } else {
-                instance = new StringConstructor();
-            }
-        } catch (Throwable throwable) {
-            instance = new StringConstructor();
-        }
-        stringConstructor = instance;
-    }
-
-    public static String create(char[] buf, int offset, int len) {
-        return stringConstructor.create(buf, offset, len);
-    }
-
-    public static String create(char[] buf) {
-        return stringConstructor.create(buf);
-    }
-
-    public static Object createAscii(byte[] bytes) {
-        return stringConstructor.createAscii(bytes);
-    }
-
-    public static String createAscii(byte[] buf, int offset, int len) {
-        return stringConstructor.createAscii(buf, offset, len);
-    }
-
-    public static String createUTF16(byte[] buf, int offset, int len) {
-        return stringConstructor.createUTF16(buf, offset, len);
-    }
-
     /**
      * 带有下划线的数据库字段转成驼峰命名
      *

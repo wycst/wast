@@ -593,8 +593,8 @@ public final class EntityExecuter implements OqlExecuter {
             return null;
         }
         String tmpSql = "INSERT INTO `%s` (%s) VALUES (%s)";
-        StringBuffer columns = new StringBuffer();
-        StringBuffer values = new StringBuffer();
+        StringBuilder columns = new StringBuilder();
+        StringBuilder values = new StringBuilder();
         int index = 0;
         Map<String, FieldColumn> fieldColumnMapping = entitySqlMapping.getFieldColumnMapping();
         int columnLength = fieldColumnMapping.size();

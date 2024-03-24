@@ -13,10 +13,6 @@ import java.util.logging.Level;
 public class FileHandlerHolder {
 
     private final String handlerName;
-    //    private String pattern;
-//    private int limit;
-//    private int count;
-//    private boolean append = true;
     private final FileHandler fileHandler;
     private Level level;
     private String packages;

@@ -28,15 +28,15 @@ public class SqlHelper {
         final Map<String, String> reverseResults = new HashMap<String, String>();
         final String querySql = String.format("select * from %s where 1 = 2 ", tableName);
         // 插入sql
-        StringBuffer insertStatement = new StringBuffer("insert into " + tableName);
-        final StringBuffer insertColumnNames = new StringBuffer();
-        final StringBuffer columnValues = new StringBuffer();
+        StringBuilder insertStatement = new StringBuilder("insert into " + tableName);
+        final StringBuilder insertColumnNames = new StringBuilder();
+        final StringBuilder columnValues = new StringBuilder();
 
         // 查询sql
-        StringBuffer selectStatement = new StringBuffer("select  ");
-        final StringBuffer selectColumnNames = new StringBuffer();
+        StringBuilder selectStatement = new StringBuilder("select  ");
+        final StringBuilder selectColumnNames = new StringBuilder();
 
-        final StringBuffer entityBuffer = new StringBuffer();
+        final StringBuilder entityBuffer = new StringBuilder();
         entityBuffer.append("\nimport io.github.wycst.wast.jdbc.annotations.*;\n");
         entityBuffer.append("\nimport io.github.wycst.wast.jdbc.annotations.Id.GenerationType;\n");
         entityBuffer.append("@lombok.Data\n");

@@ -1,12 +1,10 @@
 package io.github.wycst.wast.json.temporal;
 
 import io.github.wycst.wast.common.beans.GregorianDate;
+import io.github.wycst.wast.json.JSONConfig;
 import io.github.wycst.wast.json.JSONTemporalSerializer;
+import io.github.wycst.wast.json.JSONWriter;
 import io.github.wycst.wast.json.annotations.JsonProperty;
-import io.github.wycst.wast.json.options.JsonConfig;
-import io.github.wycst.wast.json.reflect.ObjectStructureWrapper;
-
-import java.io.Writer;
 
 /**
  * LocalDate序列化，使用反射实现
@@ -19,22 +17,18 @@ import java.io.Writer;
  */
 public class TemporalLocalDateSerializer extends JSONTemporalSerializer {
 
-    public TemporalLocalDateSerializer(ObjectStructureWrapper objectStructureWrapper, JsonProperty property) {
-        super(objectStructureWrapper, property);
+    public TemporalLocalDateSerializer(Class<?> temporalClass, JsonProperty property) {
+        super(temporalClass, property);
     }
 
-    protected void checkClass(ObjectStructureWrapper objectStructureWrapper) {
-        Class<?> sourceClass = objectStructureWrapper.getSourceClass();
-        if (sourceClass != TemporalAloneInvoker.localDateClass) {
-            throw new UnsupportedOperationException("Not Support for class temporal type " + sourceClass);
-        }
+    protected void checkClass(Class<?> temporalClass) {
     }
 
     @Override
-    protected void writeTemporalWithTemplate(Object value, Writer writer, JsonConfig jsonConfig) throws Exception {
-        int year = TemporalAloneInvoker.invokeLocalDateYear(value).intValue();
-        int month = TemporalAloneInvoker.invokeLocalDateMonth(value).intValue();
-        int day = TemporalAloneInvoker.invokeLocalDateDay(value).intValue();
+    protected void writeTemporalWithTemplate(Object value, JSONWriter writer, JSONConfig jsonConfig) throws Exception {
+        int year = TemporalAloneInvoker.invokeLocalDateYear(value);
+        int month = TemporalAloneInvoker.invokeLocalDateMonth(value);
+        int day = TemporalAloneInvoker.invokeLocalDateDay(value);
         writer.write('"');
         writeDate(year, month, day, 0, 0, 0, 0, dateFormatter, writer);
         writer.write('"');
@@ -42,12 +36,12 @@ public class TemporalLocalDateSerializer extends JSONTemporalSerializer {
 
     // yyyy-MM-dd
     @Override
-    protected void writeDefault(Object value, Writer writer, JsonConfig jsonConfig, int indent) throws Exception {
-        int year = TemporalAloneInvoker.invokeLocalDateYear(value).intValue();
-        int month = TemporalAloneInvoker.invokeLocalDateMonth(value).intValue();
-        int day = TemporalAloneInvoker.invokeLocalDateDay(value).intValue();
+    protected void writeDefault(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
+        int year = TemporalAloneInvoker.invokeLocalDateYear(value);
+        int month = TemporalAloneInvoker.invokeLocalDateMonth(value);
+        int day = TemporalAloneInvoker.invokeLocalDateDay(value);
         writer.write('"');
-        writeYYYY_MM_DD(year, month, day, writer);
+        writer.writeLocalDate(year, month, day);
         writer.write('"');
     }
 }

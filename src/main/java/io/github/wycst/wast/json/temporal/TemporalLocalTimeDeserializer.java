@@ -4,8 +4,9 @@ import io.github.wycst.wast.common.beans.GeneralDate;
 import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.utils.NumberUtils;
+import io.github.wycst.wast.json.JSONParseContext;
 import io.github.wycst.wast.json.JSONTemporalDeserializer;
-import io.github.wycst.wast.json.options.JSONParseContext;
+import io.github.wycst.wast.json.exceptions.JSONException;
 
 /**
  * 参考java.util.Date反序列化，使用反射实现
@@ -23,36 +24,76 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
     }
 
     protected void checkClass(GenericParameterizedType genericParameterizedType) {
-        if (genericParameterizedType.getActualType() != TemporalAloneInvoker.localTimeClass) {
-            throw new UnsupportedOperationException("Not Support for class " + genericParameterizedType.getActualType());
-        }
+//        if (genericParameterizedType.getActualType() != TemporalAloneInvoker.localTimeClass) {
+//            throw new UnsupportedOperationException("Not Support for class " + genericParameterizedType.getActualType());
+//        }
     }
 
     protected Object deserializeTemporal(char[] buf, int fromIndex, int endIndex, JSONParseContext jsonParseContext) throws Exception {
-        if (patternType == 0) {
-            // default hh:mm:ss
-            int h = parseInt2(buf, fromIndex + 1);
-            int m = parseInt2(buf, fromIndex + 4);
-            int s = parseInt2(buf, fromIndex + 7);
-            return TemporalAloneInvoker.ofLocalTime(h, m, s, 0);
-        } else {
-            // use dateTemplate && pattern
-            GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
-            return TemporalAloneInvoker.ofLocalTime(generalDate.getHourOfDay(), generalDate.getMinute(), generalDate.getSecond(), generalDate.getMillisecond() * 1000000);
-        }
+        // use dateTemplate && pattern
+        GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
+        return TemporalAloneInvoker.ofLocalTime(generalDate.getHourOfDay(), generalDate.getMinute(), generalDate.getSecond(), generalDate.getMillisecond() * 1000000);
     }
 
     protected Object deserializeTemporal(byte[] buf, int fromIndex, int endIndex, JSONParseContext jsonParseContext) throws Exception {
-        if (patternType == 0) {
-            // default hh:mm:ss
-            int h = NumberUtils.parseInt2(buf, fromIndex + 1);
-            int m = NumberUtils.parseInt2(buf, fromIndex + 4);
-            int s = NumberUtils.parseInt2(buf, fromIndex + 7);
-            return TemporalAloneInvoker.ofLocalTime(h, m, s, 0);
-        } else {
-            // use dateTemplate && pattern
-            GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
-            return TemporalAloneInvoker.ofLocalTime(generalDate.getHourOfDay(), generalDate.getMinute(), generalDate.getSecond(), generalDate.getMillisecond() * 1000000);
+        // use dateTemplate && pattern
+        GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
+        return TemporalAloneInvoker.ofLocalTime(generalDate.getHourOfDay(), generalDate.getMinute(), generalDate.getSecond(), generalDate.getMillisecond() * 1000000);
+    }
+
+    // default hh:mm:ss.SSS
+    @Override
+    protected Object deserializeDefaultTemporal(char[] buf, int offset, char endChar, JSONParseContext jsonParseContext) throws Exception {
+        int hour = NumberUtils.parseInt2(buf, offset);
+        int minute = NumberUtils.parseInt2(buf, offset + 3);
+        int second = NumberUtils.parseInt2(buf, offset + 6);
+        offset += 8;
+        int nanoOfSecond = 0;
+        char c = buf[offset];
+        if(c == '.') {
+            int cnt = 9;
+            while (isDigit((c = buf[++offset]))) {
+                nanoOfSecond = (nanoOfSecond << 3) + (nanoOfSecond << 1) + c - 48;
+                --cnt;
+            }
+            if(cnt > 0) {
+                nanoOfSecond *= NANO_OF_SECOND_PADDING[cnt];
+            }
         }
+        if(c == endChar) {
+            jsonParseContext.endIndex = offset;
+            return TemporalAloneInvoker.ofLocalTime(hour, minute, second, nanoOfSecond);
+        }
+
+        String errorContextTextAt = createErrorContextText(buf, offset);
+        throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', unexpected token '" + c + "', expected '" + endChar + "'");
+    }
+
+    // default hh:mm:ss.SSS
+    @Override
+    protected Object deserializeDefaultTemporal(byte[] buf, int offset, char endChar, JSONParseContext jsonParseContext) throws Exception {
+        int hour = NumberUtils.parseInt2(buf, offset);
+        int minute = NumberUtils.parseInt2(buf, offset + 3);
+        int second = NumberUtils.parseInt2(buf, offset + 6);
+        offset += 8;
+        int nanoOfSecond = 0;
+        byte c = buf[offset];
+        if(c == '.') {
+            int cnt = 9;
+            while (isDigit((c = buf[++offset]))) {
+                nanoOfSecond = (nanoOfSecond << 3) + (nanoOfSecond << 1) + c - 48;
+                --cnt;
+            }
+            if(cnt > 0) {
+                nanoOfSecond *= NANO_OF_SECOND_PADDING[cnt];
+            }
+        }
+        if(c == endChar) {
+            jsonParseContext.endIndex = offset;
+            return TemporalAloneInvoker.ofLocalTime(hour, minute, second, nanoOfSecond);
+        }
+
+        String errorContextTextAt = createErrorContextText(buf, offset);
+        throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', unexpected token '" + (char) c + "', expected '" + endChar + "'");
     }
 }

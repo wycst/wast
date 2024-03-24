@@ -132,7 +132,7 @@ public class CodeGenerator {
         String modulePath = StringUtils.camelCaseToSymbol(generatorTable.getLowerCaseModuleName(), "-");
         generatorTable.setModulePath(modulePath);
 
-        final StringBuffer entityBuffer = new StringBuffer();
+        final StringBuilder entityBuffer = new StringBuilder();
         if (usePackage) {
             entityBuffer.append(String.format("package %s;\n\n", entityPackage));
         }
@@ -158,8 +158,8 @@ public class CodeGenerator {
             }
         });
 
-        StringBuffer fieldsBuffer = new StringBuffer();
-        StringBuffer getterSetterBuffer = new StringBuffer();
+        StringBuilder fieldsBuffer = new StringBuilder();
+        StringBuilder getterSetterBuffer = new StringBuilder();
 
         Collection<GeneratorTableColumn> tableColumns = generatorTable.getTableColumns().values();
         int queryIndex = 0;

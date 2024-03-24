@@ -1,16 +1,10 @@
 package io.github.wycst.wast.common.template;
 
-import io.github.wycst.wast.common.compiler.MemoryClassLoader;
-import io.github.wycst.wast.common.compiler.MemoryJavaFileManager;
-import io.github.wycst.wast.common.compiler.MemoryJavaFileObject;
+import io.github.wycst.wast.common.compiler.JDKCompiler;
+import io.github.wycst.wast.common.compiler.JavaSourceObject;
 import io.github.wycst.wast.common.exceptions.ParserException;
 import io.github.wycst.wast.common.utils.RegexUtils;
 
-import javax.tools.JavaCompiler;
-import javax.tools.JavaFileObject;
-import javax.tools.StandardJavaFileManager;
-import javax.tools.ToolProvider;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -33,9 +27,6 @@ import java.util.regex.Pattern;
  * @Description:
  */
 public final class StringTemplate {
-
-    private static JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-    private static StandardJavaFileManager fileManager = compiler.getStandardFileManager(null, null, null);
 
     private static final AtomicLong ATOMIC_LONG = new AtomicLong(0);
     private static final String PACKAGE_NAME = StringTemplate.class.getPackage().getName();
@@ -213,17 +204,7 @@ public final class StringTemplate {
         final String javaCode = getJavaCode(simpleClassName, importPackages, source);
         this.templateJavaSource = javaCode.getBytes();
         try {
-            MemoryJavaFileManager javaFileManager = new MemoryJavaFileManager(fileManager);
-            JavaFileObject javaFileObject = javaFileManager.createJavaFileObject(simpleClassName + ".java", javaCode);
-            JavaCompiler.CompilationTask task = compiler.getTask(null, javaFileManager, null,
-                    Arrays.asList(/*"-d", classPath, */"-encoding", "UTF-8"/*, "-XDuseUnsharedTable"*/), null,
-                    Arrays.asList(javaFileObject));
-            boolean bl = task.call();
-            if (bl) {
-                MemoryJavaFileObject memoryJavaFileObject = javaFileManager.getMemoryJavaFileObject();
-                MemoryClassLoader memoryClassLoader = new MemoryClassLoader(memoryJavaFileObject);
-                templateClass = (TemplateClass) memoryClassLoader.loadClass(PACKAGE_NAME + "." + simpleClassName).newInstance();
-            }
+            templateClass = (TemplateClass) JDKCompiler.compileJavaSource(new JavaSourceObject(PACKAGE_NAME, simpleClassName, javaCode)).newInstance();
         } catch (Throwable e) {
             throw new ParserException(" parse exception :" + e.getMessage(), e);
         }

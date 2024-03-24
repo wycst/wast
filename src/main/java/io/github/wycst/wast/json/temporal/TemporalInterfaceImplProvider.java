@@ -20,6 +20,8 @@ class TemporalInterfaceImplProvider implements TemporalInterface {
     // 注：全局可变
     private TimeZone defaultTimezone = UnsafeHelper.getDefaultTimeZone();
     private ZoneId defaultZoneId = defaultTimezone.toZoneId();
+    private final ZoneId ZERO = ZoneId.of("Z");
+    private final ZoneOffset DEFAULT_ZONE_OFFSET = (ZoneOffset) ZERO;
 
     private static Map<String, ZoneId> zoneIdMap = new ConcurrentHashMap<String, ZoneId>();
 
@@ -34,6 +36,16 @@ class TemporalInterfaceImplProvider implements TemporalInterface {
     }
 
     @Override
+    public Object getDefaultZoneOffset() {
+        return DEFAULT_ZONE_OFFSET;
+    }
+
+    @Override
+    public ZoneId getZeroZoneId() {
+        return ZERO;
+    }
+
+    @Override
     public Object getZoneId(Object zonedDateTime) throws Exception {
         ZonedDateTime zonedDateTime0 = (ZonedDateTime) zonedDateTime;
         return zonedDateTime0.getZone();
@@ -42,7 +54,7 @@ class TemporalInterfaceImplProvider implements TemporalInterface {
     @Override
     public Object ofZoneId(String zoneId) throws Exception {
         ZoneId value = zoneIdMap.get(zoneId);
-        if(value == null) {
+        if (value == null) {
             value = ZoneId.of(zoneId);
             zoneIdMap.put(zoneId, value);
         }
@@ -50,135 +62,195 @@ class TemporalInterfaceImplProvider implements TemporalInterface {
     }
 
     @Override
-    public Number getLocalDateYear(Object value) throws Exception {
+    public int getLocalDateYear(Object value) throws Exception {
         LocalDate localDate = (LocalDate) value;
         return localDate.getYear();
     }
 
     @Override
-    public Number getLocalDateMonth(Object value) throws Exception {
+    public int getLocalDateMonth(Object value) throws Exception {
         LocalDate localDate = (LocalDate) value;
         return localDate.getMonthValue();
     }
 
     @Override
-    public Number getLocalDateDay(Object value) throws Exception {
+    public int getLocalDateDay(Object value) throws Exception {
         LocalDate localDate = (LocalDate) value;
         return localDate.getDayOfMonth();
     }
 
     @Override
-    public Number getLocalDateTimeYear(Object value) throws Exception {
+    public int getLocalDateTimeYear(Object value) throws Exception {
         LocalDateTime localDateTime = (LocalDateTime) value;
         return localDateTime.getYear();
     }
 
     @Override
-    public Number getLocalDateTimeMonth(Object value) throws Exception {
+    public int getLocalDateTimeMonth(Object value) throws Exception {
         LocalDateTime localDateTime = (LocalDateTime) value;
         return localDateTime.getMonthValue();
     }
 
     @Override
-    public Number getLocalDateTimeDay(Object value) throws Exception {
+    public int getLocalDateTimeDay(Object value) throws Exception {
         LocalDateTime localDateTime = (LocalDateTime) value;
         return localDateTime.getDayOfMonth();
     }
 
     @Override
-    public Number getLocalDateTimeHour(Object value) throws Exception {
+    public int getLocalDateTimeHour(Object value) throws Exception {
         LocalDateTime localDateTime = (LocalDateTime) value;
         return localDateTime.getHour();
     }
 
     @Override
-    public Number getLocalDateTimeMinute(Object value) throws Exception {
+    public int getLocalDateTimeMinute(Object value) throws Exception {
         LocalDateTime localDateTime = (LocalDateTime) value;
         return localDateTime.getMinute();
     }
 
     @Override
-    public Number getLocalDateTimeSecond(Object value) throws Exception {
+    public int getLocalDateTimeSecond(Object value) throws Exception {
         LocalDateTime localDateTime = (LocalDateTime) value;
         return localDateTime.getSecond();
     }
 
     @Override
-    public Number getLocalDateTimeNano(Object value) throws Exception {
+    public int getLocalDateTimeNano(Object value) throws Exception {
         LocalDateTime localDateTime = (LocalDateTime) value;
         return localDateTime.getNano();
     }
 
     @Override
-    public Number getLocalTimeHour(Object value) throws Exception {
+    public int getLocalTimeHour(Object value) throws Exception {
         LocalTime localTime = (LocalTime) value;
         return localTime.getHour();
     }
 
     @Override
-    public Number getLocalTimeMinute(Object value) throws Exception {
+    public int getLocalTimeMinute(Object value) throws Exception {
         LocalTime localTime = (LocalTime) value;
         return localTime.getMinute();
     }
 
     @Override
-    public Number getLocalTimeSecond(Object value) throws Exception {
+    public int getLocalTimeSecond(Object value) throws Exception {
         LocalTime localTime = (LocalTime) value;
         return localTime.getSecond();
     }
 
     @Override
-    public Number getLocalTimeNano(Object value) throws Exception {
+    public int getLocalTimeNano(Object value) throws Exception {
         LocalTime localTime = (LocalTime) value;
         return localTime.getNano();
     }
 
     @Override
-    public Number getInstantEpochMilli(Object value) throws Exception {
+    public long getInstantEpochMilli(Object value) throws Exception {
         Instant instant = (Instant) value;
         return instant.toEpochMilli();
     }
 
     @Override
-    public Number getZonedDateTimeYear(Object value) throws Exception {
+    public long getInstantEpochSeconds(Object value) throws Exception {
+        Instant instant = (Instant) value;
+        return instant.getEpochSecond();
+    }
+
+    @Override
+    public int getInstantNano(Object value) throws Exception {
+        Instant instant = (Instant) value;
+        return instant.getNano();
+    }
+
+    @Override
+    public int getZonedDateTimeYear(Object value) throws Exception {
         ZonedDateTime zonedDateTime = (ZonedDateTime) value;
         return zonedDateTime.getYear();
     }
 
     @Override
-    public Number getZonedDateTimeMonth(Object value) throws Exception {
+    public int getZonedDateTimeMonth(Object value) throws Exception {
         ZonedDateTime zonedDateTime = (ZonedDateTime) value;
         return zonedDateTime.getMonthValue();
     }
 
     @Override
-    public Number getZonedDateTimeDay(Object value) throws Exception {
+    public int getZonedDateTimeDay(Object value) throws Exception {
         ZonedDateTime zonedDateTime = (ZonedDateTime) value;
         return zonedDateTime.getDayOfMonth();
     }
 
     @Override
-    public Number getZonedDateTimeHour(Object value) throws Exception {
+    public int getZonedDateTimeHour(Object value) throws Exception {
         ZonedDateTime zonedDateTime = (ZonedDateTime) value;
         return zonedDateTime.getHour();
     }
 
     @Override
-    public Number getZonedDateTimeMinute(Object value) throws Exception {
+    public int getZonedDateTimeMinute(Object value) throws Exception {
         ZonedDateTime zonedDateTime = (ZonedDateTime) value;
         return zonedDateTime.getMinute();
     }
 
     @Override
-    public Number getZonedDateTimeSecond(Object value) throws Exception {
+    public int getZonedDateTimeSecond(Object value) throws Exception {
         ZonedDateTime zonedDateTime = (ZonedDateTime) value;
         return zonedDateTime.getSecond();
     }
 
     @Override
-    public Number getZonedDateTimeNano(Object value) throws Exception {
+    public int getZonedDateTimeNano(Object value) throws Exception {
         ZonedDateTime zonedDateTime = (ZonedDateTime) value;
         return zonedDateTime.getNano();
+    }
+
+    @Override
+    public int getOffsetDateTimeYear(Object value) throws Exception {
+        OffsetDateTime offsetDateTime = (OffsetDateTime) value;
+        return offsetDateTime.getYear();
+    }
+
+    @Override
+    public int getOffsetDateTimeMonth(Object value) throws Exception {
+        OffsetDateTime offsetDateTime = (OffsetDateTime) value;
+        return offsetDateTime.getMonthValue();
+    }
+
+    @Override
+    public int getOffsetDateTimeDay(Object value) throws Exception {
+        OffsetDateTime offsetDateTime = (OffsetDateTime) value;
+        return offsetDateTime.getDayOfMonth();
+    }
+
+    @Override
+    public int getOffsetDateTimeHour(Object value) throws Exception {
+        OffsetDateTime offsetDateTime = (OffsetDateTime) value;
+        return offsetDateTime.getHour();
+    }
+
+    @Override
+    public int getOffsetDateTimeMinute(Object value) throws Exception {
+        OffsetDateTime offsetDateTime = (OffsetDateTime) value;
+        return offsetDateTime.getMinute();
+    }
+
+    @Override
+    public int getOffsetDateTimeSecond(Object value) throws Exception {
+        OffsetDateTime offsetDateTime = (OffsetDateTime) value;
+        return offsetDateTime.getSecond();
+    }
+
+    @Override
+    public int getOffsetDateTimeNano(Object value) throws Exception {
+        OffsetDateTime offsetDateTime = (OffsetDateTime) value;
+        return offsetDateTime.getNano();
+    }
+
+    @Override
+    public Object getOffsetZoneId(Object value) throws Exception {
+        OffsetDateTime offsetDateTime = (OffsetDateTime) value;
+        return offsetDateTime.getOffset();
     }
 
     @Override
@@ -187,13 +259,28 @@ class TemporalInterfaceImplProvider implements TemporalInterface {
     }
 
     @Override
+    public Object ofInstant(long seconds, int nanoOfSecond) {
+        return Instant.ofEpochSecond(seconds, nanoOfSecond);
+    }
+
+    @Override
     public Object ofZonedDateTime(int year, int month, int dayOfMonth, int hour, int minute, int second, int nanoOfSecond, Object zoneId) throws Exception {
         return ZonedDateTime.of(year, month, dayOfMonth, hour, minute, second, nanoOfSecond, (ZoneId) zoneId);
     }
 
     @Override
+    public Object ofOffsetDateTime(int year, int month, int dayOfMonth, int hour, int minute, int second, int nanoOfSecond, Object zoneOffset) throws Exception {
+        return OffsetDateTime.of(year, month, dayOfMonth, hour, minute, second, nanoOfSecond, (ZoneOffset) zoneOffset);
+    }
+
+    @Override
     public Object parseZonedDateTime(CharSequence charSequence) throws Exception {
         return ZonedDateTime.parse(charSequence);
+    }
+
+    @Override
+    public Object parseOffsetDateTime(CharSequence charSequence) {
+        return OffsetDateTime.parse(charSequence);
     }
 
     @Override

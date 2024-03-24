@@ -1,8 +1,6 @@
 package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.json.exceptions.JSONException;
-import io.github.wycst.wast.json.options.JSONParseContext;
-import io.github.wycst.wast.json.options.Options;
 import io.github.wycst.wast.json.options.ReadOption;
 
 /**
@@ -44,7 +42,7 @@ public class JSONValidator extends JSONGeneral {
         }
         this.init();
         JSONParseContext parseContext = new JSONParseContext();
-        Options.readOptions(readOptions, parseContext);
+        JSONOptions.readOptions(readOptions, parseContext);
         this.parseContext = parseContext;
         this.showMessage = showMessage;
         try {

@@ -14,7 +14,7 @@ import java.util.Map;
 public class MemoryJavaFileManager extends ForwardingJavaFileManager {
 
     private Map<String, MemoryJavaFileObject> fileObjectMap = new HashMap<String, MemoryJavaFileObject>();
-    private MemoryJavaFileObject memoryJavaFileObject;
+    private MemoryJavaFileObject lastMemoryJavaFileObject;
 
     /**
      * Creates a new instance of ForwardingJavaFileManager.
@@ -25,22 +25,38 @@ public class MemoryJavaFileManager extends ForwardingJavaFileManager {
         super(fileManager);
     }
 
+    /**
+     * Creates a new instance of ForwardingJavaFileManager.
+     *
+     * @param fileManager delegate to this file manager
+     */
+    public MemoryJavaFileManager(JavaFileManager fileManager, JavaSourceObject... javaSourceObjects) {
+        super(fileManager);
+        for (JavaSourceObject javaSourceObject : javaSourceObjects) {
+            fileObjectMap.put(javaSourceObject.canonicalName, new MemoryJavaFileObject(javaSourceObject.canonicalName, JavaFileObject.Kind.SOURCE));
+        }
+    }
+
     @Override
     public JavaFileObject getJavaFileForOutput(Location location, String className, JavaFileObject.Kind kind, FileObject sibling) throws IOException {
-//        if(fileObjectMap.containsKey(className)) {
-//            return fileObjectMap.get(className);
-//        }
-        memoryJavaFileObject = new MemoryJavaFileObject(className, JavaFileObject.Kind.SOURCE);
-//        fileObjectMap.put(className, fileObject);
-        return memoryJavaFileObject;
+        MemoryJavaFileObject memoryJavaFileObject = fileObjectMap.get(className);
+        if (memoryJavaFileObject == null) {
+            memoryJavaFileObject = new MemoryJavaFileObject(className, JavaFileObject.Kind.SOURCE);
+            fileObjectMap.put(className, memoryJavaFileObject);
+        }
+        return lastMemoryJavaFileObject = memoryJavaFileObject;
     }
 
     public JavaFileObject createJavaFileObject(String name, String code) {
         return new MemoryInputJavaFileObject(name, code);
     }
 
-    public MemoryJavaFileObject getMemoryJavaFileObject() {
-        return memoryJavaFileObject;
+    public MemoryJavaFileObject getLastMemoryJavaFileObject() {
+        return lastMemoryJavaFileObject;
+    }
+
+    public Map<String, MemoryJavaFileObject> getFileObjectMap() {
+        return fileObjectMap;
     }
 
     /***

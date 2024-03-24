@@ -24,12 +24,14 @@ import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import io.github.wycst.wast.common.utils.EnvUtils;
 import io.github.wycst.wast.json.exceptions.JSONException;
-import io.github.wycst.wast.json.options.*;
+import io.github.wycst.wast.json.options.ReadOption;
+import io.github.wycst.wast.json.options.WriteOption;
 
 import java.io.*;
 import java.lang.reflect.Type;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.Charset;
 import java.util.*;
 
 /**
@@ -73,7 +75,7 @@ import java.util.*;
  * @author wangyunchao
  * @see JSON#toJsonString(Object)
  * @see JSON#toJsonString(Object, WriteOption...)
- * @see JSON#toJsonString(Object, JsonConfig)
+ * @see JSON#toJsonString(Object, JSONConfig)
  * @see JSON#writeJsonTo(Object, File, WriteOption...)
  * @see JSON#writeJsonTo(Object, OutputStream, WriteOption...)
  * @see JSON#writeJsonTo(Object, Writer, WriteOption...)
@@ -150,6 +152,9 @@ public final class JSON extends JSONGeneral {
      */
     public static Object parse(byte[] bytes, ReadOption... readOptions) {
         if (bytes == null) return null;
+        if (EnvUtils.JDK_9_PLUS) {
+            return JSONDefaultParser.parse(new String(bytes), readOptions);
+        }
         return JSONDefaultParser.parse(bytes, readOptions);
     }
 
@@ -168,7 +173,7 @@ public final class JSON extends JSONGeneral {
     public static Object parse(String json, Class<?> actualType, ReadOption... readOptions) {
         if (json == null)
             return null;
-        if (EnvUtils.JDK_9_ABOVE) {
+        if (EnvUtils.JDK_9_PLUS) {
             byte[] bytes = (byte[]) UnsafeHelper.getStringValue(json);
             if (bytes.length == json.length()) {
                 AsciiStringSource charSource = AsciiStringSource.of(json, bytes);
@@ -194,7 +199,7 @@ public final class JSON extends JSONGeneral {
         if (json == null) return null;
         // if use JSONDefaultParser.parse
         JSONTypeDeserializer typeDeserializer = JSONTypeDeserializer.getTypeDeserializer(actualType);
-        if (EnvUtils.JDK_9_ABOVE) {
+        if (EnvUtils.JDK_9_PLUS) {
             byte[] bytes = (byte[]) UnsafeHelper.getStringValue(json);
             if (bytes.length == json.length()) {
                 // use ascii bytes
@@ -234,6 +239,9 @@ public final class JSON extends JSONGeneral {
      * @return 类型对象
      */
     public static <T> T parseObject(byte[] buf, final Class<T> actualType, ReadOption... readOptions) {
+        if (EnvUtils.JDK_9_PLUS) {
+            return parseObject(new String(buf), actualType, readOptions);
+        }
         JSONTypeDeserializer typeDeserializer = JSONTypeDeserializer.getTypeDeserializer(actualType);
         return parseObject(typeDeserializer, null, buf, actualType, readOptions);
     }
@@ -330,7 +338,7 @@ public final class JSON extends JSONGeneral {
      */
     public static <T> T parse(String json, GenericParameterizedType<T> genericParameterizedType, ReadOption... readOptions) {
         if (json == null) return null;
-        if (EnvUtils.JDK_9_ABOVE) {
+        if (EnvUtils.JDK_9_PLUS) {
             int code = UnsafeHelper.getStringCoder(json);
             if (code == 1) {
                 // utf16
@@ -364,6 +372,9 @@ public final class JSON extends JSONGeneral {
      * @return 对象或者数组
      */
     public static <T> T parse(byte[] buf, final GenericParameterizedType<T> genericParameterizedType, ReadOption... readOptions) {
+        if (EnvUtils.JDK_9_PLUS) {
+            return parse(new String(buf), genericParameterizedType, readOptions);
+        }
         return parse(null, buf, genericParameterizedType, readOptions);
     }
 
@@ -417,7 +428,7 @@ public final class JSON extends JSONGeneral {
      */
     public static <T> List<T> parseArray(String json, Class<T> actualType, ReadOption... readOptions) {
         if (json == null) return null;
-        if (EnvUtils.JDK_9_ABOVE) {
+        if (EnvUtils.JDK_9_PLUS) {
             int code = UnsafeHelper.getStringCoder(json);
             if (code == 1) {
                 // utf16
@@ -493,11 +504,11 @@ public final class JSON extends JSONGeneral {
      * @return
      */
     public static Object parse(byte[] buf, Class<?> actualType, ReadOption... readOptions) {
+//        return parse(null, buf, actualType, null, readOptions);
+        if (EnvUtils.JDK_9_PLUS) {
+            return parse(new String(buf), actualType, readOptions);
+        }
         return parse(null, buf, actualType, null, readOptions);
-//        if (EnvUtils.JDK_9_ABOVE) {
-//            return parse(null, buf, actualType, null, readOptions);
-//        }
-//        return parse(new String(buf), actualType, readOptions);
     }
 
     /**
@@ -579,7 +590,7 @@ public final class JSON extends JSONGeneral {
         if (instance == null || json == null) {
             return null;
         }
-        if (EnvUtils.JDK_9_ABOVE) {
+        if (EnvUtils.JDK_9_PLUS) {
             int code = UnsafeHelper.getStringCoder(json);
             if (code == 1) {
                 // utf16
@@ -616,7 +627,7 @@ public final class JSON extends JSONGeneral {
         if (instance == null || json == null) {
             return null;
         }
-        if (EnvUtils.JDK_9_ABOVE) {
+        if (EnvUtils.JDK_9_PLUS) {
             int code = UnsafeHelper.getStringCoder(json);
             if (code == 1) {
                 // utf16
@@ -671,7 +682,7 @@ public final class JSON extends JSONGeneral {
         }
 
         JSONParseContext jsonParseContext = new JSONParseContext();
-        Options.readOptions(readOptions, jsonParseContext);
+        JSONOptions.readOptions(readOptions, jsonParseContext);
         try {
             boolean allowComment = jsonParseContext.allowComment;
             if (allowComment && beginChar == '/') {
@@ -726,7 +737,7 @@ public final class JSON extends JSONGeneral {
         }
 
         JSONParseContext jsonParseContext = new JSONParseContext();
-        Options.readOptions(readOptions, jsonParseContext);
+        JSONOptions.readOptions(readOptions, jsonParseContext);
         try {
             boolean allowComment = jsonParseContext.allowComment;
             if (allowComment && beginByte == '/') {
@@ -945,21 +956,22 @@ public final class JSON extends JSONGeneral {
         if (obj == null) {
             return null;
         }
-        return toJsonString(obj, WriteOption.Default);
+        return stringify(obj, new JSONConfig(), 0);
     }
 
     /**
      * 将对象转化为json字符串
      *
-     * @param obj 目标对象
+     * @param obj     目标对象
+     * @param options 配置选项
      * @return JSON字符串
      */
     public static String toJsonString(Object obj, WriteOption... options) {
         if (obj == null) {
             return null;
         }
-        JsonConfig jsonConfig = new JsonConfig();
-        Options.writeOptions(options, jsonConfig);
+        JSONConfig jsonConfig = new JSONConfig();
+        JSONOptions.writeOptions(options, jsonConfig);
         return stringify(obj, jsonConfig, 0);
     }
 
@@ -971,11 +983,28 @@ public final class JSON extends JSONGeneral {
      * @return
      */
     public static byte[] toJsonBytes(Object obj, WriteOption... options) {
+        return toJsonBytes(obj, Charset.defaultCharset(), options);
+    }
+
+    /**
+     * 将对象序列化为json字节数组
+     *
+     * @param obj
+     * @param charset 指定编码
+     * @param options
+     * @return
+     */
+    public static byte[] toJsonBytes(Object obj, Charset charset, WriteOption... options) {
         if (obj == null) {
             return null;
         }
-        String json = toJsonString(obj, options);
-        return json.getBytes();
+        JSONWriter stringWriter = JSONWriter.forBytesWriter(charset);
+        try {
+            writeToJSONWriter(obj, stringWriter, options);
+            return stringWriter.toBytes();
+        } finally {
+            stringWriter.reset();
+        }
     }
 
     /**
@@ -985,29 +1014,15 @@ public final class JSON extends JSONGeneral {
      * @param jsonConfig 配置
      * @return JSON字符串
      */
-    public static String toJsonString(Object obj, JsonConfig jsonConfig) {
+    public static String toJsonString(Object obj, JSONConfig jsonConfig) {
         if (obj == null) {
             return null;
         }
         return stringify(obj, jsonConfig, 0);
     }
 
-    /**
-     * serialize obj
-     *
-     * @param obj        序列化对象
-     * @param jsonConfig 配置
-     * @return JSON字符串
-     */
-    public static String stringify(Object obj, JsonConfig jsonConfig) {
-        if (obj == null) {
-            return null;
-        }
-        return stringify(obj, jsonConfig, 0);
-    }
-
-    private static String stringify(Object obj, JsonConfig jsonConfig, int indentLevel) {
-        JSONStringWriter content = new JSONCharArrayWriter();
+    private static String stringify(Object obj, JSONConfig jsonConfig, int indentLevel) {
+        JSONWriter content = JSONWriter.forStringWriter();
         try {
             stringify(obj, content, jsonConfig, indentLevel);
             return content.toString();
@@ -1033,7 +1048,7 @@ public final class JSON extends JSONGeneral {
             }
             writeJsonTo(object, new FileOutputStream(file), options);
         } catch (FileNotFoundException e) {
-            e.printStackTrace();
+            throw new JSONException("file not found", e);
         }
     }
 
@@ -1044,7 +1059,53 @@ public final class JSON extends JSONGeneral {
      * @param os
      */
     public static void writeJsonTo(Object object, OutputStream os, WriteOption... options) {
-        writeJsonTo(object, new OutputStreamWriter(os), options);
+        writeJsonTo(object, os, Charset.defaultCharset(), options);
+    }
+
+    /**
+     * 将对象序列化内容直接写入os
+     *
+     * @param object
+     * @param os
+     */
+    public static void writeJsonTo(Object object, OutputStream os, Charset charset, WriteOption... options) {
+        JSONWriter streamWriter = JSONWriter.forStreamWriter(charset);
+        try {
+            writeToJSONWriter(object, streamWriter, options);
+            streamWriter.toOutputStream(os);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } finally {
+            streamWriter.reset();
+        }
+    }
+
+    /**
+     * 将对象序列化内容使用指定的writer写入
+     *
+     * @param object
+     * @param writer
+     */
+    static void writeToJSONWriter(Object object, JSONWriter writer, WriteOption... options) {
+        if (object != null) {
+            JSONConfig jsonConfig = new JSONConfig();
+            JSONOptions.writeOptions(options, jsonConfig);
+            try {
+                stringify(object, writer, jsonConfig, 0);
+                writer.flush();
+            } catch (Exception e) {
+                throw new JSONException(e);
+            } finally {
+                jsonConfig.clear();
+                if (jsonConfig.isAutoCloseStream()) {
+                    try {
+                        writer.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -1054,36 +1115,13 @@ public final class JSON extends JSONGeneral {
      * @param writer
      */
     public static void writeJsonTo(Object object, Writer writer, WriteOption... options) {
-        if (object == null) return;
-        BufferedWriter bufferedWriter;
-        if (writer instanceof BufferedWriter) {
-            bufferedWriter = (BufferedWriter) writer;
-        } else {
-            bufferedWriter = new BufferedWriter(writer);
-        }
-
-        JsonConfig jsonConfig = new JsonConfig();
-        Options.writeOptions(options, jsonConfig);
-        try {
-            stringify(object, bufferedWriter, jsonConfig, 0);
-            bufferedWriter.flush();
-        } catch (Exception e) {
-            throw new JSONException(e);
-        } finally {
-            jsonConfig.clear();
-            if (jsonConfig.isAutoCloseStream()) {
-                try {
-                    bufferedWriter.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
+        writeToJSONWriter(object, JSONWriter.wrap(writer), options);
     }
 
     // obj is not null
-    static void stringify(Object obj, Writer content, JsonConfig jsonConfig, int indentLevel) throws Exception {
-        JSONTypeSerializer.getValueSerializer(obj).serialize(obj, content, jsonConfig, indentLevel);
+    static void stringify(Object obj, JSONWriter content, JSONConfig jsonConfig, int indentLevel) throws Exception {
+        JSONTypeSerializer serializer = JSONTypeSerializer.getTypeSerializer(obj.getClass());
+        serializer.serialize(obj, content, jsonConfig, indentLevel);
     }
 
     public static boolean validate(String json, ReadOption... readOptions) {

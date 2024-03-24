@@ -20,11 +20,7 @@ import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.SetterInfo;
 import io.github.wycst.wast.common.tools.Base64;
 import io.github.wycst.wast.json.exceptions.JSONException;
-import io.github.wycst.wast.json.options.JSONNodeContext;
-import io.github.wycst.wast.json.options.Options;
 import io.github.wycst.wast.json.options.ReadOption;
-import io.github.wycst.wast.json.reflect.FieldDeserializer;
-import io.github.wycst.wast.json.reflect.ObjectStructureWrapper;
 
 import java.io.Serializable;
 import java.lang.reflect.Array;
@@ -327,7 +323,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
      */
     public static JSONNode from(char[] buf, String path, boolean lazy, ReadOption... readOptions) {
         JSONNodeContext parseContext = new JSONNodeContext();
-        Options.readOptions(readOptions, parseContext);
+        JSONOptions.readOptions(readOptions, parseContext);
         parseContext.lazy = lazy;
         int toIndex = buf.length;
         if (path == null || (path = path.trim()).length() == 0) {
@@ -361,7 +357,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
      */
     public static List extract(char[] buf, String path, ReadOption... readOptions) {
         JSONNodeContext parseContext = new JSONNodeContext();
-        Options.readOptions(readOptions, parseContext);
+        JSONOptions.readOptions(readOptions, parseContext);
         parseContext.extract = true;
         if (!path.startsWith("/")) {
             path = "/" + path;
@@ -824,7 +820,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
 
     private static JSONNode parseStringPathNode(char[] buf, int fromIndex, int toIndex, boolean skipValue, JSONNodeContext jsonParseContext) throws Exception {
         if (skipValue) {
-            JSONTypeDeserializer.CHAR_SEQUENCE_STRING.skip(null, buf, fromIndex, toIndex, jsonParseContext);
+            JSONTypeDeserializer.CHAR_SEQUENCE_STRING.skip(null, buf, fromIndex, '"', jsonParseContext);
             return null;
         }
         String value = (String) JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(null, buf, fromIndex, toIndex, '"', GenericParameterizedType.StringType, jsonParseContext);
@@ -863,7 +859,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
         try {
             char[] buf = getChars(source);
             JSONNodeContext parseContext = new JSONNodeContext();
-            Options.readOptions(readOptions, parseContext);
+            JSONOptions.readOptions(readOptions, parseContext);
             parseContext.reverseParseNode = reverseParseNode;
             JSONNode jsonNode = new JSONNode(buf, 0, buf.length, parseContext);
             if (path == null) {
@@ -1607,12 +1603,12 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
         }
         Object instance;
         boolean isMapInstance;
-        ObjectStructureWrapper classStructureWrapper = null;
+        JSONPojoStructure classStructureWrapper = null;
         if (eClass == null || eClass == Map.class || eClass == LinkedHashMap.class) {
             instance = new LinkedHashMap();
             isMapInstance = true;
         } else {
-            classStructureWrapper = ObjectStructureWrapper.get(eClass);
+            classStructureWrapper = JSONPojoStructure.get(eClass);
             isMapInstance = classStructureWrapper.isAssignableFromMap();
             try {
                 if (!isMapInstance) {
@@ -1640,7 +1636,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                 map.put(key, value);
             } else {
                 String fieldName = key.toString();
-                FieldDeserializer fieldDeserializer = classStructureWrapper.getFieldDeserializer(fieldName);
+                JSONPojoFieldDeserializer fieldDeserializer = classStructureWrapper.getFieldDeserializer(fieldName);
                 SetterInfo setterInfo = fieldDeserializer == null ? null : fieldDeserializer.getSetterInfo();
                 if (setterInfo != null) {
                     Class<?> parameterType = setterInfo.getParameterType();
@@ -1882,24 +1878,14 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
         int beginIndex = 0;
         for (int i = 0; i < len; ++i) {
             char ch = leafValue.charAt(i);
-            if (ch == '\\') {
-                int length = i - beginIndex;
-                if (length > 0) {
-                    content.append(leafValue, beginIndex, i);
-                }
-                content.append('\\').append('\\');
-                beginIndex = i + 1;
-                continue;
+            String escapeStr;
+            if ((ch > '"' && ch != '\\') || (escapeStr = ESCAPE_VALUES[ch]) == null) continue;
+            int length = i - beginIndex;
+            if (length > 0) {
+                content.append(leafValue, beginIndex, i);
             }
-            if (ch > 34) continue;
-            if (needEscapes[ch]) {
-                int length = i - beginIndex;
-                if (length > 0) {
-                    content.append(leafValue, beginIndex, i);
-                }
-                content.append(escapes[ch]);
-                beginIndex = i + 1;
-            }
+            content.append(escapeStr);
+            beginIndex = i + 1;
         }
         content.append(leafValue, beginIndex, len);
     }

@@ -4,8 +4,9 @@ import io.github.wycst.wast.common.beans.GeneralDate;
 import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.utils.NumberUtils;
+import io.github.wycst.wast.json.JSONParseContext;
 import io.github.wycst.wast.json.JSONTemporalDeserializer;
-import io.github.wycst.wast.json.options.JSONParseContext;
+import io.github.wycst.wast.json.exceptions.JSONException;
 
 /**
  * 参考java.util.Date反序列化，使用反射实现
@@ -23,36 +24,47 @@ public class TemporalLocalDateDeserializer extends JSONTemporalDeserializer {
     }
 
     protected void checkClass(GenericParameterizedType genericParameterizedType) {
-        if (genericParameterizedType.getActualType() != TemporalAloneInvoker.localDateClass) {
-            throw new UnsupportedOperationException("Not Support for class " + genericParameterizedType.getActualType());
-        }
     }
 
     protected Object deserializeTemporal(char[] buf, int fromIndex, int endIndex, JSONParseContext jsonParseContext) throws Exception {
-        if (patternType == 0) {
-            // default yyyy-MM-dd
-            int year = NumberUtils.parseInt4(buf, fromIndex + 1);
-            int month = NumberUtils.parseInt2(buf, fromIndex + 6);
-            int day = NumberUtils.parseInt2(buf, fromIndex + 9);
-            return TemporalAloneInvoker.ofLocalDate(year, month, day);
-        } else {
-            // use dateTemplate && pattern
-            GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
-            return TemporalAloneInvoker.ofLocalDate(generalDate.getYear(), generalDate.getMonth(), generalDate.getDay());
-        }
+        // use dateTemplate && pattern
+        GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
+        return TemporalAloneInvoker.ofLocalDate(generalDate.getYear(), generalDate.getMonth(), generalDate.getDay());
     }
 
     protected Object deserializeTemporal(byte[] buf, int fromIndex, int endIndex, JSONParseContext jsonParseContext) throws Exception {
-        if (patternType == 0) {
-            // default yyyy-MM-dd
-            int year = NumberUtils.parseInt4(buf, fromIndex + 1);
-            int month = NumberUtils.parseInt2(buf, fromIndex + 6);
-            int day = NumberUtils.parseInt2(buf, fromIndex + 9);
+        // use dateTemplate && pattern
+        GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
+        return TemporalAloneInvoker.ofLocalDate(generalDate.getYear(), generalDate.getMonth(), generalDate.getDay());
+    }
+
+    // default supported yyyy?MM?dd
+    @Override
+    protected Object deserializeDefaultTemporal(char[] buf, int offset, char endChar, JSONParseContext jsonParseContext) throws Exception {
+        int year = NumberUtils.parseInt4(buf, offset);
+        int month = NumberUtils.parseInt2(buf, offset + 5);
+        int day = NumberUtils.parseInt2(buf, offset + 8);
+        offset += 10;
+        if (buf[offset] == endChar) {
+            jsonParseContext.endIndex = offset;
             return TemporalAloneInvoker.ofLocalDate(year, month, day);
-        } else {
-            // use dateTemplate && pattern
-            GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
-            return TemporalAloneInvoker.ofLocalDate(generalDate.getYear(), generalDate.getMonth(), generalDate.getDay());
         }
+        String errorContextTextAt = createErrorContextText(buf, offset);
+        throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', unexpected token '" + buf[offset] + "', expected '" + endChar + "'");
+    }
+
+    // default yyyy-MM-dd
+    @Override
+    protected Object deserializeDefaultTemporal(byte[] buf, int offset, char endChar, JSONParseContext jsonParseContext) throws Exception {
+        int year = NumberUtils.parseInt4(buf, offset);
+        int month = NumberUtils.parseInt2(buf, offset + 5);
+        int day = NumberUtils.parseInt2(buf, offset + 8);
+        offset += 10;
+        if (buf[offset] == endChar) {
+            jsonParseContext.endIndex = offset;
+            return TemporalAloneInvoker.ofLocalDate(year, month, day);
+        }
+        String errorContextTextAt = createErrorContextText(buf, offset);
+        throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', unexpected token '" + (char) buf[offset] + "', expected '" + endChar + "'");
     }
 }

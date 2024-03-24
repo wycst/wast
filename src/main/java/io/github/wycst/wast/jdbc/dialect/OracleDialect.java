@@ -16,7 +16,7 @@ public class OracleDialect extends DialectImpl implements Dialect {
             isForUpdate = true;
         }
 
-        StringBuffer pagingSelect = new StringBuffer(sql.length() + 100);
+        StringBuilder pagingSelect = new StringBuilder(sql.length() + 100);
         if (hasOffset) {
             pagingSelect
                     .append("select * from ( select row_.*, rownum rownum_ from ( ");
@@ -44,7 +44,7 @@ public class OracleDialect extends DialectImpl implements Dialect {
             isForUpdate = true;
         }
 
-        StringBuffer pagingSelect = new StringBuffer(sql.length() + 100);
+        StringBuilder pagingSelect = new StringBuilder(sql.length() + 100);
         if (offset > 1) {
             pagingSelect
                     .append("select * from ( select row_.*, rownum rownum_ from ( ");

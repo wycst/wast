@@ -6,12 +6,7 @@ import io.github.wycst.wast.common.beans.UTF16ByteArraySource;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import io.github.wycst.wast.json.exceptions.JSONException;
-import io.github.wycst.wast.json.options.JSONNodeContext;
-import io.github.wycst.wast.json.options.JSONParseContext;
-import io.github.wycst.wast.json.options.Options;
 import io.github.wycst.wast.json.options.ReadOption;
-import io.github.wycst.wast.json.reflect.FieldDeserializer;
-import io.github.wycst.wast.json.reflect.ObjectStructureWrapper;
 
 /**
  * pojo Deserializer
@@ -22,18 +17,18 @@ import io.github.wycst.wast.json.reflect.ObjectStructureWrapper;
 public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
 
     // private final Class<? extends T> pojoClass;
-    protected final ObjectStructureWrapper pojoStructureWrapper;
+    protected final JSONPojoStructure pojoStructureWrapper;
 
     public JSONPojoDeserializer(Class<T> pojoClass) {
         pojoClass.getClass();
         // this.pojoClass = pojoClass;
-        pojoStructureWrapper = ObjectStructureWrapper.get(pojoClass);
+        pojoStructureWrapper = JSONPojoStructure.get(pojoClass);
         if (pojoStructureWrapper == null) {
             throw new UnsupportedOperationException("type not support for " + pojoClass);
         }
     }
 
-    JSONPojoDeserializer(ObjectStructureWrapper pojoStructureWrapper) {
+    JSONPojoDeserializer(JSONPojoStructure pojoStructureWrapper) {
         this.pojoStructureWrapper = pojoStructureWrapper;
     }
 
@@ -96,12 +91,11 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                 }
             }
             int fieldKeyFrom = i;
-            FieldDeserializer fieldDeserializer = null;
+            JSONPojoFieldDeserializer fieldDeserializer = null;
             if (ch == '"') {
                 if((ch = buf[++i]) != '"') {
                     long hashValue = ch;
                     char ch1;
-                    // Decoupling optimization
                     if ((ch = buf[++i]) != '"' && (ch1 = buf[++i]) != '"') {
                         hashValue = pojoStructureWrapper.hashChar(hashValue, ch, ch1);
                         if ((ch = buf[++i]) != '"' && (ch1 = buf[++i]) != '"') {
@@ -323,7 +317,7 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                 }
             }
             int fieldKeyFrom = i;
-            FieldDeserializer fieldDeserializer = null;
+            JSONPojoFieldDeserializer fieldDeserializer = null;
             if (b == DOUBLE_QUOTATION) {
                 if((b = buf[++i]) != DOUBLE_QUOTATION) {
                     long hashValue = b;
@@ -543,8 +537,8 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
      * @param hashValue
      * @return
      */
-    protected FieldDeserializer getFieldDeserializer(char[] buf, int offset, int endIndex, long hashValue) {
-        FieldDeserializer fieldDeserializer = pojoStructureWrapper.getFieldDeserializer(buf, offset, endIndex, hashValue);
+    protected JSONPojoFieldDeserializer getFieldDeserializer(char[] buf, int offset, int endIndex, long hashValue) {
+        JSONPojoFieldDeserializer fieldDeserializer = pojoStructureWrapper.getFieldDeserializer(buf, offset, endIndex, hashValue);
         return fieldDeserializer;
     }
 
@@ -557,8 +551,8 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
      * @param hashValue
      * @return
      */
-    protected FieldDeserializer getFieldDeserializer(byte[] buf, int offset, int endIndex, long hashValue) {
-        FieldDeserializer fieldDeserializer = pojoStructureWrapper.getFieldDeserializer(buf, offset, endIndex, hashValue);
+    protected JSONPojoFieldDeserializer getFieldDeserializer(byte[] buf, int offset, int endIndex, long hashValue) {
+        JSONPojoFieldDeserializer fieldDeserializer = pojoStructureWrapper.getFieldDeserializer(buf, offset, endIndex, hashValue);
         return fieldDeserializer;
     }
 
@@ -603,7 +597,7 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
             throw new JSONException("The first non empty character is not '{'");
         }
         JSONParseContext jsonParseContext = new JSONNodeContext();
-        Options.readOptions(options, jsonParseContext);
+        JSONOptions.readOptions(options, jsonParseContext);
         T entity;
         try {
             entity = createPojo();
@@ -634,7 +628,7 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
             throw new JSONException("The first non empty character is not '{'");
         }
         JSONParseContext jsonParseContext = new JSONNodeContext();
-        Options.readOptions(options, jsonParseContext);
+        JSONOptions.readOptions(options, jsonParseContext);
         T entity;
         try {
             entity = createPojo();
@@ -647,7 +641,7 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
         return entity;
     }
 
-    protected void setFieldValue(T entity, FieldDeserializer fieldDeserializer, Object value) {
+    protected void setFieldValue(T entity, JSONPojoFieldDeserializer fieldDeserializer, Object value) {
         fieldDeserializer.invoke(entity, value);
     }
 
@@ -666,7 +660,7 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
      * @param hashValue
      * @return
      */
-    protected final FieldDeserializer getFieldDeserializer(long hashValue) {
+    protected final JSONPojoFieldDeserializer getFieldDeserializer(long hashValue) {
         return pojoStructureWrapper.getFieldDeserializer(hashValue);
     }
 
@@ -677,7 +671,7 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
     // record supported
     public static class JSONRecordDeserializer<T> extends JSONPojoDeserializer {
 
-        JSONRecordDeserializer(ObjectStructureWrapper objectStructureWrapper) {
+        JSONRecordDeserializer(JSONPojoStructure objectStructureWrapper) {
             super(objectStructureWrapper);
         }
 
@@ -685,13 +679,13 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
             return pojoStructureWrapper.createConstructorArgs();
         }
 
-        protected final void setFieldValue(Object entity, FieldDeserializer fieldDeserializer, Object value) {
+        protected final void setFieldValue(Object entity, JSONPojoFieldDeserializer fieldDeserializer, Object value) {
             Object[] argValues = (Object[]) entity;
             argValues[fieldDeserializer.getIndex()] = value;
         }
 
         @Override
-        protected FieldDeserializer getFieldDeserializer(char[] buf, int offset, int endIndex, long hashValue) {
+        protected JSONPojoFieldDeserializer getFieldDeserializer(char[] buf, int offset, int endIndex, long hashValue) {
             if (!isCollision()) {
                 return getFieldDeserializer(hashValue);
             }
@@ -699,7 +693,7 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
         }
 
         @Override
-        protected FieldDeserializer getFieldDeserializer(byte[] buf, int offset, int endIndex, long hashValue) {
+        protected JSONPojoFieldDeserializer getFieldDeserializer(byte[] buf, int offset, int endIndex, long hashValue) {
             if (!isCollision()) {
                 return getFieldDeserializer(hashValue);
             }

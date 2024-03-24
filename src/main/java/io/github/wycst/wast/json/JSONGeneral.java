@@ -5,8 +5,6 @@ import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import io.github.wycst.wast.common.utils.NumberUtils;
 import io.github.wycst.wast.json.exceptions.JSONException;
-import io.github.wycst.wast.json.options.JSONParseContext;
-import io.github.wycst.wast.json.options.JsonConfig;
 import io.github.wycst.wast.json.options.ReadOption;
 import io.github.wycst.wast.json.util.FixedNameValueMap;
 
@@ -46,11 +44,15 @@ class JSONGeneral {
     protected final static byte WHITE_SPACE = ' ';
     protected final static byte ESCAPE = '\\';
 
-    // 转义字符与字符串映射（0-159）（序列化）
-    protected final static String[] escapes = new String[160];
+    protected final static int TYPE_BIGDECIMAL = 1;
+    protected final static int TYPE_BIGINTEGER = 2;
+
+
+    // 转义字符与字符串映射（序列化）
+    protected final static String[] ESCAPE_VALUES = new String[256];
 
     // 是否需要转义定义（序列化转义校验）
-    protected final static boolean[] needEscapes = new boolean[160];
+//    protected final static boolean[] needEscapes = new boolean[256];
 
     protected final static String MONTH_ABBR[] = {
             "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -114,60 +116,37 @@ class JSONGeneral {
         }
     };
 
-//    protected final static Charset ISO_8859_1 ;
-//
-//    static {
-//        // jdk 17
-//        Charset iso_8859_1 = (Charset) UnsafeHelper.getStaticFieldValue("sun.nio.cs.ISO_8859_1", "INSTANCE");
-//        ISO_8859_1 = iso_8859_1;
-//    }
-
     public static String toEscapeString(int ch) {
         return String.format("\\u%04x", ch);
     }
 
     static {
-        for (int i = 0; i < escapes.length; ++i) {
+        for (int i = 0; i < ESCAPE_VALUES.length; ++i) {
             switch (i) {
                 case '\n':
-                    escapes[i] = "\\n";
-                    needEscapes[i] = true;
+                    ESCAPE_VALUES[i] = "\\n";
                     break;
                 case '\t':
-                    escapes[i] = "\\t";
-                    needEscapes[i] = true;
+                    ESCAPE_VALUES[i] = "\\t";
                     break;
                 case '\r':
-                    escapes[i] = "\\r";
-                    needEscapes[i] = true;
+                    ESCAPE_VALUES[i] = "\\r";
                     break;
                 case '\b':
-                    escapes[i] = "\\b";
-                    needEscapes[i] = true;
+                    ESCAPE_VALUES[i] = "\\b";
                     break;
                 case '\f':
-                    escapes[i] = "\\f";
-                    needEscapes[i] = true;
+                    ESCAPE_VALUES[i] = "\\f";
                     break;
                 case '"':
-                    escapes[i] = "\\\"";
-                    needEscapes[i] = true;
+                    ESCAPE_VALUES[i] = "\\\"";
                     break;
                 case '\\':
-                    escapes[i] = "\\\\";
-                    needEscapes[i] = true;
+                    ESCAPE_VALUES[i] = "\\\\";
                     break;
                 default:
                     if (i < 32) {
-                        escapes[i] = toEscapeString(i);
-                        needEscapes[i] = true;
-                    } else if (i > 126) {
-                        // 127-159
-                        escapes[i] = toEscapeString(i);
-                        needEscapes[i] = true;
-                    } else {
-                        // 32 - 126 （Exclude from the above case list）
-                        escapes[i] = String.valueOf((char) i);
+                        ESCAPE_VALUES[i] = toEscapeString(i);
                     }
             }
         }
@@ -269,17 +248,17 @@ class JSONGeneral {
         if(next < ESCAPE_CHARS.length) {
             int escapeChar = ESCAPE_CHARS[next];
             if(escapeChar > -1) {
-                writer.append((char) escapeChar);
+                writer.write((char) escapeChar);
                 beginIndex = ++i + 1;
             } else {
                 // \\u
                 int c = hex4(buf, i + 2);
-                writer.append((char) c);
+                writer.write((char) c);
                 i += 4;
                 beginIndex = ++i + 1;
             }
         } else {
-            writer.append(next);
+            writer.write(next);
             beginIndex = ++i + 1;
         }
 //        if (next == 'u') {
@@ -318,7 +297,7 @@ class JSONGeneral {
                     writer.writeBytes(bytes, beginIndex, i - beginIndex + 1);
                     writer.setCharAt(writer.size() - 1, (char) next);
                 } else {
-                    writer.append((char) next);
+                    writer.write((char) next);
                 }
                 beginIndex = ++i + 1;
                 break;
@@ -401,7 +380,7 @@ class JSONGeneral {
     final static int escapeAscii(String source, byte[] bytes, byte next, int i, int beginIndex, JSONCharArrayWriter writer, JSONParseContext jsonParseContext) {
 
         if (i > beginIndex) {
-            writer.writeString(source, beginIndex, i - beginIndex);
+            writer.write(source, beginIndex, i - beginIndex);
         }
         if(next == 'u') {
             int c;
@@ -417,14 +396,14 @@ class JSONGeneral {
                 String errorContextTextAt = createErrorContextText(bytes, i + 1);
                 throw new JSONException("Syntax error, from pos " + (i + 1) + ", context text by '" + errorContextTextAt + "', " + throwable.getMessage());
             }
-            writer.append((char) c);
+            writer.write((char) c);
             i += 4;
             beginIndex = ++i + 1;
         } else if(next < ESCAPE_CHARS.length) {
-            writer.append((char) ESCAPE_CHARS[next]);
+            writer.write((char) ESCAPE_CHARS[next]);
             beginIndex = ++i + 1;
         } else {
-            writer.append((char) next);
+            writer.write((char) next);
             beginIndex = ++i + 1;
         }
         jsonParseContext.endIndex = i;
@@ -1112,7 +1091,7 @@ class JSONGeneral {
      * @param formatOut
      * @throws IOException
      */
-    protected final static void writeFormatSymbolOut(Writer content, int level, boolean formatOut, JsonConfig jsonConfig) throws IOException {
+    protected final static void writeFormatOutSymbols(Writer content, int level, boolean formatOut, JSONConfig jsonConfig) throws IOException {
         if (formatOut && level > -1) {
             boolean formatIndentUseSpace = jsonConfig.isFormatIndentUseSpace();
             if(formatIndentUseSpace) {
@@ -1193,7 +1172,7 @@ class JSONGeneral {
         } else {
             try {
                 Constructor<? extends Date> constructor = dateCls.getConstructor(long.class);
-                constructor.setAccessible(true);
+                UnsafeHelper.setAccessible(constructor);
                 return constructor.newInstance(timeInMillis);
             } catch (Exception e) {
                 e.printStackTrace();

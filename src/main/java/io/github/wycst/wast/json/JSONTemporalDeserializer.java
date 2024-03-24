@@ -6,7 +6,6 @@ import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.exceptions.JSONException;
-import io.github.wycst.wast.json.options.JSONParseContext;
 import io.github.wycst.wast.json.temporal.*;
 
 import java.lang.reflect.InvocationTargetException;
@@ -26,6 +25,7 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
 
     protected int patternType;
     protected DateTemplate dateTemplate;
+    protected final static int[] NANO_OF_SECOND_PADDING = {1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000};
 
     protected JSONTemporalDeserializer(TemporalConfig temporalConfig) {
         checkClass(temporalConfig.getGenericParameterizedType());
@@ -52,6 +52,9 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
             }
             case TemporalZonedDateTime: {
                 return new TemporalZonedDateTimeDeserializer(temporalConfig);
+            }
+            case TemporalOffsetDateTime: {
+                return new TemporalOffsetDateTimeDeserializer(temporalConfig);
             }
             case TemporalInstant: {
                 return new TemporalInstantDeserializer(temporalConfig);
@@ -85,18 +88,23 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
     protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
         char beginChar = buf[fromIndex];
         switch (beginChar) {
+            case '\'':
             case '"':
-                CHAR_SEQUENCE_STRING.skip(charSource, buf, fromIndex, toIndex, jsonParseContext);
-                int endIndex = jsonParseContext.endIndex;
-                try {
-                    return deserializeTemporal(buf, fromIndex, endIndex, jsonParseContext);
-                } catch (Throwable throwable) {
-                    if (throwable instanceof InvocationTargetException) {
-                        throwable = ((InvocationTargetException) throwable).getTargetException();
+                if (patternType == 0) {
+                    return deserializeDefaultTemporal(buf, fromIndex + 1, beginChar, jsonParseContext);
+                } else {
+                    CHAR_SEQUENCE_STRING.skip(charSource, buf, fromIndex, beginChar, jsonParseContext);
+                    int endIndex = jsonParseContext.endIndex;
+                    try {
+                        return deserializeTemporal(buf, fromIndex, endIndex, jsonParseContext);
+                    } catch (Throwable throwable) {
+                        if (throwable instanceof InvocationTargetException) {
+                            throwable = ((InvocationTargetException) throwable).getTargetException();
+                        }
+                        String source = new String(buf, fromIndex + 1, endIndex - fromIndex - 1);
+                        String errorContextTextAt = createErrorContextText(buf, fromIndex);
+                        throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', text '" + source + "' cannot convert to " + parameterizedType.getActualType() + ", exception: " + throwable.getMessage());
                     }
-                    String source = new String(buf, fromIndex + 1, endIndex - fromIndex - 1);
-                    String errorContextTextAt = createErrorContextText(buf, fromIndex);
-                    throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', temporal text '" + source + "' cannot convert to the temporal type , exception: " + throwable.getMessage());
                 }
             case 'n':
                 return NULL.deserialize(null, buf, fromIndex, toIndex, null, null, jsonParseContext);
@@ -126,18 +134,23 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
         byte beginByte = buf[fromIndex];
         char beginChar = (char) beginByte;
         switch (beginChar) {
+            case '\'':
             case '"':
-                CHAR_SEQUENCE_STRING.skip(charSource, buf, fromIndex, toIndex, jsonParseContext);
-                int endIndex = jsonParseContext.endIndex;
-                try {
-                    return deserializeTemporal(buf, fromIndex, endIndex, jsonParseContext);
-                } catch (Throwable throwable) {
-                    if (throwable instanceof InvocationTargetException) {
-                        throwable = ((InvocationTargetException) throwable).getTargetException();
+                if(patternType == 0) {
+                    return deserializeDefaultTemporal(buf, fromIndex + 1, beginChar, jsonParseContext);
+                } else {
+                    CHAR_SEQUENCE_STRING.skip(charSource, buf, fromIndex, toIndex, jsonParseContext);
+                    int endIndex = jsonParseContext.endIndex;
+                    try {
+                        return deserializeTemporal(buf, fromIndex, endIndex, jsonParseContext);
+                    } catch (Throwable throwable) {
+                        if (throwable instanceof InvocationTargetException) {
+                            throwable = ((InvocationTargetException) throwable).getTargetException();
+                        }
+                        String source = new String(buf, fromIndex + 1, endIndex - fromIndex - 1);
+                        String errorContextTextAt = createErrorContextText(buf, fromIndex);
+                        throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', text '" + source + "' cannot convert to " + parameterizedType.getActualType() + ", exception: " + throwable.getMessage());
                     }
-                    String source = new String(buf, fromIndex + 1, endIndex - fromIndex - 1);
-                    String errorContextTextAt = createErrorContextText(buf, fromIndex);
-                    throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', temporal text '" + source + "' cannot convert to the temporal type , exception: " + throwable.getMessage());
                 }
             case 'n':
                 return parseNull(buf, fromIndex, toIndex, jsonParseContext);
@@ -150,5 +163,10 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
     }
 
     protected abstract Object deserializeTemporal(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception;
+
     protected abstract Object deserializeTemporal(byte[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception;
+
+    protected abstract Object deserializeDefaultTemporal(char[] buf, int offset, char endChar, JSONParseContext jsonParseContext) throws Exception;
+    protected abstract Object deserializeDefaultTemporal(byte[] buf, int offset, char endChar, JSONParseContext jsonParseContext) throws Exception;
+
 }

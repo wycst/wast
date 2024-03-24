@@ -17,6 +17,19 @@ interface TemporalInterface {
     Object getDefaultZoneId() throws Exception;
 
     /**
+     * 获取默认的zoneOffset
+     *
+     * @return
+     */
+    Object getDefaultZoneOffset();
+
+    /**
+     * 获取Z
+     * @return
+     */
+    Object getZeroZoneId();
+
+    /**
      * 获取zoneId
      *
      * @param zonedDateTime
@@ -33,49 +46,75 @@ interface TemporalInterface {
      */
     Object ofZoneId(String zoneId) throws Exception;
 
-    Number getLocalDateYear(Object value) throws Exception;
+    int getLocalDateYear(Object value) throws Exception;
 
-    Number getLocalDateMonth(Object value) throws Exception;
+    int getLocalDateMonth(Object value) throws Exception;
 
-    Number getLocalDateDay(Object value) throws Exception;
+    int getLocalDateDay(Object value) throws Exception;
 
-    Number getLocalDateTimeYear(Object value) throws Exception;
+    int getLocalDateTimeYear(Object value) throws Exception;
 
-    Number getLocalDateTimeMonth(Object value) throws Exception;
+    int getLocalDateTimeMonth(Object value) throws Exception;
 
-    Number getLocalDateTimeDay(Object value) throws Exception;
+    int getLocalDateTimeDay(Object value) throws Exception;
 
-    Number getLocalDateTimeHour(Object value) throws Exception;
+    int getLocalDateTimeHour(Object value) throws Exception;
 
-    Number getLocalDateTimeMinute(Object value) throws Exception;
+    int getLocalDateTimeMinute(Object value) throws Exception;
 
-    Number getLocalDateTimeSecond(Object value) throws Exception;
+    int getLocalDateTimeSecond(Object value) throws Exception;
 
-    Number getLocalDateTimeNano(Object value) throws Exception;
+    int getLocalDateTimeNano(Object value) throws Exception;
 
-    Number getLocalTimeHour(Object value) throws Exception;
+    int getLocalTimeHour(Object value) throws Exception;
 
-    Number getLocalTimeMinute(Object value) throws Exception;
+    int getLocalTimeMinute(Object value) throws Exception;
 
-    Number getLocalTimeSecond(Object value) throws Exception;
+    int getLocalTimeSecond(Object value) throws Exception;
 
-    Number getLocalTimeNano(Object value) throws Exception;
+    int getLocalTimeNano(Object value) throws Exception;
 
-    Number getInstantEpochMilli(Object value) throws Exception;
+    long getInstantEpochMilli(Object value) throws Exception;
 
-    Number getZonedDateTimeYear(Object value) throws Exception;
+    long getInstantEpochSeconds(Object value) throws Exception;
 
-    Number getZonedDateTimeMonth(Object value) throws Exception;
+    int getInstantNano(Object value) throws Exception;
 
-    Number getZonedDateTimeDay(Object value) throws Exception;
+    int getZonedDateTimeYear(Object value) throws Exception;
 
-    Number getZonedDateTimeHour(Object value) throws Exception;
+    int getZonedDateTimeMonth(Object value) throws Exception;
 
-    Number getZonedDateTimeMinute(Object value) throws Exception;
+    int getZonedDateTimeDay(Object value) throws Exception;
 
-    Number getZonedDateTimeSecond(Object value) throws Exception;
+    int getZonedDateTimeHour(Object value) throws Exception;
 
-    Number getZonedDateTimeNano(Object value) throws Exception;
+    int getZonedDateTimeMinute(Object value) throws Exception;
+
+    int getZonedDateTimeSecond(Object value) throws Exception;
+
+    int getZonedDateTimeNano(Object value) throws Exception;
+
+    int getOffsetDateTimeYear(Object value) throws Exception;
+
+    int getOffsetDateTimeMonth(Object value) throws Exception;
+
+    int getOffsetDateTimeDay(Object value) throws Exception;
+
+    int getOffsetDateTimeHour(Object value) throws Exception;
+
+    int getOffsetDateTimeMinute(Object value) throws Exception;
+
+    int getOffsetDateTimeSecond(Object value) throws Exception;
+
+    int getOffsetDateTimeNano(Object value) throws Exception;
+
+    /**
+     * 获取zoneId
+     *
+     * @param value
+     * @return
+     */
+    Object getOffsetZoneId(Object value) throws Exception;
 
     /**
      * 构造instant
@@ -85,6 +124,15 @@ interface TemporalInterface {
      * @throws Exception
      */
     Object ofInstant(long millis) throws Exception;
+
+    /**
+     * 通过秒和纳秒构建
+     *
+     * @param seconds
+     * @param nanoOfSecond
+     * @return
+     */
+    Object ofInstant(long seconds, int nanoOfSecond);
 
     /**
      * 构造ZonedDateTime对象
@@ -103,6 +151,23 @@ interface TemporalInterface {
     Object ofZonedDateTime(int year, int month, int dayOfMonth, int hour, int minute, int second, int nanoOfSecond, Object zoneId) throws Exception;
 
     /**
+     * 构造ZonedDateTime对象
+     *
+     * @param year
+     * @param month
+     * @param dayOfMonth
+     * @param hour
+     * @param minute
+     * @param second
+     * @param nanoOfSecond
+     * @param zoneOffset
+     * @return
+     * @throws Exception
+     */
+    Object ofOffsetDateTime(int year, int month, int dayOfMonth, int hour, int minute, int second, int nanoOfSecond, Object zoneOffset) throws Exception;
+
+
+    /**
      * 解析字符串返回ZonedDateTime
      *
      * @param charSequence
@@ -110,6 +175,15 @@ interface TemporalInterface {
      * @throws Exception
      */
     Object parseZonedDateTime(CharSequence charSequence) throws Exception;
+
+    /**
+     * 解析字符串返回OffsetDateTime
+     *
+     * @param charSequence
+     * @return
+     * @throws Exception
+     */
+    Object parseOffsetDateTime(CharSequence charSequence);
 
     /**
      * 构造LocalDateTime对象

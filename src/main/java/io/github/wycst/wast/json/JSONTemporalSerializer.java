@@ -3,10 +3,9 @@ package io.github.wycst.wast.json;
 import io.github.wycst.wast.common.beans.DateFormatter;
 import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.json.annotations.JsonProperty;
-import io.github.wycst.wast.json.options.JsonConfig;
-import io.github.wycst.wast.json.reflect.ObjectStructureWrapper;
 import io.github.wycst.wast.json.temporal.*;
 
+import java.io.IOException;
 import java.io.Writer;
 
 /**
@@ -22,13 +21,13 @@ import java.io.Writer;
  */
 public abstract class JSONTemporalSerializer extends JSONTypeSerializer {
 
-    protected final ObjectStructureWrapper objectStructureWrapper;
+    protected final Class<?> temporalClass;
     protected DateFormatter dateFormatter;
     protected final boolean useFormatter;
 
-    protected JSONTemporalSerializer(ObjectStructureWrapper objectStructureWrapper, JsonProperty property) {
-        checkClass(objectStructureWrapper);
-        this.objectStructureWrapper = objectStructureWrapper;
+    protected JSONTemporalSerializer(Class<?> temporalClass, JsonProperty property) {
+        checkClass(temporalClass);
+        this.temporalClass = temporalClass;
         if (property != null) {
             String pattern = property.pattern().trim();
             if(pattern.length() > 0) {
@@ -38,23 +37,27 @@ public abstract class JSONTemporalSerializer extends JSONTypeSerializer {
         useFormatter = dateFormatter != null;
     }
 
-    static JSONTypeSerializer getTemporalSerializerInstance(ObjectStructureWrapper objectStructureWrapper, JsonProperty property) {
-        ClassStructureWrapper.ClassWrapperType classWrapperType = objectStructureWrapper.getClassWrapperType();
+    static JSONTypeSerializer getTemporalSerializerInstance(ClassStructureWrapper classStructureWrapper, JsonProperty property) {
+        ClassStructureWrapper.ClassWrapperType classWrapperType = classStructureWrapper.getClassWrapperType();
+        Class<?> temporalClass = classStructureWrapper.getSourceClass();
         switch (classWrapperType) {
             case TemporalLocalDate: {
-                return new TemporalLocalDateSerializer(objectStructureWrapper, property);
+                return new TemporalLocalDateSerializer(temporalClass, property);
             }
             case TemporalLocalTime: {
-                return new TemporalLocalTimeSerializer(objectStructureWrapper, property);
+                return new TemporalLocalTimeSerializer(temporalClass, property);
             }
             case TemporalLocalDateTime: {
-                return new TemporalLocalDateTimeSerializer(objectStructureWrapper, property);
+                return new TemporalLocalDateTimeSerializer(temporalClass, property);
             }
             case TemporalZonedDateTime: {
-                return new TemporalZonedDateTimeSerializer(objectStructureWrapper, property);
+                return new TemporalZonedDateTimeSerializer(temporalClass, property);
+            }
+            case TemporalOffsetDateTime:{
+                return new TemporalOffsetDateTimeSerializer(temporalClass, property);
             }
             case TemporalInstant: {
-                return new TemporalInstantSerializer(objectStructureWrapper, property);
+                return new TemporalInstantSerializer(temporalClass, property);
             }
             default: {
                 throw new UnsupportedOperationException();
@@ -63,9 +66,9 @@ public abstract class JSONTemporalSerializer extends JSONTypeSerializer {
     }
 
     // check
-    protected abstract void checkClass(ObjectStructureWrapper objectStructureWrapper);
+    protected abstract void checkClass(Class<?> temporalClass);
 
-    protected void serialize(Object value, Writer writer, JsonConfig jsonConfig, int indent) throws Exception {
+    protected void serialize(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
         if (useFormatter) {
             writeTemporalWithTemplate(value, writer, jsonConfig);
         } else {
@@ -73,7 +76,7 @@ public abstract class JSONTemporalSerializer extends JSONTypeSerializer {
         }
     }
 
-    protected abstract void writeTemporalWithTemplate(Object value, Writer writer, JsonConfig jsonConfig) throws Exception;
+    protected abstract void writeTemporalWithTemplate(Object value, JSONWriter writer, JSONConfig jsonConfig) throws Exception;
 
     /**
      * <p> 默认toString方式序列化
@@ -85,9 +88,32 @@ public abstract class JSONTemporalSerializer extends JSONTypeSerializer {
      * @param indent
      * @throws Exception
      */
-    protected void writeDefault(Object value, Writer writer, JsonConfig jsonConfig, int indent) throws Exception {
+    protected void writeDefault(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
         String temporal = value.toString();
-        CHAR_SEQUENCE.serialize(temporal, writer, jsonConfig, indent);
+        CHAR_SEQUENCE_STRING.serialize(temporal, writer, jsonConfig, indent);
+    }
+
+    protected final void writeZoneId(Writer writer, String zoneId) throws IOException {
+        // zoneID
+        if (zoneId.length() > 0) {
+            char c = zoneId.charAt(0);
+            switch (c) {
+                case 'Z': {
+                    writer.write('Z');
+                    break;
+                }
+                case '+':
+                case '-': {
+                    writer.write(zoneId);
+                    break;
+                }
+                default: {
+                    writer.write('[');
+                    writer.write(zoneId);
+                    writer.write(']');
+                }
+            }
+        }
     }
 
 }

@@ -16,6 +16,8 @@
  */
 package io.github.wycst.wast.common.beans;
 
+import io.github.wycst.wast.common.utils.NumberUtils;
+
 import java.util.TimeZone;
 
 /**
@@ -352,7 +354,7 @@ public class GregorianDate extends GeneralDate implements java.io.Serializable, 
 
     @Override
     public String toString() {
-        return format('-', ':');
+        return format();
     }
 
     public String toDateString() {
@@ -365,7 +367,7 @@ public class GregorianDate extends GeneralDate implements java.io.Serializable, 
      * @return
      */
     public String format() {
-        return toString();
+        return format('-', ':');
     }
 
     /**
@@ -376,34 +378,25 @@ public class GregorianDate extends GeneralDate implements java.io.Serializable, 
      * @return
      */
     public String format(char dateSyntax, char timeSyntax) {
-        StringBuilder buff = new StringBuilder(19);
+        char[] buf = new char[25];
+        int offset = 0;
         int year = this.year;
         if (year < 0) {
-            buff.append("-");
+            buf[offset++] = '-';
             year = -year;
         }
-        int y1 = year / 100;
-        int y2 = year % 100;
-        buff.append(DateTemplate.DigitTens[y1]);
-        buff.append(DateTemplate.DigitOnes[y1]);
-        buff.append(DateTemplate.DigitTens[y2]);
-        buff.append(DateTemplate.DigitOnes[y2]);
-        buff.append(dateSyntax);
-        buff.append(DateTemplate.DigitTens[month]);
-        buff.append(DateTemplate.DigitOnes[month]);
-        buff.append(dateSyntax);
-        buff.append(DateTemplate.DigitTens[dayOfMonth]);
-        buff.append(DateTemplate.DigitOnes[dayOfMonth]);
-        buff.append(' ');
-        buff.append(DateTemplate.DigitTens[hourOfDay]);
-        buff.append(DateTemplate.DigitOnes[hourOfDay]);
-        buff.append(timeSyntax);
-        buff.append(DateTemplate.DigitTens[minute]);
-        buff.append(DateTemplate.DigitOnes[minute]);
-        buff.append(timeSyntax);
-        buff.append(DateTemplate.DigitTens[second]);
-        buff.append(DateTemplate.DigitOnes[second]);
-        return buff.toString();
+        if (year < 10000) {
+            offset += NumberUtils.writeFourDigits(year, buf, offset);
+        } else {
+            offset += NumberUtils.writePositiveLong(year, buf, offset);
+        }
+        offset += NumberUtils.writeTwoDigitsAndPreSuffix(month, dateSyntax, dateSyntax, buf, offset);
+        offset += NumberUtils.writeTwoDigits(dayOfMonth, buf, offset);
+        offset += NumberUtils.writeTwoDigitsAndPreSuffix(hourOfDay, ' ', timeSyntax, buf, offset);
+        offset += NumberUtils.writeTwoDigits(minute, buf, offset);
+        buf[offset++] = timeSyntax;
+        offset += NumberUtils.writeTwoDigits(second, buf, offset);
+        return new String(buf, 0, offset);
     }
 
     /**

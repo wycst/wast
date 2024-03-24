@@ -2,6 +2,7 @@ package io.github.wycst.wast.common.reflect;
 
 import sun.misc.Unsafe;
 
+import java.io.ByteArrayOutputStream;
 import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
@@ -20,16 +21,15 @@ import java.util.TimeZone;
  */
 public final class UnsafeHelper {
 
-    private static final Unsafe UNSAFE;
+    public static final Unsafe UNSAFE;
 
-    private static final long STRING_VALUE_OFFSET;
-    private static final long STRING_CODER_OFFSET;
-    private static final long DEFAULT_TIME_ZONE_OFFSET;
-    private static final long BIGINTEGER_MAG_OFFSET;
-    private static final long ARRAYLIST_ELEMENT_DATA_OFFSET;
-
+    public static final long STRING_VALUE_OFFSET;
+    public static final long STRING_CODER_OFFSET;
+    public static final long DEFAULT_TIME_ZONE_OFFSET;
+    public static final long BIGINTEGER_MAG_OFFSET;
+    public static final long ARRAYLIST_ELEMENT_DATA_OFFSET;
     // maybe jdk9+ not supported
-    private static final long OVERRIDE_OFFSET;
+    public static final long OVERRIDE_OFFSET;
 //    private static final Map<Class<?>, Long> ObjectArrayOffsetScales = new ConcurrentHashMap<Class<?>, Long>();
 
     static {
@@ -50,8 +50,13 @@ public final class UnsafeHelper {
             }
         }
         UNSAFE = instance;
-
     }
+
+    public static final long CHAR_ARRAY_OFFSET = arrayBaseOffset(char[].class);
+    public static final long BYTE_ARRAY_OFFSET = arrayBaseOffset(byte[].class);
+
+    public final static long BAO_BUF_OFFSET = UnsafeHelper.getDeclaredFieldOffset(ByteArrayOutputStream.class, "buf");
+    public final static long BAO_COUNT_OFFSET = UnsafeHelper.getDeclaredFieldOffset(ByteArrayOutputStream.class, "count");
 
     // String
     static {
@@ -216,16 +221,16 @@ public final class UnsafeHelper {
      * @return
      */
     public static String getString(char[] buf) {
-        // note: jdk9+ value is byte[]
-        if (STRING_CODER_OFFSET > -1) {
-            // If manual coding is required, check the coder is LATIN1 or UTF16
-            return new String(buf);
+        if (STRING_CODER_OFFSET == -1) {
+            // note: Suitable for version <= jdk8, value is char[]
+            buf.getClass();
+            String result = new String();
+            putObjectValue(result, STRING_VALUE_OFFSET, buf);
+            return result;
         }
-        // note: Suitable for version <= jdk8, value is char[]
-        buf.getClass();
-        String result = new String();
-        putObjectValue(result, STRING_VALUE_OFFSET, buf);
-        return result;
+        // note: jdk9+ value is byte[]
+        // If manual coding is required, check the coder is LATIN1 or UTF16
+        return new String(buf);
     }
 
 //    /**
@@ -443,6 +448,63 @@ public final class UnsafeHelper {
         return UNSAFE;
     }
 
+    /**
+     * 从offset开始读取4个字符
+     *
+     * @param buf
+     * @param offset
+     * @return
+     */
+    public static long getLong(char[] buf, int offset) {
+        return UNSAFE.getLong(buf, CHAR_ARRAY_OFFSET + (offset << 1));
+    }
+
+    public static int putLong(char[] buf, int offset, long value) {
+        buf.getClass();
+        long off = CHAR_ARRAY_OFFSET + (offset << 1);
+        UNSAFE.putLong(buf, off, value);
+        return 4;
+    }
+
+    public static int putLong(byte[] buf, int offset, long value) {
+        buf.getClass();
+        long off = BYTE_ARRAY_OFFSET + offset;
+        UNSAFE.putLong(buf, off, value);
+        return 8;
+    }
+
+    public static int putInt(char[] buf, int offset, int value) {
+        buf.getClass();
+        long off = CHAR_ARRAY_OFFSET + (offset << 1);
+        UNSAFE.putInt(buf, off, value);
+        return 2;
+    }
+
+    /**
+     * 从offset开始读取4个字节
+     *
+     * @param buf
+     * @param offset
+     * @return
+     */
+    public static int getInt(byte[] buf, int offset) {
+        return UNSAFE.getInt(buf, BYTE_ARRAY_OFFSET + offset);
+    }
+
+    public static int putInt(byte[] buf, int offset, int value) {
+        buf.getClass();
+        long off = BYTE_ARRAY_OFFSET + offset;
+        UNSAFE.putInt(buf, off, value);
+        return 4;
+    }
+
+    public static int putShort(byte[] buf, int offset, short value) {
+        buf.getClass();
+        long off = BYTE_ARRAY_OFFSET + offset;
+        UNSAFE.putShort(buf, off, value);
+        return 2;
+    }
+
     static long objectFieldOffset(Field field) {
         if (UNSAFE != null) {
             return UNSAFE.objectFieldOffset(field);
@@ -460,71 +522,6 @@ public final class UnsafeHelper {
         return UNSAFE.getObject(target, fieldOffset);
     }
 
-//    /**
-//     * 基本类型设置
-//     */
-//    static void putPrimitiveValue(Object target, long fieldOffset, Object value, ReflectConsts.PrimitiveType primitiveType) {
-//        primitiveType.put(target, fieldOffset, value);
-////        target.getClass();
-////        if (value == null) return;
-////        switch (primitiveType) {
-////            case PrimitiveInt:
-////                unsafe.putInt(target, fieldOffset, (Integer) value);
-////                break;
-////            case PrimitiveByte:
-////                unsafe.putByte(target, fieldOffset, (Byte) value);
-////                break;
-////            case PrimitiveLong:
-////                unsafe.putLong(target, fieldOffset, (Long) value);
-////                break;
-////            case PrimitiveShort:
-////                unsafe.putShort(target, fieldOffset, (Short) value);
-////                break;
-////            case PrimitiveDouble:
-////                unsafe.putDouble(target, fieldOffset, (Double) value);
-////                break;
-////            case PrimitiveBoolean:
-////                unsafe.putBoolean(target, fieldOffset, (Boolean) value);
-////                break;
-////            case PrimitiveFloat:
-////                unsafe.putFloat(target, fieldOffset, (Float) value);
-////                break;
-////            case PrimitiveCharacter:
-////                unsafe.putChar(target, fieldOffset, (Character) value);
-////                break;
-////            default: {
-////            }
-////        }
-//    }
-
-//    /**
-//     * 基本类型设置
-//     */
-//    static Object getPrimitiveValue(Object target, long fieldOffset, ReflectConsts.PrimitiveType primitiveType) {
-//        return primitiveType.get(target, fieldOffset);
-////        switch (primitiveType) {
-////            case PrimitiveInt:
-////                return unsafe.getInt(target, fieldOffset);
-////            case PrimitiveByte:
-////                return unsafe.getByte(target, fieldOffset);
-////            case PrimitiveLong:
-////                return unsafe.getLong(target, fieldOffset);
-////            case PrimitiveShort:
-////                return unsafe.getShort(target, fieldOffset);
-////            case PrimitiveDouble:
-////                return unsafe.getDouble(target, fieldOffset);
-////            case PrimitiveBoolean:
-////                return unsafe.getBoolean(target, fieldOffset);
-////            case PrimitiveFloat:
-////                return unsafe.getFloat(target, fieldOffset);
-////            case PrimitiveCharacter:
-////                return unsafe.getChar(target, fieldOffset);
-////            default: {
-////                return 0;
-////            }
-////        }
-//    }
-
     public static boolean setAccessible(AccessibleObject accessibleObject) {
         if (OVERRIDE_OFFSET > -1) {
             UNSAFE.putBoolean(accessibleObject, OVERRIDE_OFFSET, true);
@@ -538,14 +535,6 @@ public final class UnsafeHelper {
             setAccessible(accessibleObject);
         }
     }
-
-//    public static void setPrimitiveValue(Object target, Field primitiveField, Object value) {
-//        Class<?> type = primitiveField.getType();
-//        ReflectConsts.PrimitiveType primitiveType = ReflectConsts.PrimitiveType.typeOf(type);
-//        if (primitiveType != null) {
-//            primitiveType.put(target, objectFieldOffset(primitiveField), value);
-//        }
-//    }
 
     static int arrayBaseOffset(Class arrayCls) {
         if (UNSAFE != null) {

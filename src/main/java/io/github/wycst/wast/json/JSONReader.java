@@ -24,8 +24,6 @@ import io.github.wycst.wast.common.tools.Base64;
 import io.github.wycst.wast.common.utils.ObjectUtils;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.exceptions.JSONException;
-import io.github.wycst.wast.json.options.JSONParseContext;
-import io.github.wycst.wast.json.options.Options;
 import io.github.wycst.wast.json.options.ReadOption;
 
 import java.io.*;
@@ -277,7 +275,7 @@ public class JSONReader extends JSONGeneral {
      * @param readOptions
      */
     public void setOptions(ReadOption... readOptions) {
-        Options.readOptions(this.readOptions = readOptions, parseContext);
+        JSONOptions.readOptions(this.readOptions = readOptions, parseContext);
     }
 
     /**

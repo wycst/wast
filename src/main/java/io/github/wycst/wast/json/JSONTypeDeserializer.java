@@ -5,12 +5,13 @@ import io.github.wycst.wast.common.beans.DateTemplate;
 import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
-import io.github.wycst.wast.common.utils.*;
+import io.github.wycst.wast.common.reflect.UnsafeHelper;
+import io.github.wycst.wast.common.utils.EnvUtils;
+import io.github.wycst.wast.common.utils.MemoryCopyUtils;
+import io.github.wycst.wast.common.utils.ObjectUtils;
+import io.github.wycst.wast.common.utils.ReflectUtils;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.exceptions.JSONException;
-import io.github.wycst.wast.json.options.JSONParseContext;
-import io.github.wycst.wast.json.reflect.FieldDeserializer;
-import io.github.wycst.wast.json.reflect.ObjectStructureWrapper;
 import io.github.wycst.wast.json.util.FixedNameValueMap;
 
 import java.io.Serializable;
@@ -40,6 +41,8 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
     final protected static NumberDeserializer NUMBER_BYTE = new NumberDeserializer.ByteDeserializer();
     final protected static NumberDeserializer NUMBER_FLOAT = new NumberDeserializer.FloatDeserializer();
     final protected static NumberDeserializer NUMBER_DOUBLE = new NumberDeserializer.DoubleDeserializer();
+    final protected static NumberDeserializer NUMBER_BIGDECIMAL = new NumberDeserializer.BigDecimalDeserializer();
+    final protected static NumberDeserializer NUMBER_BIGINTEGER = new NumberDeserializer.BigIntegerDeserializer();
     final protected static BinaryDeserializer BINARY = new BinaryDeserializer();
     final static BooleanDeserializer BOOLEAN = new BooleanDeserializer();
     final static DateDeserializer DATE = new DateDeserializer();
@@ -58,17 +61,6 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
     private static final Map<String, Class<?>> classNameMapping = new ConcurrentHashMap<String, Class<?>>();
 
     static {
-        CharSequenceDeserializer.StringDeserializer defaultStringDeserializer = new CharSequenceDeserializer.StringDeserializer();
-        if (EnvUtils.JDK_9_ABOVE) {
-            if (EnvUtils.JDK_16_ABOVE) {
-                defaultStringDeserializer = new CharSequenceDeserializer.StringJDK16PlusDeserializer();
-            } else {
-                // JDK9~JDK15
-                defaultStringDeserializer = new CharSequenceDeserializer.StringJDK9PlusDeserializer();
-            }
-        }
-        CHAR_SEQUENCE_STRING = defaultStringDeserializer;
-
         TYPE_DESERIALIZERS[ReflectConsts.ClassCategory.CharSequence.ordinal()] = CHAR_SEQUENCE;
         TYPE_DESERIALIZERS[ReflectConsts.ClassCategory.NumberCategory.ordinal()] = NUMBER;
         TYPE_DESERIALIZERS[ReflectConsts.ClassCategory.BoolCategory.ordinal()] = BOOLEAN;
@@ -84,14 +76,16 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
         TYPE_DESERIALIZERS[ReflectConsts.ClassCategory.ANY.ordinal()] = ANY;
         TYPE_DESERIALIZERS[ReflectConsts.ClassCategory.NonInstance.ordinal()] = null;
 
-        putTypeDeserializer(CHAR_SEQUENCE_STRING, String.class);
         putTypeDeserializer(NUMBER_LONG, long.class, Long.class);
         putTypeDeserializer(NUMBER_INTEGER, int.class, Integer.class);
         putTypeDeserializer(NUMBER_DOUBLE, double.class, Double.class);
         putTypeDeserializer(NUMBER_FLOAT, float.class, Float.class);
         putTypeDeserializer(NUMBER_SHORT, short.class, Short.class);
         putTypeDeserializer(NUMBER_BYTE, byte.class, Byte.class);
+        putTypeDeserializer(NUMBER_BIGDECIMAL, BigDecimal.class);
+        putTypeDeserializer(NUMBER_BIGINTEGER, BigInteger.class);
 
+        putTypeDeserializer(new ArrayDeserializer.StringArrayDeserializer(), String[].class);
         putTypeDeserializer(new ArrayDeserializer.DoubleArrayDeserializer(), Double[].class);
         putTypeDeserializer(new ArrayDeserializer.PrimitiveDoubleArrayDeserializer(), double[].class);
         putTypeDeserializer(new ArrayDeserializer.FloatArrayDeserializer(), Float[].class);
@@ -102,6 +96,22 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
         putTypeDeserializer(new ArrayDeserializer.PrimitiveIntArrayDeserializer(), int[].class);
         putTypeDeserializer(new ArrayDeserializer.ByteArrayDeserializer(), Byte[].class);
         putTypeDeserializer(BINARY, byte[].class);
+
+        CharSequenceDeserializer.StringDeserializer defaultStringDeserializer = new CharSequenceDeserializer.StringDeserializer();
+        if (EnvUtils.JDK_9_PLUS) {
+            if (EnvUtils.JDK_16_PLUS) {
+                defaultStringDeserializer = new CharSequenceDeserializer.StringJDK16PlusDeserializer();
+            } else {
+                // JDK9~JDK15
+                defaultStringDeserializer = new CharSequenceDeserializer.StringJDK9PlusDeserializer();
+            }
+        }
+
+        CHAR_SEQUENCE_STRING = defaultStringDeserializer;
+        putTypeDeserializer(CHAR_SEQUENCE_STRING, String.class);
+        // other types
+        putTypeDeserializer(new CharSequenceDeserializer.CharDeserializer(), char.class, Character.class);
+        putTypeDeserializer(new UUIDDeserializer(), UUID.class);
     }
 
     static void putTypeDeserializer(JSONTypeDeserializer typeDeserializer, Class... types) {
@@ -160,7 +170,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
     }
 
     private static JSONTypeDeserializer createObjectDeserializer(Class type) {
-        ObjectStructureWrapper objectStructureWrapper = ObjectStructureWrapper.get(type);
+        JSONPojoStructure objectStructureWrapper = JSONPojoStructure.get(type);
         if (objectStructureWrapper.isRecord()) {
             return new JSONPojoDeserializer.JSONRecordDeserializer(objectStructureWrapper);
         } else {
@@ -170,12 +180,12 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             } else {
                 return new JSONPojoDeserializer(objectStructureWrapper) {
                     @Override
-                    protected FieldDeserializer getFieldDeserializer(char[] buf, int offset, int endIndex, long hashValue) {
+                    protected JSONPojoFieldDeserializer getFieldDeserializer(char[] buf, int offset, int endIndex, long hashValue) {
                         return super.getFieldDeserializer(hashValue);
                     }
 
                     @Override
-                    protected FieldDeserializer getFieldDeserializer(byte[] buf, int offset, int endIndex, long hashValue) {
+                    protected JSONPojoFieldDeserializer getFieldDeserializer(byte[] buf, int offset, int endIndex, long hashValue) {
                         return super.getFieldDeserializer(hashValue);
                     }
                 };
@@ -232,10 +242,10 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                 return property == null ? DATE : new DateDeserializer.DateInstanceDeserializer(genericParameterizedType, property);
             }
             case ObjectCategory: {
-                ObjectStructureWrapper objectStructureWrapper = ObjectStructureWrapper.get(genericParameterizedType.getActualType());
+                ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(genericParameterizedType.getActualType());
                 // Like the date type, the temporal type cannot use singletons also
-                if (objectStructureWrapper.isTemporal()) {
-                    ClassStructureWrapper.ClassWrapperType classWrapperType = objectStructureWrapper.getClassWrapperType();
+                if (classStructureWrapper.isTemporal()) {
+                    ClassStructureWrapper.ClassWrapperType classWrapperType = classStructureWrapper.getClassWrapperType();
                     return JSONTemporalDeserializer.getTemporalDeserializerInstance(classWrapperType, genericParameterizedType, property);
                 }
             }
@@ -316,9 +326,8 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
     // 0、字符串序列化
     static class CharSequenceDeserializer extends JSONTypeDeserializer {
 
-        protected void skip(CharSource source, char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
+        protected void skip(CharSource source, char[] buf, int fromIndex, char endCh, JSONParseContext jsonParseContext) throws Exception {
             int beginIndex = fromIndex + 1;
-            char endCh = '"';
             if (source != null) {
                 int endIndex = source.indexOf(endCh, beginIndex);
                 char prev = buf[endIndex - 1];
@@ -338,15 +347,15 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             jsonParseContext.endIndex = i;
         }
 
-        protected void skip(CharSource source, byte[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
+        protected void skip(CharSource source, byte[] buf, int fromIndex, int endCh, JSONParseContext jsonParseContext) throws Exception {
             int beginIndex = fromIndex + 1;
             if (source != null) {
                 String input = source.input();
-                int endIndex = input.indexOf(DOUBLE_QUOTATION, beginIndex);
+                int endIndex = input.indexOf(endCh, beginIndex);
                 byte prev = buf[endIndex - 1];
                 if (prev == '\\') {
                     do {
-                        endIndex = input.indexOf(DOUBLE_QUOTATION, endIndex + 1);
+                        endIndex = input.indexOf(endCh, endIndex + 1);
                         prev = buf[endIndex - 1];
                     } while (prev == '\\');
                 }
@@ -355,7 +364,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             }
 
             int i = fromIndex + 1;
-            while (buf[i] != DOUBLE_QUOTATION || buf[i - 1] == ESCAPE) {
+            while (buf[i] != endCh || buf[i - 1] == ESCAPE) {
                 ++i;
             }
             jsonParseContext.endIndex = i;
@@ -426,7 +435,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
         }
 
         // common
-        final Object deserializeString(CharSource source, char[] buf, int fromIndex, int toIndex, char endChar, GenericParameterizedType parameterizedType, JSONParseContext jsonParseContext) {
+        Object deserializeString(CharSource source, char[] buf, int fromIndex, int toIndex, char endChar, GenericParameterizedType parameterizedType, JSONParseContext jsonParseContext) {
             int beginIndex = fromIndex + 1;
             JSONCharArrayWriter writer = null;
             char ch;
@@ -561,10 +570,37 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
         // java.lang.String
         static class StringDeserializer extends CharSequenceDeserializer {
 
+            final Object deserializeString(CharSource charSource, char[] buf, int fromIndex, int toIndex, char endChar, GenericParameterizedType parameterizedType, JSONParseContext jsonParseContext) {
+                if(charSource == null) {
+                    return super.deserializeString(charSource, buf, fromIndex, toIndex, endChar, parameterizedType, jsonParseContext);
+                }
+                int beginIndex = fromIndex + 1;
+                String source = charSource.input();
+                int endIndex = source.indexOf(endChar, beginIndex);
+                if (!jsonParseContext.checkEscapeUseChar(source, beginIndex, endIndex)) {
+                    jsonParseContext.endIndex = endIndex;
+                    return new String(buf, beginIndex, endIndex - beginIndex);
+                }
+                // must exist \\ in range {beginIndex, endIndex}
+                JSONCharArrayWriter writer = getContextWriter(jsonParseContext);
+                do {
+                    int escapeIndex = jsonParseContext.getEscapeOffset();
+                    beginIndex = escapeNext(buf, buf[escapeIndex + 1], escapeIndex, beginIndex, writer, jsonParseContext);
+                    if (beginIndex > endIndex) {
+                        endIndex = source.indexOf(endChar, endIndex + 1);
+                    }
+                } while (jsonParseContext.checkEscapeUseChar(source, beginIndex, endIndex));
+
+                jsonParseContext.endIndex = endIndex;
+                writer.write(charSource.input(), beginIndex, endIndex - beginIndex);
+                return writer.toString();
+            }
+
             @Override
             final Object charSequenceResult(char[] buf, int beginIndex, int len, boolean unEscape, JSONCharArrayWriter writer, GenericParameterizedType parameterizedType) {
                 if (unEscape) {
-                    return new String(buf, beginIndex, len);
+//                     return new String(buf, beginIndex, len);
+                    return UnsafeHelper.getString(MemoryCopyUtils.copyOfRange(buf, beginIndex, len));
                 } else {
                     writer.write(buf, beginIndex, len);
                     return writer.toString();
@@ -609,7 +645,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                 } while (jsonParseContext.checkEscapeUseString(source, beginIndex, endIndex));
 
                 jsonParseContext.endIndex = endIndex;
-                writer.writeString(source, beginIndex, endIndex - beginIndex);
+                writer.write(source, beginIndex, endIndex - beginIndex);
                 return escapeResult(writer, parameterizedType);
             }
 
@@ -620,8 +656,9 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                 int endIndex = source.indexOf(token, beginIndex);
                 if (!jsonParseContext.checkEscapeUseString(source, beginIndex, endIndex)) {
                     jsonParseContext.endIndex = endIndex;
-                    int len = endIndex - beginIndex;
-                    return len > 0 ? StringUtils.createAscii(MemoryCopyUtils.copyOfRange(buf, beginIndex, len)) : "";
+                    return UnsafeHelper.getAsciiString(MemoryCopyUtils.copyOfRange(buf, beginIndex, endIndex - beginIndex));
+//                    int len = endIndex - beginIndex;
+//                    return len > 0 ? StringUtils.createAscii(MemoryCopyUtils.copyOfRange(buf, beginIndex, len)) : "";
                 }
                 // must exist \\ in range {beginIndex, endIndex}
                 JSONCharArrayWriter writer = getContextWriter(jsonParseContext);
@@ -634,7 +671,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                 } while (jsonParseContext.checkEscapeUseString(source, beginIndex, endIndex));
 
                 jsonParseContext.endIndex = endIndex;
-                writer.writeString(source, beginIndex, endIndex - beginIndex);
+                writer.write(source, beginIndex, endIndex - beginIndex);
                 return writer.toString();
 //                String source = charSource.input();
 //                int beginIndex = fromIndex + 1;
@@ -690,7 +727,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                 } while (jsonParseContext.checkEscapeUseChar(source, beginIndex, endIndex));
 
                 jsonParseContext.endIndex = endIndex;
-                writer.writeString(source, beginIndex, endIndex - beginIndex);
+                writer.write(source, beginIndex, endIndex - beginIndex);
                 return escapeResult(writer, parameterizedType);
             }
 
@@ -700,8 +737,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                 int endIndex = source.indexOf(endByte, beginIndex);
                 if (!jsonParseContext.checkEscapeUseChar(source, beginIndex, endIndex)) {
                     jsonParseContext.endIndex = endIndex;
-                    int len = endIndex - beginIndex;
-                    return len > 0 ? StringUtils.createAscii(MemoryCopyUtils.copyOfRange(buf, beginIndex, len)) : "";
+                    return UnsafeHelper.getAsciiString(MemoryCopyUtils.copyOfRange(buf, beginIndex, endIndex - beginIndex));
                 }
                 // must exist \\ in range {beginIndex, endIndex}
                 JSONCharArrayWriter writer = getContextWriter(jsonParseContext);
@@ -714,8 +750,59 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                 } while (jsonParseContext.checkEscapeUseChar(source, beginIndex, endIndex));
 
                 jsonParseContext.endIndex = endIndex;
-                writer.writeString(source, beginIndex, endIndex - beginIndex);
+                writer.write(source, beginIndex, endIndex - beginIndex);
                 return writer.toString();
+            }
+        }
+
+        public static class CharDeserializer extends CharSequenceDeserializer {
+
+            @Override
+            protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object instance, char endToken, JSONParseContext jsonParseContext) throws Exception {
+                char firstChar = buf[fromIndex];
+                switch (firstChar) {
+                    case '\'':
+                    case '\"': {
+                        char result = 0;
+                        String value = (String) CHAR_SEQUENCE_STRING.deserializeString(charSource, buf, fromIndex, toIndex, firstChar, null, jsonParseContext);
+                        if (value.length() > 0) {
+                            result = value.charAt(0);
+                        }
+                        return result;
+                    }
+                    case 'n': {
+                        return NULL.deserialize(charSource, buf, fromIndex, toIndex, null, null, jsonParseContext);
+                    }
+                    default: {
+                        // numbder
+                        short value = (Short) NUMBER_SHORT.deserialize(charSource, buf, fromIndex, toIndex, parameterizedType, instance, endToken, jsonParseContext);
+                        return (char) value;
+                    }
+                }
+            }
+
+            @Override
+            protected Object deserialize(CharSource charSource, byte[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext jsonParseContext) throws Exception {
+                byte firstByte = buf[fromIndex];
+                switch (firstByte) {
+                    case '\'':
+                    case '\"': {
+                        char result = 0;
+                        String value = (String) CHAR_SEQUENCE_STRING.deserializeString(charSource, buf, fromIndex, toIndex, firstByte, null, jsonParseContext);
+                        if (value.length() > 0) {
+                            result = value.charAt(0);
+                        }
+                        return result;
+                    }
+                    case 'n': {
+                        return NULL.deserialize(charSource, buf, fromIndex, toIndex, null, null, jsonParseContext);
+                    }
+                    default: {
+                        // numbder
+                        short value = (Short) NUMBER_SHORT.deserialize(charSource, buf, fromIndex, toIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
+                        return (char) value;
+                    }
+                }
             }
         }
     }
@@ -765,7 +852,8 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                                     throw new JSONException("For input string: \"" + new String(buf, fromIndex, endIndex - fromIndex) + "\"");
                                 }
                                 jsonParseContext.endIndex = endIndex;
-                                return result;
+                                // 兼容类型处理
+                                return ObjectUtils.toTypeNumber(result, parameterizedType.getActualType());
                             } catch (Exception exception) {
                                 // 是否支持空字符串？
                                 throw exception;
@@ -832,7 +920,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             throw new JSONException("Syntax error, at pos " + fromIndex + ", unexpected character '" + beginByte + "' when parsing a number");
         }
 
-        Number deserializeDefault0(char[] buf, int fromIndex, int toIndex, int offset, long val, int cnt, boolean negative, char endToken, JSONParseContext jsonParseContext) throws Exception {
+        Number deserializeDefault0(char[] buf, int fromIndex, int toIndex, int offset, long val, int cnt, boolean negative, char endToken, int returnType, JSONParseContext jsonParseContext) throws Exception {
             long value = val;
             int decimalCount = 0;
             int expValue = 0;
@@ -926,6 +1014,30 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             int endIndex = i - 1;
             jsonParseContext.endIndex = endIndex;
 
+            if (returnType == TYPE_BIGDECIMAL) {
+                if (cnt > 19) {
+                    // BigDecimal by String input
+                    while (buf[endIndex] <= ' ') {
+                        --endIndex;
+                    }
+                    return new BigDecimal(buf, fromIndex, endIndex - fromIndex + 1);
+                }
+                value = negative ? -value : value;
+                return new BigDecimal(BigInteger.valueOf(value), expNegative ? expValue + decimalCount : decimalCount - expValue);
+            }
+
+            if (returnType == TYPE_BIGINTEGER) {
+                if (cnt > 19) {
+                    // BigInteger by String input
+                    while (buf[endIndex] <= ' ') {
+                        --endIndex;
+                    }
+                    return new BigInteger(new String(buf, fromIndex, endIndex - fromIndex + 1));
+                }
+                value = negative ? -value : value;
+                return BigInteger.valueOf(value);
+            }
+
             // int / long / BigInteger
             if (mode == 0) {
                 if (cnt > 19) {
@@ -979,7 +1091,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             }
         }
 
-        Number deserializeDefault0(byte[] buf, int fromIndex, int toIndex, int offset, long val, int cnt, boolean negative, byte endToken, JSONParseContext jsonParseContext) throws Exception {
+        Number deserializeDefault0(byte[] buf, int fromIndex, int toIndex, int offset, long val, int cnt, boolean negative, byte endToken, int returnType, JSONParseContext jsonParseContext) throws Exception {
             long value = val;
             int decimalCount = 0;
             int expValue = 0;
@@ -1073,6 +1185,30 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             int endIndex = i - 1;
             jsonParseContext.endIndex = endIndex;
 
+            if (returnType == TYPE_BIGDECIMAL) {
+                if (cnt > 19) {
+                    // BigDecimal by String input
+                    while (buf[endIndex] <= ' ') {
+                        --endIndex;
+                    }
+                    return new BigDecimal(new String(buf, fromIndex, endIndex - fromIndex + 1));
+                }
+                value = negative ? -value : value;
+                return new BigDecimal(BigInteger.valueOf(value), expNegative ? expValue + decimalCount : decimalCount - expValue);
+            }
+
+            if (returnType == TYPE_BIGINTEGER) {
+                if (cnt > 19) {
+                    // BigInteger by String input
+                    while (buf[endIndex] <= ' ') {
+                        --endIndex;
+                    }
+                    return new BigInteger(new String(buf, fromIndex, endIndex - fromIndex + 1));
+                }
+                value = negative ? -value : value;
+                return BigInteger.valueOf(value);
+            }
+
             // int / long / BigInteger
             if (mode == 0) {
                 if (cnt > 19) {
@@ -1126,7 +1262,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             }
         }
 
-        // Auto fit number type
+        // auto fit number type
         Number deserializeDefault(char[] buf, int fromIndex, int toIndex, char endToken, JSONParseContext jsonParseContext) throws Exception {
             boolean negative = false;
             int i = fromIndex;
@@ -1138,7 +1274,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             } else if (ch == '+') {
                 ++i;
             }
-            return deserializeDefault0(buf, fromIndex, toIndex, i, 0, 0, negative, endToken, jsonParseContext);
+            return deserializeDefault0(buf, fromIndex, toIndex, i, 0, 0, negative, endToken, 0, jsonParseContext);
         }
 
         Number deserializeDouble(char[] buf, int fromIndex, int toIndex, char endToken, JSONParseContext jsonParseContext) {
@@ -1208,7 +1344,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                 throw new JSONException("For input string: \"" + new String(buf, fromIndex, i - fromIndex + 1) + "\", expected ',' or '" + endToken + "', but found '" + ch + "', context text by '" + contextErrorAt + "'");
             }
             // forward default deserialize
-            return deserializeDefault0(buf, fromIndex, toIndex, i, value, cnt + i - fromIndex, negative, endToken, jsonParseContext).longValue();
+            return deserializeDefault0(buf, fromIndex, toIndex, i, value, cnt + i - fromIndex, negative, endToken, 0, jsonParseContext).longValue();
         }
 
         protected long deserializeInteger(long value, boolean negative, int cnt, byte[] buf, int fromIndex, int toIndex, byte endToken, JSONParseContext jsonParseContext) throws Exception {
@@ -1239,23 +1375,29 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                 throw new JSONException("For input string: \"" + new String(buf, fromIndex, i - fromIndex + 1) + "\", expected ',' or '" + endToken + "', but found '" + (char) b + "', context text by '" + contextErrorAt + "'");
             }
             // forward default deserialize
-            return deserializeDefault0(buf, fromIndex, toIndex, i, value, cnt + i - fromIndex, negative, endToken, jsonParseContext).longValue();
+            return deserializeDefault0(buf, fromIndex, toIndex, i, value, cnt + i - fromIndex, negative, endToken, 0, jsonParseContext).longValue();
         }
 
         protected Number deserializeNumber(long initValue, boolean negative, int cnt, char[] buf, int fromIndex, int offset, int toIndex, GenericParameterizedType parameterizedType, char endToken, JSONParseContext jsonParseContext) throws Exception {
             if (parameterizedType == GenericParameterizedType.AnyType || parameterizedType == null) {
-                return deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, jsonParseContext);
+                return deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, 0, jsonParseContext);
             }
-            Number value = deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, jsonParseContext);
+            if (parameterizedType == GenericParameterizedType.BigDecimalType) {
+                return NUMBER_BIGDECIMAL.deserializeNumber(initValue, negative, cnt, buf, fromIndex, offset, toIndex, parameterizedType, endToken, jsonParseContext);
+            }
+            Number value = deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, 0, jsonParseContext);
             return ObjectUtils.toTypeNumber(value, parameterizedType.getActualType());
         }
 
         protected Number deserializeNumber(long initValue, boolean negative, int cnt, byte[] buf, int fromIndex, int offset, int toIndex, GenericParameterizedType parameterizedType, byte endToken, JSONParseContext jsonParseContext) throws Exception {
             if (parameterizedType == GenericParameterizedType.AnyType || parameterizedType == null) {
-                return deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, jsonParseContext);
+                return deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, 0, jsonParseContext);
+            }
+            if (parameterizedType == GenericParameterizedType.BigDecimalType) {
+                return NUMBER_BIGDECIMAL.deserializeNumber(initValue, negative, cnt, buf, fromIndex, offset, toIndex, parameterizedType, endToken, jsonParseContext);
             }
             // not supported
-            Number value = deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, jsonParseContext);
+            Number value = deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, 0, jsonParseContext);
             return ObjectUtils.toTypeNumber(value, parameterizedType.getActualType());
         }
 
@@ -1301,27 +1443,47 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
 
         static class DoubleDeserializer extends NumberDeserializer {
             protected final Number deserializeNumber(long initValue, boolean negative, int cnt, char[] buf, int fromIndex, int offset, int toIndex, GenericParameterizedType parameterizedType, char endToken, JSONParseContext jsonParseContext) throws Exception {
-                if (jsonParseContext.useNativeDoubleParser) {
+                if (jsonParseContext.useJDKDoubleParser) {
                     return deserializeDouble(buf, fromIndex, toIndex, endToken, jsonParseContext);
                 }
-                return deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, jsonParseContext).doubleValue();
+                return deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, 0, jsonParseContext).doubleValue();
             }
 
             protected final Number deserializeNumber(long initValue, boolean negative, int cnt, byte[] buf, int fromIndex, int offset, int toIndex, GenericParameterizedType parameterizedType, byte endToken, JSONParseContext jsonParseContext) throws Exception {
-                if (jsonParseContext.useNativeDoubleParser) {
+                if (jsonParseContext.useJDKDoubleParser) {
                     return deserializeDouble(buf, fromIndex, toIndex, endToken, jsonParseContext);
                 }
-                return deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, jsonParseContext).doubleValue();
+                return deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, 0, jsonParseContext).doubleValue();
             }
         }
 
         static class FloatDeserializer extends NumberDeserializer {
             protected final Number deserializeNumber(long initValue, boolean negative, int cnt, char[] buf, int fromIndex, int offset, int toIndex, GenericParameterizedType parameterizedType, char endToken, JSONParseContext jsonParseContext) throws Exception {
-                return deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, jsonParseContext).floatValue();
+                return deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, 0, jsonParseContext).floatValue();
             }
 
             protected final Number deserializeNumber(long initValue, boolean negative, int cnt, byte[] buf, int fromIndex, int offset, int toIndex, GenericParameterizedType parameterizedType, byte endToken, JSONParseContext jsonParseContext) throws Exception {
-                return deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, jsonParseContext).floatValue();
+                return deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, 0, jsonParseContext).floatValue();
+            }
+        }
+
+        static class BigDecimalDeserializer extends NumberDeserializer {
+            protected final Number deserializeNumber(long initValue, boolean negative, int cnt, char[] buf, int fromIndex, int offset, int toIndex, GenericParameterizedType parameterizedType, char endToken, JSONParseContext jsonParseContext) throws Exception {
+                return deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, TYPE_BIGDECIMAL, jsonParseContext);
+            }
+
+            protected final Number deserializeNumber(long initValue, boolean negative, int cnt, byte[] buf, int fromIndex, int offset, int toIndex, GenericParameterizedType parameterizedType, byte endToken, JSONParseContext jsonParseContext) throws Exception {
+                return deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, TYPE_BIGDECIMAL, jsonParseContext);
+            }
+        }
+
+        static class BigIntegerDeserializer extends NumberDeserializer {
+            protected final Number deserializeNumber(long initValue, boolean negative, int cnt, char[] buf, int fromIndex, int offset, int toIndex, GenericParameterizedType parameterizedType, char endToken, JSONParseContext jsonParseContext) throws Exception {
+                return deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, TYPE_BIGINTEGER, jsonParseContext);
+            }
+
+            protected final Number deserializeNumber(long initValue, boolean negative, int cnt, byte[] buf, int fromIndex, int offset, int toIndex, GenericParameterizedType parameterizedType, byte endToken, JSONParseContext jsonParseContext) throws Exception {
+                return deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, TYPE_BIGINTEGER, jsonParseContext);
             }
         }
     }
@@ -1411,7 +1573,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             char beginChar = buf[fromIndex];
             switch (beginChar) {
                 case '"': {
-                    CHAR_SEQUENCE.skip(charSource, buf, fromIndex, toIndex, jsonParseContext);
+                    CHAR_SEQUENCE.skip(charSource, buf, fromIndex, beginChar, jsonParseContext);
                     int endStringIndex = jsonParseContext.endIndex;
                     Class<? extends Date> dateCls = (Class<? extends Date>) parameterizedType.getActualType();
                     return deserializeDate(buf, fromIndex, endStringIndex + 1, dateCls);
@@ -1719,7 +1881,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                 }
                 case '"': {
                     // String
-                    CHAR_SEQUENCE.skip(charSource, buf, fromIndex, toIndex, jsonParseContext);
+                    CHAR_SEQUENCE.skip(charSource, buf, fromIndex, beginChar, jsonParseContext);
                     int endStringIndex = jsonParseContext.endIndex;
                     byte[] bytes = parseBytesOfBuf0(fromIndex, endStringIndex - fromIndex - 1, buf, jsonParseContext);
                     return bytes;
@@ -1996,7 +2158,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             @Override
             Object deserializeArray(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object instance, JSONParseContext jsonParseContext) throws Exception {
                 int beginIndex = fromIndex + 1;
-                char ch = '\0';
+                char ch;
                 Object arr = initArray();
                 int len = 0;
                 // 允许注释
@@ -2017,7 +2179,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                             throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "' the closing symbol ']' is not allowed here.");
                         }
                         jsonParseContext.endIndex = i;
-                        return arr;
+                        return len == 0 ? empty() : newArray(arr, len);
                     }
 
                     Object value = getValueDeserializer().deserialize(charSource, buf, i, toIndex, null, null, ']', jsonParseContext);
@@ -2076,7 +2238,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                             throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "' the closing symbol ']' is not allowed here.");
                         }
                         jsonParseContext.endIndex = i;
-                        return arr;
+                        return len == 0 ? empty() : newArray(arr, len);
                     }
 
                     Object value = getValueDeserializer().deserialize(charSource, buf, i, toIndex, null, null, END_ARRAY, jsonParseContext);
@@ -2104,11 +2266,45 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     }
                     if (b == END_ARRAY) {
                         jsonParseContext.endIndex = i;
-                        return newArray(arr, len);
+                        return len == size ? arr : newArray(arr, len);
                     }
                     String errorContextTextAt = createErrorContextText(buf, i);
                     throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + (char) b + "', expected ',' or ']'");
                 }
+            }
+        }
+
+        final static class StringArrayDeserializer extends ArrayInstanceDeserializer {
+            @Override
+            public Object empty() {
+                return new String[0];
+            }
+
+            @Override
+            public Object initArray() {
+                return new String[10];
+            }
+
+            @Override
+            public int size(Object arr) {
+                return ((String[]) arr).length;
+            }
+
+            @Override
+            public void setElementAt(Object arr, Object element, int index) {
+                String[] value = (String[]) arr;
+                value[index] = (String) element;
+            }
+
+            @Override
+            public Object newArray(Object arr, int len) {
+                String[] value = (String[]) arr;
+                return Arrays.copyOf(value, len);
+            }
+
+            @Override
+            public JSONTypeDeserializer getValueDeserializer() {
+                return CHAR_SEQUENCE_STRING;
             }
         }
 
@@ -3435,8 +3631,9 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                 case '[':
                     COLLECTION.skip(charSource, buf, fromIndex, toIndex, jsonParseContext);
                     break;
+                case '\'':
                 case '"':
-                    CHAR_SEQUENCE.skip(charSource, buf, fromIndex, toIndex, jsonParseContext);
+                    CHAR_SEQUENCE.skip(charSource, buf, fromIndex, beginChar, jsonParseContext);
                     break;
                 case 'n':
                     NULL.deserialize(null, buf, fromIndex, toIndex, null, null, jsonParseContext);
@@ -3936,12 +4133,11 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
         JSONCharArrayWriter writer = null;
         boolean escape = false;
         for (; ; ++i) {
-            int hashValue = 0;
+            long hashValue = 0;
             while ((b = bytes[i]) != '\\' && b != endCh) {
                 ++i;
-                hashValue = hashValue * 31 + b;
+                hashValue = (hashValue << 1) + b;
             }
-
             // ch is \\ or "
             if (b == '\\') {
                 if (i < toIndex - 1) {
@@ -3960,6 +4156,9 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     writer.writeBytes(bytes, beginIndex, len);
                     return writer.toString();
                 } else {
+                    if (len > 32) {
+                        return new String(bytes, beginIndex, len);
+                    }
                     return len == 0 ? "" : jsonParseContext.getCacheKey(bytes, beginIndex, len, hashValue);
                 }
             }
@@ -3985,6 +4184,119 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
         } else {
             int len = to - from - 2;
             return new String(bytes, from + 1, len);
+        }
+    }
+
+    private static class UUIDDeserializer extends JSONTypeDeserializer {
+
+        @Override
+        protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
+            char beginChar = buf[fromIndex], next;
+            int offset = fromIndex + 1;
+            if (beginChar == DOUBLE_QUOTATION) {
+                if ((next = buf[offset]) == DOUBLE_QUOTATION) {
+                    jsonParseContext.endIndex = offset;
+                    return null;
+                }
+                long mostSigBits, leastSigBits;
+                try {
+                    mostSigBits = ((long) hex(next)) << 60;
+                    int bits = 56;
+                    for (int i = 0; i < 7; ++i) {
+                        mostSigBits |= ((long) hex(buf[++offset])) << bits;
+                        bits -= 4;
+                    }
+                    int h9 = buf[++offset];
+                    for (int i = 0; i < 4; ++i) {
+                        mostSigBits |= ((long) hex(buf[++offset])) << bits;
+                        bits -= 4;
+                    }
+                    int h14 = buf[++offset];
+                    for (int i = 0; i < 4; ++i) {
+                        mostSigBits |= ((long) hex(buf[++offset])) << bits;
+                        bits -= 4;
+                    }
+                    int h19 = buf[++offset];
+                    leastSigBits = ((long) hex(buf[++offset])) << 60;
+                    bits = 56;
+                    for (int i = 0; i < 3; ++i) {
+                        leastSigBits |= ((long) hex(buf[++offset])) << bits;
+                        bits -= 4;
+                    }
+                    int h24 = buf[++offset];
+                    for (int i = 0; i < 12; ++i) {
+                        leastSigBits |= ((long) hex(buf[++offset])) << bits;
+                        bits -= 4;
+                    }
+                    if (h9 == '-' && h14 == '-' && h19 == '-' && h24 == '-' && buf[++offset] == DOUBLE_QUOTATION) {
+                        jsonParseContext.endIndex = offset;
+                        return new UUID(mostSigBits, leastSigBits);
+                    }
+                } catch (Throwable throwable) {
+                    String errorContextTextAt = createErrorContextText(buf, fromIndex);
+                    throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', deserialize UUID fail");
+                }
+            } else if (beginChar == 'n') {
+                return NULL.deserialize(charSource, buf, fromIndex, toIndex, null, null, jsonParseContext);
+            }
+
+            String errorContextTextAt = createErrorContextText(buf, fromIndex);
+            throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', deserialize UUID fail");
+        }
+
+        @Override
+        protected Object deserialize(CharSource charSource, byte[] bytes, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext jsonParseContext) throws Exception {
+            byte beginByte = bytes[fromIndex], next;
+            int offset = fromIndex + 1;
+            if (beginByte == DOUBLE_QUOTATION) {
+                if ((next = bytes[offset]) == DOUBLE_QUOTATION) {
+                    jsonParseContext.endIndex = offset;
+                    return null;
+                }
+                long mostSigBits, leastSigBits;
+                try {
+                    mostSigBits = ((long) hex(next)) << 60;
+                    int bits = 56;
+                    for (int i = 0; i < 7; ++i) {
+                        mostSigBits |= ((long) hex(bytes[++offset])) << bits;
+                        bits -= 4;
+                    }
+                    int h9 = bytes[++offset];
+                    for (int i = 0; i < 4; ++i) {
+                        mostSigBits |= ((long) hex(bytes[++offset])) << bits;
+                        bits -= 4;
+                    }
+                    int h14 = bytes[++offset];
+                    for (int i = 0; i < 4; ++i) {
+                        mostSigBits |= ((long) hex(bytes[++offset])) << bits;
+                        bits -= 4;
+                    }
+                    int h19 = bytes[++offset];
+                    leastSigBits = ((long) hex(bytes[++offset])) << 60;
+                    bits = 56;
+                    for (int i = 0; i < 3; ++i) {
+                        leastSigBits |= ((long) hex(bytes[++offset])) << bits;
+                        bits -= 4;
+                    }
+                    int h24 = bytes[++offset];
+                    for (int i = 0; i < 12; ++i) {
+                        leastSigBits |= ((long) hex(bytes[++offset])) << bits;
+                        bits -= 4;
+                    }
+                    if (h9 == '-' && h14 == '-' && h19 == '-' && h24 == '-' && bytes[++offset] == DOUBLE_QUOTATION) {
+                        jsonParseContext.endIndex = offset;
+                        return new UUID(mostSigBits, leastSigBits);
+                    }
+                } catch (Throwable throwable) {
+                    String errorContextTextAt = createErrorContextText(bytes, fromIndex);
+                    throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', deserialize UUID fail");
+                }
+            } else if (beginByte == 'n') {
+                return NULL.deserialize(charSource, bytes, fromIndex, toIndex, null, null, jsonParseContext);
+            }
+
+            String errorContextTextAt = createErrorContextText(bytes, fromIndex);
+            throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', deserialize UUID fail");
         }
     }
 }

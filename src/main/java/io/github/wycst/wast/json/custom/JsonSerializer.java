@@ -1,7 +1,8 @@
 package io.github.wycst.wast.json.custom;
 
+import io.github.wycst.wast.json.JSONConfig;
 import io.github.wycst.wast.json.JSONTypeSerializer;
-import io.github.wycst.wast.json.options.JsonConfig;
+import io.github.wycst.wast.json.JSONWriter;
 
 import java.io.Writer;
 
@@ -14,7 +15,7 @@ import java.io.Writer;
 public abstract class JsonSerializer<E> extends JSONTypeSerializer {
 
     @Override
-    protected final void serialize(Object value, Writer writer, JsonConfig jsonConfig, int indent) throws Exception {
+    protected final void serialize(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
         serialize(writer, (E) value, indent, jsonConfig);
     }
 
@@ -25,6 +26,6 @@ public abstract class JsonSerializer<E> extends JSONTypeSerializer {
      * @param e
      * @param jsonConfig
      */
-    public abstract void serialize(Writer writer, E e, int indentLevel, JsonConfig jsonConfig) throws Exception;
+    public abstract void serialize(Writer writer, E e, int indentLevel, JSONConfig jsonConfig) throws Exception;
 
 }

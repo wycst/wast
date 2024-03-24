@@ -4,9 +4,6 @@ import io.github.wycst.wast.clients.http.definition.HttpClientException;
 import io.github.wycst.wast.clients.http.definition.HttpClientRequest;
 import io.github.wycst.wast.clients.http.loadbalance.LoadBalanceStrategy;
 import io.github.wycst.wast.clients.http.loadbalance.PollingLoadBalanceStrategy;
-import io.github.wycst.wast.clients.http.provider.ServerZone;
-import io.github.wycst.wast.clients.http.provider.ServiceInstance;
-import io.github.wycst.wast.clients.http.provider.ServiceProvider;
 
 import java.net.MalformedURLException;
 import java.net.URL;

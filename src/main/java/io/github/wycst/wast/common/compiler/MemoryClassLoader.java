@@ -13,9 +13,17 @@ public class MemoryClassLoader extends ClassLoader {
         this.javaFileObject = javaFileObject;
     }
 
+    public MemoryClassLoader() {
+    }
+
     @Override
     protected Class<?> findClass(String name) throws ClassNotFoundException {
+        if(javaFileObject == null) return null;
         byte[] codeBytes = javaFileObject.getBytes();
+        return defineClass(name, codeBytes, 0, codeBytes.length);
+    }
+
+    public Class<?> loadClass(String name, byte[] codeBytes) {
         return defineClass(name, codeBytes, 0, codeBytes.length);
     }
 }

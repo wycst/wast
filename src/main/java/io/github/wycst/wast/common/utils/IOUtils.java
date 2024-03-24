@@ -27,6 +27,35 @@ public final class IOUtils {
         return chars;
     }
 
+    /**
+     * encode to utf-8 bytes
+     *
+     * @param input
+     * @param offset
+     * @param len
+     * @param output
+     * @return
+     */
+    public static int encodeUTF8(char[] input, int offset, int len, byte[] output) {
+        int count = 0;
+        for (int i = offset, end = offset + len; i < end; ++i) {
+            char c = input[i];
+            if (c < 0x80) {
+                output[count++] = (byte) c;
+            } else if (c < 0x800) {
+                int h = c >> 6, l = c & 0x3F;
+                output[count++] = (byte) (0xAF | h);
+                output[count++] = (byte) (0x8F | l);
+            } else {
+                int h = c >> 12, m = (c >> 6) & 0x3F, l = c & 0x3F;
+                output[count++] = (byte) (0xE0 | h);
+                output[count++] = (byte) (0x80 | m);
+                output[count++] = (byte) (0x80 | l);
+            }
+        }
+        return count;
+    }
+
     /***
      * 读取UTF-8编码的字节到指定字符数组，请确保字符数组长度
      *
@@ -132,7 +161,7 @@ public final class IOUtils {
                 int oldLen = bytes.length;
                 bytes = Arrays.copyOf(bytes, oldLen + count);
                 System.arraycopy(tmp, 0, bytes, oldLen, count);
-                if(count < len) {
+                if (count < len) {
                     break;
                 } else {
                     // Capacity expansion

@@ -1,9 +1,8 @@
 package io.github.wycst.wast.common.expression.compile;
 
 import io.github.wycst.wast.common.beans.KeyValuePair;
-import io.github.wycst.wast.common.compiler.MemoryClassLoader;
-import io.github.wycst.wast.common.compiler.MemoryJavaFileManager;
-import io.github.wycst.wast.common.compiler.MemoryJavaFileObject;
+import io.github.wycst.wast.common.compiler.JDKCompiler;
+import io.github.wycst.wast.common.compiler.JavaSourceObject;
 import io.github.wycst.wast.common.exceptions.ParserException;
 import io.github.wycst.wast.common.expression.ExprFunction;
 import io.github.wycst.wast.common.expression.Expression;
@@ -15,11 +14,6 @@ import io.github.wycst.wast.common.reflect.GetterInfo;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
 
-import javax.tools.JavaCompiler;
-import javax.tools.JavaFileObject;
-import javax.tools.StandardJavaFileManager;
-import javax.tools.ToolProvider;
-import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -32,9 +26,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * @Date 2022/11/17 15:09
  */
 class CompilerCodeUtils {
-
-    private static final JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-    private static final StandardJavaFileManager fileManager = compiler.getStandardFileManager(null, null, null);
 
     private static final AtomicLong ATOMIC_LONG = new AtomicLong(0);
     private static final String PACKAGE_NAME = CompilerExpression.class.getPackage().getName();
@@ -129,31 +120,14 @@ class CompilerCodeUtils {
     static CompilerExpression compileByNative(String expr, CompilerEnvironment environment) {
         String expressionClassName = generateClassName();
         final String javaCode = generateJavaCode(expr, expressionClassName, environment);
-        MemoryJavaFileManager javaFileManager = new MemoryJavaFileManager(fileManager);
         try {
-            JavaFileObject javaFileObject = javaFileManager.createJavaFileObject(expressionClassName + ".java", javaCode);
-            JavaCompiler.CompilationTask task = compiler.getTask(null, javaFileManager, null,
-                    Arrays.asList(/*"-d", classPath, */"-encoding", "UTF-8", "-XDuseUnsharedTable"), null,
-                    Arrays.asList(javaFileObject));
-            boolean bl = task.call();
-            if (bl) {
-                MemoryJavaFileObject memoryJavaFileObject = javaFileManager.getMemoryJavaFileObject();
-                MemoryClassLoader memoryClassLoader = new MemoryClassLoader(memoryJavaFileObject);
-                Class<?> clazz = memoryClassLoader.loadClass(PACKAGE_NAME + "." + expressionClassName);
-                Constructor<?> clazzConstructor = clazz.getConstructor(CompilerEnvironment.class);
-                clazzConstructor.setAccessible(true);
-                return (CompilerExpression) clazzConstructor.newInstance(environment);
-            } else {
-                throw new ExpressionException(" compile fail ");
-            }
+            Class<?> clazz = JDKCompiler.compileJavaSource(new JavaSourceObject(PACKAGE_NAME, expressionClassName, javaCode));
+            Constructor<?> clazzConstructor = clazz.getConstructor(CompilerEnvironment.class);
+            clazzConstructor.setAccessible(true);
+            return (CompilerExpression) clazzConstructor.newInstance(environment);
         } catch (Throwable e) {
             if (e instanceof ExpressionException) throw (ExpressionException) e;
             throw new ParserException(" parse exception :" + e.getMessage(), e);
-        } finally {
-            try {
-                javaFileManager.close();
-            } catch (IOException e) {
-            }
         }
     }
 

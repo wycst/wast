@@ -1,4 +1,4 @@
-package io.github.wycst.wast.json.options;
+package io.github.wycst.wast.json;
 
 import java.util.ArrayList;
 import java.util.List;

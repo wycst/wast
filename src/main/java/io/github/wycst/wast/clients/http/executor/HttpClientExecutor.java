@@ -1,14 +1,13 @@
 package io.github.wycst.wast.clients.http.executor;
 
 import io.github.wycst.wast.clients.http.definition.*;
-import io.github.wycst.wast.clients.http.provider.DefaultServiceProvider;
-import io.github.wycst.wast.clients.http.provider.RequestServiceInstance;
-import io.github.wycst.wast.clients.http.provider.ServiceProvider;
 import io.github.wycst.wast.clients.http.exception.ConnectException;
 import io.github.wycst.wast.clients.http.exception.SocketTimeoutException;
 import io.github.wycst.wast.clients.http.exception.UnknownHostException;
+import io.github.wycst.wast.clients.http.provider.DefaultServiceProvider;
+import io.github.wycst.wast.clients.http.provider.RequestServiceInstance;
 import io.github.wycst.wast.clients.http.provider.ServiceInstance;
-import io.github.wycst.wast.common.idgenerate.providers.IdGenerator;
+import io.github.wycst.wast.clients.http.provider.ServiceProvider;
 
 import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
@@ -91,7 +90,7 @@ public abstract class HttpClientExecutor {
             if(deleteIndex > -1) {
                 url = new String(url.substring(0, deleteIndex));
             }
-            StringBuffer queryParamBuffer = new StringBuffer();
+            StringBuilder queryParamBuffer = new StringBuilder();
             if(url.indexOf("?") == -1) {
                 queryParamBuffer.append("?");
             } else {

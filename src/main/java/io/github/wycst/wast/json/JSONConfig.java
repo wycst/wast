@@ -1,10 +1,12 @@
-package io.github.wycst.wast.json.options;
+package io.github.wycst.wast.json;
+
+import io.github.wycst.wast.json.options.WriteOption;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TimeZone;
 
-public class JsonConfig {
+public final class JSONConfig {
 
     private static boolean defaultFullProperty;
     private static String defaultDateFormatPattern;
@@ -13,23 +15,23 @@ public class JsonConfig {
     private static boolean defaultWriteEnumAsOrdinal;
 
     public static void setDefaultFullProperty(boolean defaultFullProperty) {
-        JsonConfig.defaultFullProperty = defaultFullProperty;
+        JSONConfig.defaultFullProperty = defaultFullProperty;
     }
 
     public static void setDefaultDateFormatPattern(String defaultDateFormatPattern) {
-        JsonConfig.defaultDateFormatPattern = defaultDateFormatPattern;
+        JSONConfig.defaultDateFormatPattern = defaultDateFormatPattern;
     }
 
     public static void setDefaultFormatIndentUseSpace(boolean defaultFormatIndentUseSpace) {
-        JsonConfig.defaultFormatIndentUseSpace = defaultFormatIndentUseSpace;
+        JSONConfig.defaultFormatIndentUseSpace = defaultFormatIndentUseSpace;
     }
 
     public static void setDefaultFormatIndentSpaceNum(int defaultFormatIndentSpaceNum) {
-        JsonConfig.defaultFormatIndentSpaceNum = defaultFormatIndentSpaceNum;
+        JSONConfig.defaultFormatIndentSpaceNum = defaultFormatIndentSpaceNum;
     }
 
     public static void setDefaultWriteEnumAsOrdinal(boolean defaultWriteEnumAsOrdinal) {
-        JsonConfig.defaultWriteEnumAsOrdinal = defaultWriteEnumAsOrdinal;
+        JSONConfig.defaultWriteEnumAsOrdinal = defaultWriteEnumAsOrdinal;
     }
 
     /**
@@ -138,15 +140,13 @@ public class JsonConfig {
      */
     private TimeZone timezone;
 
-    private static ThreadLocal<Map<Integer, Integer>> identityHashCodes = new ThreadLocal<Map<Integer, Integer>>();
+    private Map<Integer, Integer> identityHashCodes;
 
-//    private char[] contextChars;
-
-    public JsonConfig() {
+    public JSONConfig() {
     }
 
-    public JsonConfig(WriteOption[] writeOptions) {
-        Options.writeOptions(writeOptions, this);
+    public JSONConfig(WriteOption[] writeOptions) {
+        JSONOptions.writeOptions(writeOptions, this);
     }
 
     public boolean isFormatIndentUseSpace() {
@@ -317,12 +317,10 @@ public class JsonConfig {
     }
 
     private Map<Integer, Integer> getOrSetIdentityHashCodes() {
-        Map<Integer, Integer> hashCodeStatus = identityHashCodes.get();
-        if (hashCodeStatus == null) {
-            hashCodeStatus = new HashMap<Integer, Integer>();
-            identityHashCodes.set(hashCodeStatus);
+        if (identityHashCodes == null) {
+            identityHashCodes = new HashMap<Integer, Integer>();
         }
-        return hashCodeStatus;
+        return identityHashCodes;
     }
 
     public int getStatus(int hashcode) {
@@ -335,7 +333,7 @@ public class JsonConfig {
 
     public void clear() {
         if(skipCircularReference) {
-            identityHashCodes.remove();
+            identityHashCodes.clear();
         }
     }
 

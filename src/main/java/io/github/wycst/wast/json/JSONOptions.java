@@ -1,34 +1,15 @@
-package io.github.wycst.wast.json.options;
+package io.github.wycst.wast.json;
 
+import io.github.wycst.wast.json.options.ReadOption;
+import io.github.wycst.wast.json.options.WriteOption;
 import io.github.wycst.wast.json.util.FixedNameValueMap;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
-
-public class Options {
+final class JSONOptions {
 
     // cache keys
     private static FixedNameValueMap<String> keyValueMap = new FixedNameValueMap<String>(4096);
 
     private static Object lock = new Object();
-
-    // global set cache keys
-    public static void addGlobalKeys(String... keys) {
-        synchronized (lock) {
-            Set<String> keySet = new HashSet<String>(Arrays.asList(keys));
-            for (String key : keySet) {
-                if (key == null || key.trim().length() == 0) continue;
-                keyValueMap.putValue(key, key.hashCode(), key);
-            }
-        }
-    }
-
-    // global set cache keys
-    public static void setGlobalKeys(String... keys) {
-        clearGlobalKeys();
-        addGlobalKeys(keys);
-    }
 
     // clear cache keys
     public static void clearGlobalKeys() {
@@ -37,27 +18,27 @@ public class Options {
         }
     }
 
-    static String getCacheKey(char[] buf, int offset, int len, int hashCode) {
+    static String getCacheKey(char[] buf, int offset, int len, long hashCode) {
         //  len > 0
         String value = keyValueMap.getValue(buf, offset, offset + len, hashCode);
         if (value == null) {
             value = new String(buf, offset, len);
-            keyValueMap.putValue(value, value.hashCode() ,value);
+            keyValueMap.putValue(value, hashCode, value);
         }
         return value;
     }
 
-    static String getCacheKey(byte[] bytes, int offset, int len, int hashCode) {
+    static String getCacheKey(byte[] bytes, int offset, int len, long hashCode) {
         //  len > 0
         String value = keyValueMap.getValue(bytes, offset, offset + len, hashCode);
         if (value == null) {
             value = new String(bytes, offset, len);
-            keyValueMap.putValue(value, value.hashCode(), value);
+            keyValueMap.putValue(value, hashCode, value);
         }
         return value;
     }
 
-    private static void setWriteOption(WriteOption option, JsonConfig jsonConfig) {
+    private static void setWriteOption(WriteOption option, JSONConfig jsonConfig) {
         if (jsonConfig != null) {
             switch (option) {
                 case FormatOut:
@@ -156,11 +137,11 @@ public class Options {
                 case UseDefaultFieldInstance:
                     parseContext.useDefaultFieldInstance = true;
                     break;
-                case UseBigDecimalAsDefaultNumber:
+                case UseBigDecimalAsDefault:
                     parseContext.useBigDecimalAsDefault = true;
                     break;
-                case UseNativeDoubleParser:
-                    parseContext.useNativeDoubleParser = true;
+                case UseJDKDoubleParser:
+                    parseContext.useJDKDoubleParser = true;
                     break;
                 case UnMatchedEmptyAsNull:
                     parseContext.unMatchedEmptyAsNull = true;
@@ -168,21 +149,18 @@ public class Options {
                 case DisableCacheMapKey:
                     parseContext.disableCacheMapKey = true;
                     break;
-//                case UseFields:
-//                    parseContext.setUseFields(true);
-//                    break;
             }
         }
     }
 
-    public final static void writeOptions(WriteOption[] options, JsonConfig jsonConfig) {
+    static void writeOptions(WriteOption[] options, JSONConfig jsonConfig) {
         if (options == null || options.length == 0) return;
         for (WriteOption option : options) {
             setWriteOption(option, jsonConfig);
         }
     }
 
-    public final static void readOptions(ReadOption[] options, JSONParseContext parseContext) {
+    static void readOptions(ReadOption[] options, JSONParseContext parseContext) {
         if (options == null || options.length == 0) return;
         for (ReadOption option : options) {
             setParseContextOption(option, parseContext);

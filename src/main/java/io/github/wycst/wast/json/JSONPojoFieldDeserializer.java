@@ -1,14 +1,12 @@
-package io.github.wycst.wast.json.reflect;
+package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.common.beans.CharSource;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.SetterInfo;
-import io.github.wycst.wast.json.JSONTypeDeserializer;
 import io.github.wycst.wast.json.annotations.JsonDeserialize;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.custom.JsonDeserializer;
-import io.github.wycst.wast.json.options.JSONParseContext;
 
 import java.io.Serializable;
 import java.util.Map;
@@ -19,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * @Author wangyunchao
  */
-public class FieldDeserializer extends JSONTypeDeserializer {
+public class JSONPojoFieldDeserializer extends JSONTypeDeserializer {
 
     /**
      * name
@@ -63,7 +61,7 @@ public class FieldDeserializer extends JSONTypeDeserializer {
      */
     private final static Map<Class<? extends JsonDeserializer>, JsonDeserializer> customDeserializers = new ConcurrentHashMap<Class<? extends JsonDeserializer>, JsonDeserializer>();
 
-    FieldDeserializer(String name, SetterInfo setterInfo, JsonProperty jsonProperty) {
+    JSONPojoFieldDeserializer(String name, SetterInfo setterInfo, JsonProperty jsonProperty) {
         if (setterInfo == null) {
             throw new IllegalArgumentException("setterInfo is null");
         }

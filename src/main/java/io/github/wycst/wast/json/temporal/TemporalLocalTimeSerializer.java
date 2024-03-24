@@ -1,12 +1,10 @@
 package io.github.wycst.wast.json.temporal;
 
 import io.github.wycst.wast.common.beans.GregorianDate;
+import io.github.wycst.wast.json.JSONConfig;
 import io.github.wycst.wast.json.JSONTemporalSerializer;
+import io.github.wycst.wast.json.JSONWriter;
 import io.github.wycst.wast.json.annotations.JsonProperty;
-import io.github.wycst.wast.json.options.JsonConfig;
-import io.github.wycst.wast.json.reflect.ObjectStructureWrapper;
-
-import java.io.Writer;
 
 /**
  * LocalTime序列化，使用反射实现
@@ -19,23 +17,19 @@ import java.io.Writer;
  */
 public class TemporalLocalTimeSerializer extends JSONTemporalSerializer {
 
-    public TemporalLocalTimeSerializer(ObjectStructureWrapper objectStructureWrapper, JsonProperty property) {
-        super(objectStructureWrapper, property);
+    public TemporalLocalTimeSerializer(Class<?> temporalClass, JsonProperty property) {
+        super(temporalClass, property);
     }
 
-    protected void checkClass(ObjectStructureWrapper objectStructureWrapper) {
-        Class<?> sourceClass = objectStructureWrapper.getSourceClass();
-        if (sourceClass != TemporalAloneInvoker.localTimeClass) {
-            throw new UnsupportedOperationException("Not Support for class temporal type " + sourceClass);
-        }
+    protected void checkClass(Class<?> temporalClass) {
     }
 
     @Override
-    protected void writeTemporalWithTemplate(Object value, Writer writer, JsonConfig jsonConfig) throws Exception {
-        int hour = TemporalAloneInvoker.invokeLocalTimeHour(value).intValue();
-        int minute = TemporalAloneInvoker.invokeLocalTimeMinute(value).intValue();
-        int second = TemporalAloneInvoker.invokeLocalTimeSecond(value).intValue();
-        int nano = TemporalAloneInvoker.invokeLocalTimeNano(value).intValue();
+    protected void writeTemporalWithTemplate(Object value, JSONWriter writer, JSONConfig jsonConfig) throws Exception {
+        int hour = TemporalAloneInvoker.invokeLocalTimeHour(value);
+        int minute = TemporalAloneInvoker.invokeLocalTimeMinute(value);
+        int second = TemporalAloneInvoker.invokeLocalTimeSecond(value);
+        int nano = TemporalAloneInvoker.invokeLocalTimeNano(value);
         int millisecond = nano / 1000000;
         writer.write('"');
         writeDate(1970, 1, 1, hour, minute, second, millisecond, dateFormatter, writer);
@@ -43,22 +37,13 @@ public class TemporalLocalTimeSerializer extends JSONTemporalSerializer {
     }
 
     @Override
-    protected void writeDefault(Object value, Writer writer, JsonConfig jsonConfig, int indent) throws Exception {
-
-        int hour = TemporalAloneInvoker.invokeLocalTimeHour(value).intValue();
-        int minute = TemporalAloneInvoker.invokeLocalTimeMinute(value).intValue();
-        int second = TemporalAloneInvoker.invokeLocalTimeSecond(value).intValue();
-        int nano = TemporalAloneInvoker.invokeLocalTimeNano(value).intValue();
-        int millisecond = nano / 1000000;
-
+    protected void writeDefault(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
+        int hour = TemporalAloneInvoker.invokeLocalTimeHour(value);
+        int minute = TemporalAloneInvoker.invokeLocalTimeMinute(value);
+        int second = TemporalAloneInvoker.invokeLocalTimeSecond(value);
+        int nano = TemporalAloneInvoker.invokeLocalTimeNano(value);
         writer.write('"');
-        writeHH_mm_SS(hour, minute, second, writer);
-        writer.write('.');
-        char s1 = (char) (millisecond / 100 + 48);
-        int v = millisecond % 100;
-        writer.write(s1);
-        writer.write(DigitTens[v]);
-        writer.write(DigitOnes[v]);
+        writer.writeTimeWithNano(hour, minute, second, nano);
         writer.write('"');
     }
 }

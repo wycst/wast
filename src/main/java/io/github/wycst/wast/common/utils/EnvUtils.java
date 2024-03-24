@@ -7,8 +7,8 @@ public final class EnvUtils {
 
     public static final float JDK_VERSION;
 
-    public static final boolean JDK_16_ABOVE;
-    public static final boolean JDK_9_ABOVE;
+    public static final boolean JDK_16_PLUS;
+    public static final boolean JDK_9_PLUS;
 
     public static final boolean LE;
     public static final int HI_BYTE_SHIFT;
@@ -34,7 +34,9 @@ public final class EnvUtils {
     // 'java.util.HashSet'
     public final static int HASH_SET_HV = -1402716492;
 
+    public final static Charset DEFAULT_CHARSET = Charset.defaultCharset();
     public final static Charset ISO_8859_1;
+    public final static Charset UTF_8;
 
     static {
         float jdkVersion = 1.8f;
@@ -47,8 +49,8 @@ public final class EnvUtils {
         } catch (Throwable throwable) {
         }
         JDK_VERSION = jdkVersion;
-        JDK_9_ABOVE = JDK_VERSION >= 9;
-        JDK_16_ABOVE = JDK_VERSION >= 16;
+        JDK_9_PLUS = JDK_VERSION >= 9;
+        JDK_16_PLUS = JDK_VERSION >= 16;
 
         LE = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
         if (LE) {
@@ -59,18 +61,17 @@ public final class EnvUtils {
             LO_BYTE_SHIFT = 0;
         }
 
-        // ASCII charset
         Charset iso_8859_1 = null;
         try {
             iso_8859_1 = Charset.forName("ISO_8859_1");
-//            if(JDK_16_ABOVE) {
-//                // jdk17
-//                iso_8859_1 = (Charset) UnsafeHelper.getStaticFieldValue("sun.nio.cs.ISO_8859_1", "INSTANCE");
-//            } else if(JDK_9_ABOVE) {
-//
-//            }
+        } catch (Throwable throwable) {
+        }
+        Charset UTF8 = null;
+        try {
+            UTF8 = Charset.forName("UTF-8");
         } catch (Throwable throwable) {
         }
         ISO_8859_1 = iso_8859_1;
+        UTF_8 = UTF8;
     }
 }

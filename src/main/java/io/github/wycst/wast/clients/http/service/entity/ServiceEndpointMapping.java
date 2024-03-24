@@ -27,6 +27,7 @@ public class ServiceEndpointMapping {
     // 1 = from
     private ParamType[] paramTypes;
     private long timeout;
+    private boolean keepAliveOnTimeout;
 
     private ServiceEndpoint serviceEndpoint;
 
@@ -132,6 +133,14 @@ public class ServiceEndpointMapping {
 
     public void setTimeout(long timeout) {
         this.timeout = timeout;
+    }
+
+    public boolean isKeepAliveOnTimeout() {
+        return keepAliveOnTimeout;
+    }
+
+    public void setKeepAliveOnTimeout(boolean keepAliveOnTimeout) {
+        this.keepAliveOnTimeout = keepAliveOnTimeout;
     }
 
     /***
