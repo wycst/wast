@@ -11,6 +11,7 @@
 2022-12-14 表达式引擎测试数据<br>
 [https://github.com/wycst/wast-jmh-test/blob/main/README_1214_EL.md](https://github.com/wycst/wast-jmh-test/blob/main/README_1214_json.md)
 
+此库不依赖任何第三方库，对JDK要求1.6及以上(1.6-21)
 
 ## Maven
 
@@ -23,22 +24,20 @@
 </dependency>
 ```
 
-## json模块
+## JSON
 
 > 1 java语言整体性能最快的json库之一；<br>
 > 2 功能全面，支持IO流文件读写，JSON节点树按需解析， 局部解析，序列化格式化，驼峰下划线自动转换；<br>
 > 3 源码实现简单易懂，阅读调试都很容易；<br>
 > 4 代码轻量，使用安全，没有漏洞风险；<br>
-> 5 兼容jdk1.6+；
 
-## yaml模块
+## YAML
 
 > 1 目前java语言解析yaml最快的库，性能大概是snakeyaml的5-20倍；<br>
 > 2 支持文件流，URL, 字符数组，字符串等解析；<br>
 > 3 支持常用yaml语法以及类型转换；<br>
 > 4 内置Yaml节点模型，支持路径查找(v0.0.4+)；<br>
 > 5 支持yaml反向转换为字符串或者文件(v0.0.4+)；<br>
-> 6 兼容jdk1.6+；
 
 ## 表达式引擎
 
@@ -51,13 +50,20 @@
 > 7 代码轻量，使用安全，没有漏洞风险；<br>
 > 8 支持超长文本表达式执行；<br>
 > 9 支持表达式编译模式运行；<br>
-> 10 兼容jdk1.6+；
 
-## jdbc模块
+## JDBC
 
-> 1 集成了类似JdbcTemplate,Mybatis-Plus或者jpa等操作习惯的api; <br>
+> 1 集成了类似JdbcTemplate,Mybatis-Plus或者JPA等操作习惯的api; <br>
 > 2 代码轻量，没有任何代理，使用非常方便；<br>
-> 3 兼容jdk1.6+；<br>
+> 3 支持面向原始sql,sql模版,对象管理等三种操作模式用，后两种模式完全能避免SQL注入漏洞（根源解决）；<br>
+
+## HttpClient
+
+> 1 当前只支持http/1.1;<br>
+> 2 底层核心为URLConnection,封装了http客户端常用的API<br>
+> 3 支持文件上传(已封装API),文件下载也能轻松处理支持；<br>
+> 4 支持nacos和consul作为ServerZone提供源，可以通过服务实例来访问请求；<br>
+> 5 支持负载均衡(客户端)和高可用访问调用；<br>
 
 ## JSON
 
@@ -302,7 +308,7 @@ supports/json-springmvc/JSONHttpMessageConverter.java
 | AllowLastEndComma   | 支持对象或者数组最后一个属性或者元素后面存在逗号，比如[1,2,3,]开启后也能正常解析                                                                    |
 | UnMatchedEmptyAsNull   | 解析到空字符串但目标类型又不是字符串时，返回null，否则抛出异常                                                                               |
 
-## yaml
+## YAML
 
 ```
     
@@ -600,6 +606,62 @@ param.setId(1);
 List<Fact> factList = entityExecuter.queryBy(Fact.class, param)
 
 ```
+
+## HttpClient 
+
+### 基本使用方法
+
+```
+HttpClient httpClient = HttpClient.create();
+
+// 1 get 
+httpClient.get("https://www.xxx.com", String.class)
+
+// 2 上传 upload
+HttpClientConfig httpClientConfig = new HttpClientConfig();
+httpClientConfig.setMultipart(true);
+httpClientConfig.addFileParameter("file", new File("/tmp/data.txt"), null);
+httpClient.upload("https://localhost:8999/", httpClientConfig);
+
+// 3 下载 download
+HttpClientResponse clientResponse = client.get("http://devplatform-service/export/1");
+
+// attachment;filename=FileName.txt 
+String contentDisposition = clientResponse.getHeader("content-disposition");
+
+// 如果知道文件名或者不关心可以跳过上面content-disposition的解析
+String fileName = "FileName.txt";
+
+// 文件内容（不适合文件超级大的场景下使用）
+byte[] content = clientResponse.content();
+FileOutputStream fos = new FileOutputStream(new File("/tmp/FileName.txt"));
+fos.write(content);
+fos.flush();
+fos.close();
+
+```
+
+### nacos集成案例
+
+~~~
+Properties properties = new Properties();
+properties.put("cloud.nacos.server_addr", "192.168.1.140:8848");
+properties.put("cloud.nacos.username", "nacos");
+properties.put("cloud.nacos.password", "nacos");
+properties.put("cloud.nacos.auth.enabled", "true");
+properties.put("cloud.nacos.auth.tokenRefreshInterval", "3600");
+properties.put("cloud.nacos.instance.namespaceId", "hlj-cloud-platform");
+DefaultServiceProvider serviceProvider = new NacosServiceProvider(properties);
+client.setServiceProvider(serviceProvider);
+client.setEnableLoadBalance(true);
+
+Thread.sleep(2000); 
+// 此处devplatform-service为注册在nacos里面的服务名称，如果存在多个实例会进行负载处理
+client.get("http://devplatform-service/dev-platform/");  
+
+...
+~~~
+
 更多操作可以自行发现。
 
 
