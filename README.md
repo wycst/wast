@@ -9,9 +9,9 @@
 [https://github.com/wycst/wast-jmh-test/blob/main/README_0925_json.md](https://github.com/wycst/wast-jmh-test/blob/main/README_0925_json.md)
 
 2022-12-14 表达式引擎测试数据<br>
-[https://github.com/wycst/wast-jmh-test/blob/main/README_1214_EL.md](https://github.com/wycst/wast-jmh-test/blob/main/README_1214_json.md)
+[https://github.com/wycst/wast-jmh-test/blob/main/README_1214_EL.md](https://github.com/wycst/wast-jmh-test/blob/main/README_1214_EL.md)
 
-此库不依赖任何第三方库，对JDK要求1.6及以上(1.6-21)
+此库不依赖任何第三方库，对JDK版本要求1.6及以上即可。
 
 ## Maven
 
@@ -56,6 +56,7 @@
 > 1 集成了类似JdbcTemplate,Mybatis-Plus或者JPA等操作习惯的api; <br>
 > 2 代码轻量，没有任何代理，使用非常方便；<br>
 > 3 支持面向原始sql,sql模版,对象管理等三种操作模式用，后两种模式完全能避免SQL注入漏洞（根源解决）；<br>
+> 4 理论上支持所有提供JDBC协议的数据库；<br>
 
 ## HttpClient
 
