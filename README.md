@@ -20,7 +20,7 @@
 <dependency>
     <groupId>io.github.wycst</groupId>
     <artifactId>wast</artifactId>
-    <version>0.0.12</version>
+    <version>0.0.12.1</version>
 </dependency>
 ```
 
