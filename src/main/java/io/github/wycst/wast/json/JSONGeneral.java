@@ -45,34 +45,22 @@ class JSONGeneral {
     protected final static byte WHITE_SPACE = ' ';
     protected final static byte ESCAPE = '\\';
 
-    protected final static int TYPE_BIGDECIMAL = 1;
-    protected final static int TYPE_BIGINTEGER = 2;
-
+    final static int TYPE_BIGDECIMAL = 1;
+    final static int TYPE_BIGINTEGER = 2;
 
     // 转义字符与字符串映射（序列化）
-    protected final static String[] ESCAPE_VALUES = new String[256];
+    final static String[] ESCAPE_VALUES = new String[256];
 
-    // 是否需要转义定义（序列化转义校验）
-//    protected final static boolean[] needEscapes = new boolean[256];
-
-    protected final static String MONTH_ABBR[] = {
+    final static String MONTH_ABBR[] = {
             "Jan", "Feb", "Mar", "Apr", "May", "Jun",
             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
     };
 
-    // String structure determination, true if the jdk version > 8, and the value of String is byte[] not char[]
-    protected static final boolean StringCoder;
+    final static char[] DigitOnes = NumberUtils.copyDigitOnes();
 
-    // 是否小端模式
-//    protected static final boolean LE;
-//    protected static final int HI_BYTE_SHIFT;
-//    protected static final int LO_BYTE_SHIFT;
+    final static char[] DigitTens = NumberUtils.copyDigitTens();
 
-    protected final static char[] DigitOnes = NumberUtils.copyDigitOnes();
-
-    protected final static char[] DigitTens = NumberUtils.copyDigitTens();
-
-    protected final static int[] ESCAPE_CHARS = new int[160];
+    final static int[] ESCAPE_CHARS = new int[160];
 
     static {
         for (int i = 0; i < 160; i++) {
@@ -164,9 +152,6 @@ class JSONGeneral {
         GMT_TIME_ZONE_MAP.put("-0", timeZone);
         GMT_TIME_ZONE_MAP.put("+08:00", timeZone = TimeZone.getTimeZone("GMT+08:00"));
         GMT_TIME_ZONE_MAP.put("GMT+08:00", timeZone);
-
-        long stringCoderOffset = UnsafeHelper.getStringCoderOffset();
-        StringCoder = stringCoderOffset > -1;
     }
 
     /**

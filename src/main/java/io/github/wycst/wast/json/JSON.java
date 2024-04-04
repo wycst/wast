@@ -95,7 +95,7 @@ import java.util.*;
 @SuppressWarnings("rawtypes")
 public final class JSON extends JSONGeneral {
 
-    public static final String VERSION = "0.0.12";
+    public static final String VERSION = "0.0.11";
 
     /**
      * 将json字符串转为对象或者数组(Convert JSON strings to objects or arrays)
@@ -154,7 +154,11 @@ public final class JSON extends JSONGeneral {
     public static Object parse(byte[] bytes, ReadOption... readOptions) {
         if (bytes == null) return null;
         if (EnvUtils.JDK_9_PLUS) {
-            return JSONDefaultParser.parse(new String(bytes), readOptions);
+            if (!EnvUtils.hasNegatives(bytes, 0, bytes.length)) {
+                return JSONDefaultParser.parse(AsciiStringSource.of(bytes), bytes, null, readOptions);
+            } else {
+                return JSONDefaultParser.parse(ISO_8859_1CharSource.of(bytes), bytes, null, readOptions);
+            }
         }
         return JSONDefaultParser.parse(bytes, readOptions);
     }
@@ -182,7 +186,7 @@ public final class JSON extends JSONGeneral {
             } else {
                 // utf16
                 char[] chars = json.toCharArray();
-                return parse(UTF16ByteArraySource.of(json, chars, bytes), chars, actualType, null, readOptions);
+                return parse(UTF16ByteArraySource.of(json), chars, actualType, null, readOptions);
             }
         }
         return parse(null, getChars(json), actualType, null, readOptions);
@@ -209,7 +213,7 @@ public final class JSON extends JSONGeneral {
             } else {
                 // utf16
                 char[] chars = json.toCharArray();
-                return parseObject(typeDeserializer, UTF16ByteArraySource.of(json, chars, bytes), chars, actualType, readOptions);
+                return parseObject(typeDeserializer, UTF16ByteArraySource.of(json), chars, actualType, readOptions);
             }
         }
 
@@ -313,10 +317,10 @@ public final class JSON extends JSONGeneral {
      * @param readOptions              读取配置
      * @param <T>                      泛型类型
      * @return 对象
+     * @see JSON#parse(String, GenericParameterizedType, ReadOption...) 
      */
     public static <T> T parseObject(String json, GenericParameterizedType<T> genericParameterizedType, ReadOption... readOptions) {
-        if (json == null) return null;
-        return parseObject(getChars(json), genericParameterizedType, readOptions);
+        return parse(json, genericParameterizedType, readOptions);
     }
 
     /**
@@ -344,14 +348,17 @@ public final class JSON extends JSONGeneral {
     public static <T> T parse(String json, GenericParameterizedType<T> genericParameterizedType, ReadOption... readOptions) {
         if (json == null) return null;
         if (EnvUtils.JDK_9_PLUS) {
-            int code = UnsafeHelper.getStringCoder(json);
-            if (code == 1) {
+            byte[] bytes = (byte[]) UnsafeHelper.getStringValue(json);
+            if (bytes.length == json.length()) {
+                return parse(AsciiStringSource.of(json, bytes), bytes, genericParameterizedType, readOptions);
+            } else {
                 // utf16
-                char[] chars = getChars(json);
-                return parse(UTF16ByteArraySource.of(json, chars), chars, genericParameterizedType, readOptions);
+                char[] chars = json.toCharArray();
+                return parse(UTF16ByteArraySource.of(json), chars, genericParameterizedType, readOptions);
             }
+        } else {
+            return parseObject(getChars(json), genericParameterizedType, readOptions);
         }
-        return parse(getChars(json), genericParameterizedType, readOptions);
     }
 
     /**
@@ -438,7 +445,7 @@ public final class JSON extends JSONGeneral {
             if (code == 1) {
                 // utf16
                 char[] chars = getChars(json);
-                return parseArray(UTF16ByteArraySource.of(json, chars), chars, actualType, readOptions);
+                return parseArray(UTF16ByteArraySource.of(json), chars, actualType, readOptions);
             }
         }
         return parseArray(getChars(json), actualType, readOptions);
@@ -600,7 +607,7 @@ public final class JSON extends JSONGeneral {
             if (code == 1) {
                 // utf16
                 char[] chars = getChars(json);
-                return parseToObject(UTF16ByteArraySource.of(json, chars), chars, instance, readOptions);
+                return parseToObject(UTF16ByteArraySource.of(json), chars, instance, readOptions);
             }
         }
         return parseToObject(null, getChars(json), instance, readOptions);
@@ -637,7 +644,7 @@ public final class JSON extends JSONGeneral {
             if (code == 1) {
                 // utf16
                 char[] chars = getChars(json);
-                return parseToList(UTF16ByteArraySource.of(json, chars), chars, instance, actualType, readOptions);
+                return parseToList(UTF16ByteArraySource.of(json), chars, instance, actualType, readOptions);
             }
         }
         return parseToList(null, getChars(json), instance, actualType, readOptions);

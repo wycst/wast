@@ -1,7 +1,4 @@
 package io.github.wycst.wast.common.beans;
-
-import io.github.wycst.wast.common.reflect.UnsafeHelper;
-
 /**
  * <p> 针对jdk9+字符串内置bytes数组coder=UTF16(1)时的字符转换读取
  * <p> 2字节一个字符,字符总长度为数组一半
@@ -13,14 +10,10 @@ import io.github.wycst.wast.common.reflect.UnsafeHelper;
  */
 public final class UTF16ByteArraySource implements CharSource {
 
-    private String input;
-    private final byte[] bytes;
-    // private final char[] source;
+    final String input;
 
-    UTF16ByteArraySource(String input, char[] source, byte[] bytes) {
+    UTF16ByteArraySource(String input) {
         this.input = input;
-        this.bytes = bytes;
-        // this.source = source;
     }
 
     /**
@@ -29,24 +22,24 @@ public final class UTF16ByteArraySource implements CharSource {
      * @param input
      * @return
      */
-    public static UTF16ByteArraySource of(String input, char[] source, byte[] bytes) {
-        return new UTF16ByteArraySource(input, source, bytes);
+    public static UTF16ByteArraySource of(String input) {
+        return new UTF16ByteArraySource(input);
     }
 
-    /**
-     * 构建对象
-     *
-     * @param input
-     * @return
-     */
-    public static UTF16ByteArraySource of(String input, char[] source) {
-        byte[] bytes = (byte[]) UnsafeHelper.getStringValue(input);
-        return new UTF16ByteArraySource(input, source, bytes);
-    }
+//    /**
+//     * 构建对象
+//     *
+//     * @param input
+//     * @return
+//     */
+//    public static UTF16ByteArraySource of(String input, char[] source) {
+//        byte[] bytes = (byte[]) UnsafeHelper.getStringValue(input);
+//        return new UTF16ByteArraySource(input, source, bytes);
+//    }
 
     @Override
     public byte[] byteArray() {
-        return bytes;
+        throw new UnsupportedOperationException();
     }
 
     @Override

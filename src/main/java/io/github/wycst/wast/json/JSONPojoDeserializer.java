@@ -5,6 +5,7 @@ import io.github.wycst.wast.common.beans.CharSource;
 import io.github.wycst.wast.common.beans.UTF16ByteArraySource;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
+import io.github.wycst.wast.common.utils.EnvUtils;
 import io.github.wycst.wast.json.exceptions.JSONException;
 import io.github.wycst.wast.json.options.ReadOption;
 
@@ -579,15 +580,14 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
     }
 
     public final T deserialize(String json, ReadOption... options) {
-        if (StringCoder) {
-            // JDK_VERSION >= 9
+        if (EnvUtils.JDK_9_PLUS) {
             byte coder = UnsafeHelper.getStringCoder(json);
             if (coder == 0) {
                 CharSource charSource = AsciiStringSource.of(json);
                 return deserialize(charSource, charSource.byteArray(), options);
             } else {
                 char[] chars = getChars(json);
-                return deserialize(UTF16ByteArraySource.of(json, chars), chars, options);
+                return deserialize(UTF16ByteArraySource.of(json), chars, options);
             }
         }
         return deserialize(getChars(json), options);

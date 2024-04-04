@@ -55,7 +55,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                 return parse(AsciiStringSource.of(json, bytes), bytes, null, readOptions);
             } else {
                 char[] chars = json.toCharArray();
-                return parse(UTF16ByteArraySource.of(json, chars, bytes), chars, null, readOptions);
+                return parse(UTF16ByteArraySource.of(json), chars, null, readOptions);
             }
         }
         return parse(getChars(json), readOptions);
@@ -88,7 +88,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                 return (Map) parse(AsciiStringSource.of(json, bytes), bytes, createMapInstance(mapCls), readOptions);
             } else {
                 char[] chars = json.toCharArray();
-                return (Map) parse(UTF16ByteArraySource.of(json, chars, bytes), chars, createMapInstance(mapCls), readOptions);
+                return (Map) parse(UTF16ByteArraySource.of(json), chars, createMapInstance(mapCls), readOptions);
             }
         }
         return (Map) parse(getChars(json), createMapInstance(mapCls), readOptions);
@@ -110,7 +110,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                 return (Collection) parse(AsciiStringSource.of(json, bytes), bytes, createCollectionInstance(listCls), readOptions);
             } else {
                 char[] chars = json.toCharArray();
-                return (Collection) parse(UTF16ByteArraySource.of(json, chars, bytes), chars, createCollectionInstance(listCls), readOptions);
+                return (Collection) parse(UTF16ByteArraySource.of(json), chars, createCollectionInstance(listCls), readOptions);
             }
         }
         return (Collection) parse(getChars(json), createCollectionInstance(listCls), readOptions);
