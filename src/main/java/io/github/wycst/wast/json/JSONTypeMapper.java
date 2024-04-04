@@ -14,7 +14,7 @@ public interface JSONTypeMapper<T> {
      * @return
      * @see io.github.wycst.wast.json.custom.JsonDeserializer
      */
-    T read(Object any);
+    T read(Object any) throws Exception;
 
     /**
      * 将T个性化写入
@@ -25,5 +25,5 @@ public interface JSONTypeMapper<T> {
      * @param indent
      * @see io.github.wycst.wast.json.custom.JsonSerializer
      */
-    void write(JSONWriter writer, T t, JSONConfig jsonConfig, int indent);
+    void write(JSONWriter writer, T t, JSONConfig jsonConfig, int indent) throws Exception;
 }

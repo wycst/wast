@@ -20,7 +20,7 @@
 <dependency>
     <groupId>io.github.wycst</groupId>
     <artifactId>wast</artifactId>
-    <version>0.0.11</version>
+    <version>0.0.12</version>
 </dependency>
 ```
 
@@ -68,7 +68,7 @@
 
 ## JSON
 
-### 1 常用对象json序列化
+### . 常用对象json序列化
 
 ```
 Map map = new HashMap();
@@ -76,7 +76,7 @@ map.put("msg", "hello, wastjson !");
 String result = JSON.toJsonString(map);
 ```
 
-### 2 对象序列化到文件
+### . 对象序列化到文件
 
 ```
 Map map = new HashMap();
@@ -84,7 +84,7 @@ map.put("msg", "hello, wastjson !");
 JSON.writeJsonTo(map, new File("/tmp/test.json"));
 ```
 
-### 3 格式序列化
+### . 格式序列化
 
 ```
 Map map = new HashMap();
@@ -99,7 +99,7 @@ output:
 }
 ```
 
-### 4 反序列化
+### . 反序列化
 
 ```
 String json = "{\"msg\":\"hello, wastjson !\",\"name\":\"zhangsan\"}";
@@ -109,7 +109,7 @@ System.out.println(map);
 {msg=hello, wastjson !, name=zhangsan}
 ```
 
-### 5 指定类型反序列化
+### . 指定类型反序列化
 
 ```
     String json = "{\"msg\":\"hello, wastjson !\",\"name\":\"zhangsan\"}";
@@ -119,7 +119,31 @@ System.out.println(map);
     {msg=hello, wastjson !, name=zhangsan}
 ```
 
-### 6 基于输入流的读取解析
+### .个性化支持
+
+1.针对实体bean的属性可以添加注解@JsonSerialize和@JsonDeserialize来实现定制化(使用见test模块custom目录例子)。 
+</br>
+
+2.通过JSON静态方法针对不同的类型来做个性化支持或者功能支持,非常方便; 
+
+```
+    JSON.registerTypeMapper(java.time.ZoneId.class, new JSONTypeMapper<ZoneId>() {
+        @Override
+        public ZoneId read(Object any) {
+            return any == null ? null : ZoneId.of((String) any);
+        }
+
+        @Override
+        public void write(JSONWriter writer, ZoneId zoneId, JSONConfig jsonConfig, int indent) {
+            try {
+                writer.writeJSONString(zoneId == null ? "null" : zoneId.getId());
+            } catch (IOException e) {
+            }
+        }
+    });
+```
+
+### . 基于输入流的读取解析
 
 ```
     Map result = null;
@@ -135,7 +159,7 @@ System.out.println(map);
     result = JSON.read(new File("/tmp/smaple.json"), Map.class);
 ```
 
-### 7 基于输入流的按需解析
+### . 基于输入流的按需解析
 
 提供JSONReader类可按需解析一个输入流，自定义解析，可随时终止(不用将整个文件流读完)。
 
@@ -153,7 +177,7 @@ System.out.println(map);
         }, true);
 ```
 
-### 8 强大的JSONNode功能
+### . 强大的JSONNode功能
 
 > 1、支持对大文本json的懒加载解析功能，即访问时解析，当需要读取一个大文本json中一个或多个属性值时非常有用。<br>
 > 2、支持按需解析；<br>
@@ -254,7 +278,7 @@ System.out.println(map);
   
 ```
 
-### 9 SpringBoot(Spring MVC) 集成
+### . SpringBoot(Spring MVC) 集成
 
 supports/json-springmvc/JSONHttpMessageConverter.java
 
@@ -280,6 +304,7 @@ supports/json-springmvc/JSONHttpMessageConverter.java
 | 枚举值  | 说明                                               |
 | ------------ |--------------------------------------------------|
 | FormatOut   | 格式化缩进输出                                          |
+| FormatOutColonSpace   | 格式化缩进支持冒号后面补一个空格更加美观                             |
 | FormatIndentUseTab   | 使用tab符来缩进美化,当FormatOut启用时默认开启使用此模式               |
 | FormatIndentUseSpace   | 使用空格符(4个空格)来缩进美化JSON                             |
 | FormatIndentUseSpace8   | 使用8个空格符代表一个缩进级别进行美化JSON                          |
