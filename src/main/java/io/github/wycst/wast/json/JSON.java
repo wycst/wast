@@ -95,7 +95,7 @@ import java.util.*;
 @SuppressWarnings("rawtypes")
 public final class JSON extends JSONGeneral {
 
-    public static final String VERSION = "0.0.11";
+    public static final String VERSION = "0.0.12.1";
 
     /**
      * 将json字符串转为对象或者数组(Convert JSON strings to objects or arrays)

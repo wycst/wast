@@ -1,6 +1,6 @@
 mvn versions:set -DnewVersion={0.0.5-SNAPSHOT}
 mvn versions:update-child-modules
-mvn versions:set -DnewVersion=0.0.11 -DgenerateBackupPoms=false
+mvn versions:set -DnewVersion=0.0.12.1 -DgenerateBackupPoms=false
 mvn versions:commit
 
 mvn clean deploy -P release -Darguments="gpg.passphrase=12345678"
