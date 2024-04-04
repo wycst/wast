@@ -1,9 +1,9 @@
 package com.wast.test.json.custom;
 
 import io.github.wycst.wast.json.JSONConfig;
+import io.github.wycst.wast.json.JSONWriter;
 import io.github.wycst.wast.json.custom.JsonSerializer;
 
-import java.io.Writer;
 import java.util.Map;
 
 /**
@@ -14,10 +14,11 @@ import java.util.Map;
 public class CustomDetailSerializer extends JsonSerializer<Map> {
 
     @Override
-    public void serialize(Writer writer, Map map, int indentLevel, JSONConfig jsonConfig) throws Exception {
+    public void serialize(JSONWriter writer, Map map, int indentLevel, JSONConfig jsonConfig) throws Exception {
         String str = "hello";
-        writer.write('"');
-        writer.write(str);
-        writer.write('"');
+//        writer.write('"');
+//        writer.write(str);
+//        writer.write('"');
+        writer.writeJSONString(str);
     }
 }

@@ -26,6 +26,6 @@ public abstract class JsonSerializer<E> extends JSONTypeSerializer {
      * @param e
      * @param jsonConfig
      */
-    public abstract void serialize(Writer writer, E e, int indentLevel, JSONConfig jsonConfig) throws Exception;
+    public abstract void serialize(JSONWriter writer, E e, int indentLevel, JSONConfig jsonConfig) throws Exception;
 
 }
