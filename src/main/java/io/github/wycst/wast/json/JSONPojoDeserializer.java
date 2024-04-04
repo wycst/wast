@@ -111,18 +111,17 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                     }
                     fieldDeserializer = getFieldDeserializer(buf, ++fieldKeyFrom, i, hashValue);
                     if(fieldDeserializer == null) {
-                        int j = i - 1;
-                        if(buf[j] == '\\') {
+                        char prev = buf[i - 1];
+                        while (prev == '\\') {
                             boolean isPrevEscape = true;
+                            int j = i - 1;
                             while (buf[--j] == '\\') {
                                 isPrevEscape = !isPrevEscape;
                             }
                             if(isPrevEscape) {
                                 // skip
-                                char prev = 0;
-                                while (((ch = buf[++i]) != '"' || prev == '\\')) {
-                                    prev = ch;
-                                }
+                                while (buf[++i] != '"');
+                                prev = buf[i - 1];
                             }
                         }
                     }
@@ -344,18 +343,17 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                     }
                     fieldDeserializer = getFieldDeserializer(buf, ++fieldKeyFrom, i, hashValue);
                     if(fieldDeserializer == null) {
-                        int j = i - 1;
-                        if(buf[j] == ESCAPE) {
+                        byte prev = buf[i - 1];
+                        while (prev == ESCAPE) {
                             boolean isPrevEscape = true;
+                            int j = i - 1;
                             while (buf[--j] == ESCAPE) {
                                 isPrevEscape = !isPrevEscape;
                             }
                             if(isPrevEscape) {
-                                byte prev = 0;
                                 // skip
-                                while (((b = buf[++i]) != DOUBLE_QUOTATION || prev == ESCAPE)) {
-                                    prev = b;
-                                }
+                                while (buf[++i] != DOUBLE_QUOTATION);
+                                prev = buf[i - 1];
                             }
                         }
                     }
