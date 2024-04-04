@@ -93,27 +93,27 @@ public abstract class JSONTemporalSerializer extends JSONTypeSerializer {
         CHAR_SEQUENCE_STRING.serialize(temporal, writer, jsonConfig, indent);
     }
 
-    protected final void writeZoneId(Writer writer, String zoneId) throws IOException {
-        // zoneID
-        if (zoneId.length() > 0) {
-            char c = zoneId.charAt(0);
-            switch (c) {
-                case 'Z': {
-                    writer.write('Z');
-                    break;
-                }
-                case '+':
-                case '-': {
-                    writer.write(zoneId);
-                    break;
-                }
-                default: {
-                    writer.write('[');
-                    writer.write(zoneId);
-                    writer.write(']');
-                }
-            }
-        }
-    }
+//    protected final void writeZoneId(JSONWriter writer, String zoneId) throws IOException {
+//        // zoneID
+//        if (zoneId.length() > 0) {
+//            char c = zoneId.charAt(0);
+//            switch (c) {
+//                case 'Z': {
+//                    writer.writeJSONToken('Z');
+//                    break;
+//                }
+//                case '+':
+//                case '-': {
+//                    writer.write(zoneId);
+//                    break;
+//                }
+//                default: {
+//                    writer.write('[');
+//                    writer.write(zoneId);
+//                    writer.write(']');
+//                }
+//            }
+//        }
+//    }
 
 }

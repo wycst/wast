@@ -331,8 +331,10 @@ public final class ClassStructureWrapper {
                 // 构建getter
                 GetterInfo getterInfo = new GetterInfo();
                 getterInfo.setField(nameField);
+                getterInfo.setRecord(true);
 
                 getterInfo.setName(name);
+                getterInfo.setUnderlineName(StringUtils.camelCaseToSymbol(name));
 
                 Map<Class<? extends Annotation>, Annotation> annotationMap = new HashMap<Class<? extends Annotation>, Annotation>();
                 addAnnotations(annotationMap, nameMethod.getAnnotations());
@@ -456,7 +458,7 @@ public final class ClassStructureWrapper {
                     Field field = sourceClass.getDeclaredField(fieldName);
                     if (!Modifier.isStatic(field.getModifiers())) {
                         // 当声明属性的类型和getter方法返回的类型不一致时，如果触发invoke，则以method的call为准
-                        if (setAccessible(field) && field.getType().isAssignableFrom(returnType)) {
+                        if (setAccessible(field) && compatibleType(returnType, field.getType())) {
                             getterInfo.setField(field);
                         }
                     }
@@ -470,6 +472,7 @@ public final class ClassStructureWrapper {
                                 // 当声明属性的类型和getter方法返回的类型不一致时，如果触发invoke，则以method的call为准
                                 if (setAccessible(field) && field.getType() == boolean.class) {
                                     getterInfo.setField(field);
+                                    getterInfo.setName(field.getName());
                                 }
                             }
                         } catch (Exception exception) {
@@ -733,6 +736,7 @@ public final class ClassStructureWrapper {
                 if (Modifier.isStatic(field.getModifiers())) continue;
                 if (Modifier.isTransient(field.getModifiers())) continue;
                 String fieldName = field.getName();
+                String underlineName = StringUtils.camelCaseToSymbol(fieldName);
                 if (fieldNames.add(fieldName)) {
                     setAccessible(field);
                     clearFinalModifiers(field);
@@ -751,6 +755,7 @@ public final class ClassStructureWrapper {
                     GetterInfo getterInfo = new GetterInfo();
                     getterInfo.setField(field);
                     getterInfo.setName(fieldName);
+                    getterInfo.setUnderlineName(underlineName);
 
                     Map<Class<? extends Annotation>, Annotation> annotationMap = new HashMap<Class<? extends Annotation>, Annotation>();
                     addAnnotations(annotationMap, field.getAnnotations());
@@ -775,7 +780,7 @@ public final class ClassStructureWrapper {
                     if (oldSetterInfo == null || !oldSetterInfo.isFieldDisabled()) {
                         wrapper.setterInfos.put(fieldName, setterInfo);
                     }
-                    String underlineName = StringUtils.camelCaseToSymbol(fieldName);
+
                     if (!underlineName.equals(fieldName)) {
                         wrapper.setterInfos.put(underlineName, setterInfo);
                     }

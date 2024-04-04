@@ -20,7 +20,6 @@ import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.SetterInfo;
-import io.github.wycst.wast.common.tools.Base64;
 import io.github.wycst.wast.common.utils.ObjectUtils;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.exceptions.JSONException;
@@ -28,11 +27,15 @@ import io.github.wycst.wast.json.options.ReadOption;
 
 import java.io.*;
 import java.math.BigDecimal;
-import java.util.*;
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 1,基于流的JSON解析:
+ * 1,基于流(字符流)的JSON解析:
  * <p> - 超大文件json文件解析（文件大小读取无限制）,无需将流内容读取到内存中再解析
  * <p> - 检测当前json类型是对象还是数组，其他类型处理无意义
  * <p> - 可按需终止
@@ -321,9 +324,7 @@ public class JSONReader extends JSONGeneral {
      * <p> 返回result
      */
     public Object readAsResult(Class<?> actualType) {
-        this.genericType = GenericParameterizedType.actualType(actualType);
-        this.executeReadStream();
-        return result;
+        return readAsResult(GenericParameterizedType.actualType(actualType));
     }
 
     /**
@@ -352,15 +353,7 @@ public class JSONReader extends JSONGeneral {
      * @param async    是否异步
      */
     public void read(ReaderCallback callback, boolean async) {
-        if (this.closed) {
-            throw new UnsupportedOperationException("Stream has been closed");
-        }
-        if (this.aborted) {
-            throw new UnsupportedOperationException("Reader has been aborted");
-        }
-        if (this.reading) {
-            throw new UnsupportedOperationException("Stream is being read");
-        }
+        checkReadState();
         this.callback = callback;
         this.reading = true;
         if (!async) {
@@ -376,6 +369,18 @@ public class JSONReader extends JSONGeneral {
                     executeReadStream();
                 }
             }).start();
+        }
+    }
+
+    private void checkReadState() {
+        if (this.closed) {
+            throw new UnsupportedOperationException("Stream has been closed");
+        }
+        if (this.aborted) {
+            throw new UnsupportedOperationException("Reader has been aborted");
+        }
+        if (this.reading) {
+            throw new UnsupportedOperationException("Stream is being read");
         }
     }
 
@@ -644,7 +649,6 @@ public class JSONReader extends JSONGeneral {
 
             long value = 0;
             int decimalCount = 0;
-            final int radix = 10;
             int expValue = 0;
             boolean expNegative = false;
             // init integer type
@@ -895,8 +899,6 @@ public class JSONReader extends JSONGeneral {
                 this.beginReading(0);
                 while (readNext() > -1 && current != '"') ;
                 key = endReadingAsString(-1);
-
-
                 // 解析value
                 clearWhitespaces();
                 if (current == ':') {
@@ -917,7 +919,6 @@ public class JSONReader extends JSONGeneral {
                             valueType = setterInfo.getGenericParameterizedType();
                         }
                     }
-
                     if (isSkipValue) {
                         this.skipValue('}');
                     } else {
@@ -1038,7 +1039,6 @@ public class JSONReader extends JSONGeneral {
                 }
                 return;
             }
-            String key;
             if (current == '"') {
                 empty = false;
                 while (readNext() > -1 && current != '"') ;
@@ -1135,6 +1135,10 @@ public class JSONReader extends JSONGeneral {
         endReading(n, -1);
     }
 
+    /**
+     * @param n         End offset correction position
+     * @param newOffset
+     */
     protected void endReading(int n, int newOffset) {
         int endIndex = offset + n;
         if (endIndex > this.readingOffset) {
@@ -1145,17 +1149,14 @@ public class JSONReader extends JSONGeneral {
 
     private Object parseNumberTo(Object simpleValue, GenericParameterizedType valueType) {
         if (simpleValue == null) return null;
-
         ReflectConsts.ClassCategory classCategory;
         if (valueType == null || (classCategory = valueType.getActualClassCategory()) == ReflectConsts.ClassCategory.ANY) {
             return simpleValue;
         }
-
         Class<?> actualType = valueType.getActualType();
         if (actualType.isInstance(simpleValue)) {
             return simpleValue;
         }
-
         Number numValue = (Number) simpleValue;
         if (classCategory == ReflectConsts.ClassCategory.NumberCategory) {
             return ObjectUtils.toTypeNumber(numValue, actualType);
@@ -1167,7 +1168,7 @@ public class JSONReader extends JSONGeneral {
             throw new JSONException("value " + numValue + " is mismatch enum " + actualType);
         }
 
-        throw new JSONException("value " + numValue + " is mismatch type " + actualType);
+        throw new JSONException("read simple value " + numValue + " is mismatch " + actualType);
     }
 
     private Object parseStringTo(String value, GenericParameterizedType valueType, JsonProperty jsonProperty) throws Exception {
@@ -1179,76 +1180,8 @@ public class JSONReader extends JSONGeneral {
         if (actualType == String.class || actualType == CharSequence.class) {
             return value;
         }
-        char[] chars = getChars(value);
-        if (actualType == char[].class) {
-            return chars;
-        }
-        ReflectConsts.ClassCategory classCategory = valueType.getActualClassCategory();
-        switch (classCategory) {
-            case DateCategory: {
-                char[] dateChars = new char[chars.length + 2];
-                dateChars[0] = '"';
-                System.arraycopy(chars, 0, dateChars, 1, chars.length);
-                dateChars[chars.length + 1] = '"';
-                String pattern = null;
-                String timezone = null;
-                if (jsonProperty != null) {
-                    String patternAt = jsonProperty.pattern().trim();
-                    if (patternAt.length() > 0) {
-                        pattern = patternAt;
-                    }
-                    String timezoneAt = jsonProperty.timezone().trim();
-                    if (timezoneAt.length() > 0) {
-                        timezone = timezoneAt;
-                    }
-                }
-                return parseDateValue(0, dateChars.length, dateChars, pattern, timezone, (Class<? extends Date>) actualType);
-            }
-            case Binary: {
-                if (parseContext.byteArrayFromHexString) {
-                    return hexString2Bytes(chars, 0, chars.length);
-                } else {
-                    return Base64.getDecoder().decode(value);
-                }
-            }
-            case EnumCategory: {
-                try {
-                    Class enumCls = actualType;
-                    return Enum.valueOf(enumCls, value);
-                } catch (RuntimeException exception) {
-                    if (parseContext.unknownEnumAsNull) {
-                        return null;
-                    } else {
-                        throw exception;
-                    }
-                }
-            }
-            case CharSequence: {
-                if (actualType == StringBuffer.class) {
-                    StringBuffer buffer = new StringBuffer();
-                    buffer.append(chars);
-                    return buffer;
-                } else if (actualType == StringBuilder.class) {
-                    StringBuilder builder = new StringBuilder();
-                    builder.append(chars);
-                    return builder;
-                } else if (actualType == Character.class || actualType == char.class) {
-                    if (chars.length == 1) {
-                        return chars[0];
-                    } else {
-                        throw new JSONException("value " + value + " is mismatch " + actualType);
-                    }
-                } else {
-                    // not supported
-                    return null;
-                }
-            }
-            case ClassCategory: {
-                return Class.forName(value);
-            }
-        }
-
-        throw new JSONException("value " + value + " is mismatch " + actualType);
+        JSONTypeDeserializer deserializer = JSONTypeDeserializer.getFieldDeserializer(valueType, jsonProperty);
+        return deserializer.valueOf(value, actualType);
     }
 
     private void invokeValueOfObject(String key, Object value, String nextPath, boolean externalImpl, boolean assignableFromMap, Map mapInstane, Object instance, SetterInfo setterInfo) throws Exception {
@@ -1412,7 +1345,7 @@ public class JSONReader extends JSONGeneral {
      * throw unexpected exception
      */
     protected final void throwUnexpectedException() {
-        throw new JSONException("Syntax error, unexpected token character '" + (char) current + "', position " + pos);
+        throw new JSONException("Syntax error, unexpected '" + (char) current + "', position " + pos);
     }
 
     /**
@@ -1424,7 +1357,7 @@ public class JSONReader extends JSONGeneral {
     }
 
     protected String readString() throws Exception {
-        // reset
+        // reset StringBuilder
         this.beginReading(0);
         char prev = '\0';
         while (readNext() > -1) {
@@ -1502,20 +1435,16 @@ public class JSONReader extends JSONGeneral {
             }
             prev = (char) current;
         }
-
-        // maybe throw an exception
         throwUnexpectedException();
-        return null/*bufferWriter.toString()*/;
+        return null;
     }
 
     protected int readNext() throws Exception {
         pos++;
         if (offset < count) return current = buf[offset++];
-
         if (reader == null) {
             return current = -1;
         }
-
         if (count == bufferSize) {
             readBuffer();
             if (count == -1) return current = -1;

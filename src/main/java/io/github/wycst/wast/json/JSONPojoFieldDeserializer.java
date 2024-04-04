@@ -55,6 +55,7 @@ public class JSONPojoFieldDeserializer extends JSONTypeDeserializer {
 
     private final String pattern;
     private final String timezone;
+    private boolean initialized;
 
     /**
      * 自定义反序列化器
@@ -90,33 +91,36 @@ public class JSONPojoFieldDeserializer extends JSONTypeDeserializer {
     }
 
     void initDeserializer() {
-        Class impl;
-        boolean unfixedType = false;
-        if (jsonProperty != null) {
-            if((impl = jsonProperty.impl()) != Object.class) {
-                if (isAvailableImpl(impl)) {
-                    implClass = impl;
+        if (!initialized) {
+            Class impl;
+            boolean unfixedType = false;
+            if (jsonProperty != null) {
+                if ((impl = jsonProperty.impl()) != Object.class) {
+                    if (isAvailableImpl(impl)) {
+                        implClass = impl;
+                    }
                 }
+                unfixedType = jsonProperty.unfixedType();
             }
-            unfixedType = jsonProperty.unfixedType();
-        }
-        if(implClass != null) {
-            this.deserializer = getTypeDeserializer(implClass);
-            this.genericParameterizedType = GenericParameterizedType.actualType(implClass);
-        } else {
-            if (setterInfo.isNonInstanceType()) {
-                if (genericParameterizedType.getActualType() == Serializable.class) {
-                    this.deserializer = SERIALIZABLE_DESERIALIZER;
-                } else {
-                    this.deserializer = null;
-                }
+            if (implClass != null) {
+                this.deserializer = getTypeDeserializer(implClass);
+                this.genericParameterizedType = GenericParameterizedType.actualType(implClass);
             } else {
-                if(genericParameterizedType.getActualClassCategory() == ReflectConsts.ClassCategory.ObjectCategory && unfixedType) {
-                    this.deserializer = null;
+                if (setterInfo.isNonInstanceType()) {
+                    if (genericParameterizedType.getActualType() == Serializable.class) {
+                        this.deserializer = SERIALIZABLE_DESERIALIZER;
+                    } else {
+                        this.deserializer = null;
+                    }
                 } else {
-                    this.deserializer = getDeserializer(genericParameterizedType);
+                    if (genericParameterizedType.getActualClassCategory() == ReflectConsts.ClassCategory.ObjectCategory && unfixedType) {
+                        this.deserializer = null;
+                    } else {
+                        this.deserializer = getDeserializer(genericParameterizedType);
+                    }
                 }
             }
+            initialized = true;
         }
     }
 
@@ -197,7 +201,7 @@ public class JSONPojoFieldDeserializer extends JSONTypeDeserializer {
 
     public boolean isAvailableImpl(Class<?> cls) {
         boolean assignableFrom = genericParameterizedType.getActualType().isAssignableFrom(cls);
-        if(!assignableFrom) return false;
+        if (!assignableFrom) return false;
         switch (classCategory) {
             case MapCategory:
             case CollectionCategory:

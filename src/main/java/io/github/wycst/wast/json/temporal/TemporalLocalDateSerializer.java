@@ -40,8 +40,6 @@ public class TemporalLocalDateSerializer extends JSONTemporalSerializer {
         int year = TemporalAloneInvoker.invokeLocalDateYear(value);
         int month = TemporalAloneInvoker.invokeLocalDateMonth(value);
         int day = TemporalAloneInvoker.invokeLocalDateDay(value);
-        writer.write('"');
-        writer.writeLocalDate(year, month, day);
-        writer.write('"');
+        writer.writeJSONLocalDate(year, month, day);
     }
 }

@@ -608,10 +608,10 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                         return null;
                     }
                 } else {
-                    throw new JSONException("Syntax error, unexpected token character '" + ch + "', position " + i);
+                    throw new JSONException("Syntax error, unexpected '" + ch + "', position " + i);
                 }
             } else {
-                throw new JSONException("Syntax error, unexpected token character '" + ch + "', position " + i);
+                throw new JSONException("Syntax error, unexpected '" + ch + "', position " + i);
             }
         }
         throw new JSONException("Syntax error, the closing symbol '}' is not found ");
@@ -812,7 +812,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                     return null;
                 }
             } else {
-                throw new JSONException("Syntax error, unexpected token character '" + ch + "', position " + i + ", Missing ',' or '}'");
+                throw new JSONException("Syntax error, unexpected '" + ch + "', position " + i + ", Missing ',' or '}'");
             }
         }
         throw new JSONException("Syntax error, the closing symbol ']' is not found ");
@@ -1109,7 +1109,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                         key = JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, true);
                     } else {
                         String errorContextTextAt = createErrorContextText(buf, i);
-                        throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', expected '\"' or use option ReadOption.AllowUnquotedFieldNames ");
+                        throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + ch + "', expected '\"' or use option ReadOption.AllowUnquotedFieldNames ");
                     }
                 }
             }
@@ -1156,10 +1156,10 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                         return value;
                     }
                 } else {
-                    throw new JSONException("Syntax error, unexpected token character '" + ch + "', position " + i);
+                    throw new JSONException("Syntax error, unexpected '" + ch + "', position " + i);
                 }
             } else {
-                throw new JSONException("Syntax error, unexpected token character '" + ch + "', position " + i);
+                throw new JSONException("Syntax error, unexpected '" + ch + "', position " + i);
             }
         }
         return null;
@@ -1214,7 +1214,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                     return value;
                 }
             } else {
-                throw new JSONException("Syntax error, unexpected token character '" + ch + "', position " + i + ", Missing ',' or '}'");
+                throw new JSONException("Syntax error, unexpected '" + ch + "', position " + i + ", Missing ',' or '}'");
             }
         }
 

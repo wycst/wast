@@ -66,16 +66,18 @@ public class JSONParseContext {
      */
     public boolean useJDKDoubleParser;
 
-//    /**
-//     * 使用字段反序列化
-//     */
-//    public boolean useFields;
-
     /**
      * 禁用cache key
      */
     public boolean disableCacheMapKey;
     public boolean unMatchedEmptyAsNull;
+
+    private boolean escape = true;
+    private int escapeOffset = -1;
+    private String[] strings;
+    private double[] doubles;
+    private long[] longs;
+    private int[] ints;
 
     public void setContextWriter(JSONCharArrayWriter writer) {
         this.writer = writer;
@@ -87,7 +89,35 @@ public class JSONParseContext {
         }
         return writer;
     }
-    
+
+    public String[] getContextStrings() {
+        if(strings == null) {
+            strings = new String[16];
+        }
+        return strings;
+    }
+
+    public double[] getContextDoubles() {
+        if(doubles == null) {
+            doubles = new double[16];
+        }
+        return doubles;
+    }
+
+    public long[] getContextLongs() {
+        if(longs == null) {
+            longs = new long[16];
+        }
+        return longs;
+    }
+
+    public int[] getContextInts() {
+        if(ints == null) {
+            ints = new int[16];
+        }
+        return ints;
+    }
+
     public final String getCacheKey(char[] buf, int offset, int len, long hashCode) {
         return JSONOptions.getCacheKey(buf, offset, len, hashCode);
     }
@@ -99,11 +129,12 @@ public class JSONParseContext {
     public void clear() {
         if (writer != null) {
             writer.reset();
+            writer = null;
         }
+        strings = null;
+        longs = null;
+        ints = null;
     }
-
-    private boolean escape = true;
-    private int escapeOffset = -1;
 
     public final boolean checkEscapeUseChar(String input, int fromIndex, int endIndex) {
         if(!escape || endIndex < escapeOffset) return false;

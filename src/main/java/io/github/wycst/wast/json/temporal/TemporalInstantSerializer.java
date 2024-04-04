@@ -39,18 +39,14 @@ public class TemporalInstantSerializer extends JSONTemporalSerializer {
     protected void writeDefault(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
         long epochSeconds = TemporalAloneInvoker.invokeInstantEpochSeconds(value);
         int nano = TemporalAloneInvoker.invokeInstantNano(value);
-
-        GeneralDate generalDate = new GeneralDate(epochSeconds * 1000, ZERO_TIME_ZONE);
-        int year = generalDate.getYear();
-        int month = generalDate.getMonth();
-        int day = generalDate.getDay();
-        int hour = generalDate.getHourOfDay();
-        int minute = generalDate.getMinute();
-        int second = generalDate.getSecond();
-
-        writer.write('"');
-        writer.writeLocalDateTime(year, month, day, hour, minute, second, nano);
-        writer.write('Z');
-        writer.write('"');
+//        GeneralDate generalDate = new GeneralDate(epochSeconds * 1000, ZERO_TIME_ZONE);
+//        int year = generalDate.getYear();
+//        int month = generalDate.getMonth();
+//        int day = generalDate.getDay();
+//        int hour = generalDate.getHourOfDay();
+//        int minute = generalDate.getMinute();
+//        int second = generalDate.getSecond();
+//        writer.writeJSONLocalDateTime(year, month, day, hour, minute, second, nano, "Z");
+        writer.writeJSONInstant(epochSeconds, nano);
     }
 }

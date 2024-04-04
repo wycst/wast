@@ -103,4 +103,8 @@ public class TemporalLocalDateTimeDeserializer extends JSONTemporalDeserializer 
         throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', unexpected token '" + (char) c + "', expected '" + endChar + "'");
     }
 
+    @Override
+    protected Object valueOf(String value, Class<?> actualType) throws Exception {
+        return TemporalAloneInvoker.parseLocalDateTime(value);
+    }
 }

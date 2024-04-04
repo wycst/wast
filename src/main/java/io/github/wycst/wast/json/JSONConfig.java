@@ -40,6 +40,11 @@ public final class JSONConfig {
     private boolean formatOut;
 
     /**
+     * 格式化输出
+     */
+    private boolean formatOutColonSpace;
+
+    /**
      * 格式化缩进使用空格模式
      */
     private boolean formatIndentUseSpace = defaultFormatIndentUseSpace;
@@ -211,6 +216,14 @@ public final class JSONConfig {
 
     public void setFormatOut(boolean formatOut) {
         this.formatOut = formatOut;
+    }
+
+    public boolean isFormatOutColonSpace() {
+        return formatOutColonSpace;
+    }
+
+    public void setFormatOutColonSpace(boolean formatOutColonSpace) {
+        this.formatOutColonSpace = formatOutColonSpace;
     }
 
     public boolean isFullProperty() {

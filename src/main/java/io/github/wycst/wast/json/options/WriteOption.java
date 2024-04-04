@@ -20,6 +20,11 @@ public enum WriteOption {
     FormatOut,
 
     /**
+     * 格式化缩进输出对象属性时是否在冒号后面追加一个空格
+     */
+    FormatOutColonSpace,
+
+    /**
      * 格式化缩进使用TAB模式(缺省配置)
      */
     FormatIndentUseTab,

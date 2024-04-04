@@ -204,7 +204,7 @@ public class YamlJSON extends YamlGeneral {
                     return list;
                 }
             } else {
-                throw new YamlParseException("Syntax error, unexpected token character '" + ch + "', position " + i + ", Missing ',' or ']'");
+                throw new YamlParseException("Syntax error, unexpected '" + ch + "', position " + i + ", Missing ',' or ']'");
             }
         }
         throw new YamlParseException("Syntax error, the closing symbol ']' is not found ");
@@ -334,10 +334,10 @@ public class YamlJSON extends YamlGeneral {
                         return instance;
                     }
                 } else {
-                    throw new YamlParseException("Syntax error, unexpected token character '" + ch + "', position " + i);
+                    throw new YamlParseException("Syntax error, unexpected '" + ch + "', position " + i);
                 }
             } else {
-                throw new YamlParseException("Syntax error, unexpected token character '" + ch + "', position " + i);
+                throw new YamlParseException("Syntax error, unexpected '" + ch + "', position " + i);
             }
         }
         throw new YamlParseException("Syntax error, the closing symbol '}' is not found ");

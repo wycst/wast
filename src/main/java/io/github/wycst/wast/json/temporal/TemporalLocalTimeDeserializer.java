@@ -96,4 +96,9 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
         String errorContextTextAt = createErrorContextText(buf, offset);
         throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', unexpected token '" + (char) c + "', expected '" + endChar + "'");
     }
+
+    @Override
+    protected Object valueOf(String value, Class<?> actualType) throws Exception {
+        return TemporalAloneInvoker.parseLocalTime(value);
+    }
 }

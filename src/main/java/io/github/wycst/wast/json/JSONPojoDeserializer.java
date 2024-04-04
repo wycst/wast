@@ -47,7 +47,7 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
             }
             // not support or custom handle ?
             String errorContextTextAt = createErrorContextText(buf, fromIndex);
-            throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected token character '" + beginChar + "' for Object Type, expected '{' ");
+            throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected '" + beginChar + "' for Object Type, expected '{' ");
         }
     }
 
@@ -66,7 +66,7 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                 }
                 // not support or custom handle ?
                 String errorContextTextAt = createErrorContextText(buf, fromIndex);
-                throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected token character '" + (char) beginByte + "' for Object Type, expected '{' ");
+                throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected '" + (char) beginByte + "' for Object Type, expected '{' ");
             }
         }
     }
@@ -110,11 +110,18 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                     }
                     fieldDeserializer = getFieldDeserializer(buf, ++fieldKeyFrom, i, hashValue);
                     if(fieldDeserializer == null) {
-                        if(buf[i - 1] == '\\') {
-                            // skip
-                            char prev = 0;
-                            while (((ch = buf[++i]) != '"' || prev == '\\')) {
-                                prev = ch;
+                        int j = i - 1;
+                        if(buf[j] == '\\') {
+                            boolean isPrevEscape = true;
+                            while (buf[--j] == '\\') {
+                                isPrevEscape = !isPrevEscape;
+                            }
+                            if(isPrevEscape) {
+                                // skip
+                                char prev = 0;
+                                while (((ch = buf[++i]) != '"' || prev == '\\')) {
+                                    prev = ch;
+                                }
                             }
                         }
                     }
@@ -222,7 +229,7 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                                                 value = pojo(fieldPojoDeserializer.createPojo());
                                             } else {
                                                 String errorContextTextAt = createErrorContextText(buf, i);
-                                                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', expected ',' or '}'");
+                                                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + ch + "', expected ',' or '}'");
                                             }
                                             setFieldValue((T) entity, fieldDeserializer, value);
                                             while ((ch = buf[++i]) <= ' ') ;
@@ -234,7 +241,7 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                                                 return pojo(entity);
                                             }
                                             String errorContextTextAt = createErrorContextText(buf, i);
-                                            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', expected ',' or '}'");
+                                            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + ch + "', expected ',' or '}'");
                                         } else {
                                             isDeserialize = false;
                                         }
@@ -256,7 +263,7 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                                         return pojo(entity);
                                     }
                                     String errorContextTextAt = createErrorContextText(buf, i);
-                                    throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', expected ',' or '}'");
+                                    throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + ch + "', expected ',' or '}'");
                                 }
                             }
                         }
@@ -293,10 +300,10 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                     return pojo(entity);
                 }
                 String errorContextTextAt = createErrorContextText(buf, i);
-                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', expected ',' or '}'");
+                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + ch + "', expected ',' or '}'");
             } else {
                 String errorContextTextAt = createErrorContextText(buf, i);
-                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', token character ':' is expected.");
+                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + ch + "', token character ':' is expected.");
             }
         }
     }
@@ -336,11 +343,18 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                     }
                     fieldDeserializer = getFieldDeserializer(buf, ++fieldKeyFrom, i, hashValue);
                     if(fieldDeserializer == null) {
-                        if(buf[i - 1] == ESCAPE) {
-                            // skip
-                            byte prev = 0;
-                            while (((b = buf[++i]) != DOUBLE_QUOTATION || prev == ESCAPE)) {
-                                prev = b;
+                        int j = i - 1;
+                        if(buf[j] == ESCAPE) {
+                            boolean isPrevEscape = true;
+                            while (buf[--j] == ESCAPE) {
+                                isPrevEscape = !isPrevEscape;
+                            }
+                            if(isPrevEscape) {
+                                byte prev = 0;
+                                // skip
+                                while (((b = buf[++i]) != DOUBLE_QUOTATION || prev == ESCAPE)) {
+                                    prev = b;
+                                }
                             }
                         }
                     }
@@ -449,7 +463,7 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                                                 value = pojo(fieldPojoDeserializer.createPojo());
                                             } else {
                                                 String errorContextTextAt = createErrorContextText(buf, i);
-                                                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + (char)b + "', expected ',' or '}'");
+                                                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + (char)b + "', expected ',' or '}'");
                                             }
                                             setFieldValue((T) entity, fieldDeserializer, value);
                                             while ((b = buf[++i]) <= ' ') ;
@@ -461,7 +475,7 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                                                 return pojo(entity);
                                             }
                                             String errorContextTextAt = createErrorContextText(buf, i);
-                                            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + (char) b + "', expected ',' or '}'");
+                                            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + (char) b + "', expected ',' or '}'");
                                         } else {
                                             isDeserialize = false;
                                         }
@@ -483,7 +497,7 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                                         return pojo(entity);
                                     }
                                     String errorContextTextAt = createErrorContextText(buf, i);
-                                    throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + (char) b + "', expected ',' or '}'");
+                                    throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + (char) b + "', expected ',' or '}'");
                                 }
                             }
                         }
@@ -520,10 +534,10 @@ public abstract class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                     return pojo(entity);
                 }
                 String errorContextTextAt = createErrorContextText(buf, i);
-                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + (char) b + "', expected ',' or '}'");
+                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + (char) b + "', expected ',' or '}'");
             } else {
                 String errorContextTextAt = createErrorContextText(buf, i);
-                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + (char) b + "', token character ':' is expected.");
+                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + (char) b + "', token character ':' is expected.");
             }
         }
     }

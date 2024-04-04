@@ -41,7 +41,7 @@ public class TemporalZonedDateTimeSerializer extends JSONTemporalSerializer {
         // localDateTime
         writeDate(year, month, day, hour, minute, second, millisecond, dateFormatter, writer);
         String zoneId = TemporalAloneInvoker.invokeZonedDateTimeZone(value).toString();
-        writeZoneId(writer, zoneId);
+        writer.writeZoneId(zoneId);
         writer.write('"');
     }
 
@@ -56,10 +56,6 @@ public class TemporalZonedDateTimeSerializer extends JSONTemporalSerializer {
         int minute = TemporalAloneInvoker.invokeZonedDateTimeMinute(value);
         int second = TemporalAloneInvoker.invokeZonedDateTimeSecond(value);
         int nano = TemporalAloneInvoker.invokeZonedDateTimeNano(value);
-        writer.write('"');
-        writer.writeLocalDateTime(year, month, day, hour, minute, second, nano);
-        String zoneId = TemporalAloneInvoker.invokeZonedDateTimeZone(value).toString();
-        writeZoneId(writer, zoneId);
-        writer.write('"');
+        writer.writeJSONLocalDateTime(year, month, day, hour, minute, second, nano, TemporalAloneInvoker.invokeZonedDateTimeZone(value).toString());
     }
 }

@@ -45,7 +45,7 @@ class JSONWrapWriter extends JSONWriter {
     }
 
     @Override
-    void writeShortChars(char[] chars, int offset, int len) throws IOException {
+    public void writeShortChars(char[] chars, int offset, int len) throws IOException {
         write(chars, offset, len);
     }
 
@@ -67,7 +67,7 @@ class JSONWrapWriter extends JSONWriter {
     }
 
     @Override
-    void writeUUID(UUID uuid) throws IOException {
+    public void writeUUID(UUID uuid) throws IOException {
         long mostSigBits = uuid.getMostSignificantBits();
         long leastSigBits = uuid.getLeastSignificantBits();
         writer.write('"');
@@ -95,8 +95,9 @@ class JSONWrapWriter extends JSONWriter {
     }
 
     @Override
-    public void writeLocalDateTime(int year, int month, int day, int hour, int minute, int second, int nano) throws IOException {
+    public void writeJSONLocalDateTime(int year, int month, int day, int hour, int minute, int second, int nano, String zoneId) throws IOException {
         int y1 = year / 100, y2 = year - y1 * 100;
+        writer.write('"');
         writer.write(JSONGeneral.DigitTens[y1]);
         writer.write(JSONGeneral.DigitOnes[y1]);
         writer.write(JSONGeneral.DigitTens[y2]);
@@ -117,12 +118,14 @@ class JSONWrapWriter extends JSONWriter {
         writer.write(JSONGeneral.DigitTens[second]);
         writer.write(JSONGeneral.DigitOnes[second]);
         writeNano(nano, writer);
+        writeZoneId(zoneId);
+        writer.write('"');
     }
 
     @Override
-    public void writeLocalDate(int year, int month, int day) throws IOException {
+    public void writeJSONLocalDate(int year, int month, int day) throws IOException {
         int y1 = year / 100, y2 = year - y1 * 100;
-        char[] chars = JSONGeneral.CACHED_CHARS_DATE_19.get();
+        char[] chars = JSONGeneral.CACHED_CHARS_DATE_21.get();
         chars[1] = JSONGeneral.DigitTens[y1];
         chars[2] = JSONGeneral.DigitOnes[y1];
         chars[3] = JSONGeneral.DigitTens[y2];
@@ -133,8 +136,10 @@ class JSONWrapWriter extends JSONWriter {
 
         chars[9] = JSONGeneral.DigitTens[day];
         chars[10] = JSONGeneral.DigitOnes[day];
-        // yyyy-MM-dd
-        writer.write(chars, 0, 10);
+        // "yyyy-MM-dd
+        writer.write(chars, 0, 11);
+        // "
+        writer.write('"');
     }
 
     @Override
@@ -150,7 +155,8 @@ class JSONWrapWriter extends JSONWriter {
     }
 
     @Override
-    public void writeTimeWithNano(int hourOfDay, int minute, int second, int nano) throws IOException {
+    public void writeJSONTimeWithNano(int hourOfDay, int minute, int second, int nano) throws IOException {
+        writer.write('"');
         writer.write(JSONGeneral.DigitTens[hourOfDay]);
         writer.write(JSONGeneral.DigitOnes[hourOfDay]);
         writer.write(':');
@@ -160,12 +166,13 @@ class JSONWrapWriter extends JSONWriter {
         writer.write(JSONGeneral.DigitTens[second]);
         writer.write(JSONGeneral.DigitOnes[second]);
         writeNano(nano, writer);
+        writer.write('"');
     }
 
     @Override
     public void writeDate(int year, int month, int day, int hourOfDay, int minute, int second) throws IOException {
         int y1 = year / 100, y2 = year - y1 * 100;
-        char[] chars = JSONGeneral.CACHED_CHARS_DATE_19.get();
+        char[] chars = JSONGeneral.CACHED_CHARS_DATE_21.get();
         chars[1] = JSONGeneral.DigitTens[y1];
         chars[2] = JSONGeneral.DigitOnes[y1];
         chars[3] = JSONGeneral.DigitTens[y2];
@@ -185,7 +192,8 @@ class JSONWrapWriter extends JSONWriter {
 
         chars[18] = JSONGeneral.DigitTens[second];
         chars[19] = JSONGeneral.DigitOnes[second];
-        writer.write(chars);
+        // yyyy-MM-dd HH:mm:ss
+        writer.write(chars, 1, 20);
     }
 
     @Override
@@ -194,11 +202,6 @@ class JSONWrapWriter extends JSONWriter {
         char[] chars = new char[increment];
         int len = NumberUtils.writeBigInteger(bigInteger, chars, 0);
         writer.write(chars, 0, len);
-    }
-
-    @Override
-    void writeJSONStringKey(String value) throws IOException {
-        writer.append('"').append(value).append('"').append(':');
     }
 
     @Override

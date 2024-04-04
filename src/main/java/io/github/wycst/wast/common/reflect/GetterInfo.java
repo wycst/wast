@@ -27,6 +27,7 @@ public class GetterInfo {
 
     // 输出值分类
     private ReflectConsts.ClassCategory classCategory;
+    private boolean record;
 
     public static GetterInfo fromField(Field field) {
         GetterInfo getterInfo = new GetterInfo();
@@ -129,9 +130,9 @@ public class GetterInfo {
         return false;
     }
 
-    // 是否private私有方法
-    public boolean isPrivate() {
-        return Modifier.isPrivate(field.getModifiers());
+    // 是否可访问
+    public boolean isAccess() {
+        return !Modifier.isPrivate(field.getModifiers());
     }
 
     public boolean isPrimitive() {
@@ -140,5 +141,17 @@ public class GetterInfo {
 
     public String getMethodName() {
         return null;
+    }
+
+    public String generateCode() {
+        if (record) {
+            // use by Record access
+            return field.getName() + "()";
+        }
+        return field.getName();
+    }
+
+    public void setRecord(boolean record) {
+        this.record = record;
     }
 }

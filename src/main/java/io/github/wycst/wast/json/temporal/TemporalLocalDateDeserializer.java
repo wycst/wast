@@ -67,4 +67,11 @@ public class TemporalLocalDateDeserializer extends JSONTemporalDeserializer {
         String errorContextTextAt = createErrorContextText(buf, offset);
         throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', unexpected token '" + (char) buf[offset] + "', expected '" + endChar + "'");
     }
+
+    @Override
+    protected Object valueOf(String value, Class<?> actualType) throws Exception {
+        // GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
+        // return TemporalAloneInvoker.ofLocalDate(generalDate.getYear(), generalDate.getMonth(), generalDate.getDay());
+        return TemporalAloneInvoker.parseLocalDate(value);
+    }
 }

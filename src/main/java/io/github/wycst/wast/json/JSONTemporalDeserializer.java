@@ -111,7 +111,7 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
             default: {
                 // not support or custom handle ?
                 String errorContextTextAt = createErrorContextText(buf, fromIndex);
-                throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected token character '" + beginChar + "' for Temporal Type, expected '\"' ");
+                throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected '" + beginChar + "' for Temporal Type, expected '\"' ");
             }
         }
     }
@@ -139,7 +139,7 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
                 if(patternType == 0) {
                     return deserializeDefaultTemporal(buf, fromIndex + 1, beginChar, jsonParseContext);
                 } else {
-                    CHAR_SEQUENCE_STRING.skip(charSource, buf, fromIndex, toIndex, jsonParseContext);
+                    CHAR_SEQUENCE_STRING.skip(charSource, buf, fromIndex, beginChar, jsonParseContext);
                     int endIndex = jsonParseContext.endIndex;
                     try {
                         return deserializeTemporal(buf, fromIndex, endIndex, jsonParseContext);
@@ -157,7 +157,7 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
             default: {
                 // not support or custom handle ?
                 String errorContextTextAt = createErrorContextText(buf, fromIndex);
-                throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected token character '" + beginChar + "' for Temporal Type, expected '\"' ");
+                throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected '" + beginChar + "' for Temporal Type, expected '\"' ");
             }
         }
     }

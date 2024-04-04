@@ -44,6 +44,8 @@ final class JSONOptions {
                 case FormatOut:
                     jsonConfig.setFormatOut(true);
                     break;
+                case FormatOutColonSpace:
+                    jsonConfig.setFormatOutColonSpace(true);
                 case FormatIndentUseTab:
                     jsonConfig.setFormatIndentUseSpace(false);
                     break;

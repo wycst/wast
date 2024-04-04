@@ -94,13 +94,13 @@ public class TemporalZonedDateTimeDeserializer extends JSONTemporalDeserializer 
         int nanoOfSecond = 0;
         offset += 19;
         char c = buf[offset];
-        if(c == '.') {
+        if (c == '.') {
             int cnt = 9;
             while (isDigit((c = buf[++offset]))) {
                 nanoOfSecond = (nanoOfSecond << 3) + (nanoOfSecond << 1) + c - 48;
                 --cnt;
             }
-            if(cnt > 0) {
+            if (cnt > 0) {
                 nanoOfSecond *= NANO_OF_SECOND_PADDING[cnt];
             }
         }
@@ -116,23 +116,23 @@ public class TemporalZonedDateTimeDeserializer extends JSONTemporalDeserializer 
             case '-': {
                 int zoneBeginOff = offset;
                 // parse +08:00
-                while (isDigit(c = buf[++offset]) || c == ':');
+                while (isDigit(c = buf[++offset]) || c == ':') ;
                 zoneObject = TemporalAloneInvoker.ofZoneId(new String(buf, offset, offset - zoneBeginOff));
                 break;
             }
         }
-        if(c == '[') {
+        if (c == '[') {
             if (supportedZoneRegion()) {
                 int zoneRegionOff = offset;
-                while (buf[++offset] != ']');
+                while (buf[++offset] != ']') ;
                 zoneObject = TemporalAloneInvoker.ofZoneId(new String(buf, zoneRegionOff + 1, offset - zoneRegionOff - 1));
                 c = buf[++offset];
             } else {
-                while (buf[++offset] != ']');
+                while (buf[++offset] != ']') ;
                 c = buf[++offset];
             }
         }
-        if(c == endChar) {
+        if (c == endChar) {
             jsonParseContext.endIndex = offset;
             return ofTemporalDateTime(year, month, day, hour, minute, second, nanoOfSecond, zoneObject);
         }
@@ -153,13 +153,13 @@ public class TemporalZonedDateTimeDeserializer extends JSONTemporalDeserializer 
         int nanoOfSecond = 0;
         offset += 19;
         byte c = buf[offset];
-        if(c == '.') {
+        if (c == '.') {
             int cnt = 9;
             while (isDigit((c = buf[++offset]))) {
                 nanoOfSecond = (nanoOfSecond << 3) + (nanoOfSecond << 1) + c - 48;
                 --cnt;
             }
-            if(cnt > 0) {
+            if (cnt > 0) {
                 nanoOfSecond *= NANO_OF_SECOND_PADDING[cnt];
             }
         }
@@ -175,23 +175,23 @@ public class TemporalZonedDateTimeDeserializer extends JSONTemporalDeserializer 
             case '-': {
                 int zoneBeginOff = offset;
                 // parse +08:00
-                while (isDigit(c = buf[++offset]) || c == ':');
+                while (isDigit(c = buf[++offset]) || c == ':') ;
                 zoneObject = TemporalAloneInvoker.ofZoneId(new String(buf, offset, offset - zoneBeginOff));
                 break;
             }
         }
-        if(c == '[') {
+        if (c == '[') {
             if (supportedZoneRegion()) {
                 int zoneRegionOff = offset;
-                while (buf[++offset] != ']');
+                while (buf[++offset] != ']') ;
                 zoneObject = TemporalAloneInvoker.ofZoneId(new String(buf, zoneRegionOff + 1, offset - zoneRegionOff - 1));
                 c = buf[++offset];
             } else {
-                while (buf[++offset] != ']');
+                while (buf[++offset] != ']') ;
                 c = buf[++offset];
             }
         }
-        if(c == endChar) {
+        if (c == endChar) {
             jsonParseContext.endIndex = offset;
             return ofTemporalDateTime(year, month, day, hour, minute, second, nanoOfSecond, zoneObject);
         }
@@ -208,12 +208,12 @@ public class TemporalZonedDateTimeDeserializer extends JSONTemporalDeserializer 
         return TemporalAloneInvoker.getDefaultZoneId();
     }
 
-//    protected Object parseDateTime(CharSequence charSequence) throws Exception {
-//        return TemporalAloneInvoker.parseZonedDateTime(charSequence);
-//    }
-
     protected Temporal ofTemporalDateTime(int year, int month, int dayOfMonth, int hour, int minute, int second, int nanoOfSecond, Object zone) throws Exception {
         return (Temporal) TemporalAloneInvoker.ofZonedDateTime(year, month, dayOfMonth, hour, minute, second, nanoOfSecond, zone);
     }
 
+    @Override
+    protected Object valueOf(String value, Class<?> actualType) throws Exception {
+        return TemporalAloneInvoker.parseZonedDateTime(value);
+    }
 }

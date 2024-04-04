@@ -42,7 +42,7 @@ class JSONCharArrayStreamWriter extends JSONCharArrayWriter {
                 os.write(bytes, 0, count);
             }
         } else {
-            if (charset == EnvUtils.UTF_8) {
+            if (charset == EnvUtils.CHARSET_UTF_8) {
                 byte[] output = new byte[count * 3];
                 int length = IOUtils.encodeUTF8(buf, 0, count, output);
                 if (emptyByteArrayOs) {
@@ -55,7 +55,7 @@ class JSONCharArrayStreamWriter extends JSONCharArrayWriter {
                 bytes = source.getBytes(charset);
                 if (emptyByteArrayOs) {
                     UnsafeHelper.getUnsafe().putObject(os, UnsafeHelper.BAO_BUF_OFFSET, bytes);
-                    UnsafeHelper.getUnsafe().putInt(os, UnsafeHelper.BAO_COUNT_OFFSET, count);
+                    UnsafeHelper.getUnsafe().putInt(os, UnsafeHelper.BAO_COUNT_OFFSET, bytes.length);
                 } else {
                     os.write(bytes);
                 }

@@ -272,7 +272,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                 return list;
             }
             String errorContextTextAt = createErrorContextText(buf, i);
-            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', expected ',' or ']'");
+            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + ch + "', expected ',' or ']'");
         }
     }
 
@@ -331,7 +331,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                         }
                         if (!isNullKey) {
                             String errorContextTextAt = createErrorContextText(buf, j);
-                            throw new JSONException("Syntax error, at pos " + j + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', expected '\"' or use option ReadOption.AllowUnquotedFieldNames ");
+                            throw new JSONException("Syntax error, at pos " + j + ", context text by '" + errorContextTextAt + "', unexpected '" + ch + "', expected '\"' or use option ReadOption.AllowUnquotedFieldNames ");
                         }
                     }
                 }
@@ -417,9 +417,9 @@ public final class JSONDefaultParser extends JSONGeneral {
                     return instance;
                 }
                 String errorContextTextAt = createErrorContextText(buf, i);
-                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', expected ',' or '}'");
+                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + ch + "', expected ',' or '}'");
             } else {
-                throw new JSONException("Syntax error, at pos " + i + ", unexpected token character '" + ch + "', Colon character ':' is expected.");
+                throw new JSONException("Syntax error, at pos " + i + ", unexpected '" + ch + "', token ':' is expected.");
             }
         }
     }
@@ -700,7 +700,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                 return list;
             }
             String errorContextTextAt = createErrorContextText(bytes, i);
-            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + b + "', expected ',' or ']'");
+            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + b + "', expected ',' or ']'");
         }
     }
 
@@ -757,7 +757,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                         }
                         if (!isNullKey) {
                             String errorContextTextAt = createErrorContextText(bytes, j);
-                            throw new JSONException("Syntax error, at pos " + j + ", context text by '" + errorContextTextAt + "', unexpected token character '" + b + "', expected '\"' or use option ReadOption.AllowUnquotedFieldNames ");
+                            throw new JSONException("Syntax error, at pos " + j + ", context text by '" + errorContextTextAt + "', unexpected '" + b + "', expected '\"' or use option ReadOption.AllowUnquotedFieldNames ");
                         }
                     }
                 }
@@ -842,7 +842,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                 String errorContextTextAt = createErrorContextText(bytes, i);
                 throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token '" + (char) b + "', expected ',' or '}'");
             } else {
-                throw new JSONException("Syntax error, at pos " + i + ", unexpected token character '" + (char) b + "', colon ':' is expected.");
+                throw new JSONException("Syntax error, at pos " + i + ", unexpected '" + (char) b + "', colon ':' is expected.");
             }
         }
     }

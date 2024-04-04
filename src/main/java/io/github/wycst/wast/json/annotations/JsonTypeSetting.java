@@ -23,4 +23,10 @@ public @interface JsonTypeSetting {
      */
     boolean strict() default false;
 
+    /**
+     * Enable JIT optimization (currently only supported for beans of conventions)
+     *
+     * @return
+     */
+    boolean enableJIT() default false;
 }

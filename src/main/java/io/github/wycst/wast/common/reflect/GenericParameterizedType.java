@@ -369,6 +369,8 @@ public final class GenericParameterizedType<T> {
             if (Map.class.isAssignableFrom(genericClazz)) {
                 if (types.length == 2) {
                     genericParameterizedType.valueType = genericMapType(genericClazz, types[0], types[1]);
+                } else {
+                    genericParameterizedType.valueType = genericMapType(genericClazz, Object.class, Object.class);
                 }
             } else if (Collection.class.isAssignableFrom(genericClazz)) {
                 if (types.length == 1) {

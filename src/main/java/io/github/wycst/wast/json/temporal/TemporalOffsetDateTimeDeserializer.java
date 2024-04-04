@@ -30,4 +30,9 @@ public class TemporalOffsetDateTimeDeserializer extends TemporalZonedDateTimeDes
     protected boolean supportedZoneRegion() {
         return false;
     }
+
+    @Override
+    protected Object valueOf(String value, Class<?> actualType) throws Exception {
+        return TemporalAloneInvoker.parseOffsetDateTime(value);
+    }
 }

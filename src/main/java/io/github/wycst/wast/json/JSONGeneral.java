@@ -11,7 +11,6 @@ import io.github.wycst.wast.json.util.FixedNameValueMap;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.Writer;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
 import java.sql.Time;
@@ -27,9 +26,11 @@ class JSONGeneral {
     // Format output character pool
     static final char[] FORMAT_OUT_SYMBOL_TABS = "\n\t\t\t\t\t\t\t\t\t\t".toCharArray();
     static final char[] FORMAT_OUT_SYMBOL_SPACES = new char[32];
+
     static {
         Arrays.fill(FORMAT_OUT_SYMBOL_SPACES, ' ');
     }
+
     // null
     protected final static char[] NULL = new char[]{'n', 'u', 'l', 'l'};
     protected final static char[] EMPTY_ARRAY = new char[]{'[', ']'};
@@ -103,8 +104,8 @@ class JSONGeneral {
         }
     };
 
-    // yyyy-MM-dd HH:mm:ss
-    protected final static ThreadLocal<char[]> CACHED_CHARS_DATE_19 = new ThreadLocal<char[]>() {
+    // "yyyy-MM-dd HH:mm:ss"
+    protected final static ThreadLocal<char[]> CACHED_CHARS_DATE_21 = new ThreadLocal<char[]>() {
         @Override
         protected char[] initialValue() {
             char[] chars = new char[21];
@@ -245,9 +246,9 @@ class JSONGeneral {
         if (i > beginIndex) {
             writer.write(buf, beginIndex, i - beginIndex);
         }
-        if(next < ESCAPE_CHARS.length) {
+        if (next < ESCAPE_CHARS.length) {
             int escapeChar = ESCAPE_CHARS[next];
-            if(escapeChar > -1) {
+            if (escapeChar > -1) {
                 writer.write((char) escapeChar);
                 beginIndex = ++i + 1;
             } else {
@@ -382,7 +383,7 @@ class JSONGeneral {
         if (i > beginIndex) {
             writer.write(source, beginIndex, i - beginIndex);
         }
-        if(next == 'u') {
+        if (next == 'u') {
             int c;
             int j = i + 2;
             try {
@@ -399,8 +400,8 @@ class JSONGeneral {
             writer.write((char) c);
             i += 4;
             beginIndex = ++i + 1;
-        } else if(next < ESCAPE_CHARS.length) {
-            writer.write((char) ESCAPE_CHARS[next]);
+        } else if (next < ESCAPE_CHARS.length) {
+            writer.write((char) ESCAPE_CHARS[next & 0xFF]);
             beginIndex = ++i + 1;
         } else {
             writer.write((char) next);
@@ -532,7 +533,8 @@ class JSONGeneral {
             case '8':
             case '9':
                 return true;
-            default: return false;
+            default:
+                return false;
         }
     }
 
@@ -980,7 +982,7 @@ class JSONGeneral {
     protected final static int clearCommentAndWhiteSpaces(char[] buf, int beginIndex, int toIndex, JSONParseContext jsonParseContext) {
         int i = beginIndex;
         if (i >= toIndex) {
-            throw new JSONException("Syntax error, unexpected token character '/', position " + (beginIndex - 1));
+            throw new JSONException("Syntax error, unexpected '/', position " + (beginIndex - 1));
         }
         // 注释和 /*注释
         // / or *
@@ -1020,7 +1022,7 @@ class JSONGeneral {
                 i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext);
             }
         } else {
-            throw new JSONException("Syntax error, unexpected token character '" + ch + "', position " + beginIndex);
+            throw new JSONException("Syntax error, unexpected '" + ch + "', position " + beginIndex);
         }
         return i;
     }
@@ -1038,7 +1040,7 @@ class JSONGeneral {
     protected static int clearCommentAndWhiteSpaces(byte[] bytes, int beginIndex, int toIndex, JSONParseContext jsonParseContext) {
         int i = beginIndex;
         if (i >= toIndex) {
-            throw new JSONException("Syntax error, unexpected token character '/', position " + (beginIndex - 1));
+            throw new JSONException("Syntax error, unexpected '/', position " + (beginIndex - 1));
         }
         // 注释和 /*注释
         // / or *
@@ -1078,7 +1080,7 @@ class JSONGeneral {
                 i = clearCommentAndWhiteSpaces(bytes, i + 1, toIndex, jsonParseContext);
             }
         } else {
-            throw new JSONException("Syntax error, unexpected token character '" + (char) b + "', position " + beginIndex);
+            throw new JSONException("Syntax error, unexpected '" + (char) b + "', position " + beginIndex);
         }
         return i;
     }
@@ -1091,12 +1093,12 @@ class JSONGeneral {
      * @param formatOut
      * @throws IOException
      */
-    protected final static void writeFormatOutSymbols(Writer content, int level, boolean formatOut, JSONConfig jsonConfig) throws IOException {
+    protected final static void writeFormatOutSymbols(JSONWriter content, int level, boolean formatOut, JSONConfig jsonConfig) throws IOException {
         if (formatOut && level > -1) {
             boolean formatIndentUseSpace = jsonConfig.isFormatIndentUseSpace();
-            if(formatIndentUseSpace) {
+            if (formatIndentUseSpace) {
                 content.write('\n');
-                if(level == 0) return;
+                if (level == 0) return;
                 int totalSpaceNum = level * jsonConfig.getFormatIndentSpaceNum();
                 int symbolSpaceNum = FORMAT_OUT_SYMBOL_SPACES.length;
                 while (totalSpaceNum >= symbolSpaceNum) {
@@ -1323,17 +1325,6 @@ class JSONGeneral {
         return UnsafeHelper.toArray(collection, componentType);
     }
 
-    /**
-     * 数组元素读取
-     *
-     * @param arr
-     * @param index
-     * @return
-     */
-    protected static Object getArrayValueAt(Object arr, int index) {
-        return UnsafeHelper.arrayValueAt(arr, index);
-    }
-
     protected static final int COLLECTION_ARRAYLIST_TYPE = 1;
     protected static final int COLLECTION_HASHSET_TYPE = 2;
     protected static final int COLLECTION_OTHER_TYPE = 3;
@@ -1467,4 +1458,15 @@ class JSONGeneral {
     protected final static char[] getChars(String value) {
         return UnsafeHelper.getChars(value);
     }
+
+    /**
+     * get value
+     *
+     * @param value
+     * @return
+     */
+    protected final static Object getStringValue(String value) {
+        return UnsafeHelper.getStringValue(value);
+    }
+
 }

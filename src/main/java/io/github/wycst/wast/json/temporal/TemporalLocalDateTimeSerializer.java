@@ -49,8 +49,6 @@ public class TemporalLocalDateTimeSerializer extends JSONTemporalSerializer {
         int minute = TemporalAloneInvoker.invokeLocalDateTimeMinute(value);
         int second = TemporalAloneInvoker.invokeLocalDateTimeSecond(value);
         int nano = TemporalAloneInvoker.invokeLocalDateTimeNano(value);
-        writer.write('"');
-        writer.writeLocalDateTime(year, month, day, hour, minute, second, nano);
-        writer.write('"');;
+        writer.writeJSONLocalDateTime(year, month, day, hour, minute, second, nano, null);
     }
 }

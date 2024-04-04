@@ -3,7 +3,6 @@ package io.github.wycst.wast.common.reflect;
 import io.github.wycst.wast.common.exceptions.InvokeReflectException;
 
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 
 /**
  * 使用getter方法反射
@@ -36,9 +35,9 @@ final class GetterMethodInfo extends GetterInfo {
         return true;
     }
 
-    // 是否private私有方法
-    public boolean isPrivate() {
-        return Modifier.isPrivate(method.getModifiers());
+    // always public
+    public boolean isAccess() {
+        return true;
     }
 
     public Class<?> getReturnType() {
@@ -48,5 +47,9 @@ final class GetterMethodInfo extends GetterInfo {
     @Override
     public String getMethodName() {
         return method.getName();
+    }
+
+    public String generateCode() {
+        return method.getName() + "()";
     }
 }

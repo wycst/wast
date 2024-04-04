@@ -127,8 +127,6 @@ public class GeneralDate {
 
     protected static final YearMeta[] Positive_Year_Metas = new YearMeta[2100];
     protected static final long MaxCacheOffsetDays;
-    // TODO 公元元年之前
-    protected static final YearMeta[] Negative_Year_Metas = new YearMeta[2100];
     protected static final MonthDayMeta[] Month_Day_Of_Year = new MonthDayMeta[365];
     protected static final MonthDayMeta[] Month_Day_Of_LeapYear = new MonthDayMeta[366];
 

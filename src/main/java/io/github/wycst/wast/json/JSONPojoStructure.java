@@ -34,6 +34,9 @@ public final class JSONPojoStructure {
     private final boolean collision;
     private boolean forceUseFields;
     private JsonTypeSetting jsonTypeSetting;
+    volatile boolean initialized;
+    private final boolean supportedJavaBeanConvention;
+    private final boolean enableJIT;
 
     private JSONPojoStructure(ClassStructureWrapper classStructureWrapper) {
         classStructureWrapper.getClass();
@@ -44,6 +47,7 @@ public final class JSONPojoStructure {
         // serializer info
         List<GetterInfo> getterInfos = classStructureWrapper.getGetterInfos();
         List<JSONPojoFieldSerializer> fieldSerializers = new ArrayList<JSONPojoFieldSerializer>();
+        Map<String, JSONPojoFieldSerializer> fieldSerializerHashMap = new HashMap<String, JSONPojoFieldSerializer>();
         for (GetterInfo getterInfo : getterInfos) {
             JsonProperty jsonProperty = (JsonProperty) getterInfo.getAnnotation(JsonProperty.class);
             String name = getterInfo.getName();
@@ -58,6 +62,7 @@ public final class JSONPojoStructure {
             }
             JSONPojoFieldSerializer fieldSerializer = new JSONPojoFieldSerializer(getterInfo, name);
             fieldSerializers.add(fieldSerializer);
+            fieldSerializerHashMap.put(name, fieldSerializer);
         }
         getterMethodSerializers = fieldSerializers.toArray(new JSONPojoFieldSerializer[fieldSerializers.size()]);
 
@@ -79,12 +84,13 @@ public final class JSONPojoStructure {
             fieldSerializers.add(fieldSerializer);
         }
         getterFieldSerializers = fieldSerializers.toArray(new JSONPojoFieldSerializer[fieldSerializers.size()]);
+        supportedJavaBeanConvention = checkJavaBeanConvention(fieldSerializerHashMap);
 
         // 反序列化初始化
         this.genericType = GenericParameterizedType.actualType(classStructureWrapper.getSourceClass());
         Set<String> setterNames = classStructureWrapper.setterNames();
 
-        Map<String, JSONPojoFieldDeserializer> fieldSerializerMap = new HashMap<String, JSONPojoFieldDeserializer>();
+        Map<String, JSONPojoFieldDeserializer> fieldDeserializerHashMap = new HashMap<String, JSONPojoFieldDeserializer>();
         for (String setterName : setterNames) {
             SetterInfo setterInfo = classStructureWrapper.getSetterInfo(setterName);
             JsonProperty jsonProperty = (JsonProperty) setterInfo.getAnnotation(JsonProperty.class);
@@ -98,14 +104,44 @@ public final class JSONPojoStructure {
                 }
             }
             JSONPojoFieldDeserializer fieldDeserializer = new JSONPojoFieldDeserializer(name, setterInfo, jsonProperty);
-            fieldSerializerMap.put(name, fieldDeserializer);
+            fieldDeserializerHashMap.put(name, fieldDeserializer);
         }
-        this.fieldDeserializers = new ArrayList<JSONPojoFieldDeserializer>(fieldSerializerMap.values());
-        this.fixedFieldDeserializerValueMap = FixedNameValueMap.build(fieldSerializerMap);
+        this.fieldDeserializers = new ArrayList<JSONPojoFieldDeserializer>(fieldDeserializerHashMap.values());
+        this.fixedFieldDeserializerValueMap = FixedNameValueMap.build(fieldDeserializerHashMap);
         this.collision = this.fixedFieldDeserializerValueMap.isCollision() || (jsonTypeSetting != null && jsonTypeSetting.strict());
+        this.enableJIT = jsonTypeSetting != null && jsonTypeSetting.enableJIT();
     }
 
-    private void init() {
+    /**
+     * 检查pojo是否满足实体bean公约规范（每个属性都定义了相应的getter/setter方法）
+     *
+     * @param fieldSerializerHashMap
+     * @return
+     */
+    private boolean checkJavaBeanConvention(Map<String, JSONPojoFieldSerializer> fieldSerializerHashMap) {
+        // private class is not supported
+//        if (classStructureWrapper.isPrivate()) {
+//            return false;
+//        }
+//        if (classStructureWrapper.isForceUseFields()) return true;
+//        for (JSONPojoFieldSerializer fieldSerializer : getterFieldSerializers) {
+//            JSONPojoFieldSerializer methodSerializer = fieldSerializerHashMap.get(fieldSerializer.name);
+//            if (methodSerializer == null || methodSerializer.getGetterInfo().getReturnType() != fieldSerializer.getGetterInfo().getReturnType() || !methodSerializer.getGetterInfo().existField()) {
+//                return false;
+//            }
+//        }
+        return !classStructureWrapper.isPrivate();
+    }
+
+    void ensureInitialized() {
+        if (initialized) return;
+        synchronized (this) {
+            if (initialized) return;
+            initialize();
+        }
+    }
+
+    void initialize() {
         for (JSONPojoFieldDeserializer fieldDeserializer : fieldDeserializers) {
             fieldDeserializer.initDeserializer();
         }
@@ -115,6 +151,7 @@ public final class JSONPojoStructure {
         for (JSONPojoFieldSerializer fieldSerializer : getterFieldSerializers) {
             fieldSerializer.initSerializer();
         }
+        initialized = true;
     }
 
     public Class<?> getSourceClass() {
@@ -197,7 +234,7 @@ public final class JSONPojoStructure {
             objectWrapper = new JSONPojoStructure(classStructureWrapper);
             objectStructureWarppers.put(pojoClass, objectWrapper);
             // Delay initialization to solve the problem of circular dependency
-            objectWrapper.init();
+            objectWrapper.initialize();
         }
         return objectWrapper;
     }
@@ -233,4 +270,23 @@ public final class JSONPojoStructure {
     public boolean isForceUseFields() {
         return forceUseFields;
     }
+
+    /**
+     * supported java bean convention
+     *
+     * @return
+     */
+    public boolean isSupportedJavaBeanConvention() {
+        return this.supportedJavaBeanConvention;
+    }
+
+    /**
+     * if supported JIT optimization
+     *
+     * @return
+     */
+    public boolean isSupportedJIT() {
+        return isSupportedJavaBeanConvention() && enableJIT;
+    }
+
 }

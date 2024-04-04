@@ -60,9 +60,6 @@ public final class NumberUtils {
     final static int[] TWO_DIGITS_32_BITS = new int[100];
     final static short[] TWO_DIGITS_16_BITS = new short[100];
 
-    final static int[] DOUBLE_CHAR_BITS = new int[100];
-    final static short[] DOUBLE_BYTE_BITS = new short[100];
-
     final static long[] POW5_LONG_VALUES = new long[27];
 
     static {
@@ -77,32 +74,39 @@ public final class NumberUtils {
         }
         // 4.9e-324
         NEGATIVE_DECIMAL_POWER[NEGATIVE_DECIMAL_POWER.length - 1] = Double.MIN_VALUE;
-        NEGATIVE_DECIMAL_POWER_CHARS[NEGATIVE_DECIMAL_POWER_CHARS.length - 1] = "4.9e-324".toCharArray();
+        NEGATIVE_DECIMAL_POWER_CHARS[NEGATIVE_DECIMAL_POWER_CHARS.length - 1] = "4.9E-324".toCharArray();
 
         long val = 1;
         for (int i = 0; i < POW5_LONG_VALUES.length; ++i) {
             POW5_LONG_VALUES[i] = val;
             val *= 5;
         }
-        // double digit bits
-        for (int i = 0; i < 100; ++i) {
-            char one = DigitOnes[i];
-            char ten = DigitTens[i];
-            DOUBLE_CHAR_BITS[i] = ((one << 16) | ten);
-            DOUBLE_BYTE_BITS[i] = (short) ((one << 8) | ten);
-        }
 
         for (long d1 = 0; d1 < 10; ++d1) {
             for (long d2 = 0; d2 < 10; ++d2) {
-                long intVal64 = (d2 + 48) << 16 | (d1 + 48);
-                int intVal32 = ((int) d2 + 48) << 8 | ((int) d1 + 48);
+                long intVal64;
+                int intVal32;
+                if (EnvUtils.BIG_ENDIAN) {
+                    intVal64 = (d1 + 48) << 16 | (d2 + 48);
+                    intVal32 = ((int) d1 + 48) << 8 | ((int) d2 + 48);
+                } else {
+                    intVal64 = (d2 + 48) << 16 | (d1 + 48);
+                    intVal32 = ((int) d2 + 48) << 8 | ((int) d1 + 48);
+                }
                 int k = (int) (d1 * 10 + d2);
                 TWO_DIGITS_32_BITS[k] = (int) intVal64;
                 TWO_DIGITS_16_BITS[k] = (short) intVal32;
                 for (long d3 = 0; d3 < 10; ++d3) {
                     for (long d4 = 0; d4 < 10; ++d4) {
-                        long int64 = ((d4 + 48) << 48) | ((d3 + 48) << 32) | intVal64;
-                        int int32 = (((int) d4 + 48) << 24) | (((int) d3 + 48) << 16) | intVal32;
+                        long int64;
+                        int int32;
+                        if (EnvUtils.BIG_ENDIAN) {
+                            int64 = (intVal64 << 32) | (d3 + 48) << 16 | (d4 + 48);
+                            int32 = (intVal32 << 16) | ((int) d3 + 48) << 8 | ((int) d4 + 48);
+                        } else {
+                            int64 = ((d4 + 48) << 48) | ((d3 + 48) << 32) | intVal64;
+                            int32 = (((int) d4 + 48) << 24) | (((int) d3 + 48) << 16) | intVal32;
+                        }
                         int index = (int) (d1 * 1000 + d2 * 100 + d3 * 10 + d4);
                         FOUR_DIGITS_64_BITS[index] = int64;
                         FOUR_DIGITS_32_BITS[index] = int32;
@@ -494,7 +498,7 @@ public final class NumberUtils {
         buf[--index] = '-';
         for (int i = 3; i > -1; --i) {
             int val = (int) (mostSigBits & 0xf);
-            buf[--index] = (byte)HEX_DIGITS[val];
+            buf[--index] = (byte) HEX_DIGITS[val];
             mostSigBits >>= 4L;
         }
         buf[--index] = '-';
@@ -1706,7 +1710,12 @@ public final class NumberUtils {
      * @return 4
      */
     public static int writeTwoDigitsAndPreSuffix(int val, char pre, char suff, char[] chars, int off) {
-        long longVal = ((long) suff) << 48 | ((long) TWO_DIGITS_32_BITS[val]) << 16 | pre;
+        long longVal;
+        if (EnvUtils.BIG_ENDIAN) {
+            longVal = ((long) pre) << 48 | ((long) TWO_DIGITS_32_BITS[val]) << 16 | suff;
+        } else {
+            longVal = ((long) suff) << 48 | ((long) TWO_DIGITS_32_BITS[val]) << 16 | pre;
+        }
         UnsafeHelper.putLong(chars, off, longVal);
         return 4;
     }
@@ -1718,7 +1727,12 @@ public final class NumberUtils {
      * @return 4
      */
     public static int writeTwoDigitsAndPreSuffix(int val, char pre, char suff, byte[] chars, int off) {
-        int intVal = (suff << 24) | (TWO_DIGITS_16_BITS[val] << 8) | pre;
+        int intVal;
+        if (EnvUtils.BIG_ENDIAN) {
+            intVal = (pre << 24) | (TWO_DIGITS_16_BITS[val] << 8) | suff;
+        } else {
+            intVal = (suff << 24) | (TWO_DIGITS_16_BITS[val] << 8) | pre;
+        }
         UnsafeHelper.putInt(chars, off, intVal);
         return 4;
     }

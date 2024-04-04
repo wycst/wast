@@ -114,7 +114,7 @@ public final class UnsafeHelper {
 
     // reflect
     static {
-        long overrideOffset = -1;
+        long overrideOffset = 12;
         try {
             //note: jdk18 not supported
             Field overrideField = AccessibleObject.class.getDeclaredField("override");
@@ -328,7 +328,6 @@ public final class UnsafeHelper {
         int arrayBaseOffset = ReflectConsts.PrimitiveType.PrimitiveCharacter.arrayBaseOffset;
         int arrayIndexScale = ReflectConsts.PrimitiveType.PrimitiveCharacter.arrayIndexScale;
         int targetArrayBaseOffset = ReflectConsts.PrimitiveType.PrimitiveByte.arrayBaseOffset;
-        ;
         int targetIndexScale = ReflectConsts.PrimitiveType.PrimitiveByte.arrayIndexScale;
         UNSAFE.copyMemory(chars, arrayBaseOffset + arrayIndexScale * cOff, bytes, targetArrayBaseOffset + targetIndexScale * bOff, cLen * arrayIndexScale);
     }
@@ -337,7 +336,6 @@ public final class UnsafeHelper {
         int arrayBaseOffset = ReflectConsts.PrimitiveType.PrimitiveByte.arrayBaseOffset;
         int arrayIndexScale = ReflectConsts.PrimitiveType.PrimitiveByte.arrayIndexScale;
         int targetArrayBaseOffset = ReflectConsts.PrimitiveType.PrimitiveCharacter.arrayBaseOffset;
-        ;
         int targetIndexScale = ReflectConsts.PrimitiveType.PrimitiveCharacter.arrayIndexScale;
         UNSAFE.copyMemory(bytes, arrayBaseOffset + arrayIndexScale * bOff, chars, targetArrayBaseOffset + targetIndexScale * cOff, bLen * arrayIndexScale);
     }
@@ -353,7 +351,6 @@ public final class UnsafeHelper {
         collection.getClass();
         componentType.getClass();
         Object array = Array.newInstance(componentType, collection.size());
-//        Class arrayCls = array.getClass();
         int base, scale, k = 0;
         if (UNSAFE != null) {
             ReflectConsts.PrimitiveType primitiveType = ReflectConsts.PrimitiveType.typeOf(componentType);
@@ -362,7 +359,6 @@ public final class UnsafeHelper {
                 scale = primitiveType.arrayIndexScale;
                 for (Object obj : collection) {
                     long valueOffset = base + scale * k++;
-                    // putPrimitiveValue(array, valueOffset, obj, primitiveType);
                     primitiveType.put(array, valueOffset, obj);
                 }
             } else {
@@ -404,11 +400,6 @@ public final class UnsafeHelper {
                 long valueOffset = base + scale * index;
                 return primitiveType.get(arr, valueOffset);
             } else {
-//                long objectArrOffsetScale = getObjectArrOffsetScale(arrCls);
-//                base = (int) (objectArrOffsetScale >> 32);
-//                scale = (int) objectArrOffsetScale;
-//                long valueOffset = base + scale * index;
-//                return unsafe.getObject(arr, valueOffset);
                 Object[] objects = (Object[]) arr;
                 return objects[index];
             }
@@ -429,17 +420,6 @@ public final class UnsafeHelper {
         }
         return TimeZone.getDefault();
     }
-
-//    private static long getObjectArrOffsetScale(Class<?> arrCls) {
-//        Long objectArrOffsetScale = ObjectArrayOffsetScales.get(arrCls);
-//        if (objectArrOffsetScale == null) {
-//            int base = unsafe.arrayBaseOffset(arrCls);
-//            int scale = unsafe.arrayIndexScale(arrCls);
-//            objectArrOffsetScale = (long) base << 32 | scale;
-//            ObjectArrayOffsetScales.put(arrCls, objectArrOffsetScale);
-//        }
-//        return objectArrOffsetScale;
-//    }
 
     /**
      * Internal use
@@ -503,6 +483,59 @@ public final class UnsafeHelper {
         long off = BYTE_ARRAY_OFFSET + offset;
         UNSAFE.putShort(buf, off, value);
         return 2;
+    }
+
+    public static long[] getLongs(String value) {
+        char[] chars = getChars(value);
+        int strLength = chars.length;
+        int l = strLength >> 2;
+        int rem = strLength & 3;
+        if (rem > 0) {
+            ++l;
+        }
+        char[] buf = new char[l << 2];
+        value.getChars(0, strLength, buf, 0);
+
+        long[] results = new long[l];
+        int offset = 0;
+        for (int i = 0; i < l; ++i) {
+            results[i] = getLong(buf, offset);
+            offset += 4;
+        }
+        return results;
+    }
+
+    public static int[] getInts(String value) {
+        byte[] bytes = value.getBytes();
+        int byteLen = bytes.length;
+        int l = byteLen >> 2;
+        int rem = byteLen & 3;
+        if (rem > 0) {
+            ++l;
+        }
+        byte[] buf = new byte[l << 2];
+        System.arraycopy(bytes, 0, buf, 0, byteLen);
+        int[] results = new int[l];
+        int offset = 0;
+        for (int i = 0; i < l; ++i) {
+            results[i] = getInt(buf, offset);
+            offset += 4;
+        }
+        return results;
+    }
+
+    public static void writeLongsToChars(long[] longs, char[] chars, int offset) {
+        for (long l : longs) {
+            putLong(chars, offset, l);
+            offset += 4;
+        }
+    }
+
+    public static void writeIntsToBytes(int[] ints, byte[] bytes, int offset) {
+        for (int val : ints) {
+            putInt(bytes, offset, val);
+            offset += 4;
+        }
     }
 
     static long objectFieldOffset(Field field) {

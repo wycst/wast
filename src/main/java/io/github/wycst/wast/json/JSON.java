@@ -18,6 +18,7 @@ package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.common.beans.AsciiStringSource;
 import io.github.wycst.wast.common.beans.CharSource;
+import io.github.wycst.wast.common.beans.ISO_8859_1CharSource;
 import io.github.wycst.wast.common.beans.UTF16ByteArraySource;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
@@ -94,7 +95,7 @@ import java.util.*;
 @SuppressWarnings("rawtypes")
 public final class JSON extends JSONGeneral {
 
-    public static final String VERSION = "0.0.11";
+    public static final String VERSION = "0.0.12";
 
     /**
      * 将json字符串转为对象或者数组(Convert JSON strings to objects or arrays)
@@ -239,10 +240,14 @@ public final class JSON extends JSONGeneral {
      * @return 类型对象
      */
     public static <T> T parseObject(byte[] buf, final Class<T> actualType, ReadOption... readOptions) {
-        if (EnvUtils.JDK_9_PLUS) {
-            return parseObject(new String(buf), actualType, readOptions);
-        }
         JSONTypeDeserializer typeDeserializer = JSONTypeDeserializer.getTypeDeserializer(actualType);
+        if (EnvUtils.JDK_9_PLUS) {
+            if (!EnvUtils.hasNegatives(buf, 0, buf.length)) {
+                return parseObject(typeDeserializer, AsciiStringSource.of(buf), buf, actualType, readOptions);
+            } else {
+                return parseObject(typeDeserializer, ISO_8859_1CharSource.of(buf), buf, actualType, readOptions);
+            }
+        }
         return parseObject(typeDeserializer, null, buf, actualType, readOptions);
     }
 
@@ -1177,18 +1182,11 @@ public final class JSON extends JSONGeneral {
      * @param typeDeserializer
      */
     public synchronized static void registerTypeDeserializer(Class<?> type, JSONTypeDeserializer typeDeserializer) {
-        ReflectConsts.ClassCategory classCategory = ReflectConsts.getClassCategory(type);
-        switch (classCategory) {
-            case CharSequence:
-            case NumberCategory:
-            case BoolCategory:
-            case ANY: {
-                throw new UnsupportedOperationException("not supported to be overwritten for class " + type);
-            }
-            default: {
-                JSONTypeDeserializer.putTypeDeserializer(typeDeserializer, type);
-            }
+        type.getClass();
+        if (JSONTypeDeserializer.isBuiltInType(type)) {
+            throw new UnsupportedOperationException("Existing built-in implementation, does not support overwrite for " + type);
         }
+        JSONTypeDeserializer.putTypeDeserializer(typeDeserializer, type);
     }
 
     /**
@@ -1198,17 +1196,54 @@ public final class JSON extends JSONGeneral {
      * @param typeSerializer
      */
     public synchronized static void registerTypeSerializer(Class<?> type, JSONTypeSerializer typeSerializer) {
-        ReflectConsts.ClassCategory classCategory = ReflectConsts.getClassCategory(type);
-        switch (classCategory) {
-            case CharSequence:
-            case NumberCategory:
-            case BoolCategory:
-            case ANY: {
-                throw new UnsupportedOperationException("not supported to be overwritten for class " + type);
+        type.getClass();
+        if (JSONTypeSerializer.isBuiltInType(type)) {
+            throw new UnsupportedOperationException("Existing built-in implementation, does not support overwrite for " + type);
+        }
+        JSONTypeSerializer.putTypeSerializer(typeSerializer, type);
+    }
+
+    public static <T> void registerTypeMapper(Class<T> type, JSONTypeMapper<T> mapper) {
+        registerTypeMapper(type, mapper, false);
+    }
+
+    public static <T> void registerTypeMapper(Class<T> type, final JSONTypeMapper<T> mapper, boolean ignoreIfExist) {
+        type.getClass();
+        synchronized (type) {
+            if (JSONTypeDeserializer.isBuiltInType(type)) {
+                if (!ignoreIfExist) {
+                    throw new UnsupportedOperationException("Existing built-in implementation, does not support overwrite for " + type);
+                }
+            } else {
+                // deserializer
+                JSONTypeDeserializer.putTypeDeserializer(new JSONTypeDeserializer() {
+                    @Override
+                    protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
+                        Object value = JSONTypeDeserializer.ANY.deserialize(charSource, buf, fromIndex, toIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
+                        return mapper.read(value);
+                    }
+
+                    @Override
+                    protected Object deserialize(CharSource charSource, byte[] bytes, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext jsonParseContext) throws Exception {
+                        Object value = JSONTypeDeserializer.ANY.deserialize(charSource, bytes, fromIndex, toIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
+                        return mapper.read(value);
+                    }
+                }, type);
             }
-            default: {
-                JSONTypeSerializer.putTypeSerializer(typeSerializer, type);
+            if (JSONTypeSerializer.isBuiltInType(type)) {
+                if (!ignoreIfExist) {
+                    throw new UnsupportedOperationException("Existing built-in implementation, does not support overwrite for class " + type);
+                }
+            } else {
+                // serializer
+                JSONTypeSerializer.putTypeSerializer(new JSONTypeSerializer() {
+                    @Override
+                    protected void serialize(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
+                        mapper.write(writer, (T) value, jsonConfig, indent);
+                    }
+                }, type);
             }
         }
     }
+
 }

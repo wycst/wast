@@ -1,5 +1,7 @@
 package io.github.wycst.wast.json;
 
+import io.github.wycst.wast.common.beans.GeneralDate;
+import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import io.github.wycst.wast.common.utils.EnvUtils;
 import io.github.wycst.wast.common.utils.NumberUtils;
 
@@ -13,20 +15,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class JSONWriter extends Writer {
 
-    /**
-     * <p> L2 character array cache pool
-     */
     final static int CACHE_BUFFER_SIZE;
     final static int MAX_CACHE_BUFFER_SIZE;
     final static int AVAILABLE_PROCESSORS = Runtime.getRuntime().availableProcessors();
+    // Safe skip over boundary check space
+    final static int SECURITY_UNCHECK_SPACE = 128;
     final static int CACHE_COUNT;
     final static AtomicInteger AUTO_SEQ = new AtomicInteger();
 
     static {
+        // init memory:  16KB * 2 * 8 -> 256KB
         CACHE_BUFFER_SIZE = EnvUtils.JDK_VERSION >= 1.8f ? 1 << 14 : 1 << 12;
-        MAX_CACHE_BUFFER_SIZE = EnvUtils.JDK_VERSION >= 1.8f ? 1 << 23 : 1 << 21;
+        // max memory:   3MB * 2 * 16 -> 96MB
+        MAX_CACHE_BUFFER_SIZE = (1 << 20) * 3;
 
-        int availableProcessors = AVAILABLE_PROCESSORS << 2;
+        int availableProcessors = AVAILABLE_PROCESSORS << 1;
         int cacheCount = 16;
         while (availableProcessors > cacheCount) {
             cacheCount <<= 1;
@@ -120,18 +123,72 @@ public abstract class JSONWriter extends Writer {
         }
     }
 
-    abstract void writeShortChars(char[] chars, int offset, int len) throws IOException;
+    /**
+     * write zoneId(zoneOffset)
+     *
+     * @param zoneId
+     * @throws IOException
+     */
+    public final void writeZoneId(String zoneId) throws IOException {
+        if (zoneId == null) return;
+        // zoneID
+        if (zoneId.length() > 0) {
+            char c = zoneId.charAt(0);
+            switch (c) {
+                case 'Z': {
+                    writeJSONToken('Z');
+                    break;
+                }
+                case '+':
+                case '-': {
+                    write(zoneId);
+                    break;
+                }
+                default: {
+                    write('[');
+                    write(zoneId);
+                    write(']');
+                }
+            }
+        }
+    }
+
+    /**
+     * Ensure the call is secure.
+     *
+     * @param c
+     * @throws IOException
+     * @throws IndexOutOfBoundsException
+     */
+    public void writeJSONToken(char c) throws IOException {
+        write(c);
+    }
+
+    public abstract void writeShortChars(char[] chars, int offset, int len) throws IOException;
 
     public abstract void writeLong(long numValue) throws IOException;
 
-    abstract void writeUUID(UUID uuid) throws IOException;
+    public abstract void writeUUID(UUID uuid) throws IOException;
 
     public abstract void writeDouble(double numValue) throws IOException;
 
     public abstract void writeFloat(float numValue) throws IOException;
 
+    public final void writeJSONInstant(long epochSeconds, int nanos) throws IOException {
+        GeneralDate generalDate = new GeneralDate(epochSeconds * 1000, JSONGeneral.ZERO_TIME_ZONE);
+        int year = generalDate.getYear();
+        int month = generalDate.getMonth();
+        int day = generalDate.getDay();
+        int hour = generalDate.getHourOfDay();
+        int minute = generalDate.getMinute();
+        int second = generalDate.getSecond();
+        writeJSONLocalDateTime(year, month, day, hour, minute, second, nanos, "Z");
+    }
+
     /**
-     * "yyyy-MM-ddTHH:mm:ss.SSSSSSSSS"
+     * format "yyyy-MM-ddTHH:mm:ss.SSSSSSSSS"
+     * format "yyyy-MM-ddTHH:mm:ss.SSSSSSSSSZ"
+     * format "yyyy-MM-ddTHH:mm:ss.SSSSSSSSS+08:00"
      *
      * @param year
      * @param month
@@ -140,14 +197,23 @@ public abstract class JSONWriter extends Writer {
      * @param minute
      * @param second
      * @param nano
+     * @param zoneId
      * @throws IOException
      */
-    public abstract void writeLocalDateTime(int year, int month, int day, int hour, int minute, int second, int nano) throws IOException;
-
-    public abstract void writeLocalDate(int year, int month, int day) throws IOException;
+    public abstract void writeJSONLocalDateTime(int year, int month, int day, int hour, int minute, int second, int nano, String zoneId) throws IOException;
 
     /**
-     * "HH:mm:ss"
+     * write default format "yyyy-MM-dd"
+     *
+     * @param year
+     * @param month
+     * @param day
+     * @throws IOException
+     */
+    public abstract void writeJSONLocalDate(int year, int month, int day) throws IOException;
+
+    /**
+     * HH:mm:ss
      *
      * @param hourOfDay
      * @param minute
@@ -156,10 +222,19 @@ public abstract class JSONWriter extends Writer {
      */
     public abstract void writeTime(int hourOfDay, int minute, int second) throws IOException;
 
-    public abstract void writeTimeWithNano(int hourOfDay, int minute, int second, int nano) throws IOException;
+    /**
+     * "HH:mm:ss.SSSS"
+     *
+     * @param hourOfDay
+     * @param minute
+     * @param second
+     * @param nano
+     * @throws IOException
+     */
+    public abstract void writeJSONTimeWithNano(int hourOfDay, int minute, int second, int nano) throws IOException;
 
     /**
-     * "yyyy-MM-dd HH:mm:ss"
+     * yyyy-MM-dd HH:mm:ss
      *
      * @param year
      * @param month
@@ -173,7 +248,11 @@ public abstract class JSONWriter extends Writer {
 
     public abstract void writeBigInteger(BigInteger bigInteger) throws IOException;
 
-    abstract void writeJSONStringKey(String value) throws IOException;
+    // only for map key
+    public final void writeJSONStringKey(String value) throws IOException {
+        writeJSONString(value);
+        writeJSONToken(':');
+    }
 
     public void writeJSONChars(char[] chars) throws IOException {
         int beginIndex = 0, len = chars.length;
@@ -215,6 +294,34 @@ public abstract class JSONWriter extends Writer {
 //        write('"');
 //    }
 
+    /**
+     * @param value
+     * @throws IOException
+     */
+    public final void writeJSONString(String value) throws IOException {
+        if (EnvUtils.JDK_9_PLUS) {
+            byte[] bytes = (byte[]) UnsafeHelper.getStringValue(value);
+            writeJSONStringBytes(value, bytes);
+        } else {
+            writeJSONChars(UnsafeHelper.getChars(value));
+        }
+    }
+
+    /**
+     * When the bytes are determined, one reflection can be reduced
+     *
+     * @param value
+     * @param bytes
+     * @throws IOException
+     */
+    public final void writeJSONStringBytes(String value, byte[] bytes) throws IOException {
+        if (bytes.length == value.length()) {
+            writeLatinJSONString(value, bytes);
+        } else {
+            writeUTF16JSONString(value, bytes);
+        }
+    }
+
     public void writeLatinJSONString(String value, byte[] bytes) throws IOException {
         int len = bytes.length;
         write('"');
@@ -250,5 +357,46 @@ public abstract class JSONWriter extends Writer {
         int size = strlen - beginIndex;
         write(value, beginIndex, size);
         write('"');
+    }
+
+    public void writeFieldString(String value, int offset, int len) throws IOException {
+        write(value, offset, len);
+    }
+
+    public final void writeFieldString(String value) throws IOException {
+        writeFieldString(value, 0, value.length());
+    }
+
+    /**
+     * 通过unsafe写入4 * n个字符（4 * n 字节）
+     *
+     * @param fourChars
+     * @param fourBytes
+     * @param len
+     * @throws IOException
+     */
+    public void writeUnsafe(long fourChars, int fourBytes, int len) throws IOException {
+        char[] chars = new char[4];
+        UnsafeHelper.putLong(chars, 0, fourChars);
+        write(chars, 0, len);
+    }
+
+    /**
+     * 通过unsafe写入4 * n个字符（4 * n 字节）
+     *
+     * @param fourChars
+     * @param fourBytes
+     * @param totalCount 实际长度
+     * @throws IOException
+     */
+    public void writeUnsafe(long[] fourChars, int[] fourBytes, int totalCount) throws IOException {
+        int n = fourChars.length;
+        char[] chars = new char[n << 2];
+        int offset = 0;
+        for (long fourChar : fourChars) {
+            UnsafeHelper.putLong(chars, offset, fourChar);
+            offset += 4;
+        }
+        write(chars, 0, totalCount);
     }
 }

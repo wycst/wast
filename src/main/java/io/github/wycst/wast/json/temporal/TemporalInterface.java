@@ -222,4 +222,18 @@ interface TemporalInterface {
      * @throws Exception
      */
     Object ofLocalDate(int year, int month, int day) throws Exception;
+
+    /**
+     * 通过字符串构建LocalDate对象
+     *
+     * @param value
+     * @return
+     */
+    Object parseLocalDate(CharSequence value);
+
+    Object parseLocalDateTime(CharSequence value);
+
+    Object parseLocalTime(CharSequence value);
+
+    Object parseInstant(CharSequence value);
 }

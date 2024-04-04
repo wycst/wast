@@ -162,7 +162,7 @@ public class JSONValidator extends JSONGeneral {
             } else {
                 this.result = false;
                 if (showMessage) {
-                    setValidateMessage("Syntax error, at pos " + i + ", unexpected token character '" + ch + "', expected ',' or ']'");
+                    setValidateMessage("Syntax error, at pos " + i + ", unexpected '" + ch + "', expected ',' or ']'");
                 }
                 return;
             }
@@ -188,7 +188,24 @@ public class JSONValidator extends JSONGeneral {
             int splitIndex, simpleToIndex = -1;
             // Standard JSON field name with "
             if (ch == '"') {
-                while (i + 1 < toIndex && (buf[++i] != '"' || buf[i - 1] == '\\')) ;
+                while (i + 1 < toIndex && (ch = buf[++i]) != '"') ;
+                if(ch == '"') {
+                    char prev = buf[i - 1];
+                    while (prev == '\\') {
+                        boolean prevEscapeFlag = true;
+                        int j = i - 1;
+                        while (buf[--j] == '\\') {
+                            prevEscapeFlag = !prevEscapeFlag;
+                        }
+                        if(prevEscapeFlag) {
+                            while (i + 1 < toIndex && buf[++i] != '"');
+                            prev = buf[i - 1];
+                        } else {
+                            break;
+                        }
+                    }
+                    ch = buf[i];
+                }
                 if (ch != '"') {
                     result = false;
                     if (showMessage) {
@@ -259,7 +276,7 @@ public class JSONValidator extends JSONGeneral {
                     this.result = false;
                     if (showMessage) {
                         String errorContextTextAt = createErrorContextText(buf, i);
-                        setValidateMessage("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', expected ',' or '}'");
+                        setValidateMessage("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + ch + "', expected ',' or '}'");
                     }
                     return;
                 }
@@ -267,7 +284,7 @@ public class JSONValidator extends JSONGeneral {
                 this.result = false;
                 if (showMessage) {
                     String errorContextTextAt = createErrorContextText(buf, i);
-                    setValidateMessage("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', Colon character ':' is expected.");
+                    setValidateMessage("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + ch + "', token ':' is expected.");
                 }
                 return;
             }
@@ -315,10 +332,24 @@ public class JSONValidator extends JSONGeneral {
         int beginIndex = from + 1;
         char ch = '\0';
         int i = beginIndex;
-        char prev = '\0';
-        while (i < toIndex && (ch = buf[i]) != '"' || prev == '\\') {
+        while (i < toIndex && (ch = buf[i]) != endCh) {
             ++i;
-            prev = ch;
+        }
+        if(ch == endCh) {
+            char prev = buf[i - 1];
+            while (prev == '\\') {
+                boolean prevEscapeFlag = true;
+                int j = i - 1;
+                while (buf[--j] == '\\') {
+                    prevEscapeFlag = !prevEscapeFlag;
+                }
+                if(prevEscapeFlag) {
+                    while (i < toIndex && buf[++i] != endCh);
+                    prev = buf[i - 1];
+                } else {
+                    break;
+                }
+            }
         }
         offset = i;
         if (i == toIndex) {

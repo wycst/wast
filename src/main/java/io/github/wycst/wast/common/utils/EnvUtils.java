@@ -1,5 +1,8 @@
 package io.github.wycst.wast.common.utils;
 
+import io.github.wycst.wast.common.reflect.UnsafeHelper;
+
+import java.lang.reflect.Method;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 
@@ -10,7 +13,7 @@ public final class EnvUtils {
     public static final boolean JDK_16_PLUS;
     public static final boolean JDK_9_PLUS;
 
-    public static final boolean LE;
+    public static final boolean BIG_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN;
     public static final int HI_BYTE_SHIFT;
     public static final int LO_BYTE_SHIFT;
 
@@ -34,9 +37,11 @@ public final class EnvUtils {
     // 'java.util.HashSet'
     public final static int HASH_SET_HV = -1402716492;
 
-    public final static Charset DEFAULT_CHARSET = Charset.defaultCharset();
-    public final static Charset ISO_8859_1;
-    public final static Charset UTF_8;
+    public final static Charset CHARSET_DEFAULT = Charset.defaultCharset();
+    public final static Charset CHARSET_ISO_8859_1 = forCharsetName("ISO_8859_1");
+    public final static Charset CHARSET_UTF_8 = forCharsetName("UTF-8");
+
+    public static final Method SC_HAS_NEGATIVES_METHOD;
 
     static {
         float jdkVersion = 1.8f;
@@ -52,26 +57,44 @@ public final class EnvUtils {
         JDK_9_PLUS = JDK_VERSION >= 9;
         JDK_16_PLUS = JDK_VERSION >= 16;
 
-        LE = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
-        if (LE) {
-            HI_BYTE_SHIFT = 0;
-            LO_BYTE_SHIFT = 8;
-        } else {
+        if (BIG_ENDIAN) {
             HI_BYTE_SHIFT = 8;
             LO_BYTE_SHIFT = 0;
+        } else {
+            HI_BYTE_SHIFT = 0;
+            LO_BYTE_SHIFT = 8;
         }
 
-        Charset iso_8859_1 = null;
-        try {
-            iso_8859_1 = Charset.forName("ISO_8859_1");
-        } catch (Throwable throwable) {
+        Method scHasNegatives = null;
+        if (JDK_9_PLUS) {
+            try {
+                Class<?> scClass = Class.forName("java.lang.StringCoding");
+                scHasNegatives = scClass.getMethod("hasNegatives", new Class[]{byte[].class, int.class, int.class});
+                UnsafeHelper.setAccessible(scHasNegatives);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         }
-        Charset UTF8 = null;
+        SC_HAS_NEGATIVES_METHOD = scHasNegatives;
+    }
+
+    private static Charset forCharsetName(String charsetName) {
         try {
-            UTF8 = Charset.forName("UTF-8");
+            return Charset.forName(charsetName);
         } catch (Throwable throwable) {
+            return null;
         }
-        ISO_8859_1 = iso_8859_1;
-        UTF_8 = UTF8;
+    }
+
+    public static boolean hasNegatives(byte[] bytes, int offset, int len) {
+        try {
+            if (SC_HAS_NEGATIVES_METHOD != null) {
+                return (Boolean) SC_HAS_NEGATIVES_METHOD.invoke(null, bytes, offset, len);
+            } else {
+                return true;
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }

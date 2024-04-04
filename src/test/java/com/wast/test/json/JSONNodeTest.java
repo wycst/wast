@@ -15,12 +15,13 @@ public class JSONNodeTest {
         long begin = System.currentTimeMillis();
         Object result = null;
 
-        String age = null, name = null, students = null;
+        String name = null, students = null;
+        int age = 0;
         int len = -1;
         for (int i = 0; i < 1000000; i++) {
 //            JSON2.parse(databaseJSON);
             node = io.github.wycst.wast.json.JSONNode.parse(databaseJSON);
-            int a = node.getChildValue("age", int.class);
+            age = node.getChildValue("age", int.class);
             name = node.getChildValue("name", String.class);
             students = node.getChildValue("students", String.class);
             node.getPathValue("/name", String.class);

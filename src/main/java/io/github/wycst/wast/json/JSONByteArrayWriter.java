@@ -15,9 +15,9 @@ import java.util.Arrays;
 import java.util.UUID;
 
 /**
+ * <p> JSON CharArray writer
+ * <p> Optimization of single character out of bounds check
  * <p> only used for JSON.toJsonBytes api </p>
- * <p> json bytearray writer
- * <p> Partial optimization
  *
  * @Author: wangy
  * @Date: 2023/12/22 21:48
@@ -52,14 +52,14 @@ class JSONByteArrayWriter extends JSONWriter {
 
     JSONByteArrayWriter(Charset charset) {
         this.charset = charset;
-        utf8 = charset == EnvUtils.UTF_8;
+        utf8 = charset == EnvUtils.CHARSET_UTF_8;
         // use pool
         ByteBufCache byteBufCache = getByteBufCache(); // getOrReturnCache(null);
         if (byteBufCache != null) {
             buf = byteBufCache.cacheBytes;
             this.byteBufCache = byteBufCache;
         } else {
-            buf = new byte[256];
+            buf = new byte[512];
         }
     }
 
@@ -151,14 +151,28 @@ class JSONByteArrayWriter extends JSONWriter {
      */
     @Override
     public void write(int c) {
-        ensureCapacity(1);
+        ensureCapacity(1 + SECURITY_UNCHECK_SPACE);
+        buf[count++] = (byte) c;
+    }
+
+    /**
+     * Write special token characters to skip expansion detection
+     *
+     * <p> 5 special JSON tokens such as '{', '}', '[', ']', ',' or other single character </p>
+     * <p> Ensure to reserve 3 additional locations for each expansion </p>
+     * <p> Avoid writing consecutive token characters such as "{}" or "[]", or "[{}, {}]" </p>
+     *
+     * @param c
+     */
+    @Override
+    public void writeJSONToken(char c) {
         buf[count++] = (byte) c;
     }
 
     @Override
     public void write(char[] chars, int off, int len) {
         if (len == 0) return;
-        ensureCapacity(len << 2);
+        ensureCapacity((len << 2) + SECURITY_UNCHECK_SPACE);
         int count = this.count;
         for (int i = off, end = off + len; i < end; ++i) {
             char ch = chars[i];
@@ -172,9 +186,12 @@ class JSONByteArrayWriter extends JSONWriter {
     }
 
     byte[] ensureCapacity(int increment) {
-        int newcount = count + increment;
-        if (newcount > buf.length) {
-            buf = Arrays.copyOf(buf, Math.max(buf.length << 1, buf.length + newcount));
+        return expandCapacity(count + increment);
+    }
+
+    byte[] expandCapacity(int newCap) {
+        if (newCap > buf.length) {
+            buf = Arrays.copyOf(buf, newCap * 3 >> 1);
         }
         return buf;
     }
@@ -184,13 +201,14 @@ class JSONByteArrayWriter extends JSONWriter {
         if (len == 0) return;
         Object value = UnsafeHelper.getStringValue(str);
         if (EnvUtils.JDK_9_PLUS) {
-            ensureCapacity(len << 2);
             byte[] bytes = (byte[]) value;
             if (bytes.length == str.length()) {
+                ensureCapacity(len + SECURITY_UNCHECK_SPACE);
                 // LATIN
                 System.arraycopy(bytes, off, buf, count, len);
                 count += len;
             } else {
+                ensureCapacity(len * 4 + SECURITY_UNCHECK_SPACE);
                 // UTF16
                 int count = this.count;
                 for (int i = off, end = off + len; i < end; ++i) {
@@ -259,11 +277,6 @@ class JSONByteArrayWriter extends JSONWriter {
         throw new UnsupportedOperationException();
     }
 
-//    @Override
-//    protected byte[] toBytes(Charset charset) {
-//        return Arrays.copyOf(buf, count);
-//    }
-
     @Override
     protected byte[] toBytes() {
         return Arrays.copyOf(buf, count);
@@ -295,7 +308,7 @@ class JSONByteArrayWriter extends JSONWriter {
     }
 
     @Override
-    void writeShortChars(char[] chars, int offset, int len) {
+    public void writeShortChars(char[] chars, int offset, int len) {
         write(chars, offset, len);
     }
 
@@ -308,7 +321,7 @@ class JSONByteArrayWriter extends JSONWriter {
     @Override
     public void writeJSONChars(char[] chars) throws IOException {
         int len = chars.length;
-        ensureCapacity(len * 6);
+        ensureCapacity(len * 6 + (2 + SECURITY_UNCHECK_SPACE));
         int count = this.count;
         buf[count++] = '"';
         for (int i = 0; i < len; ++i) {
@@ -333,7 +346,7 @@ class JSONByteArrayWriter extends JSONWriter {
 
     public void writeLatinJSONString(String value, byte[] bytes) throws IOException {
         int len = bytes.length;
-        ensureCapacity(len * 6);
+        ensureCapacity(len + (2 + SECURITY_UNCHECK_SPACE));
         int count = this.count;
         buf[count++] = '"';
         int beginIndex = 0;
@@ -342,7 +355,8 @@ class JSONByteArrayWriter extends JSONWriter {
             String escapeStr;
             if ((escapeStr = JSONGeneral.ESCAPE_VALUES[b & 0xFF]) != null) {
                 int length = i - beginIndex;
-                if(length > 0) {
+                expandCapacity(count + length + (5 + SECURITY_UNCHECK_SPACE));
+                if (length > 0) {
                     System.arraycopy(bytes, beginIndex, buf, count, length);
                     count += length;
                 }
@@ -354,7 +368,7 @@ class JSONByteArrayWriter extends JSONWriter {
             }
         }
         int length = len - beginIndex;
-        if(length > 0) {
+        if (length > 0) {
             System.arraycopy(bytes, beginIndex, buf, count, length);
             count += length;
         }
@@ -364,7 +378,7 @@ class JSONByteArrayWriter extends JSONWriter {
 
     public void writeUTF16JSONString(String value, byte[] bytes) throws IOException {
         int len = value.length();
-        ensureCapacity(len * 6 + 2);
+        ensureCapacity(len * 6 + (2 + SECURITY_UNCHECK_SPACE));
         int count = this.count;
         buf[count++] = '"';
         for (int i = 0; i < len; ++i) {
@@ -487,11 +501,11 @@ class JSONByteArrayWriter extends JSONWriter {
     @Override
     public void writeLong(long numValue) throws IOException {
         if (numValue == 0) {
-            ensureCapacity(1);
+            ensureCapacity(1 + SECURITY_UNCHECK_SPACE);
             buf[count++] = '0';
             return;
         }
-        ensureCapacity(20);
+        ensureCapacity(20 + SECURITY_UNCHECK_SPACE);
         if (numValue < 0) {
             if (numValue == Long.MIN_VALUE) {
                 write("-9223372036854775808");
@@ -504,10 +518,10 @@ class JSONByteArrayWriter extends JSONWriter {
     }
 
     @Override
-    void writeUUID(UUID uuid) {
+    public void writeUUID(UUID uuid) {
         long mostSigBits = uuid.getMostSignificantBits();
         long leastSigBits = uuid.getLeastSignificantBits();
-        ensureCapacity(38);
+        ensureCapacity(38 + SECURITY_UNCHECK_SPACE);
         int off = count;
         buf[off++] = '"';
         off += NumberUtils.writeUUIDMostSignificantBits(mostSigBits, buf, off);
@@ -518,20 +532,21 @@ class JSONByteArrayWriter extends JSONWriter {
 
     @Override
     public void writeDouble(double numValue) {
-        ensureCapacity(24);
+        ensureCapacity(24 + SECURITY_UNCHECK_SPACE);
         count += NumberUtils.writeDouble(numValue, buf, count);
     }
 
     @Override
     public void writeFloat(float numValue) {
-        ensureCapacity(24);
+        ensureCapacity(24 + SECURITY_UNCHECK_SPACE);
         count += NumberUtils.writeFloat(numValue, buf, count);
     }
 
     @Override
-    public void writeLocalDateTime(int year, int month, int day, int hour, int minute, int second, int nano) {
-        ensureCapacity(30);
+    public void writeJSONLocalDateTime(int year, int month, int day, int hour, int minute, int second, int nano, String zoneId) throws IOException {
+        ensureCapacity(36 + SECURITY_UNCHECK_SPACE);
         int off = count;
+        buf[off++] = '"';
         if (year < 0) {
             buf[off++] = '-';
             year = -year;
@@ -553,12 +568,15 @@ class JSONByteArrayWriter extends JSONWriter {
             buf[pointIndex] = '.';
         }
         count = off;
+        writeZoneId(zoneId);
+        buf[count++] = '"';
     }
 
     @Override
-    public void writeLocalDate(int year, int month, int day) {
-        ensureCapacity(10 + 1);
+    public void writeJSONLocalDate(int year, int month, int day) {
+        ensureCapacity(13 + SECURITY_UNCHECK_SPACE);
         int off = count;
+        buf[off++] = '"';
         if (year < 0) {
             buf[off++] = '-';
             year = -year;
@@ -566,12 +584,13 @@ class JSONByteArrayWriter extends JSONWriter {
         off += NumberUtils.writeFourDigits(year, buf, off);
         off += NumberUtils.writeTwoDigitsAndPreSuffix(month, '-', '-', buf, off);
         off += NumberUtils.writeTwoDigits(day, buf, off);
+        buf[off++] = '"';
         count = off;
     }
 
     @Override
     public void writeTime(int hourOfDay, int minute, int second) {
-        ensureCapacity(10);
+        ensureCapacity(10 + SECURITY_UNCHECK_SPACE);
         int off = count;
         off += NumberUtils.writeTwoDigits(hourOfDay, buf, off);
         off += NumberUtils.writeTwoDigitsAndPreSuffix(minute, ':', ':', buf, off);
@@ -580,9 +599,10 @@ class JSONByteArrayWriter extends JSONWriter {
     }
 
     @Override
-    public void writeTimeWithNano(int hourOfDay, int minute, int second, int nano) {
-        ensureCapacity(20);
+    public void writeJSONTimeWithNano(int hourOfDay, int minute, int second, int nano) {
+        ensureCapacity(22 + SECURITY_UNCHECK_SPACE);
         int off = count;
+        buf[off++] = '"';
         off += NumberUtils.writeTwoDigits(hourOfDay, buf, off);
         off += NumberUtils.writeTwoDigitsAndPreSuffix(minute, ':', ':', buf, off);
         off += NumberUtils.writeTwoDigits(second, buf, off);
@@ -595,12 +615,13 @@ class JSONByteArrayWriter extends JSONWriter {
             off += NumberUtils.writePositiveLong(nano, buf, off);
             buf[pointIndex] = '.';
         }
+        buf[off++] = '"';
         count = off;
     }
 
     @Override
     public void writeDate(int year, int month, int day, int hourOfDay, int minute, int second) {
-        ensureCapacity(19);
+        ensureCapacity(24 + SECURITY_UNCHECK_SPACE);
         int off = count;
         if (year < 0) {
             buf[off++] = '-';
@@ -619,23 +640,30 @@ class JSONByteArrayWriter extends JSONWriter {
     @Override
     public void writeBigInteger(BigInteger bigInteger) {
         int increment = ((bigInteger.bitLength() / 60) + 1) * 18;
-        ensureCapacity(increment);
+        ensureCapacity(increment + SECURITY_UNCHECK_SPACE);
         count += NumberUtils.writeBigInteger(bigInteger, buf, count);
     }
 
     @Override
-    void writeJSONStringKey(String value) {
-        int len = value.length();
-        ensureCapacity(3 + (len << 2));
-        buf[count++] = '"';
-        write(value, 0, value.length());
-        int off = count;
-        buf[off++] = '"';
-        buf[off++] = ':';
-        count = off;
+    public void writeUnsafe(long fourChars, int fourBytes, int len) throws IOException {
+        // ensureCapacity(4 + SECURITY_UNCHECK_SPACE);
+        UnsafeHelper.putInt(buf, count, fourBytes);
+        count += len;
     }
 
-//    @Override
+    @Override
+    public void writeUnsafe(long[] fourChars, int[] fourBytes, int totalCount) throws IOException {
+        int n = fourChars.length;
+        ensureCapacity((n << 2) + SECURITY_UNCHECK_SPACE);
+        int count = this.count;
+        for (int fourByte : fourBytes) {
+            UnsafeHelper.putInt(buf, count, fourByte);
+            count += 4;
+        }
+        this.count += totalCount;
+    }
+
+    //    @Override
 //    public void writeShortBytes(String source, byte[] bytes) {
 //        if (defaultCharset) {
 //            int len = bytes.length;

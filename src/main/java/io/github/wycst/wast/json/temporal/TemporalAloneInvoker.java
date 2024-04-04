@@ -93,6 +93,22 @@ public class TemporalAloneInvoker {
         return temporalInstance.parseOffsetDateTime(charSequence);
     }
 
+    public static Object parseLocalDate(CharSequence value) {
+        return temporalInstance.parseLocalDate(value);
+    }
+
+    public static Object parseLocalDateTime(CharSequence value) {
+        return temporalInstance.parseLocalDateTime(value);
+    }
+
+    public static Object parseLocalTime(CharSequence value) {
+        return temporalInstance.parseLocalTime(value);
+    }
+
+    public static Object parseInstant(CharSequence value) {
+        return temporalInstance.parseInstant(value);
+    }
+
     /**
      * 构造ZonedDateTime对象
      *

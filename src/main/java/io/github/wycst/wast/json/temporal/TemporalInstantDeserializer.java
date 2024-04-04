@@ -24,15 +24,7 @@ public class TemporalInstantDeserializer extends JSONTemporalDeserializer {
     }
 
     protected void checkClass(GenericParameterizedType genericParameterizedType) {
-//        if (genericParameterizedType.getActualType() != TemporalAloneInvoker.instantClass) {
-//            throw new UnsupportedOperationException("Not Support for class " + genericParameterizedType.getActualType());
-//        }
     }
-
-//    @Override
-//    protected void createDefaultTemplate() {
-//        dateTemplate = new DateTemplate("yyyy-MM-ddTHH:mm:ss.SZ");
-//    }
 
     protected Object deserializeTemporal(char[] buf, int fromIndex, int endIndex, JSONParseContext jsonParseContext) throws Exception {
         long time = dateTemplate.parseTime(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
@@ -121,5 +113,10 @@ public class TemporalInstantDeserializer extends JSONTemporalDeserializer {
         }
         String errorContextTextAt = createErrorContextText(buf, offset);
         throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', unexpected token '" + (char) c + "', expected '" + endChar + "'");
+    }
+
+    @Override
+    protected Object valueOf(String value, Class<?> actualType) throws Exception {
+        return TemporalAloneInvoker.parseInstant(value);
     }
 }

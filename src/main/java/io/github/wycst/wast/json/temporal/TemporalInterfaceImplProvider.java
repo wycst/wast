@@ -284,6 +284,26 @@ class TemporalInterfaceImplProvider implements TemporalInterface {
     }
 
     @Override
+    public LocalDate parseLocalDate(CharSequence value) {
+        return LocalDate.parse(value);
+    }
+
+    @Override
+    public LocalDateTime parseLocalDateTime(CharSequence value) {
+        return LocalDateTime.parse(value);
+    }
+
+    @Override
+    public LocalTime parseLocalTime(CharSequence value) {
+        return LocalTime.parse(value);
+    }
+
+    @Override
+    public Instant parseInstant(CharSequence value) {
+        return Instant.parse(value);
+    }
+
+    @Override
     public Object ofLocalDateTime(int year, int month, int dayOfMonth, int hour, int minute, int second, int nanoOfSecond) throws Exception {
         return LocalDateTime.of(year, month, dayOfMonth, hour, minute, second, nanoOfSecond);
     }

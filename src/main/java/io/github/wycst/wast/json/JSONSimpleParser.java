@@ -170,7 +170,7 @@
 //                return list;
 //            }
 //            String errorContextTextAt = createErrorContextText(buf, i);
-//            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', expected ',' or ']'");
+//            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + ch + "', expected ',' or ']'");
 //        }
 ////        throw new JSONException("Syntax error, cannot find closing symbol ']' matching '['");
 //    }
@@ -213,7 +213,7 @@
 //                }
 //                if (!isNullKey) {
 //                    String errorContextTextAt = createErrorContextText(buf, j);
-//                    throw new JSONException("Syntax error, at pos " + j + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', expected '\"' ");
+//                    throw new JSONException("Syntax error, at pos " + j + ", context text by '" + errorContextTextAt + "', unexpected '" + ch + "', expected '\"' ");
 //                }
 //            }
 //
@@ -285,9 +285,9 @@
 //                    return instance;
 //                }
 //                String errorContextTextAt = createErrorContextText(buf, i);
-//                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + ch + "', expected ',' or '}'");
+//                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + ch + "', expected ',' or '}'");
 //            } else {
-//                throw new JSONException("Syntax error, at pos " + i + ", unexpected token character '" + ch + "', Colon character ':' is expected.");
+//                throw new JSONException("Syntax error, at pos " + i + ", unexpected '" + ch + "', token ':' is expected.");
 //            }
 //        }
 //    }
@@ -432,7 +432,7 @@
 //                return list;
 //            }
 //            String errorContextTextAt = createErrorContextText(bytes, i);
-//            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + b + "', expected ',' or ']'");
+//            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + b + "', expected ',' or ']'");
 //        }
 ////        throw new JSONException("Syntax error, cannot find closing symbol ']' matching '['");
 //    }
@@ -476,7 +476,7 @@
 //                }
 //                if (!isNullKey) {
 //                    String errorContextTextAt = createErrorContextText(bytes, j);
-//                    throw new JSONException("Syntax error, at pos " + j + ", context text by '" + errorContextTextAt + "', unexpected token character '" + b + "', expected '\"'");
+//                    throw new JSONException("Syntax error, at pos " + j + ", context text by '" + errorContextTextAt + "', unexpected '" + b + "', expected '\"'");
 //                }
 //            }
 //
@@ -550,9 +550,9 @@
 //                    return instance;
 //                }
 //                String errorContextTextAt = createErrorContextText(bytes, i);
-//                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token character '" + b + "', expected ',' or '}'");
+//                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + b + "', expected ',' or '}'");
 //            } else {
-//                throw new JSONException("Syntax error, at pos " + i + ", unexpected token character '" + b + "', Colon character ':' is expected.");
+//                throw new JSONException("Syntax error, at pos " + i + ", unexpected '" + b + "', token ':' is expected.");
 //            }
 //        }
 //    }
