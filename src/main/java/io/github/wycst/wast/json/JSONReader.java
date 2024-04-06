@@ -27,7 +27,6 @@ import io.github.wycst.wast.json.options.ReadOption;
 
 import java.io.*;
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -35,17 +34,16 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 1,基于流(字符流)的JSON解析:
- * <p> - 超大文件json文件解析（文件大小读取无限制）,无需将流内容读取到内存中再解析
- * <p> - 检测当前json类型是对象还是数组，其他类型处理无意义
- * <p> - 可按需终止
- * <p> - 支持异步
+ * 1,JSON parsing based on stream (character stream):
+ * <p> Large file JSON file parsing (unlimited file size reading), no need to read stream content into memory for parsing
+ * <p> Can be terminated as needed
+ * <p> Supports asynchronous
  * <br>
- * 2, 流内容需要严格遵守JSON规范.
+ * 2, The streaming content needs to strictly adhere to the JSON specification.
  *
  * <br>
  * <br>
- * 例子:
+ * Example:
  * <pre>
  * final JSONReader reader = JSONReader.from(new File("/tmp/text.json"));
  * </pre>
@@ -55,7 +53,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *     Object result = reader.getResult(); (map或者list)
  * </pre>
  * 2、On demand read stream
- * <p> 构造ReaderCallback时指定模式： ReadParseMode.ExternalImpl
+ * <p> Specify pattern when constructing ReaderCallback
  * <pre>
  *         reader.read(new JSONReader.ReaderCallback(JSONReader.ReadParseMode.ExternalImpl) {
  *
@@ -68,7 +66,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *         }, true);
  * </pre>
  * <p>
- * <p> 调用 abort() 可以随时终止流读取
+ * <p> Calling abort() can terminate stream read at any time
  *
  * @author wangyunchao
  * @see ReaderCallback
@@ -82,81 +80,59 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class JSONReader extends JSONGeneral {
 
     /**
-     * 字符流读取器
+     * Character stream reader
      */
     private final Reader reader;
 
     /**
-     * 整个流中当前指针位置（绝对位置）
+     * Current pointer position in the entire stream (absolute position)
      */
     protected int pos;
 
     /**
-     * 缓冲字符数组
+     * Buffered character array
      */
     private char[] buf;
 
     /**
-     * 缓冲容量
+     * capacity
      */
     protected int bufferSize = DIRECT_READ_BUFFER_SIZE;
 
     /**
-     * 缓冲字符数组实际可读取的长度
+     * The actual readable length of the buffer character array
      */
     protected int count;
 
     /**
-     * 缓冲字符数组当前读取位置(相对位置)
+     * current read offset
      */
     protected int offset;
 
     /**
-     * 当前字符
+     * current character
      */
     protected int current;
-
-    // 回调句柄
     private ReaderCallback callback;
-
-    /**
-     * 解析配置上下文
-     */
     private final JSONParseContext parseContext = new JSONParseContext();
     private ReadOption[] readOptions = new ReadOption[0];
-
-    /**
-     * 反射类型，如果没有指定，解析时动态指定
-     */
     private GenericParameterizedType genericType;
-
-    // 解析结果
     private Object result;
-
-    // 读取中状态
     private boolean reading;
-
-    // 是否已关闭（流）
     private boolean closed;
-
-    // 是否终止
     private boolean aborted;
-
-    // 临时字符串构建器
+    private boolean completed;
     protected final StringBuilder bufferWriter = new StringBuilder();
     protected int readingOffset = -1;
-
-    // 锁(也可以使用CountDownLatch)
     private volatile Object lock = new Object();
-    // 是否异步标识
     private boolean async;
-    // 默认超时60s
     private long timeout = 60000;
-    // 当前运行的线程id
     private long currentThreadId;
 
+    private boolean multiple;
+
     /**
-     * 通过文件对象构建json流读取器
+     * Building a JSON stream reader from a file object
      *
      * @param file
      */
@@ -165,7 +141,7 @@ public class JSONReader extends JSONGeneral {
     }
 
     /**
-     * 通过文件源构建读取器 (Building a JSON stream reader from a file object)
+     * Building a JSON stream reader from a file object
      *
      * @param file
      * @return
@@ -179,7 +155,7 @@ public class JSONReader extends JSONGeneral {
     }
 
     /**
-     * 通过流对象构建json流读取器 (Building a JSON stream reader from a stream object)
+     * Building a JSON stream reader from a stream object
      *
      * @param inputStream
      * @return
@@ -189,7 +165,7 @@ public class JSONReader extends JSONGeneral {
     }
 
     /**
-     * 通过字符串构建
+     * Build through strings
      *
      * @param json
      * @return
@@ -199,7 +175,7 @@ public class JSONReader extends JSONGeneral {
     }
 
     /**
-     * 通过字符数组构建
+     * Build through character arrays
      *
      * @param source
      * @return
@@ -209,7 +185,7 @@ public class JSONReader extends JSONGeneral {
     }
 
     /**
-     * 通过字符数组构建
+     * Build through character arrays
      *
      * @param buf
      */
@@ -219,12 +195,8 @@ public class JSONReader extends JSONGeneral {
         this.reader = null;
     }
 
-    JSONReader() {
-        this.reader = null;
-    }
-
     /**
-     * 通过流对象构建json流读取器 (Building a JSON stream reader from a stream object)
+     * Building a JSON stream reader from a stream object
      *
      * @param inputStream
      */
@@ -233,10 +205,10 @@ public class JSONReader extends JSONGeneral {
     }
 
     /**
-     * 通过流对象构建json流读取器 (Building a JSON stream reader from a stream object)
+     * Building a JSON stream reader from a stream object
      *
      * @param inputStream
-     * @param buffSize    缓冲大小
+     * @param buffSize
      */
     public JSONReader(InputStream inputStream, int buffSize) {
         this.reader = new InputStreamReader(inputStream);
@@ -245,10 +217,10 @@ public class JSONReader extends JSONGeneral {
 
 
     /**
-     * 通过流对象构建json流读取器 (Building a JSON stream reader from a stream object)
+     * Building a JSON stream reader from a stream object
      *
      * @param inputStream
-     * @param charsetName 指定编码
+     * @param charsetName
      */
     public JSONReader(InputStream inputStream, String charsetName) {
         Reader reader;
@@ -261,7 +233,7 @@ public class JSONReader extends JSONGeneral {
     }
 
     /**
-     * 直接通过reader构建
+     * Build directly through the reader
      *
      * @param reader
      */
@@ -272,97 +244,71 @@ public class JSONReader extends JSONGeneral {
         this.reader = reader;
     }
 
-    /***
-     * 设置解析配置项
-     *
-     * @param readOptions
-     */
     public void setOptions(ReadOption... readOptions) {
         JSONOptions.readOptions(this.readOptions = readOptions, parseContext);
     }
 
-    /**
-     * 指定超时时间单位毫秒 (timeout)
-     *
-     * @param timeout
-     */
     public void setTimeout(long timeout) {
         this.timeout = timeout;
     }
 
     /**
-     * 以默认模式读取 (default read)
-     * <p> 返回result
+     * Does it support reading multiple JSON
+     *
+     * @param multiple
      */
+    public void setMultiple(boolean multiple) {
+        this.multiple = multiple;
+    }
+
     public Object read() {
         try {
             this.readBuffer();
-            if (this.isCompleted()) {
+            if (!multiple && this.isCompleted()) {
                 return JSONDefaultParser.parse(null, buf, 0, count, null, readOptions);
             }
             this.defaultRead();
         } catch (Exception e) {
             throw new JSONException(e);
         } finally {
-            this.close();
+            this.attemptToCloseReader();
         }
         return result;
     }
 
-    /**
-     * 以默认模式读取 (default read)
-     * <p> 读取完成可以调用getResult获取结果
-     *
-     * @param async 是否异步
-     */
     public void read(boolean async) {
         read(new ReaderCallback(), async);
     }
 
-    /**
-     * 以默认模式读取 (default read)
-     * <p> 返回result
-     */
     public Object readAsResult(Class<?> actualType) {
         return readAsResult(GenericParameterizedType.actualType(actualType));
     }
 
-    /**
-     * 以默认模式读取 (default read)
-     * <p> 返回result
-     */
     public <T> T readAsResult(GenericParameterizedType<T> genericType) {
         this.genericType = genericType;
         this.executeReadStream();
         return (T) result;
     }
 
-    /**
-     * 读取
-     *
-     * @param callback 回调句柄
-     */
     public void read(ReaderCallback callback) {
         read(callback, false);
     }
 
     /**
-     * 读取
-     *
-     * @param callback 回调句柄
-     * @param async    是否异步
+     * @param callback
+     * @param async
      */
     public void read(ReaderCallback callback, boolean async) {
+        if (reading) return;
         checkReadState();
         this.callback = callback;
         this.reading = true;
         if (!async) {
-            // 以阻塞模式下读取
+            // sync
             this.executeReadStream();
         } else {
-            // 如果需要频繁的调用,可以使用Executors.newCachedThreadPool()在外部自行实现异步处理
+            // async
             this.async = true;
-            // 记录当前线程id
             this.currentThreadId = Thread.currentThread().getId();
             new Thread(new Runnable() {
                 public void run() {
@@ -372,15 +318,56 @@ public class JSONReader extends JSONGeneral {
         }
     }
 
+    /**
+     * Skip Next JSON
+     */
+    public void skipNext() {
+        try {
+            if(current == 0) {
+                readBuffer();
+            }
+            clearWhitespaces();
+            switch (current) {
+                case '{':
+                    skipObject();
+                    break;
+                case '[':
+                    skipArray();
+                    break;
+                case -1: {
+                    this.complete();
+                    break;
+                }
+                default:
+                    throw new UnsupportedOperationException("Character stream start character error. Only object({) or array([) parsing is supported");
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Skip the number of JSONs
+     *
+     * @param count
+     */
+    public void skipNext(int count) {
+        while (count-- > 0) {
+            skipNext();
+        }
+    }
+
+    private void complete() {
+        this.result = null;
+        this.completed = true;
+    }
+
     private void checkReadState() {
         if (this.closed) {
-            throw new UnsupportedOperationException("Stream has been closed");
+            throw new UnsupportedOperationException("is closed");
         }
         if (this.aborted) {
-            throw new UnsupportedOperationException("Reader has been aborted");
-        }
-        if (this.reading) {
-            throw new UnsupportedOperationException("Stream is being read");
+            throw new UnsupportedOperationException("is aborted");
         }
     }
 
@@ -391,7 +378,7 @@ public class JSONReader extends JSONGeneral {
         } catch (Exception e) {
             throw new JSONException(e);
         } finally {
-            close();
+            attemptToCloseReader();
             this.reading = false;
             this.closed = true;
             unlock();
@@ -404,14 +391,17 @@ public class JSONReader extends JSONGeneral {
             buf = new char[bufferSize];
         }
         if (this.readingOffset > -1) {
+            // put all the remaining unread content in the builder
             if (bufferSize > this.readingOffset) {
                 this.bufferWriter.append(buf, this.readingOffset, bufferSize - this.readingOffset);
             }
             // reset
             this.readingOffset = 0;
         }
-        count = reader.read(buf);
-        offset = 0;
+        if (offset >= count) {
+            count = reader.read(buf);
+            offset = 0;
+        }
     }
 
     private void unlock() {
@@ -430,9 +420,6 @@ public class JSONReader extends JSONGeneral {
         }
     }
 
-    /**
-     * 开始读取
-     */
     private void defaultRead() throws Exception {
         clearWhitespaces();
         switch (current) {
@@ -442,45 +429,48 @@ public class JSONReader extends JSONGeneral {
             case '[':
                 this.result = this.readArray();
                 break;
+            case -1: {
+                this.complete();
+                return;
+            }
             default:
                 throw new UnsupportedOperationException("Character stream start character error. Only object({) or array([) parsing is supported");
         }
         // clear white space characters
-        clearWhitespaces();
-        if (current > -1) {
-            throw new JSONException("Syntax error, extra characters found, '" + (char) current + "', pos " + pos);
+        if (!multiple) {
+            clearWhitespaces();
+            if (current > -1) {
+                throw new JSONException("Syntax error, extra characters found, '" + (char) current + "', pos " + pos);
+            }
         }
     }
 
-    /**
-     * 开始读取
-     */
     private void beginReadWithType() throws Exception {
         clearWhitespaces();
         switch (current) {
             case '{':
-                // 对象解析
                 this.checkAutoGenericObjectType();
                 this.result = this.readObject("", genericType);
                 break;
             case '[':
-                // 数组解析
                 this.checkAutoGenericCollectionType();
                 this.result = this.readArray("", genericType);
                 break;
+            case -1: {
+                this.complete();
+                return;
+            }
             default:
                 throw new UnsupportedOperationException("Character stream start character error. Only object({) or array([) parsing is supported");
         }
         // clear white space characters
-
         if (isAborted()) return;
-
-        clearWhitespaces();
-        if (current > -1) {
-            throw new JSONException("Syntax error, extra characters found, '" + (char) current + "', pos " + pos);
+        if (!multiple) {
+            clearWhitespaces();
+            if (current > -1) {
+                throw new JSONException("Syntax error, extra characters found, '" + (char) current + "', pos " + pos);
+            }
         }
-
-        // 执行回调
         if (callback != null) {
             callback.complete(result);
         }
@@ -519,11 +509,9 @@ public class JSONReader extends JSONGeneral {
                 empty = false;
                 // find next "
                 this.beginReading(0);
-                // 暂且不考虑key值中存在转义字符\
+                // todo The reading logic is not rigorous enough and needs to be escaped
                 while (readNext() > -1 && current != '"') ;
-                // 去掉当前字符（结束 "）
                 key = endReadingAsString(-1);
-                // 解析value
                 clearWhitespaces();
                 if (current == ':') {
                     clearWhitespaces();
@@ -538,22 +526,18 @@ public class JSONReader extends JSONGeneral {
                             instance.put(key, value);
                             break;
                         case '"':
-                            // 将字符串转化为指定类型
                             value = this.readString();
                             instance.put(key, value);
                             break;
                         case 'n':
-                            // 读取null
                             this.readNull();
                             instance.put(key, null);
                             break;
                         case 't':
-                            // 读取null
                             this.readTrue();
                             instance.put(key, true);
                             break;
                         case 'f':
-                            // 读取null
                             this.readFalse();
                             instance.put(key, false);
                             break;
@@ -567,7 +551,6 @@ public class JSONReader extends JSONGeneral {
                             }
                     }
                     clearWhitespaces();
-                    // 是否为逗号或者}
                     if (current == ',') {
                         continue;
                     }
@@ -662,7 +645,6 @@ public class JSONReader extends JSONGeneral {
                     readNext();
                 }
                 if (current == '.') {
-                    // 小数点模式
                     mode = 1;
                     // direct scan numbers
                     while (isDigit(readNext())) {
@@ -802,17 +784,14 @@ public class JSONReader extends JSONGeneral {
                     break;
                 }
                 case 'n':
-                    // 读取null
                     this.readNull();
                     arrInstance.add(null);
                     break;
                 case 't':
-                    // 读取null
                     this.readTrue();
                     arrInstance.add(true);
                     break;
                 case 'f':
-                    // 读取null
                     this.readFalse();
                     arrInstance.add(false);
                     break;
@@ -844,8 +823,7 @@ public class JSONReader extends JSONGeneral {
     }
 
     /**
-     * 读取对象 （read object）
-     * 当读取到流结束或者遇到}字符结束 (When the end of the stream is read or the end of the} character is encountered)
+     * When the end of the stream is read or the end of the} character is encountered
      *
      * @throws Exception
      */
@@ -933,7 +911,6 @@ public class JSONReader extends JSONGeneral {
                                 invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, mapInstane, instance, setterInfo);
                                 break;
                             case '"':
-                                // 将字符串转化为指定类型
                                 value = parseStringTo(this.readString(), valueType, jsonProperty);
                                 invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, mapInstane, instance, setterInfo);
                                 break;
@@ -973,7 +950,7 @@ public class JSONReader extends JSONGeneral {
                             clearWhitespaces();
                         }
                     }
-                    // 是否为逗号或者}
+                    // , or }
                     if (current == '}') {
                         break;
                     }
@@ -1018,7 +995,7 @@ public class JSONReader extends JSONGeneral {
                 this.clearWhitespaces();
                 break;
             case '"':
-                // 将字符串转化为指定类型
+                // string
                 this.skipString();
                 this.clearWhitespaces();
                 break;
@@ -1046,7 +1023,7 @@ public class JSONReader extends JSONGeneral {
                 if (current == ':') {
                     clearWhitespaces();
                     this.skipValue('}');
-                    // 是否为逗号或者}
+                    // , or }
                     if (current == '}') {
                         return;
                     }
@@ -1078,7 +1055,7 @@ public class JSONReader extends JSONGeneral {
             }
             this.skipValue(']');
             elementIndex++;
-            // 是否为逗号或者]
+            // , or ]
             if (current == ']') {
                 return;
             }
@@ -1095,6 +1072,7 @@ public class JSONReader extends JSONGeneral {
     private void skipString() throws Exception {
         char prev = '\0';
         while (readNext() > -1) {
+            // todo The logic here is not rigorous enough
             if (current == '"' && prev != '\\') {
                 return;
             }
@@ -1323,7 +1301,7 @@ public class JSONReader extends JSONGeneral {
             if (!toBreakOrContinue) {
                 clearWhitespaces();
             }
-            // 是否为逗号或者]
+            // , or ]
             if (current == ']') {
                 break;
             }
@@ -1349,10 +1327,10 @@ public class JSONReader extends JSONGeneral {
     }
 
     /**
-     * 从当前字符开始（包含当前字符）
+     * Starting from the current character (including the current character)
      */
     protected void beginCurrent() {
-        // 每次读完字符，offset会+1, current的实际位置是offset - 1
+        // Every time a character is read, the offset will be+1, and the actual position of the current is offset -1
         this.beginReading(-1);
     }
 
@@ -1362,7 +1340,8 @@ public class JSONReader extends JSONGeneral {
         char prev = '\0';
         while (readNext() > -1) {
             if (prev == '\\') {
-                // buf因为分批读取的原因，如果当前批次最后一个字符为转义符\\，readNext()时转义符会被写到writer中需要清掉
+                // Due to batch reading, if the last character in the current batch is the escape character \ \,
+                // the escape character will be written to the writer and needs to be cleared when readNext() is used
                 if (offset == 1) {
                     // remove \\
                     int bufferLen = bufferWriter.length();
@@ -1457,14 +1436,14 @@ public class JSONReader extends JSONGeneral {
     protected final int readNext(boolean check) throws Exception {
         readNext();
         if (check && current == -1) {
-            close();
+            attemptToCloseReader();
             throw new JSONException("Unexpected error, stream is end ");
         }
         return current;
     }
 
     /**
-     * 清除空白字符直到读取到非空字符 （Clear white space characters until non empty characters）
+     * Clear white space characters until non empty characters
      *
      * @throws IOException
      */
@@ -1473,23 +1452,23 @@ public class JSONReader extends JSONGeneral {
     }
 
     /**
-     * 外部实现
+     * External implementation
      */
     private boolean isExternalImpl() {
         return this.callback != null && this.callback.readParseMode == ReadParseMode.ExternalImpl;
     }
 
     /**
-     * 是否读取完成
+     * whether the reading completed
      *
      * @return
      */
     protected boolean isCompleted() {
-        return reader == null || count < bufferSize;
+        return reader == null || count < bufferSize || completed;
     }
 
     /**
-     * 返回解析的结果
+     * return the result of parsing
      *
      * @return
      */
@@ -1498,7 +1477,7 @@ public class JSONReader extends JSONGeneral {
     }
 
     /**
-     * 返回解析的结果
+     * return the result of parsing
      *
      * @return
      */
@@ -1515,50 +1494,55 @@ public class JSONReader extends JSONGeneral {
     }
 
     /**
-     * 关闭流
+     * try to close stream
+     */
+    public void attemptToCloseReader() {
+        bufferWriter.setLength(0);
+        if (!multiple) {
+            close();
+        }
+    }
+
+    /**
+     * close stream
      */
     public void close() {
         try {
             if (reader != null) {
                 reader.close();
-                this.closed = true;
             }
-            bufferWriter.setLength(0);
         } catch (IOException e) {
-            throw new UnsupportedOperationException(e);
+        } finally {
+            this.closed = true;
         }
     }
 
     public enum ReadParseMode {
+
         /**
-         * 内置解析
-         * <p> 解析结果为Map或者List
+         * Built in parsing
          */
         BuiltParse,
 
-        /***
-         * 外部实现
-         *
-         * <p> 将内容抛给实现者自定义处理
-         *
+        /**
+         * External implementation
          */
         ExternalImpl
     }
 
     /***
-     * 通过回调(订阅)模式响应解析过程 (Response parsing process through callback (subscription) mode)
-     * 钩子模式，非异步调用 （Hook mode, non asynchronous call）
-     *
+     * Response parsing process through callback (subscription) mode
+     * Hook mode, non asynchronous call
      */
     public static class ReaderCallback {
 
-        // 读取解析模式 (Read parsing mode)
+        // Read parsing mode
         private final ReadParseMode readParseMode;
         private boolean abored;
 
         /**
-         * 默认内部解析模式
-         * 即读取到流结束后返回给使用者
+         * Default internal parsing mode
+         * After reading the end of the stream, it is returned to the user
          */
         public ReaderCallback() {
             this(ReadParseMode.BuiltParse);
@@ -1569,13 +1553,10 @@ public class JSONReader extends JSONGeneral {
         }
 
         /**
-         * 触发场景: {} 和 []结构内容开启时被调用
+         * Give the initiative to build the object to the caller. If the type is 1, create a map or object. If the type is 2, create a collection object
          *
-         * <p> 解析子路径时将作为宿主传入
-         * <p> 返回值在上一级解析时作为value传入
-         *
-         * @param path json路径
-         * @param type 1 {}; 2 []
+         * @param path JSON PATH
+         * @param type 1. Object type; 2 Collection type
          * @return 实例对象
          * @throws Exception
          */
@@ -1584,21 +1565,20 @@ public class JSONReader extends JSONGeneral {
         }
 
         /**
-         * 提供给实现者解析
-         * <p> 当readMode为ReadParseMode.ExternalImpl时有效
+         * Assign property settings to the caller
          *
-         * @param key          当解析对象时为对象的key值，否则为null
-         * @param value        对象/数组/字符串/number
-         * @param host         宿主对象
-         * @param elementIndex 当数组集合时标记当前的位置，否则-1
-         * @param path         json路径
+         * @param key          the key if object({}), otherwise null
+         * @param value        map/collection/string/number
+         * @param host         object or collection
+         * @param elementIndex the index if collection([]), otherwise -1
+         * @param path         JSON PATH
          * @throws Exception
          */
         public void parseValue(String key, Object value, Object host, int elementIndex, String path) throws Exception {
         }
 
         /**
-         * 解析完成回调
+         * Parse completed callback
          *
          * @param result
          */
@@ -1606,7 +1586,7 @@ public class JSONReader extends JSONGeneral {
         }
 
         /**
-         * 终止读取操作
+         * terminate read operation
          */
         protected final void abort() {
             this.abored = true;
