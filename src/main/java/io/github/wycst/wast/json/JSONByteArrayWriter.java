@@ -63,6 +63,12 @@ class JSONByteArrayWriter extends JSONWriter {
         }
     }
 
+    JSONByteArrayWriter(int cap, Charset charset) {
+        buf = new byte[cap];
+        this.charset = charset;
+        utf8 = charset == EnvUtils.CHARSET_UTF_8;
+    }
+
     private static ByteBufCache getByteBufCache() {
         int cacheIndex = THREAD_CACHE_INDEX.get();
         ByteBufCache cache = BYTE_BUF_CACHES[cacheIndex];
@@ -179,7 +185,7 @@ class JSONByteArrayWriter extends JSONWriter {
             if (ch < 0x80) {
                 buf[count++] = (byte) ch;
             } else {
-                count = encode(ch, buf, count);
+                count = encode(ch, count);
             }
         }
         this.count = count;
@@ -216,7 +222,7 @@ class JSONByteArrayWriter extends JSONWriter {
                     if (c < 0x80) {
                         buf[count++] = (byte) c;
                     } else {
-                        count = encode(c, buf, count);
+                        count = encode(c, count);
                     }
                 }
                 this.count = count;
@@ -227,9 +233,9 @@ class JSONByteArrayWriter extends JSONWriter {
         }
     }
 
-    protected int encode(char c, byte[] buf, int offset) {
+    protected int encode(char c, int offset) {
         if (utf8) {
-            return encodeUTF8(c, buf, offset);
+            return encodeUTF8(c, offset);
         } else {
             ByteBuffer buffer = charset.encode(CharBuffer.wrap(new char[]{c}));
             int remaining = buffer.remaining();
@@ -241,7 +247,7 @@ class JSONByteArrayWriter extends JSONWriter {
         }
     }
 
-    protected final int encodeUTF8(char c, byte[] buf, int offset) {
+    protected final int encodeUTF8(char c, int offset) {
         // utf-8 code
         // 1 0000 0000-0000 007F | 0xxxxxxx
         // 2 0000 0080-0000 07FF | 110xxxxx 10xxxxxx
@@ -331,7 +337,7 @@ class JSONByteArrayWriter extends JSONWriter {
                 if (ch < 0x80) {
                     buf[count++] = (byte) ch;
                 } else {
-                    count = encode(ch, buf, count);
+                    count = encode(ch, count);
                 }
                 continue;
             }
@@ -388,7 +394,7 @@ class JSONByteArrayWriter extends JSONWriter {
                 if (c < 0x80) {
                     buf[count++] = (byte) c;
                 } else {
-                    count = encode(c, buf, count);
+                    count = encode(c, count);
                 }
                 continue;
             }
@@ -518,6 +524,41 @@ class JSONByteArrayWriter extends JSONWriter {
     }
 
     @Override
+    protected final void writeCommaLongValues(long val1, long val2) throws IOException {
+        ensureCapacity(42 + SECURITY_UNCHECK_SPACE);
+        int off = count;
+        if (val1 < 0) {
+            if (val1 == Long.MIN_VALUE) {
+                write(",-9223372036854775808");
+                off = count;
+            } else {
+                val1 = -val1;
+                buf[off++] = ',';
+                buf[off++] = '-';
+                off += NumberUtils.writePositiveLong(val1, buf, off);
+            }
+        } else {
+            buf[off++] = ',';
+            off += NumberUtils.writePositiveLong(val1, buf, off);
+        }
+        if (val2 < 0) {
+            if (val2 == Long.MIN_VALUE) {
+                write(",-9223372036854775808");
+                off = count;
+            } else {
+                val2 = -val2;
+                buf[off++] = ',';
+                buf[off++] = '-';
+                off += NumberUtils.writePositiveLong(val2, buf, off);
+            }
+        } else {
+            buf[off++] = ',';
+            off += NumberUtils.writePositiveLong(val2, buf, off);
+        }
+        count = off;
+    }
+
+    @Override
     public void writeUUID(UUID uuid) {
         long mostSigBits = uuid.getMostSignificantBits();
         long leastSigBits = uuid.getLeastSignificantBits();
@@ -559,17 +600,42 @@ class JSONByteArrayWriter extends JSONWriter {
         buf[off++] = ':';
         off += NumberUtils.writeTwoDigits(second, buf, off);
         if (nano > 0) {
-            nano += 1000000000;
-            while (nano % 1000 == 0) {
-                nano = nano / 1000;
-            }
-            int pointIndex = off;
-            off += NumberUtils.writePositiveLong(nano, buf, off);
-            buf[pointIndex] = '.';
+            off = writeNano(nano, off);
         }
-        count = off;
-        writeZoneId(zoneId);
-        buf[count++] = '"';
+        if (zoneId.hashCode() == 'Z') {
+            off += UnsafeHelper.putShort(buf, off, Z_QUOT_SHORT);
+            count = off;
+        } else {
+            count = off;
+            writeZoneId(zoneId);
+            buf[count++] = '"';
+        }
+    }
+
+    int writeNano(int nano, int off) {
+        // 4 + 2 + 3
+        buf[off++] = '.';
+        // seg1 4
+        int div1 = nano / 1000;
+        int seg1 = div1 / 100;
+        int seg2 = div1 - 100 * seg1;
+        int seg3 = nano - div1 * 1000;
+        off += NumberUtils.writeFourDigits(seg1, buf, off);
+        off += NumberUtils.writeTwoDigits(seg2, buf, off);
+        if (seg3 > 0) {
+            int pos = --off;
+            byte last = buf[pos];
+            off += NumberUtils.writeFourDigits(seg3, buf, pos);
+            buf[pos] = last;
+        } else {
+            if (seg2 == 0) {
+                off -= 2;
+                if ((seg1 & 1) == 0 && seg1 % 5 == 0) {
+                    --off;
+                }
+            }
+        }
+        return off;
     }
 
     @Override
@@ -607,13 +673,7 @@ class JSONByteArrayWriter extends JSONWriter {
         off += NumberUtils.writeTwoDigitsAndPreSuffix(minute, ':', ':', buf, off);
         off += NumberUtils.writeTwoDigits(second, buf, off);
         if (nano > 0) {
-            nano += 1000000000;
-            while (nano % 1000 == 0) {
-                nano = nano / 1000;
-            }
-            int pointIndex = off;
-            off += NumberUtils.writePositiveLong(nano, buf, off);
-            buf[pointIndex] = '.';
+            off = writeNano(nano, off);
         }
         buf[off++] = '"';
         count = off;
@@ -642,6 +702,13 @@ class JSONByteArrayWriter extends JSONWriter {
         int increment = ((bigInteger.bitLength() / 60) + 1) * 18;
         ensureCapacity(increment + SECURITY_UNCHECK_SPACE);
         count += NumberUtils.writeBigInteger(bigInteger, buf, count);
+    }
+
+    @Override
+    public void writeEmptyArray() throws IOException {
+        ensureCapacity(2 + SECURITY_UNCHECK_SPACE);
+        UnsafeHelper.putShort(buf, count, EMPTY_ARRAY_SHORT);
+        count += 2;
     }
 
     @Override
@@ -674,6 +741,12 @@ class JSONByteArrayWriter extends JSONWriter {
 //            write(source, 0, source.length());
 //        }
 //    }
+
+    public void writeBytes(byte[] bytes, int offset, int len) {
+        ensureCapacity(len);
+        System.arraycopy(bytes, offset, buf, count, len);
+        count += len;
+    }
 
     void clearCache() {
         if (byteBufCache != null) {

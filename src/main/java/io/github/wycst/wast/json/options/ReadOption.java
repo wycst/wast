@@ -57,11 +57,9 @@ public enum ReadOption {
     UseBigDecimalAsDefault,
 
     /**
-     * <p>
-     * 缺省情况下对于number的解析使用10进制字符累加计算，当double的数字长度超过15位时会存在精度丢失（double）；
-     * <p> 当java类型确定为double类型时可以启用此配置，程序将使用jdk内置的Double.parseDouble来解析；
-     * <p> 注：即使使用Double.parseDouble也无法保证100%精度完整；
+     * <p> 使用JDK内置的double进行parser <p>
      */
+    @Deprecated
     UseJDKDoubleParser,
 
     /**
@@ -76,6 +74,15 @@ public enum ReadOption {
      *
      * @see io.github.wycst.wast.json.util.FixedNameValueMap
      */
-    DisableCacheMapKey
+    DisableCacheMapKey,
 
+    /**
+     * <p>忽略转义字符检查，如果确定内容没有转义或者不关心转义字符内容可开启提升一定性能</p>
+     */
+    IgnoreEscapeCheck,
+
+    /**
+     * strict mode
+     */
+    StrictMode
 }

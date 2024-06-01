@@ -8,8 +8,10 @@ import io.github.wycst.wast.json.JSONParseContext;
 import io.github.wycst.wast.json.JSONTemporalDeserializer;
 import io.github.wycst.wast.json.exceptions.JSONException;
 
+import java.time.LocalDateTime;
+
 /**
- * 参考java.util.Date反序列化，使用反射实现
+ * LocalDateTime反序列化
  *
  * @Author: wangy
  * @Date: 2022/8/13 15:06
@@ -24,21 +26,18 @@ public class TemporalLocalDateTimeDeserializer extends JSONTemporalDeserializer 
     }
 
     protected void checkClass(GenericParameterizedType genericParameterizedType) {
-//        if (genericParameterizedType.getActualType() != TemporalAloneInvoker.localDateTimeClass) {
-//            throw new UnsupportedOperationException("Not Support for class " + genericParameterizedType.getActualType());
-//        }
     }
 
     protected Object deserializeTemporal(char[] buf, int fromIndex, int endIndex, JSONParseContext jsonParseContext) throws Exception {
         // use dateTemplate && pattern
         GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
-        return TemporalAloneInvoker.ofLocalDateTime(generalDate.getYear(), generalDate.getMonth(), generalDate.getDay(), generalDate.getHourOfDay(), generalDate.getMinute(), generalDate.getSecond(), generalDate.getMillisecond() * 1000000);
+        return LocalDateTime.of(generalDate.getYear(), generalDate.getMonth(), generalDate.getDay(), generalDate.getHourOfDay(), generalDate.getMinute(), generalDate.getSecond(), generalDate.getMillisecond() * 1000000);
     }
 
     protected Object deserializeTemporal(byte[] buf, int fromIndex, int endIndex, JSONParseContext jsonParseContext) throws Exception {
         // use dateTemplate && pattern
         GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
-        return TemporalAloneInvoker.ofLocalDateTime(generalDate.getYear(), generalDate.getMonth(), generalDate.getDay(), generalDate.getHourOfDay(), generalDate.getMinute(), generalDate.getSecond(), generalDate.getMillisecond() * 1000000);
+        return LocalDateTime.of(generalDate.getYear(), generalDate.getMonth(), generalDate.getDay(), generalDate.getHourOfDay(), generalDate.getMinute(), generalDate.getSecond(), generalDate.getMillisecond() * 1000000);
     }
 
     // default yyyy*MM*dd*HH*mm*ss
@@ -65,7 +64,7 @@ public class TemporalLocalDateTimeDeserializer extends JSONTemporalDeserializer 
         }
         if(c == endChar) {
             jsonParseContext.endIndex = offset;
-            return TemporalAloneInvoker.ofLocalDateTime(year, month, day, hour, minute, second, nanoOfSecond);
+            return LocalDateTime.of(year, month, day, hour, minute, second, nanoOfSecond);
         }
 
         String errorContextTextAt = createErrorContextText(buf, offset);
@@ -96,7 +95,7 @@ public class TemporalLocalDateTimeDeserializer extends JSONTemporalDeserializer 
         }
         if(c == endChar) {
             jsonParseContext.endIndex = offset;
-            return TemporalAloneInvoker.ofLocalDateTime(year, month, day, hour, minute, second, nanoOfSecond);
+            return LocalDateTime.of(year, month, day, hour, minute, second, nanoOfSecond);
         }
 
         String errorContextTextAt = createErrorContextText(buf, offset);
@@ -105,6 +104,6 @@ public class TemporalLocalDateTimeDeserializer extends JSONTemporalDeserializer 
 
     @Override
     protected Object valueOf(String value, Class<?> actualType) throws Exception {
-        return TemporalAloneInvoker.parseLocalDateTime(value);
+        return LocalDateTime.parse(value);
     }
 }

@@ -1,7 +1,5 @@
 package com.wast.test.json.inputstream;
 
-import io.github.wycst.wast.common.template.StringTemplate;
-import io.github.wycst.wast.common.utils.StringUtils;
 import io.github.wycst.wast.json.JSON;
 
 import java.io.File;

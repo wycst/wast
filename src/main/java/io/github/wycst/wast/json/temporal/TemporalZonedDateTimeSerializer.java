@@ -6,8 +6,10 @@ import io.github.wycst.wast.json.JSONTemporalSerializer;
 import io.github.wycst.wast.json.JSONWriter;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 
+import java.time.ZonedDateTime;
+
 /**
- * ZonedDateTime序列化，使用反射实现
+ * ZonedDateTime序列化
  *
  * @Author: wangy
  * @Date: 2022/8/13 15:06
@@ -22,25 +24,23 @@ public class TemporalZonedDateTimeSerializer extends JSONTemporalSerializer {
     }
 
     protected void checkClass(Class<?> temporalClass) {
-//        if (temporalClass != TemporalAloneInvoker.zonedDateTimeClass) {
-//            throw new UnsupportedOperationException("not support for class temporal type " + temporalClass);
-//        }
     }
 
     @Override
     protected void writeTemporalWithTemplate(Object value, JSONWriter writer, JSONConfig jsonConfig) throws Exception {
-        int year = TemporalAloneInvoker.invokeZonedDateTimeYear(value);
-        int month = TemporalAloneInvoker.invokeZonedDateTimeMonth(value);
-        int day = TemporalAloneInvoker.invokeZonedDateTimeDay(value);
-        int hour = TemporalAloneInvoker.invokeZonedDateTimeHour(value);
-        int minute = TemporalAloneInvoker.invokeZonedDateTimeMinute(value);
-        int second = TemporalAloneInvoker.invokeZonedDateTimeSecond(value);
-        int nano = TemporalAloneInvoker.invokeZonedDateTimeNano(value);
+        ZonedDateTime zonedDateTime = (ZonedDateTime) value;
+        int year = zonedDateTime.getYear();
+        int month = zonedDateTime.getMonthValue();
+        int day = zonedDateTime.getDayOfMonth();
+        int hour = zonedDateTime.getHour();
+        int minute = zonedDateTime.getMinute();
+        int second = zonedDateTime.getSecond();
+        int nano = zonedDateTime.getNano();
         int millisecond = nano / 1000000;
         writer.write('"');
         // localDateTime
         writeDate(year, month, day, hour, minute, second, millisecond, dateFormatter, writer);
-        String zoneId = TemporalAloneInvoker.invokeZonedDateTimeZone(value).toString();
+        String zoneId = zonedDateTime.getZone().toString();
         writer.writeZoneId(zoneId);
         writer.write('"');
     }
@@ -49,13 +49,15 @@ public class TemporalZonedDateTimeSerializer extends JSONTemporalSerializer {
     // note: toString有细微差别
     @Override
     protected void writeDefault(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
-        int year = TemporalAloneInvoker.invokeZonedDateTimeYear(value);
-        int month = TemporalAloneInvoker.invokeZonedDateTimeMonth(value);
-        int day = TemporalAloneInvoker.invokeZonedDateTimeDay(value);
-        int hour = TemporalAloneInvoker.invokeZonedDateTimeHour(value);
-        int minute = TemporalAloneInvoker.invokeZonedDateTimeMinute(value);
-        int second = TemporalAloneInvoker.invokeZonedDateTimeSecond(value);
-        int nano = TemporalAloneInvoker.invokeZonedDateTimeNano(value);
-        writer.writeJSONLocalDateTime(year, month, day, hour, minute, second, nano, TemporalAloneInvoker.invokeZonedDateTimeZone(value).toString());
+        ZonedDateTime zonedDateTime = (ZonedDateTime) value;
+        writer.writeJSONLocalDateTime(
+                zonedDateTime.getYear(),
+                zonedDateTime.getMonthValue(),
+                zonedDateTime.getDayOfMonth(),
+                zonedDateTime.getHour(),
+                zonedDateTime.getMinute(),
+                zonedDateTime.getSecond(),
+                zonedDateTime.getNano(),
+                zonedDateTime.getZone().toString());
     }
 }

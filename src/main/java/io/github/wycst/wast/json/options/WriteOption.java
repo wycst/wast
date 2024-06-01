@@ -91,9 +91,9 @@ public enum WriteOption {
     WriteNumberAsString,
 
     /**
-     * <p> 默认情况下序列化时float类型保留7位有效数字第8位四舍五入；double保留16位有效数字，第17位四舍五入；再不追求精度的情况下，性能极致；</p>
-     * <p> 开启配置后，浮点小数（double/float）直接使用本地的toString结果进行序列化；</p>
+     * <p> 后续删除 <p>
      */
+    @Deprecated
     WriteDecimalUseToString,
 
     /**

@@ -1,5 +1,6 @@
 package io.github.wycst.wast.json;
 
+import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.json.exceptions.JSONException;
 import io.github.wycst.wast.json.options.ReadOption;
 
@@ -401,20 +402,18 @@ public class JSONValidator extends JSONGeneral {
                 && buf[beginIndex++] == 's'
                 && buf[beginIndex] == 'e') {
             offset = beginIndex;
-            return;
         } else {
             result = false;
             if (showMessage) {
                 int len = Math.min(4, toIndex - fromIndex);
                 setValidateMessage("Syntax error, at pos " + fromIndex + ", expected 'false' because it starts with 'f', but found text '" + new String(buf, fromIndex, len) + "'");
             }
-            return;
         }
     }
 
     private void validateNumber(int fromIndex, char endChar) throws Exception {
         try {
-            JSONTypeDeserializer.NUMBER.deserializeDefault(buf, fromIndex, toIndex, endChar, parseContext);
+            JSONTypeDeserializer.NUMBER.deserialize(null, buf, fromIndex, toIndex, GenericParameterizedType.AnyType, null, endChar, parseContext);
             offset = parseContext.endIndex;
         } catch (Throwable throwable) {
             result = false;

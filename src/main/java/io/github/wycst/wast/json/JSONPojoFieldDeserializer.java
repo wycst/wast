@@ -8,7 +8,6 @@ import io.github.wycst.wast.json.annotations.JsonDeserialize;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.custom.JsonDeserializer;
 
-import java.io.Serializable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -17,7 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * @Author wangyunchao
  */
-public class JSONPojoFieldDeserializer extends JSONTypeDeserializer {
+public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implements Comparable<JSONPojoFieldDeserializer> {
 
     /**
      * name
@@ -27,14 +26,14 @@ public class JSONPojoFieldDeserializer extends JSONTypeDeserializer {
     /**
      * setter信息
      */
-    private final SetterInfo setterInfo;
+    final SetterInfo setterInfo;
 
     private final JsonProperty jsonProperty;
 
     /**
      * 类型信息
      */
-    private GenericParameterizedType genericParameterizedType;
+    GenericParameterizedType genericParameterizedType;
 
     /**
      * 类型分类
@@ -46,7 +45,7 @@ public class JSONPojoFieldDeserializer extends JSONTypeDeserializer {
     /**
      * 反序列化器
      */
-    private JSONTypeDeserializer deserializer;
+    JSONTypeDeserializer deserializer;
 
     /**
      * 是否自定义反序列器
@@ -61,6 +60,7 @@ public class JSONPojoFieldDeserializer extends JSONTypeDeserializer {
      * 自定义反序列化器
      */
     private final static Map<Class<? extends JsonDeserializer>, JsonDeserializer> customDeserializers = new ConcurrentHashMap<Class<? extends JsonDeserializer>, JsonDeserializer>();
+    private boolean priority;
 
     JSONPojoFieldDeserializer(String name, SetterInfo setterInfo, JsonProperty jsonProperty) {
         if (setterInfo == null) {
@@ -107,11 +107,7 @@ public class JSONPojoFieldDeserializer extends JSONTypeDeserializer {
                 this.genericParameterizedType = GenericParameterizedType.actualType(implClass);
             } else {
                 if (setterInfo.isNonInstanceType()) {
-                    if (genericParameterizedType.getActualType() == Serializable.class) {
-                        this.deserializer = SERIALIZABLE_DESERIALIZER;
-                    } else {
-                        this.deserializer = null;
-                    }
+                    this.deserializer = getCachedTypeDeserializer(genericParameterizedType.getActualType());
                 } else {
                     if (genericParameterizedType.getActualClassCategory() == ReflectConsts.ClassCategory.ObjectCategory && unfixedType) {
                         this.deserializer = null;
@@ -155,13 +151,13 @@ public class JSONPojoFieldDeserializer extends JSONTypeDeserializer {
         return customDeserialize;
     }
 
-    public SetterInfo getSetterInfo() {
-        return setterInfo;
-    }
+//    public SetterInfo getSetterInfo() {
+//        return setterInfo;
+//    }
 
-    public GenericParameterizedType getGenericParameterizedType() {
-        return genericParameterizedType;
-    }
+//    public GenericParameterizedType getGenericParameterizedType() {
+//        return genericParameterizedType;
+//    }
 
     protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
         throw new UnsupportedOperationException();
@@ -171,9 +167,9 @@ public class JSONPojoFieldDeserializer extends JSONTypeDeserializer {
         throw new UnsupportedOperationException();
     }
 
-    public JSONTypeDeserializer getDeserializer() {
-        return deserializer;
-    }
+//    public JSONTypeDeserializer getDeserializer() {
+//        return deserializer;
+//    }
 
     public Object getDefaultFieldValue(Object instance) {
         return setterInfo.getDefaultFieldValue(instance);
@@ -213,5 +209,15 @@ public class JSONPojoFieldDeserializer extends JSONTypeDeserializer {
 
     public boolean isInstance(Object value) {
         return value == null || genericParameterizedType.getActualType().isInstance(value);
+    }
+
+    public void setPriority(boolean priority) {
+        this.priority = priority;
+    }
+
+    @Override
+    public int compareTo(JSONPojoFieldDeserializer o) {
+        if (setterInfo != o.setterInfo) return -1;
+        return priority ? 1 : 0;
     }
 }

@@ -22,6 +22,10 @@ public abstract class JSONWriter extends Writer {
     final static int SECURITY_UNCHECK_SPACE = 128;
     final static int CACHE_COUNT;
     final static AtomicInteger AUTO_SEQ = new AtomicInteger();
+    final static int EMPTY_ARRAY_INT;
+    final static short EMPTY_ARRAY_SHORT;
+    final static int Z_QUOT_INT;
+    final static short Z_QUOT_SHORT;
 
     static {
         // init memory:  16KB * 2 * 8 -> 256KB
@@ -35,6 +39,18 @@ public abstract class JSONWriter extends Writer {
             cacheCount <<= 1;
         }
         CACHE_COUNT = cacheCount;
+
+        if (EnvUtils.BIG_ENDIAN) {
+            EMPTY_ARRAY_INT = '[' << 16 | ']';
+            EMPTY_ARRAY_SHORT = '[' << 8 | ']';
+            Z_QUOT_INT = 'Z' << 16 | '"';
+            Z_QUOT_SHORT = 'Z' << 8 | '"';
+        } else {
+            EMPTY_ARRAY_INT = ']' << 16 | '[';
+            EMPTY_ARRAY_SHORT = ']' << 8 | '[';
+            Z_QUOT_INT = '"' << 16 | 'Z';
+            Z_QUOT_SHORT = '"' << 8 | 'Z';
+        }
     }
 
     JSONWriter() {
@@ -174,6 +190,95 @@ public abstract class JSONWriter extends Writer {
 
     public abstract void writeFloat(float numValue) throws IOException;
 
+    public void writeNull() throws IOException {
+        write("null");
+    }
+
+    // only use by JIT pojo compact
+    public final void writeLongArray(long[] values) throws IOException {
+        int len = values.length;
+        if (len > 0) {
+            writeJSONToken('[');
+            int i = 1;
+            writeLong(values[0]);
+            if ((len & 1) == 0) {
+                writeJSONToken(',');
+                writeLong(values[1]);
+                ++i;
+            }
+            for (; i < len; i = i + 2) {
+                writeCommaLongValues(values[i], values[i + 1]);
+            }
+            writeJSONToken(']');
+        } else {
+            writeEmptyArray();
+        }
+    }
+
+    protected void writeCommaLongValues(long val1, long val2) throws IOException {
+        writeJSONToken(',');
+        writeLong(val1);
+        writeJSONToken(',');
+        writeLong(val2);
+    }
+
+    // only use by JIT compact
+    public final void writeDoubleArray(double[] values) throws IOException {
+        int len = values.length;
+        if (len > 0) {
+            writeJSONToken('[');
+            int i = 1;
+            writeDouble(values[0]);
+            if ((len & 1) == 0) {
+                writeJSONToken(',');
+                writeDouble(values[1]);
+                ++i;
+            }
+            for (; i < len; i = i + 2) {
+                writeJSONToken(',');
+                writeDouble(values[i]);
+                writeJSONToken(',');
+                writeDouble(values[i + 1]);
+            }
+            writeJSONToken(']');
+        } else {
+            writeEmptyArray();
+        }
+    }
+
+    final void writeStringCompatibleNull(String value) throws IOException {
+        if (value == null) {
+            writeNull();
+        } else {
+            writeJSONString(value);
+        }
+    }
+
+    // only use by JIT compact
+    public final void writeStringArray(String[] values) throws IOException {
+        int len = values.length;
+        if (len > 0) {
+            writeJSONToken('[');
+            int i = 1;
+            writeStringCompatibleNull(values[0]);
+            if ((len & 1) == 0) {
+                writeJSONToken(',');
+                writeStringCompatibleNull(values[1]);
+                ++i;
+            }
+            for (; i < len; i = i + 2) {
+                writeJSONToken(',');
+                writeStringCompatibleNull(values[i]);
+                writeJSONToken(',');
+                writeStringCompatibleNull(values[i + 1]);
+            }
+            writeJSONToken(']');
+        } else {
+            writeEmptyArray();
+        }
+    }
+
+
     public final void writeJSONInstant(long epochSeconds, int nanos) throws IOException {
         GeneralDate generalDate = new GeneralDate(epochSeconds * 1000, JSONGeneral.ZERO_TIME_ZONE);
         int year = generalDate.getYear();
@@ -249,7 +354,7 @@ public abstract class JSONWriter extends Writer {
     public abstract void writeBigInteger(BigInteger bigInteger) throws IOException;
 
     // only for map key
-    public final void writeJSONStringKey(String value) throws IOException {
+    public final void writeJSONKeyAndColon(String value) throws IOException {
         writeJSONString(value);
         writeJSONToken(':');
     }
@@ -398,5 +503,9 @@ public abstract class JSONWriter extends Writer {
             offset += 4;
         }
         write(chars, 0, totalCount);
+    }
+
+    public void writeEmptyArray() throws IOException {
+        write(JSONGeneral.EMPTY_ARRAY);
     }
 }

@@ -2,41 +2,8 @@ package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.json.options.ReadOption;
 import io.github.wycst.wast.json.options.WriteOption;
-import io.github.wycst.wast.json.util.FixedNameValueMap;
 
 final class JSONOptions {
-
-    // cache keys
-    private static FixedNameValueMap<String> keyValueMap = new FixedNameValueMap<String>(4096);
-
-    private static Object lock = new Object();
-
-    // clear cache keys
-    public static void clearGlobalKeys() {
-        synchronized (lock) {
-            keyValueMap.reset();
-        }
-    }
-
-    static String getCacheKey(char[] buf, int offset, int len, long hashCode) {
-        //  len > 0
-        String value = keyValueMap.getValue(buf, offset, offset + len, hashCode);
-        if (value == null) {
-            value = new String(buf, offset, len);
-            keyValueMap.putValue(value, hashCode, value);
-        }
-        return value;
-    }
-
-    static String getCacheKey(byte[] bytes, int offset, int len, long hashCode) {
-        //  len > 0
-        String value = keyValueMap.getValue(bytes, offset, offset + len, hashCode);
-        if (value == null) {
-            value = new String(bytes, offset, len);
-            keyValueMap.putValue(value, hashCode, value);
-        }
-        return value;
-    }
 
     private static void setWriteOption(WriteOption option, JSONConfig jsonConfig) {
         if (jsonConfig != null) {
@@ -45,14 +12,18 @@ final class JSONOptions {
                     jsonConfig.setFormatOut(true);
                     break;
                 case FormatOutColonSpace:
+                    jsonConfig.setFormatOut(true);
                     jsonConfig.setFormatOutColonSpace(true);
                 case FormatIndentUseTab:
+                    jsonConfig.setFormatOut(true);
                     jsonConfig.setFormatIndentUseSpace(false);
                     break;
                 case FormatIndentUseSpace:
+                    jsonConfig.setFormatOut(true);
                     jsonConfig.setFormatIndentUseSpace(true);
                     break;
                 case FormatIndentUseSpace8:
+                    jsonConfig.setFormatOut(true);
                     jsonConfig.setFormatIndentUseSpace(true);
                     jsonConfig.setFormatIndentSpaceNum(8);
                     break;
@@ -150,6 +121,12 @@ final class JSONOptions {
                     break;
                 case DisableCacheMapKey:
                     parseContext.disableCacheMapKey = true;
+                    break;
+                case IgnoreEscapeCheck:
+                    parseContext.setIgnoreEscapeCheck();
+                    break;
+                case StrictMode:
+                    parseContext.strictMode = true;
                     break;
             }
         }

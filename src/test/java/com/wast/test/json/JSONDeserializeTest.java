@@ -1,9 +1,7 @@
 package com.wast.test.json;
 
 import io.github.wycst.wast.json.JSON;
-import io.github.wycst.wast.json.options.WriteOption;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**

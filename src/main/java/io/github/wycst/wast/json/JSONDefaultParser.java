@@ -318,9 +318,6 @@ public final class JSONDefaultParser extends JSONGeneral {
                         while (i + 1 < toIndex && buf[++i] != ':') ;
                         empty = false;
                         key = parseKeyOfMap(buf, fieldKeyFrom, i, true);
-                        if (key.equals("null")) {
-                            key = null;
-                        }
                     } else {
                         int j = i;
                         boolean isNullKey = false;
@@ -485,21 +482,18 @@ public final class JSONDefaultParser extends JSONGeneral {
         char ch;
         int i = from;
         int len;
-
         JSONCharArrayWriter writer = null;
         boolean escape = false;
-        for (; ;) {
-            int hashValue = 0;
-            char ch1 = 0;
-            boolean flag;
-            while ((flag = ((ch = buf[++i]) != '\\' && ch != endCh)) && (ch1 = buf[++i]) != '\\' && ch1 != endCh) {
-//                hashValue = hashValue * 961 + ch * 31 + ch1;
-                hashValue = (hashValue << 2) + (ch << 1) + ch1;
-            }
-            if (flag) {
-//                hashValue = hashValue * 31 + ch;
-                hashValue = (hashValue << 1) + ch;
-                ch = ch1;
+        boolean ascii = true;
+        for (; ; ) {
+            long hashValue = ESCAPE;
+            while ((ch = buf[++i]) != '\\' && ch != endCh) {
+                if (ch > 0xFF) {
+                    hashValue = (hashValue << 16) | ch;
+                    ascii = false;
+                } else {
+                    hashValue = hashValue << 8 | ch;
+                }
             }
             if (ch == '\\') {
                 if (writer == null) {
@@ -515,38 +509,17 @@ public final class JSONDefaultParser extends JSONGeneral {
                     writer.write(buf, beginIndex, len);
                     return writer.toString();
                 } else {
-                    if(len > 32) {
-                        return new String(buf, beginIndex, len);
+                    if (ascii && len <= 8) {
+                        return getCacheEightCharsKey(buf, beginIndex, len, hashValue);
                     }
-                    return len == 0 ? "" : jsonParseContext.getCacheKey(buf, beginIndex, len, hashValue);
+                    return getCacheKey(buf, beginIndex, len, hashValue);
                 }
             }
         }
     }
 
-    /**
-     * @param from
-     * @param to
-     * @param buf
-     * @param isUnquotedFieldName
-     * @return
-     */
-    static String parseKeyOfMap(char[] buf, int from, int to, boolean isUnquotedFieldName) {
-        if (isUnquotedFieldName) {
-            while ((from < to) && ((buf[from]) <= ' ')) {
-                from++;
-            }
-            while ((to > from) && ((buf[to - 1]) <= ' ')) {
-                to--;
-            }
-            return new String(buf, from, to - from);
-        } else {
-            int len = to - from - 2;
-            return new String(buf, from + 1, len);
-        }
-    }
-
     // bytes #####################################################################################################
+
     /**
      * 解析字节数组，返回Map或者List
      *
@@ -708,7 +681,7 @@ public final class JSONDefaultParser extends JSONGeneral {
         byte b;
         boolean empty = true, allowomment = jsonParseContext.allowComment, disableCacheMapKey = jsonParseContext.disableCacheMapKey;
         int i = fromIndex;
-        for (; ;) {
+        for (; ; ) {
             while ((b = bytes[++i]) <= ' ') ;
             if (allowomment) {
                 if (b == '/') {
@@ -735,7 +708,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                         while (i + 1 < toIndex && (bytes[++i] != '\'' || bytes[i - 1] == '\\')) ;
                         empty = false;
                         ++i;
-                        key = JSONTypeDeserializer.parseKeyOfMap(bytes, fieldKeyFrom, i, false);
+                        key = parseKeyOfMap(bytes, fieldKeyFrom, i, false);
                     } else {
                         throw new JSONException("Syntax error, at pos " + i + ", the single quote symbol ' is not allowed here.");
                     }
@@ -743,10 +716,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                     if (jsonParseContext.allowUnquotedFieldNames) {
                         while (i + 1 < toIndex && bytes[++i] != ':') ;
                         empty = false;
-                        key = JSONTypeDeserializer.parseKeyOfMap(bytes, fieldKeyFrom, i, true);
-                        if (key.equals("null")) {
-                            key = null;
-                        }
+                        key = parseKeyOfMap(bytes, fieldKeyFrom, i, true);
                     } else {
                         int j = i;
                         boolean isNullKey = false;

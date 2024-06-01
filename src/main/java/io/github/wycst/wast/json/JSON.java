@@ -95,8 +95,6 @@ import java.util.*;
 @SuppressWarnings("rawtypes")
 public final class JSON extends JSONGeneral {
 
-    public static final String VERSION = "0.0.12.1";
-
     /**
      * 将json字符串转为对象或者数组(Convert JSON strings to objects or arrays)
      *
@@ -208,7 +206,7 @@ public final class JSON extends JSONGeneral {
             byte[] bytes = (byte[]) UnsafeHelper.getStringValue(json);
             if (bytes.length == json.length()) {
                 // use ascii bytes
-                AsciiStringSource charSource = AsciiStringSource.of(json, bytes);
+                AsciiStringSource charSource = new AsciiStringSource(json, bytes);
                 return parseObject(typeDeserializer, charSource, bytes, actualType, readOptions);
             } else {
                 // utf16
@@ -317,7 +315,7 @@ public final class JSON extends JSONGeneral {
      * @param readOptions              读取配置
      * @param <T>                      泛型类型
      * @return 对象
-     * @see JSON#parse(String, GenericParameterizedType, ReadOption...) 
+     * @see JSON#parse(String, GenericParameterizedType, ReadOption...)
      */
     public static <T> T parseObject(String json, GenericParameterizedType<T> genericParameterizedType, ReadOption... readOptions) {
         return parse(json, genericParameterizedType, readOptions);
@@ -385,7 +383,11 @@ public final class JSON extends JSONGeneral {
      */
     public static <T> T parse(byte[] buf, final GenericParameterizedType<T> genericParameterizedType, ReadOption... readOptions) {
         if (EnvUtils.JDK_9_PLUS) {
-            return parse(new String(buf), genericParameterizedType, readOptions);
+            if (!EnvUtils.hasNegatives(buf, 0, buf.length)) {
+                return parse(AsciiStringSource.of(buf), buf, genericParameterizedType, readOptions);
+            } else {
+                return parse(ISO_8859_1CharSource.of(buf), buf, genericParameterizedType, readOptions);
+            }
         }
         return parse(null, buf, genericParameterizedType, readOptions);
     }
@@ -516,9 +518,12 @@ public final class JSON extends JSONGeneral {
      * @return
      */
     public static Object parse(byte[] buf, Class<?> actualType, ReadOption... readOptions) {
-//        return parse(null, buf, actualType, null, readOptions);
         if (EnvUtils.JDK_9_PLUS) {
-            return parse(new String(buf), actualType, readOptions);
+            if (!EnvUtils.hasNegatives(buf, 0, buf.length)) {
+                return parse(AsciiStringSource.of(buf), buf, actualType, null, readOptions);
+            } else {
+                return parse(ISO_8859_1CharSource.of(buf), buf, actualType, null, readOptions);
+            }
         }
         return parse(null, buf, actualType, null, readOptions);
     }
@@ -846,8 +851,14 @@ public final class JSON extends JSONGeneral {
      * @return T对象
      */
     public static <T> T read(byte[] bytes, Class<T> actualType, ReadOption... readOptions) {
+        if (EnvUtils.JDK_9_PLUS) {
+            if (!EnvUtils.hasNegatives(bytes, 0, bytes.length)) {
+                return (T) parse(AsciiStringSource.of(bytes), bytes, actualType, null, readOptions);
+            } else {
+                return (T) parse(ISO_8859_1CharSource.of(bytes), bytes, actualType, null, readOptions);
+            }
+        }
         return (T) parse(null, bytes, actualType, null, readOptions);
-        // return (T) parse(getChars(new String(bytes)), actualType, readOptions);
     }
 
     /**
@@ -1051,6 +1062,7 @@ public final class JSON extends JSONGeneral {
      *
      * @param object
      * @param file
+     * @param options
      */
     public static void writeJsonTo(Object object, File file, WriteOption... options) {
         try {
@@ -1069,6 +1081,7 @@ public final class JSON extends JSONGeneral {
      *
      * @param object
      * @param os
+     * @param options
      */
     public static void writeJsonTo(Object object, OutputStream os, WriteOption... options) {
         writeJsonTo(object, os, Charset.defaultCharset(), options);
@@ -1079,6 +1092,8 @@ public final class JSON extends JSONGeneral {
      *
      * @param object
      * @param os
+     * @param charset
+     * @param options
      */
     public static void writeJsonTo(Object object, OutputStream os, Charset charset, WriteOption... options) {
         JSONWriter streamWriter = JSONWriter.forStreamWriter(charset);
@@ -1093,10 +1108,32 @@ public final class JSON extends JSONGeneral {
     }
 
     /**
+     * <p>
+     * 将对象序列化内容使用指定的writer写入比如BufferedWriter或者OutputStreamWriter；<br/>
+     * 此方法内部实现中没有缓冲buf对象，序列化每个字段都会实时写入writer；<br/>
+     *
+     * </p>
+     *
+     * <pre>
+     *  OutputStream os = ...
+     *  OutputStreamWriter osw = new OutputStreamWriter(os, "UTF-8");
+     *  JSON.writeJsonTo(object, osw);
+     * </pre>
+     *
+     * @param object
+     * @param writer
+     * @param options
+     */
+    public static void writeJsonTo(Object object, Writer writer, WriteOption... options) {
+        writeToJSONWriter(object, JSONWriter.wrap(writer), options);
+    }
+
+    /**
      * 将对象序列化内容使用指定的writer写入
      *
      * @param object
      * @param writer
+     * @param options
      */
     static void writeToJSONWriter(Object object, JSONWriter writer, WriteOption... options) {
         if (object != null) {
@@ -1118,16 +1155,6 @@ public final class JSON extends JSONGeneral {
                 }
             }
         }
-    }
-
-    /**
-     * 将对象序列化内容使用指定的writer写入
-     *
-     * @param object
-     * @param writer
-     */
-    public static void writeJsonTo(Object object, Writer writer, WriteOption... options) {
-        writeToJSONWriter(object, JSONWriter.wrap(writer), options);
     }
 
     // obj is not null

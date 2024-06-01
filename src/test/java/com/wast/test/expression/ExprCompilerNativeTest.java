@@ -1,10 +1,7 @@
 package com.wast.test.expression;
 
-import io.github.wycst.wast.common.expression.EvaluateEnvironment;
-import io.github.wycst.wast.common.expression.Expression;
 import io.github.wycst.wast.common.expression.compile.CompilerEnvironment;
 import io.github.wycst.wast.common.expression.compile.CompilerExpression;
-import io.github.wycst.wast.common.expression.functions.JavassistExprFunction;
 
 import java.util.HashMap;
 import java.util.Map;

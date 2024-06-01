@@ -8,8 +8,10 @@ import io.github.wycst.wast.json.JSONParseContext;
 import io.github.wycst.wast.json.JSONTemporalDeserializer;
 import io.github.wycst.wast.json.exceptions.JSONException;
 
+import java.time.Instant;
+
 /**
- * 参考java.util.Date反序列化，使用反射实现
+ * Instant反序列化
  *
  * @Author: wangy
  * @Date: 2022/8/13 15:06
@@ -27,13 +29,13 @@ public class TemporalInstantDeserializer extends JSONTemporalDeserializer {
     }
 
     protected Object deserializeTemporal(char[] buf, int fromIndex, int endIndex, JSONParseContext jsonParseContext) throws Exception {
-        long time = dateTemplate.parseTime(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
-        return TemporalAloneInvoker.createOrOfInstant(time);
+        long millis = dateTemplate.parseTime(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
+        return Instant.ofEpochMilli(millis);
     }
 
     protected Object deserializeTemporal(byte[] buf, int fromIndex, int endIndex, JSONParseContext jsonParseContext) throws Exception {
-        long time = dateTemplate.parseTime(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
-        return TemporalAloneInvoker.createOrOfInstant(time);
+        long millis = dateTemplate.parseTime(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
+        return Instant.ofEpochMilli(millis);
     }
 
     // use default pattern yyyy*MM*dd*HH*mm*ss.SZ?
@@ -67,7 +69,7 @@ public class TemporalInstantDeserializer extends JSONTemporalDeserializer {
             default: {
                 if (c == endChar) {
                     jsonParseContext.endIndex = offset;
-                    return TemporalAloneInvoker.ofEpochSecondInstant(millis / 1000, nanoOfSecond);
+                    return Instant.ofEpochSecond(millis / 1000, nanoOfSecond);
                 }
             }
         }
@@ -107,7 +109,7 @@ public class TemporalInstantDeserializer extends JSONTemporalDeserializer {
             default: {
                 if (c == endChar) {
                     jsonParseContext.endIndex = offset;
-                    return TemporalAloneInvoker.ofEpochSecondInstant(millis / 1000, nanoOfSecond);
+                    return Instant.ofEpochSecond(millis / 1000, nanoOfSecond);
                 }
             }
         }
@@ -117,6 +119,6 @@ public class TemporalInstantDeserializer extends JSONTemporalDeserializer {
 
     @Override
     protected Object valueOf(String value, Class<?> actualType) throws Exception {
-        return TemporalAloneInvoker.parseInstant(value);
+        return Instant.parse(value);
     }
 }

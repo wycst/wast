@@ -6,8 +6,10 @@ import io.github.wycst.wast.json.JSONTemporalSerializer;
 import io.github.wycst.wast.json.JSONWriter;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 
+import java.time.LocalDateTime;
+
 /**
- * LocalDateTime序列化，使用反射实现
+ * LocalDateTime序列化
  *
  * @Author: wangy
  * @Date: 2022/8/13 15:06
@@ -26,29 +28,31 @@ public class TemporalLocalDateTimeSerializer extends JSONTemporalSerializer {
 
     @Override
     protected void writeTemporalWithTemplate(Object value, JSONWriter writer, JSONConfig jsonConfig) throws Exception {
-        int year = TemporalAloneInvoker.invokeLocalDateTimeYear(value);
-        int month = TemporalAloneInvoker.invokeLocalDateTimeMonth(value);
-        int day = TemporalAloneInvoker.invokeLocalDateTimeDay(value);
-        int hour = TemporalAloneInvoker.invokeLocalDateTimeHour(value);
-        int minute = TemporalAloneInvoker.invokeLocalDateTimeMinute(value);
-        int second = TemporalAloneInvoker.invokeLocalDateTimeSecond(value);
-        int nano = TemporalAloneInvoker.invokeLocalDateTimeNano(value);
-        int millisecond = nano / 1000000;
+        LocalDateTime localDateTime = (LocalDateTime) value;
         writer.write('"');
-        writeDate(year, month, day, hour, minute, second, millisecond, dateFormatter, writer);
+        writeDate(
+                localDateTime.getYear(),
+                localDateTime.getMonthValue(),
+                localDateTime.getDayOfMonth(),
+                localDateTime.getHour(),
+                localDateTime.getMinute(),
+                localDateTime.getSecond(),
+                localDateTime.getNano() / 1000000, dateFormatter, writer);
         writer.write('"');
     }
 
     // yyyy-MM-ddTHH:mm:ss.SSS
     @Override
     protected void writeDefault(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
-        int year = TemporalAloneInvoker.invokeLocalDateTimeYear(value);
-        int month = TemporalAloneInvoker.invokeLocalDateTimeMonth(value);
-        int day = TemporalAloneInvoker.invokeLocalDateTimeDay(value);
-        int hour = TemporalAloneInvoker.invokeLocalDateTimeHour(value);
-        int minute = TemporalAloneInvoker.invokeLocalDateTimeMinute(value);
-        int second = TemporalAloneInvoker.invokeLocalDateTimeSecond(value);
-        int nano = TemporalAloneInvoker.invokeLocalDateTimeNano(value);
-        writer.writeJSONLocalDateTime(year, month, day, hour, minute, second, nano, null);
+        LocalDateTime localDateTime = (LocalDateTime) value;
+        writer.writeJSONLocalDateTime(
+                localDateTime.getYear(),
+                localDateTime.getMonthValue(),
+                localDateTime.getDayOfMonth(),
+                localDateTime.getHour(),
+                localDateTime.getMinute(),
+                localDateTime.getSecond(),
+                localDateTime.getNano(),
+                null);
     }
 }

@@ -1,14 +1,10 @@
 package com.wast.test.json;
 
-import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.json.JSON;
 import io.github.wycst.wast.json.JSONReader;
 
 import java.io.File;
-import java.io.FileOutputStream;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * @Author: wangy

@@ -6,7 +6,6 @@ import io.github.wycst.wast.common.reflect.GetterInfo;
 import io.github.wycst.wast.common.reflect.SetterInfo;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.annotations.JsonTypeSetting;
-import io.github.wycst.wast.json.util.FixedNameValueMap;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,7 +22,7 @@ public final class JSONPojoStructure {
     private final ClassStructureWrapper classStructureWrapper;
     private ClassStructureWrapper.ClassWrapperType classWrapperType;
     private final GenericParameterizedType genericType;
-    private final FixedNameValueMap<JSONPojoFieldDeserializer> fixedFieldDeserializerValueMap;
+    final JSONValueMatcher<JSONPojoFieldDeserializer> fieldDeserializerMatcher;
     // deserializers
     private final List<JSONPojoFieldDeserializer> fieldDeserializers;
 
@@ -31,7 +30,6 @@ public final class JSONPojoStructure {
     private JSONPojoFieldSerializer[] getterMethodSerializers;
     // field
     private JSONPojoFieldSerializer[] getterFieldSerializers;
-    private final boolean collision;
     private boolean forceUseFields;
     private JsonTypeSetting jsonTypeSetting;
     volatile boolean initialized;
@@ -95,20 +93,23 @@ public final class JSONPojoStructure {
             SetterInfo setterInfo = classStructureWrapper.getSetterInfo(setterName);
             JsonProperty jsonProperty = (JsonProperty) setterInfo.getAnnotation(JsonProperty.class);
             String name = setterName;
+            boolean priority = name.equals(setterInfo.getName());
             if (jsonProperty != null) {
                 if (!jsonProperty.deserialize())
                     continue;
                 String mapperName = jsonProperty.name().trim();
                 if (mapperName.length() > 0) {
                     name = mapperName;
+                    priority = true;
                 }
             }
             JSONPojoFieldDeserializer fieldDeserializer = new JSONPojoFieldDeserializer(name, setterInfo, jsonProperty);
+            fieldDeserializer.setPriority(priority);
             fieldDeserializerHashMap.put(name, fieldDeserializer);
         }
         this.fieldDeserializers = new ArrayList<JSONPojoFieldDeserializer>(fieldDeserializerHashMap.values());
-        this.fixedFieldDeserializerValueMap = FixedNameValueMap.build(fieldDeserializerHashMap);
-        this.collision = this.fixedFieldDeserializerValueMap.isCollision() || (jsonTypeSetting != null && jsonTypeSetting.strict());
+        this.fieldDeserializerMatcher = JSONValueMatcher.build(fieldDeserializerHashMap);
+
         this.enableJIT = jsonTypeSetting != null && jsonTypeSetting.enableJIT();
     }
 
@@ -178,36 +179,33 @@ public final class JSONPojoStructure {
         return classStructureWrapper.createConstructorArgs();
     }
 
-    public JSONPojoFieldDeserializer getFieldDeserializer(char[] buf, int beginIndex, int endIndex, long hashValue) {
-        return fixedFieldDeserializerValueMap.getValue(buf, beginIndex, endIndex, hashValue);
-    }
-
-    public JSONPojoFieldDeserializer getFieldDeserializer(byte[] buf, int beginIndex, int endIndex, long hashValue) {
-        return fixedFieldDeserializerValueMap.getValue(buf, beginIndex, endIndex, hashValue);
-    }
-
-    public JSONPojoFieldDeserializer getFieldDeserializer(String field) {
-        return fixedFieldDeserializerValueMap.getValue(field);
-    }
-
-    /**
-     * Note: Ensure that the hash does not collide, otherwise do not use it
-     * call isCollision() to check if collide
-     *
-     * @param hashValue
-     * @return
-     */
-    public JSONPojoFieldDeserializer getFieldDeserializer(long hashValue) {
-        return fixedFieldDeserializerValueMap.getValueByHash(hashValue);
-    }
-
-    public long hashChar(long rv, int c) {
-        return fixedFieldDeserializerValueMap.hash(rv, c);
-    }
-
-    public long hashChar(long hv, int c1, int c2) {
-        return fixedFieldDeserializerValueMap.hash(hv, c1, c2);
-    }
+//    public long hashChar(long rv, int c) {
+//        return fieldDeserializerMatcher.hash(rv, c);
+//    }
+//
+//    public long hashChar(long hv, int c1, int c2) {
+//        return fieldDeserializerMatcher.hash(hv, c1, c2);
+//    }
+//
+//    public JSONPojoFieldDeserializer matchFieldDeserializer(CharSource source, char[] buf, int offset, int endToken, JSONParseContext parseContext) {
+//        return fieldDeserializerMatcher.matchValue(source, buf, offset, endToken, parseContext);
+//    }
+//
+//    public JSONPojoFieldDeserializer matchFieldDeserializer(CharSource source, byte[] buf, int offset, int endToken, JSONParseContext parseContext) {
+//        return fieldDeserializerMatcher.matchValue(source, buf, offset, endToken, parseContext);
+//    }
+//
+//    public JSONPojoFieldDeserializer getFieldDeserializer(String fieldName) {
+//        return fieldDeserializerMatcher.getValue(fieldName);
+//    }
+//
+//    public JSONPojoFieldDeserializer getFieldDeserializer(char[] buf, int beginIndex, int endIndex, long hashValue) {
+//        return fieldDeserializerMatcher.getValue(buf, beginIndex, endIndex, hashValue);
+//    }
+//
+//    public JSONPojoFieldDeserializer getFieldDeserializer(byte[] buf, int beginIndex, int endIndex, long hashValue) {
+//        return fieldDeserializerMatcher.getValue(buf, beginIndex, endIndex, hashValue);
+//    }
 
     /**
      * create structure
@@ -251,10 +249,6 @@ public final class JSONPojoStructure {
         return genericType;
     }
 
-    public boolean isCollision() {
-        return collision;
-    }
-
     public boolean isAssignableFromMap() {
         return classStructureWrapper.isAssignableFromMap();
     }
@@ -288,5 +282,4 @@ public final class JSONPojoStructure {
     public boolean isSupportedJIT() {
         return isSupportedJavaBeanConvention() && enableJIT;
     }
-
 }

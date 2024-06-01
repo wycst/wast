@@ -7,8 +7,10 @@ import io.github.wycst.wast.json.JSONTemporalSerializer;
 import io.github.wycst.wast.json.JSONWriter;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 
+import java.time.Instant;
+
 /**
- * Instant序列化，使用反射实现
+ * Instant序列化
  *
  * @Author: wangy
  * @Date: 2022/8/13 15:06
@@ -27,7 +29,8 @@ public class TemporalInstantSerializer extends JSONTemporalSerializer {
 
     @Override
     protected void writeTemporalWithTemplate(Object value, JSONWriter writer, JSONConfig jsonConfig) throws Exception {
-        long epochMilli = TemporalAloneInvoker.invokeInstantEpochMilli(value);
+        Instant instant = (Instant) value;
+        long epochMilli = instant.toEpochMilli();
         GeneralDate date = new GeneralDate(epochMilli, ZERO_TIME_ZONE);
         writer.write('"');
         writeGeneralDate(date, dateFormatter, writer);
@@ -37,16 +40,9 @@ public class TemporalInstantSerializer extends JSONTemporalSerializer {
     // YYYY-MM-ddTHH:mm:ss.SSSZ(时区为0)
     @Override
     protected void writeDefault(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
-        long epochSeconds = TemporalAloneInvoker.invokeInstantEpochSeconds(value);
-        int nano = TemporalAloneInvoker.invokeInstantNano(value);
-//        GeneralDate generalDate = new GeneralDate(epochSeconds * 1000, ZERO_TIME_ZONE);
-//        int year = generalDate.getYear();
-//        int month = generalDate.getMonth();
-//        int day = generalDate.getDay();
-//        int hour = generalDate.getHourOfDay();
-//        int minute = generalDate.getMinute();
-//        int second = generalDate.getSecond();
-//        writer.writeJSONLocalDateTime(year, month, day, hour, minute, second, nano, "Z");
+        Instant instant = (Instant) value;
+        long epochSeconds = instant.getEpochSecond();
+        int nano = instant.getNano();
         writer.writeJSONInstant(epochSeconds, nano);
     }
 }

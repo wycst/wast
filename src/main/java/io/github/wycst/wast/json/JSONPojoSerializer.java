@@ -636,59 +636,64 @@ public class JSONPojoSerializer<T> extends JSONTypeSerializer {
                         } else if (returnType == BigInteger.class) {
                             serializePojoCompactBuilder.append("\t\t\twriter.writeBigInteger(" + valueVar + ");\n");
                         } else if (returnType == String[].class) {
-                            // 字符串数组
-                            serializePojoCompactBuilder.append("\t\t\tif (" + valueVar + ".length > 0) {\n");
-                            serializePojoCompactBuilder.append("\t\t\t\twriter.writeJSONToken('[');\n");
-                            serializePojoCompactBuilder.append("\t\t\t\tString item = " + valueVar + "[0];\n");
-                            serializePojoCompactBuilder.append("\t\t\t\tif (item != null) {\n");
-                            if (runtime) {
-                                if (EnvUtils.JDK_9_PLUS) {
-                                    serializePojoCompactBuilder.append("\t\t\t\t\twriter.writeJSONStringBytes(item, (byte[]) getStringValue(item));\n");
-                                } else {
-                                    serializePojoCompactBuilder.append("\t\t\t\t\twriter.writeJSONChars(getChars(item));\n");
-                                }
-                            } else {
-                                serializePojoCompactBuilder.append("\t\t\t\t\twriter.writeJSONString(item);\n");
-                            }
-                            serializePojoCompactBuilder.append("\t\t\t\t} else {\n");
-                            serializePojoCompactBuilder.append("\t\t\t\t\twriter.write(NULL);\n");
-                            serializePojoCompactBuilder.append("\t\t\t\t}\n");
-                            serializePojoCompactBuilder.append("\t\t\t\tfor (int i = 1; i < " + valueVar + ".length; ++i) {\n");
-                            serializePojoCompactBuilder.append("\t\t\t\t\titem = " + valueVar + "[i];\n");
-                            serializePojoCompactBuilder.append("\t\t\t\t\twriter.writeJSONToken(',');\n");
-                            serializePojoCompactBuilder.append("\t\t\t\t\tif (item != null) {\n");
-                            if (runtime) {
-                                if (EnvUtils.JDK_9_PLUS) {
-                                    serializePojoCompactBuilder.append("\t\t\t\t\t\twriter.writeJSONStringBytes(item, (byte[]) getStringValue(item));\n");
-                                } else {
-                                    serializePojoCompactBuilder.append("\t\t\t\t\t\twriter.writeJSONChars(getChars(item));\n");
-                                }
-                            } else {
-                                serializePojoCompactBuilder.append("\t\t\t\t\t\twriter.writeJSONString(item);\n");
-                            }
-                            serializePojoCompactBuilder.append("\t\t\t\t\t} else {\n");
-                            serializePojoCompactBuilder.append("\t\t\t\t\t\twriter.write(NULL);\n");
-                            serializePojoCompactBuilder.append("\t\t\t\t\t}\n");
-                            serializePojoCompactBuilder.append("\t\t\t\t}\n");
-                            serializePojoCompactBuilder.append("\t\t\t\twriter.writeJSONToken(']');\n");
-                            serializePojoCompactBuilder.append("\t\t\t} else {\n");
-                            serializePojoCompactBuilder.append("\t\t\t\twriter.write(\"[]\");\n");
-                            serializePojoCompactBuilder.append("\t\t\t}\n");
-                        } else if (returnType == long[].class) {
-                            // 字符串数组
-                            serializePojoCompactBuilder.append("\t\t\tif (" + valueVar + ".length > 0) {\n");
-                            serializePojoCompactBuilder.append("\t\t\t\twriter.writeJSONToken('[');\n");
-                            serializePojoCompactBuilder.append("\t\t\t\tlong item = " + valueVar + "[0];\n");
-                            serializePojoCompactBuilder.append("\t\t\t\twriter.writeLong(item);\n");
-                            serializePojoCompactBuilder.append("\t\t\t\tfor (int i = 1; i < " + valueVar + ".length; ++i) {\n");
-                            serializePojoCompactBuilder.append("\t\t\t\t\titem = " + valueVar + "[i];\n");
-                            serializePojoCompactBuilder.append("\t\t\t\t\twriter.writeJSONToken(',');\n");
-                            serializePojoCompactBuilder.append("\t\t\t\t\twriter.writeLong(item);\n");
-                            serializePojoCompactBuilder.append("\t\t\t\t}\n");
-                            serializePojoCompactBuilder.append("\t\t\t\twriter.writeJSONToken(']');\n");
-                            serializePojoCompactBuilder.append("\t\t\t} else {\n");
-                            serializePojoCompactBuilder.append("\t\t\t\twriter.write(\"[]\");\n");
-                            serializePojoCompactBuilder.append("\t\t\t}\n");
+                            serializePojoCompactBuilder.append("\t\t\twriter.writeStringArray(" + valueVar + ");\n");
+//                            // 字符串数组
+//                            serializePojoCompactBuilder.append("\t\t\tif (" + valueVar + ".length > 0) {\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\twriter.writeJSONToken('[');\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\tString item = " + valueVar + "[0];\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\tif (item != null) {\n");
+//                            if (runtime) {
+//                                if (EnvUtils.JDK_9_PLUS) {
+//                                    serializePojoCompactBuilder.append("\t\t\t\t\twriter.writeJSONStringBytes(item, (byte[]) getStringValue(item));\n");
+//                                } else {
+//                                    serializePojoCompactBuilder.append("\t\t\t\t\twriter.writeJSONChars(getChars(item));\n");
+//                                }
+//                            } else {
+//                                serializePojoCompactBuilder.append("\t\t\t\t\twriter.writeJSONString(item);\n");
+//                            }
+//                            serializePojoCompactBuilder.append("\t\t\t\t} else {\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\t\twriter.write(NULL);\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\t}\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\tfor (int i = 1; i < " + valueVar + ".length; ++i) {\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\t\titem = " + valueVar + "[i];\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\t\twriter.writeJSONToken(',');\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\t\tif (item != null) {\n");
+//                            if (runtime) {
+//                                if (EnvUtils.JDK_9_PLUS) {
+//                                    serializePojoCompactBuilder.append("\t\t\t\t\t\twriter.writeJSONStringBytes(item, (byte[]) getStringValue(item));\n");
+//                                } else {
+//                                    serializePojoCompactBuilder.append("\t\t\t\t\t\twriter.writeJSONChars(getChars(item));\n");
+//                                }
+//                            } else {
+//                                serializePojoCompactBuilder.append("\t\t\t\t\t\twriter.writeJSONString(item);\n");
+//                            }
+//                            serializePojoCompactBuilder.append("\t\t\t\t\t} else {\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\t\t\twriter.write(NULL);\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\t\t}\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\t}\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\twriter.writeJSONToken(']');\n");
+//                            serializePojoCompactBuilder.append("\t\t\t} else {\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\twriter.writeEmptyArray();\n");
+////                            serializePojoCompactBuilder.append("\t\t\t\twriter.write(\"[]\");\n");
+//                            serializePojoCompactBuilder.append("\t\t\t}\n");
+                        } else if (returnType == double[].class) {
+                            serializePojoCompactBuilder.append("\t\t\twriter.writeDoubleArray(" + valueVar + ");\n"); }
+                        else if (returnType == long[].class) {
+                            serializePojoCompactBuilder.append("\t\t\twriter.writeLongArray(" + valueVar + ");\n");
+//                            // long数组
+//                            serializePojoCompactBuilder.append("\t\t\tif (" + valueVar + ".length > 0) {\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\twriter.writeJSONToken('[');\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\tlong item = " + valueVar + "[0];\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\twriter.writeLong(item);\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\tfor (int i = 1; i < " + valueVar + ".length; ++i) {\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\t\titem = " + valueVar + "[i];\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\t\twriter.writeJSONToken(',');\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\t\twriter.writeLong(item);\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\t}\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\twriter.writeJSONToken(']');\n");
+//                            serializePojoCompactBuilder.append("\t\t\t} else {\n");
+//                            serializePojoCompactBuilder.append("\t\t\t\twriter.writeEmptyArray();\n");
+//                            serializePojoCompactBuilder.append("\t\t\t}\n");
                         } else if (returnType == UUID.class) {
                             serializePojoCompactBuilder.append("\t\t\twriter.writeUUID(" + valueVar + ");\n");
                         } else if (returnType.isEnum()) {

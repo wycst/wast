@@ -1,7 +1,6 @@
 package com.wast.test.expression;
 
 import io.github.wycst.wast.common.expression.Expression;
-import io.github.wycst.wast.common.utils.StringUtils;
 
 import java.util.HashMap;
 import java.util.Map;

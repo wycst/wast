@@ -2,6 +2,7 @@ package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.common.beans.DateTemplate;
 import io.github.wycst.wast.common.beans.GregorianDate;
+import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import io.github.wycst.wast.common.utils.NumberUtils;
 import io.github.wycst.wast.json.exceptions.JSONException;
@@ -11,8 +12,8 @@ import io.github.wycst.wast.json.util.FixedNameValueMap;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Serializable;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Modifier;
 import java.sql.Time;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -35,6 +36,10 @@ class JSONGeneral {
     protected final static char[] NULL = new char[]{'n', 'u', 'l', 'l'};
     protected final static char[] EMPTY_ARRAY = new char[]{'[', ']'};
     protected final static char[] EMPTY_OBJECT = new char[]{'{', '}'};
+    protected final static int TRUE_INT = UnsafeHelper.getInt(new byte[] {'t', 'r', 'u', 'e'}, 0);
+    protected final static long TRUE_LONG = UnsafeHelper.getLong(new char[] {'t', 'r', 'u', 'e'}, 0);
+    protected final static int ALSE_INT = UnsafeHelper.getInt(new byte[] {'a', 'l', 's', 'e'}, 0);
+    protected final static long ALSE_LONG = UnsafeHelper.getLong(new char[] {'a', 'l', 's', 'e'}, 0);
 
     protected final static byte ZERO = 0;
     protected final static byte COMMA = ',';
@@ -47,6 +52,8 @@ class JSONGeneral {
 
     final static int TYPE_BIGDECIMAL = 1;
     final static int TYPE_BIGINTEGER = 2;
+    final static int TYPE_FLOAT = 3;
+    final static int TYPE_DOUBLE = 4;
 
     // 转义字符与字符串映射（序列化）
     final static String[] ESCAPE_VALUES = new String[256];
@@ -62,6 +69,10 @@ class JSONGeneral {
 
     final static int[] ESCAPE_CHARS = new int[160];
 
+    // cache keys
+    private static FixedNameValueMap<String> KEY_32_TABLE = new FixedNameValueMap<String>(4096);
+    private static FixedNameValueMap<String> KEY_EIGHT_BYTES_TABLE = new FixedNameValueMap<String>(2048);
+
     static {
         for (int i = 0; i < 160; i++) {
             ESCAPE_CHARS[i] = i;
@@ -76,16 +87,16 @@ class JSONGeneral {
         ESCAPE_CHARS['u'] = -1;
     }
 
-    protected final static int DIRECT_READ_BUFFER_SIZE = 8192;
+    public final static int DIRECT_READ_BUFFER_SIZE = 8192;
 
     // 时间钟加入缓存
-    protected final static Map<String, TimeZone> GMT_TIME_ZONE_MAP = new ConcurrentHashMap<String, TimeZone>();
+    final static Map<String, TimeZone> GMT_TIME_ZONE_MAP = new ConcurrentHashMap<String, TimeZone>();
 
     // zero zone
     public final static TimeZone ZERO_TIME_ZONE = TimeZone.getTimeZone("GMT+00:00");
 
     // 24
-    protected final static ThreadLocal<char[]> CACHED_CHARS_24 = new ThreadLocal<char[]>() {
+    final static ThreadLocal<char[]> CACHED_CHARS_24 = new ThreadLocal<char[]>() {
         @Override
         protected char[] initialValue() {
             return new char[24];
@@ -93,7 +104,7 @@ class JSONGeneral {
     };
 
     // "yyyy-MM-dd HH:mm:ss"
-    protected final static ThreadLocal<char[]> CACHED_CHARS_DATE_21 = new ThreadLocal<char[]>() {
+    final static ThreadLocal<char[]> CACHED_CHARS_DATE_21 = new ThreadLocal<char[]>() {
         @Override
         protected char[] initialValue() {
             char[] chars = new char[21];
@@ -105,9 +116,34 @@ class JSONGeneral {
         }
     };
 
+    final static ThreadLocal<double[]> DOUBLE_ARRAY_TL = new ThreadLocal<double[]>() {
+        @Override
+        protected double[] initialValue() {
+            return new double[32];
+        }
+    };
+    final static ThreadLocal<long[]> LONG_ARRAY_TL = new ThreadLocal<long[]>() {
+        @Override
+        protected long[] initialValue() {
+            return new long[32];
+        }
+    };
+    final static ThreadLocal<int[]> INT_ARRAY_TL = new ThreadLocal<int[]>() {
+        @Override
+        protected int[] initialValue() {
+            return new int[32];
+        }
+    };
+    final static long[] EMPTY_LONGS = new long[0];
+    final static int[] EMPTY_INTS = new int[0];
+    final static double[] EMPTY_DOUBLES = new double[0];
+    final static String[] EMPTY_STRINGS = new String[0];
     public static String toEscapeString(int ch) {
         return String.format("\\u%04x", ch);
     }
+
+    // Default interface or abstract class implementation class configuration
+    private static final Map<Class<?>, JSONImplInstCreator> DEFAULT_IMPL_INST_CREATOR_MAP = new HashMap<Class<?>, JSONImplInstCreator>();
 
     static {
         for (int i = 0; i < ESCAPE_VALUES.length; ++i) {
@@ -152,6 +188,77 @@ class JSONGeneral {
         GMT_TIME_ZONE_MAP.put("-0", timeZone);
         GMT_TIME_ZONE_MAP.put("+08:00", timeZone = TimeZone.getTimeZone("GMT+08:00"));
         GMT_TIME_ZONE_MAP.put("GMT+08:00", timeZone);
+
+        registerImplCreator(EnumSet.class, new JSONImplInstCreator<EnumSet>() {
+            @Override
+            public EnumSet create(GenericParameterizedType<EnumSet> parameterizedType) {
+                Class actualType = parameterizedType.getValueType().getActualType();
+                return EnumSet.noneOf(actualType);
+            }
+        });
+        registerImplCreator(EnumMap.class, new JSONImplInstCreator<EnumMap>() {
+            @Override
+            public EnumMap create(GenericParameterizedType<EnumMap> parameterizedType) {
+                Class mapKeyClass = parameterizedType.getMapKeyClass();
+                return new EnumMap(mapKeyClass);
+            }
+        });
+    }
+
+    /**
+     * @param parentClass
+     * @param creator
+     * @param <T>
+     */
+    public final static <T> void registerImplCreator(Class<? extends T> parentClass, JSONImplInstCreator<T> creator) {
+        DEFAULT_IMPL_INST_CREATOR_MAP.put(parentClass, creator);
+    }
+
+    final static JSONImplInstCreator getJSONImplInstCreator(Class<?> targetClass) {
+        return DEFAULT_IMPL_INST_CREATOR_MAP.get(targetClass);
+    }
+
+    final static String getCacheKey(char[] buf, int offset, int len, long hashCode) {
+        if (len > 32) {
+            return new String(buf, offset, len);
+        }
+        //  len > 0
+        String value = KEY_32_TABLE.getValue(buf, offset, offset + len, hashCode);
+        if (value == null) {
+            value = new String(buf, offset, len);
+            KEY_32_TABLE.putValue(value, hashCode, value);
+        }
+        return value;
+    }
+
+    final static String getCacheKey(byte[] bytes, int offset, int len, long hashCode) {
+        if (len > 32) {
+            return new String(bytes, offset, len);
+        }
+        String value = KEY_32_TABLE.getValueByHash(hashCode);
+        if (value == null) {
+            value = new String(bytes, offset, len);
+            KEY_32_TABLE.putValue(value, hashCode, value);
+        }
+        return value;
+    }
+
+    final static String getCacheEightCharsKey(char[] buf, int offset, int len, long hashCode) {
+        String value = KEY_EIGHT_BYTES_TABLE.getValueByHash(hashCode);
+        if (value == null) {
+            value = new String(buf, offset, len);
+            KEY_EIGHT_BYTES_TABLE.putExactHashValue(hashCode, value);
+        }
+        return value;
+    }
+
+    final static String getCacheEightBytesKey(byte[] bytes, int offset, int len, long hashCode) {
+        String value = KEY_EIGHT_BYTES_TABLE.getValueByHash(hashCode);
+        if (value == null) {
+            value = new String(bytes, offset, len);
+            KEY_EIGHT_BYTES_TABLE.putExactHashValue(hashCode, value);
+        }
+        return value;
     }
 
     /**
@@ -186,34 +293,6 @@ class JSONGeneral {
     protected final static int parseInt4(char[] buf, int fromIndex)
             throws NumberFormatException {
         return NumberUtils.parseInt4(buf, fromIndex);
-    }
-
-    /**
-     * n 位数字（ 0 < n < 5）
-     *
-     * @param buf
-     * @param fromIndex
-     * @param n
-     * @return
-     * @throws NumberFormatException
-     */
-    protected final static int parseIntWithin5(char[] buf, int fromIndex, int n)
-            throws NumberFormatException {
-        return NumberUtils.parseIntWithin5(buf, fromIndex, n);
-    }
-
-    /**
-     * n 位数字（ 0 < n < 5）
-     *
-     * @param buf
-     * @param fromIndex
-     * @param n
-     * @return
-     * @throws NumberFormatException
-     */
-    protected final static int parseIntWithin5(byte[] buf, int fromIndex, int n)
-            throws NumberFormatException {
-        return NumberUtils.parseIntWithin5(buf, fromIndex, n);
     }
 
     /**
@@ -597,7 +676,7 @@ class JSONGeneral {
                     int second = parseInt2(buf, from + 12);
                     int millsecond = 0;
                     if (len > 14) {
-                        millsecond = parseIntWithin5(buf, from + 14, len - 14);
+                        millsecond = NumberUtils.parseIntWithin5(buf, from + 14, len - 14);
                     }
                     return parseDate(year, month, day, hour, minute, second, millsecond, timezoneIdAt, dateCls);
                 } catch (Throwable throwable) {
@@ -620,7 +699,7 @@ class JSONGeneral {
                     int second = parseInt2(buf, from + 17);
                     int millsecond = 0;
                     if (len > 20) {
-                        millsecond = parseIntWithin5(buf, from + 20, len - 20);
+                        millsecond = NumberUtils.parseIntWithin5(buf, from + 20, len - 20);
                     }
                     return parseDate(year, month, day, hour, minute, second, millsecond, timezoneIdAt, dateCls);
                 } catch (Throwable throwable) {
@@ -1168,6 +1247,128 @@ class JSONGeneral {
         return null;
     }
 
+    /**
+     * @param from
+     * @param to
+     * @param buf
+     * @param isUnquotedFieldName
+     * @return
+     */
+    final static Serializable parseKeyOfMap(char[] buf, int from, int to, boolean isUnquotedFieldName) {
+        if (isUnquotedFieldName) {
+            while ((from < to) && ((buf[from]) <= ' ')) {
+                from++;
+            }
+            while ((to > from) && ((buf[to - 1]) <= ' ')) {
+                to--;
+            }
+            int count = to - from;
+            if (count == 4) {
+                if (buf[from] == 'n' && buf[from + 1] == 'u' && buf[from + 2] == 'l' && buf[from + 3] == 'l') {
+                    return null;
+                }
+                if (buf[from] == 't' && buf[from + 1] == 'r' && buf[from + 2] == 'u' && buf[from + 3] == 'e') {
+                    return true;
+                }
+            }
+            if (count == 5 && buf[from] == 'f' && buf[from + 1] == 'a' && buf[from + 2] == 'l' && buf[from + 3] == 's' && buf[from + 4] == 'e') {
+                return false;
+            }
+            boolean numberFlag = true;
+            int pointFlag = 0;
+            for (int i = from; i < to; ++i) {
+                int c = buf[i];
+                if (c == '.') {
+                    ++pointFlag;
+                } else {
+                    if (i != from || c != '-') {
+                        if (!isDigit(c)) {
+                            numberFlag = false;
+                            break;
+                        }
+                    }
+                }
+            }
+            String result = new String(buf, from, count);
+            if (numberFlag && pointFlag <= 1) {
+                if (pointFlag == 1) {
+                    return Double.parseDouble(result);
+                } else {
+                    long val = Long.parseLong(result);
+                    if (val <= Integer.MAX_VALUE && val >= Integer.MIN_VALUE) {
+                        return (int) val;
+                    }
+                    return val;
+                }
+            }
+            return result;
+        } else {
+            int len = to - from - 2;
+            return new String(buf, from + 1, len);
+        }
+    }
+
+    /**
+     * @param from
+     * @param to
+     * @param buf
+     * @param isUnquotedFieldName
+     * @return
+     */
+    final static Serializable parseKeyOfMap(byte[] buf, int from, int to, boolean isUnquotedFieldName) {
+        if (isUnquotedFieldName) {
+            while ((from < to) && ((buf[from]) <= ' ')) {
+                from++;
+            }
+            while ((to > from) && ((buf[to - 1]) <= ' ')) {
+                to--;
+            }
+            int count = to - from;
+            if (count == 4) {
+                if (buf[from] == 'n' && buf[from + 1] == 'u' && buf[from + 2] == 'l' && buf[from + 3] == 'l') {
+                    return null;
+                }
+                if (buf[from] == 't' && buf[from + 1] == 'r' && buf[from + 2] == 'u' && buf[from + 3] == 'e') {
+                    return true;
+                }
+            }
+            if (count == 5 && buf[from] == 'f' && buf[from + 1] == 'a' && buf[from + 2] == 'l' && buf[from + 3] == 's' && buf[from + 4] == 'e') {
+                return false;
+            }
+            boolean numberFlag = true;
+            int pointFlag = 0;
+            for (int i = from; i < to; ++i) {
+                int c = buf[i];
+                if (c == '.') {
+                    ++pointFlag;
+                } else {
+                    if (i != from || c != '-') {
+                        if (!isDigit(c)) {
+                            numberFlag = false;
+                            break;
+                        }
+                    }
+                }
+            }
+            String result = new String(buf, from, count);
+            if (numberFlag && pointFlag <= 1) {
+                if (pointFlag == 1) {
+                    return Double.parseDouble(result);
+                } else {
+                    long val = Long.parseLong(result);
+                    if (val <= Integer.MAX_VALUE && val >= Integer.MIN_VALUE) {
+                        return (int) val;
+                    }
+                    return val;
+                }
+            }
+            return result;
+        } else {
+            int len = to - from - 2;
+            return new String(buf, from + 1, len);
+        }
+    }
+
     // 字节数组转16进制字符串
     protected static String printHexString(byte[] b, char splitChar) {
         StringBuilder returnValue = new StringBuilder();
@@ -1260,7 +1461,7 @@ class JSONGeneral {
         // There is only one possibility to control out of bounds exceptions when indexing toindex
         if (ex instanceof IndexOutOfBoundsException) {
             String errorContextTextAt = createErrorContextText(buf, toIndex);
-            throw new JSONException("Syntax error, context text by '" + errorContextTextAt + "', JSON format error, and the end token may be missing, such as '\"' or ', ' or '}' or ']'.");
+            throw new JSONException("Syntax error, context text by '" + errorContextTextAt + "', JSON format error, and the end token may be missing, such as '\"' or ', ' or '}' or ']'.", ex);
         }
         if (ex instanceof RuntimeException) {
             throw (RuntimeException) ex;
@@ -1270,9 +1471,8 @@ class JSONGeneral {
     protected static void handleCatchException(Throwable ex, byte[] bytes, int toIndex) {
         // There is only one possibility to control out of bounds exceptions when indexing toindex
         if (ex instanceof IndexOutOfBoundsException) {
-            ex.printStackTrace();
             String errorContextTextAt = createErrorContextText(bytes, toIndex);
-            throw new JSONException("Syntax error, context text by '" + errorContextTextAt + "', JSON format error, and the end token may be missing, such as '\"' or ', ' or '}' or ']'.");
+            throw new JSONException("Syntax error, context text by '" + errorContextTextAt + "', JSON format error, and the end token may be missing, such as '\"' or ', ' or '}' or ']'.", ex);
         }
         if (ex instanceof RuntimeException) {
             throw (RuntimeException) ex;
@@ -1320,20 +1520,8 @@ class JSONGeneral {
         } else if (actualType == Set.class || actualType == HashSet.class || actualType.isAssignableFrom(HashSet.class)) {
             return COLLECTION_HASHSET_TYPE;
         } else {
-            if (actualType.isInterface() || Modifier.isAbstract(actualType.getModifiers())) {
-                throw new UnsupportedOperationException("Unsupported for collection type '" + actualType + "', Please specify an implementation class");
-            } else {
-                return COLLECTION_OTHER_TYPE;
-            }
+            return COLLECTION_OTHER_TYPE;
         }
-    }
-
-    protected final static FixedNameValueMap<Enum> buildEnumValueMap(Enum[] values) {
-        Map<String, Enum> enumValues = new HashMap<String, Enum>();
-        for (Enum value : values) {
-            enumValues.put(value.name(), value);
-        }
-        return FixedNameValueMap.build(enumValues);
     }
 
     protected final static Collection createCollectionInstance(Class<?> collectionCls) {
@@ -1363,7 +1551,32 @@ class JSONGeneral {
     }
 
     // create map
+    static Map createMapInstance(GenericParameterizedType genericParameterizedType) {
+        Class<? extends Map> mapCls = genericParameterizedType.getActualType();
+        Map map = createCommonMapInstance(mapCls);
+        if (map != null) return map;
+        JSONImplInstCreator implInstCreator = getJSONImplInstCreator(mapCls);
+        if (implInstCreator != null) {
+            return (Map) implInstCreator.create(genericParameterizedType);
+        }
+        try {
+            return (Map) UnsafeHelper.newInstance(mapCls);
+        } catch (Exception e) {
+            throw new JSONException("create map error for " + mapCls);
+        }
+    }
+
     static Map createMapInstance(Class<? extends Map> mapCls) {
+        Map map = createCommonMapInstance(mapCls);
+        if (map != null) return map;
+        try {
+            return (Map) UnsafeHelper.newInstance(mapCls);
+        } catch (Exception e) {
+            throw new JSONException("create map error for " + mapCls);
+        }
+    }
+
+    static Map createCommonMapInstance(Class<? extends Map> mapCls) {
         if (mapCls == Map.class || mapCls == null || mapCls == LinkedHashMap.class) {
             return new LinkedHashMap();
         }
@@ -1376,14 +1589,10 @@ class JSONGeneral {
         if (mapCls == AbstractMap.class) {
             return new LinkedHashMap();
         }
-        if (mapCls == TreeMap.class) {
+        if (mapCls == TreeMap.class || mapCls == SortedMap.class) {
             return new TreeMap();
         }
-        try {
-            return mapCls.newInstance();
-        } catch (Exception e) {
-            throw new JSONException("create map instance error, class " + mapCls);
-        }
+        return null;
     }
 
     /**

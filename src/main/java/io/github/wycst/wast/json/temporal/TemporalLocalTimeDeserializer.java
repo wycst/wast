@@ -8,8 +8,10 @@ import io.github.wycst.wast.json.JSONParseContext;
 import io.github.wycst.wast.json.JSONTemporalDeserializer;
 import io.github.wycst.wast.json.exceptions.JSONException;
 
+import java.time.LocalTime;
+
 /**
- * 参考java.util.Date反序列化，使用反射实现
+ * LocalTime反序列化
  *
  * @Author: wangy
  * @Date: 2022/8/13 15:06
@@ -24,21 +26,18 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
     }
 
     protected void checkClass(GenericParameterizedType genericParameterizedType) {
-//        if (genericParameterizedType.getActualType() != TemporalAloneInvoker.localTimeClass) {
-//            throw new UnsupportedOperationException("Not Support for class " + genericParameterizedType.getActualType());
-//        }
     }
 
     protected Object deserializeTemporal(char[] buf, int fromIndex, int endIndex, JSONParseContext jsonParseContext) throws Exception {
         // use dateTemplate && pattern
         GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
-        return TemporalAloneInvoker.ofLocalTime(generalDate.getHourOfDay(), generalDate.getMinute(), generalDate.getSecond(), generalDate.getMillisecond() * 1000000);
+        return LocalTime.of(generalDate.getHourOfDay(), generalDate.getMinute(), generalDate.getSecond(), generalDate.getMillisecond() * 1000000);
     }
 
     protected Object deserializeTemporal(byte[] buf, int fromIndex, int endIndex, JSONParseContext jsonParseContext) throws Exception {
         // use dateTemplate && pattern
         GeneralDate generalDate = dateTemplate.parseGeneralDate(buf, fromIndex + 1, endIndex - fromIndex - 1, ZERO_TIME_ZONE);
-        return TemporalAloneInvoker.ofLocalTime(generalDate.getHourOfDay(), generalDate.getMinute(), generalDate.getSecond(), generalDate.getMillisecond() * 1000000);
+        return LocalTime.of(generalDate.getHourOfDay(), generalDate.getMinute(), generalDate.getSecond(), generalDate.getMillisecond() * 1000000);
     }
 
     // default hh:mm:ss.SSS
@@ -62,7 +61,7 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
         }
         if(c == endChar) {
             jsonParseContext.endIndex = offset;
-            return TemporalAloneInvoker.ofLocalTime(hour, minute, second, nanoOfSecond);
+            return LocalTime.of(hour, minute, second, nanoOfSecond);
         }
 
         String errorContextTextAt = createErrorContextText(buf, offset);
@@ -90,7 +89,7 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
         }
         if(c == endChar) {
             jsonParseContext.endIndex = offset;
-            return TemporalAloneInvoker.ofLocalTime(hour, minute, second, nanoOfSecond);
+            return LocalTime.of(hour, minute, second, nanoOfSecond);
         }
 
         String errorContextTextAt = createErrorContextText(buf, offset);
@@ -99,6 +98,6 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
 
     @Override
     protected Object valueOf(String value, Class<?> actualType) throws Exception {
-        return TemporalAloneInvoker.parseLocalTime(value);
+        return LocalTime.parse(value);
     }
 }

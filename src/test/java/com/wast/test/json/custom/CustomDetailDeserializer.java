@@ -1,7 +1,7 @@
 package com.wast.test.json.custom;
 
-import io.github.wycst.wast.json.custom.JsonDeserializer;
 import io.github.wycst.wast.json.JSONParseContext;
+import io.github.wycst.wast.json.custom.JsonDeserializer;
 
 import java.util.HashMap;
 import java.util.Map;

@@ -1,7 +1,7 @@
 package io.github.wycst.wast.common.beans;
 
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
-import io.github.wycst.wast.common.utils.MemoryCopyUtils;
+import io.github.wycst.wast.common.utils.MemoryOptimizerUtils;
 
 /**
  * <p> 针对jdk9+字符串内置bytes数组coder=LATIN1(0)时的字符转换读取
@@ -14,7 +14,7 @@ public final class AsciiStringSource implements CharSource {
     private final String input;
     private final byte[] bytes;
 
-    AsciiStringSource(String input, byte[] bytes) {
+    public AsciiStringSource(String input, byte[] bytes) {
         this.bytes = bytes;
         this.input = input;
     }
@@ -69,6 +69,6 @@ public final class AsciiStringSource implements CharSource {
 
     @Override
     public String substring(int beginIndex, int endIndex) {
-        return UnsafeHelper.getAsciiString(MemoryCopyUtils.copyOfRange(bytes, beginIndex, endIndex - beginIndex));
+        return UnsafeHelper.getAsciiString(MemoryOptimizerUtils.copyOfRange(bytes, beginIndex, endIndex - beginIndex));
     }
 }

@@ -1,5 +1,7 @@
 package io.github.wycst.wast.common.compiler;
 
+import io.github.wycst.wast.common.utils.EnvUtils;
+
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
@@ -19,9 +21,15 @@ public class JDKCompiler {
     public static Class<?> compileJavaSource(JavaSourceObject sourceObject) {
         MemoryJavaFileManager javaFileManager = new MemoryJavaFileManager(fileManager);
         try {
+            List<String> options = null;
+            if(EnvUtils.JDK_16_PLUS) {
+                options = Arrays.asList("-encoding", "UTF-8", "-XDuseUnsharedTable", "-Xlint:-options");
+            } else {
+                options = Arrays.asList("-encoding", "UTF-8", "-XDuseUnsharedTable");
+            }
             JavaFileObject javaFileObject = javaFileManager.createJavaFileObject(sourceObject.className + ".java", sourceObject.javaSourceCode);
             JavaCompiler.CompilationTask task = compiler.getTask(null, javaFileManager, null,
-                    Arrays.asList(/*"-d", classPath, */"-encoding", "UTF-8", "-XDuseUnsharedTable"), null,
+                    options, null,
                     Arrays.asList(javaFileObject));
             boolean bl = task.call();
             if (bl) {

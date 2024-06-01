@@ -503,7 +503,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
             }
             if (ch == ':') {
                 if (!skipValue) {
-                    key = JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, fieldKeyTo, isUnquotedFieldName);
+                    key = String.valueOf(JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, fieldKeyTo, isUnquotedFieldName));
                     if (!isLastPathLevel) {
                         matched = stringEqual(path, beginPathIndex + 1, (nextPathIndex == -1 ? path.length() : nextPathIndex) - beginPathIndex - 1, key, 0, key.length());
                     }
@@ -847,7 +847,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
     }
 
     private static JSONNode parseNumberPathNode(char[] buf, int fromIndex, int toIndex, char endToken, JSONNodeContext jsonParseContext) throws Exception {
-        Number value = JSONTypeDeserializer.NUMBER.deserializeDefault(buf, fromIndex, toIndex, endToken, jsonParseContext);
+        Number value = (Number) JSONTypeDeserializer.NUMBER.deserialize(null, buf, fromIndex, toIndex, GenericParameterizedType.AnyType, null, endToken, jsonParseContext);
         int endIndex = jsonParseContext.endIndex;
         return new JSONNode(value, buf, fromIndex, endIndex + 1, NUMBER, jsonParseContext);
     }
@@ -939,14 +939,18 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
             return null;
         }
         int splitIndex = -1;
-        int hashValue = beginChar;
+        long hashValue = (ESCAPE << 8) | beginChar;
         char ch;
         for (int i = beginIndex + 1; i < endIndex; ++i) {
             if ((ch = pathBuf[i]) == '/') {
                 splitIndex = i;
                 break;
             }
-            hashValue = hashValue * 31 + ch;
+            if(ch > 0xFF) {
+                hashValue = hashValue << 16 | ch;
+            } else {
+                hashValue = hashValue << 8 | ch;
+            }
         }
         if (splitIndex == -1) {
             return getPathNode(pathBuf, beginIndex, endIndex - beginIndex, hashValue);
@@ -974,7 +978,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
         return fieldValues.keySet();
     }
 
-    private JSONNode getPathNode(char[] buf, int offset, int len, int hashCode) {
+    private JSONNode getPathNode(char[] buf, int offset, int len, long hashCode) {
         if (isArray) {
             char ch = buf[offset];
             int digit = digitDecimal(ch);
@@ -999,8 +1003,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                 throw new IllegalArgumentException(" key '" + key + " is mismatch array index ");
             }
         } else {
-            // key
-            String field = parseContext.getCacheKey(buf, offset, len, hashCode);
+            String field = getCacheKey(buf, offset, len, hashCode);
             return getFieldNodeAt(field);
         }
     }
@@ -1098,7 +1101,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                         while (i + 1 < endIndex && (buf[++i] != '\'' || buf[i - 1] == '\\')) ;
                         empty = false;
                         ++i;
-                        key = JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, false);
+                        key = (String) JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, false);
                     } else {
                         throw new JSONException("Syntax error, the single quote symbol ' is not allowed at pos " + i);
                     }
@@ -1106,7 +1109,7 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                     if (parseContext.allowUnquotedFieldNames) {
                         while (i + 1 < endIndex && buf[++i] != ':') ;
                         empty = false;
-                        key = JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, true);
+                        key = String.valueOf(JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, true));
                     } else {
                         String errorContextTextAt = createErrorContextText(buf, i);
                         throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + ch + "', expected '\"' or use option ReadOption.AllowUnquotedFieldNames ");
@@ -1636,8 +1639,8 @@ public final class JSONNode extends JSONGeneral implements Comparable<JSONNode> 
                 map.put(key, value);
             } else {
                 String fieldName = key.toString();
-                JSONPojoFieldDeserializer fieldDeserializer = classStructureWrapper.getFieldDeserializer(fieldName);
-                SetterInfo setterInfo = fieldDeserializer == null ? null : fieldDeserializer.getSetterInfo();
+                JSONPojoFieldDeserializer fieldDeserializer = classStructureWrapper.fieldDeserializerMatcher.getValue(fieldName);
+                SetterInfo setterInfo = fieldDeserializer == null ? null : fieldDeserializer.setterInfo;
                 if (setterInfo != null) {
                     Class<?> parameterType = setterInfo.getParameterType();
                     Class<?> entityClass = parameterType;

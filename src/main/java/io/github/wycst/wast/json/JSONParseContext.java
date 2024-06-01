@@ -64,6 +64,7 @@ public class JSONParseContext {
     /**
      * 使用Double.parse来处理声明为double类型的属性的解析操作
      */
+    @Deprecated
     public boolean useJDKDoubleParser;
 
     /**
@@ -71,72 +72,43 @@ public class JSONParseContext {
      */
     public boolean disableCacheMapKey;
     public boolean unMatchedEmptyAsNull;
+    public boolean strictMode;
 
-    private boolean escape = true;
-    private int escapeOffset = -1;
+    void setIgnoreEscapeCheck() {
+        escape = false;
+    }
+
+    boolean escape = true;
+    int escapeOffset = -1;
     private String[] strings;
-    private double[] doubles;
-    private long[] longs;
-    private int[] ints;
 
     public void setContextWriter(JSONCharArrayWriter writer) {
         this.writer = writer;
     }
 
-    public JSONCharArrayWriter getContextWriter() {
+    JSONCharArrayWriter getContextWriter() {
         if (writer != null) {
             writer.clear();
         }
         return writer;
     }
 
-    public String[] getContextStrings() {
+    String[] getContextStrings() {
         if(strings == null) {
-            strings = new String[16];
+            strings = new String[32];
         }
         return strings;
     }
 
-    public double[] getContextDoubles() {
-        if(doubles == null) {
-            doubles = new double[16];
-        }
-        return doubles;
-    }
-
-    public long[] getContextLongs() {
-        if(longs == null) {
-            longs = new long[16];
-        }
-        return longs;
-    }
-
-    public int[] getContextInts() {
-        if(ints == null) {
-            ints = new int[16];
-        }
-        return ints;
-    }
-
-    public final String getCacheKey(char[] buf, int offset, int len, long hashCode) {
-        return JSONOptions.getCacheKey(buf, offset, len, hashCode);
-    }
-
-    public final String getCacheKey(byte[] bytes, int offset, int len, long hashCode) {
-        return JSONOptions.getCacheKey(bytes, offset, len, hashCode);
-    }
-
-    public void clear() {
+    void clear() {
         if (writer != null) {
             writer.reset();
             writer = null;
         }
         strings = null;
-        longs = null;
-        ints = null;
     }
 
-    public final boolean checkEscapeUseChar(String input, int fromIndex, int endIndex) {
+    final boolean checkEscapeUseChar(String input, int fromIndex, int endIndex) {
         if(!escape || endIndex < escapeOffset) return false;
         if(fromIndex > escapeOffset) {
             escapeOffset = input.indexOf('\\', fromIndex);
@@ -146,7 +118,7 @@ public class JSONParseContext {
         return endIndex > escapeOffset;
     }
 
-    public final boolean checkEscapeUseString(String input, int fromIndex, int endIndex) {
+    final boolean checkEscapeUseString(String input, int fromIndex, int endIndex) {
         if(!escape || endIndex < escapeOffset) return false;
         if(fromIndex > escapeOffset) {
             escapeOffset = input.indexOf("\\", fromIndex);
@@ -156,7 +128,7 @@ public class JSONParseContext {
         return endIndex > escapeOffset;
     }
 
-    public final int getEscapeOffset() {
+    final int getEscapeOffset() {
         return escapeOffset;
     }
 }

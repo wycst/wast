@@ -6,8 +6,10 @@ import io.github.wycst.wast.json.JSONTemporalSerializer;
 import io.github.wycst.wast.json.JSONWriter;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 
+import java.time.LocalDate;
+
 /**
- * LocalDate序列化，使用反射实现
+ * LocalDate序列化
  *
  * @Author: wangy
  * @Date: 2022/8/13 15:06
@@ -26,9 +28,10 @@ public class TemporalLocalDateSerializer extends JSONTemporalSerializer {
 
     @Override
     protected void writeTemporalWithTemplate(Object value, JSONWriter writer, JSONConfig jsonConfig) throws Exception {
-        int year = TemporalAloneInvoker.invokeLocalDateYear(value);
-        int month = TemporalAloneInvoker.invokeLocalDateMonth(value);
-        int day = TemporalAloneInvoker.invokeLocalDateDay(value);
+        LocalDate localDate = (LocalDate) value;
+        int year = localDate.getYear();
+        int month = localDate.getMonthValue();
+        int day = localDate.getDayOfMonth();
         writer.write('"');
         writeDate(year, month, day, 0, 0, 0, 0, dateFormatter, writer);
         writer.write('"');
@@ -37,9 +40,7 @@ public class TemporalLocalDateSerializer extends JSONTemporalSerializer {
     // yyyy-MM-dd
     @Override
     protected void writeDefault(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
-        int year = TemporalAloneInvoker.invokeLocalDateYear(value);
-        int month = TemporalAloneInvoker.invokeLocalDateMonth(value);
-        int day = TemporalAloneInvoker.invokeLocalDateDay(value);
-        writer.writeJSONLocalDate(year, month, day);
+        LocalDate localDate = (LocalDate) value;
+        writer.writeJSONLocalDate(localDate.getYear(), localDate.getMonthValue(), localDate.getDayOfMonth());
     }
 }

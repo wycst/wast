@@ -6,8 +6,10 @@ import io.github.wycst.wast.json.JSONTemporalSerializer;
 import io.github.wycst.wast.json.JSONWriter;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 
+import java.time.OffsetDateTime;
+
 /**
- * OffsetDateTime序列化，使用反射实现
+ * OffsetDateTime序列化
  *
  * @Author: wangy
  * @Date: 2022/8/13 15:06
@@ -26,18 +28,20 @@ public class TemporalOffsetDateTimeSerializer extends JSONTemporalSerializer {
 
     @Override
     protected void writeTemporalWithTemplate(Object value, JSONWriter writer, JSONConfig jsonConfig) throws Exception {
-        int year = TemporalAloneInvoker.invokeOffsetDateTimeYear(value);
-        int month = TemporalAloneInvoker.invokeOffsetDateTimeMonth(value);
-        int day = TemporalAloneInvoker.invokeOffsetDateTimeDay(value);
-        int hour = TemporalAloneInvoker.invokeOffsetDateTimeHour(value);
-        int minute = TemporalAloneInvoker.invokeOffsetDateTimeMinute(value);
-        int second = TemporalAloneInvoker.invokeOffsetDateTimeSecond(value);
-        int nano = TemporalAloneInvoker.invokeOffsetDateTimeNano(value);
-        int millisecond = nano / 1000000;
+        OffsetDateTime offsetDateTime = (OffsetDateTime) value;
         writer.write('"');
         // localDateTime
-        writeDate(year, month, day, hour, minute, second, millisecond, dateFormatter, writer);
-        String zoneId = TemporalAloneInvoker.invokeOffsetDateTimeZone(value).toString();
+        writeDate(
+                offsetDateTime.getYear(),
+                offsetDateTime.getMonthValue(),
+                offsetDateTime.getDayOfMonth(),
+                offsetDateTime.getHour(),
+                offsetDateTime.getMinute(),
+                offsetDateTime.getSecond(),
+                offsetDateTime.getNano() / 1000000,
+                dateFormatter,
+                writer);
+        String zoneId = offsetDateTime.getOffset().toString();
         writer.writeZoneId(zoneId);
         writer.write('"');
     }
@@ -45,13 +49,15 @@ public class TemporalOffsetDateTimeSerializer extends JSONTemporalSerializer {
     // yyyy-MM-ddTHH:mm:ss.SSS+xx:yy
     @Override
     protected void writeDefault(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
-        int year = TemporalAloneInvoker.invokeOffsetDateTimeYear(value);
-        int month = TemporalAloneInvoker.invokeOffsetDateTimeMonth(value);
-        int day = TemporalAloneInvoker.invokeOffsetDateTimeDay(value);
-        int hour = TemporalAloneInvoker.invokeOffsetDateTimeHour(value);
-        int minute = TemporalAloneInvoker.invokeOffsetDateTimeMinute(value);
-        int second = TemporalAloneInvoker.invokeOffsetDateTimeSecond(value);
-        int nano = TemporalAloneInvoker.invokeOffsetDateTimeNano(value);
-        writer.writeJSONLocalDateTime(year, month, day, hour, minute, second, nano, TemporalAloneInvoker.invokeOffsetDateTimeZone(value).toString());
+        OffsetDateTime offsetDateTime = (OffsetDateTime) value;
+        writer.writeJSONLocalDateTime(
+                offsetDateTime.getYear(),
+                offsetDateTime.getMonthValue(),
+                offsetDateTime.getDayOfMonth(),
+                offsetDateTime.getHour(),
+                offsetDateTime.getMinute(),
+                offsetDateTime.getSecond(),
+                offsetDateTime.getNano(),
+                offsetDateTime.getOffset().toString());
     }
 }

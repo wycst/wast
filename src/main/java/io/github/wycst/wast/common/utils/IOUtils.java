@@ -63,7 +63,7 @@ public final class IOUtils {
      * @param chars 目标字符
      * @return 实际字符数组长度
      */
-    public final static int readUTF8Bytes(byte[] bytes, char[] chars) {
+    public static int readUTF8Bytes(byte[] bytes, char[] chars) {
         return readUTF8Bytes(bytes, 0, bytes.length, chars, 0);
     }
 
@@ -82,7 +82,7 @@ public final class IOUtils {
      * @param cOffset   字符数组偏移位置
      * @return 字符数组长度
      */
-    public final static int readUTF8Bytes(byte[] bytes, int offset, int len, char[] chars, int cOffset) {
+    public static int readUTF8Bytes(byte[] bytes, int offset, int len, char[] chars, int cOffset) {
         if (bytes == null) return 0;
         int charLen = cOffset;
         for (int j = offset, max = offset + len; j < max; ++j) {

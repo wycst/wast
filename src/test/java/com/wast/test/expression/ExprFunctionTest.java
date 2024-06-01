@@ -3,7 +3,6 @@ package com.wast.test.expression;
 import io.github.wycst.wast.common.expression.EvaluateEnvironment;
 import io.github.wycst.wast.common.expression.ExprFunction;
 import io.github.wycst.wast.common.expression.Expression;
-import io.github.wycst.wast.common.expression.functions.BuiltInFunction;
 
 import java.util.Arrays;
 import java.util.HashMap;

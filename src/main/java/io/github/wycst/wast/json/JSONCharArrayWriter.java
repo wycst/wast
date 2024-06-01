@@ -352,6 +352,41 @@ class JSONCharArrayWriter extends JSONWriter {
     }
 
     @Override
+    protected final void writeCommaLongValues(long val1, long val2) throws IOException {
+        ensureCapacity(42 + SECURITY_UNCHECK_SPACE);
+        int off = count;
+        if (val1 < 0) {
+            if (val1 == Long.MIN_VALUE) {
+                write(",-9223372036854775808");
+                off = count;
+            } else {
+                val1 = -val1;
+                buf[off++] = ',';
+                buf[off++] = '-';
+                off += NumberUtils.writePositiveLong(val1, buf, off);
+            }
+        } else {
+            buf[off++] = ',';
+            off += NumberUtils.writePositiveLong(val1, buf, off);
+        }
+        if (val2 < 0) {
+            if (val2 == Long.MIN_VALUE) {
+                write(",-9223372036854775808");
+                off = count;
+            } else {
+                val2 = -val2;
+                buf[off++] = ',';
+                buf[off++] = '-';
+                off += NumberUtils.writePositiveLong(val2, buf, off);
+            }
+        } else {
+            buf[off++] = ',';
+            off += NumberUtils.writePositiveLong(val2, buf, off);
+        }
+        count = off;
+    }
+
+    @Override
     public void writeUUID(UUID uuid) {
         long mostSigBits = uuid.getMostSignificantBits();
         long leastSigBits = uuid.getLeastSignificantBits();
@@ -397,17 +432,42 @@ class JSONCharArrayWriter extends JSONWriter {
         buf[off++] = ':';
         off += NumberUtils.writeTwoDigits(second, buf, off);
         if (nano > 0) {
-            nano += 1000000000;
-            while (nano % 1000 == 0) {
-                nano = nano / 1000;
-            }
-            int pointIndex = off;
-            off += NumberUtils.writePositiveLong(nano, buf, off);
-            buf[pointIndex] = '.';
+            off = writeNano(nano, off);
         }
-        count = off;
-        writeZoneId(zoneId);
-        buf[count++] = '"';
+        if (zoneId.hashCode() == 'Z') {
+            off += UnsafeHelper.putInt(buf, off, Z_QUOT_INT);
+            count = off;
+        } else {
+            count = off;
+            writeZoneId(zoneId);
+            buf[count++] = '"';
+        }
+    }
+
+    int writeNano(int nano, int off) {
+        // 4 + 2 + 3
+        buf[off++] = '.';
+        // seg1 4
+        int div1 = nano / 1000;
+        int seg1 = div1 / 100;
+        int seg2 = div1 - 100 * seg1;
+        int seg3 = nano - div1 * 1000;
+        off += NumberUtils.writeFourDigits(seg1, buf, off);
+        off += NumberUtils.writeTwoDigits(seg2, buf, off);
+        if (seg3 > 0) {
+            int pos = --off;
+            char last = buf[pos];
+            off += NumberUtils.writeFourDigits(seg3, buf, pos);
+            buf[pos] = last;
+        } else {
+            if (seg2 == 0) {
+                off -= 2;
+                if ((seg1 & 1) == 0 && seg1 % 5 == 0) {
+                    --off;
+                }
+            }
+        }
+        return off;
     }
 
     @Override
@@ -449,13 +509,7 @@ class JSONCharArrayWriter extends JSONWriter {
         off += NumberUtils.writeTwoDigitsAndPreSuffix(minute, ':', ':', buf, off);
         off += NumberUtils.writeTwoDigits(second, buf, off);
         if (nano > 0) {
-            nano += 1000000000;
-            while (nano % 1000 == 0) {
-                nano = nano / 1000;
-            }
-            int pointIndex = off;
-            off += NumberUtils.writePositiveLong(nano, buf, off);
-            buf[pointIndex] = '.';
+            off = writeNano(nano, off);
         }
         buf[off++] = '"';
         count = off;
@@ -602,6 +656,13 @@ class JSONCharArrayWriter extends JSONWriter {
             count += 4;
         }
         this.count += totalCount;
+    }
+
+    @Override
+    public void writeEmptyArray() throws IOException {
+        ensureCapacity(2 + SECURITY_UNCHECK_SPACE);
+        UnsafeHelper.putInt(buf, count, EMPTY_ARRAY_INT);
+        count += 2;
     }
 
     void clearCache() {

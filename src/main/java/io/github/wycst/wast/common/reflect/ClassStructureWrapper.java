@@ -16,9 +16,6 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class ClassStructureWrapper {
 
-    private ClassStructureWrapper() {
-    }
-
     // cache
     private static Map<Class<?>, ClassStructureWrapper> classStructureWarppers = new ConcurrentHashMap<Class<?>, ClassStructureWrapper>();
     private static final Map<Class<?>, List> COMPATIBLE_TYPES = new HashMap<Class<?>, List>();
@@ -48,15 +45,23 @@ public final class ClassStructureWrapper {
         COMPATIBLE_TYPES.put(Byte.class, Arrays.asList(byte.class));
     }
 
+    private ClassStructureWrapper(Class<?> sourceClass) {
+        this.sourceClass = sourceClass;
+        this.privateFlag = Modifier.isPrivate(sourceClass.getModifiers());
+        this.assignableFromMap = Map.class.isAssignableFrom(sourceClass);
+    }
+
     /**
      * 最大类结构缓存数（计划使用）
      */
     private static final int MAX_STRUCTURE_COUNT = 10000;
 
     // jdk invoke
-    private Class<?> sourceClass;
+    private final Class<?> sourceClass;
 
-    private boolean privateFlag;
+    private final boolean privateFlag;
+
+    private final boolean assignableFromMap;
 
     // type
     private ClassWrapperType classWrapperType = ClassWrapperType.Normal;
@@ -73,9 +78,9 @@ public final class ClassStructureWrapper {
     // is Temporal
     private boolean temporal;
 
-    private int fieldCount;
+    private boolean subEnum;
 
-    private boolean assignableFromMap;
+    private int fieldCount;
 
     // setter的属性和SetterMethodInfo映射
     private Map<String, SetterInfo> setterInfos = new LinkedHashMap<String, SetterInfo>();
@@ -177,6 +182,10 @@ public final class ClassStructureWrapper {
         return temporal;
     }
 
+    public boolean isSubEnum() {
+        return subEnum;
+    }
+
     public int getFieldCount() {
         return fieldCount;
     }
@@ -208,23 +217,8 @@ public final class ClassStructureWrapper {
         }
 
         if (sourceClass.isInterface() || sourceClass.isEnum() || sourceClass.isArray() || sourceClass.isPrimitive()) {
-//            throw new UnsupportedOperationException("sourceClass " + sourceClass + " is not supported to create wrapper");
             return null;
         }
-
-//        boolean anonymousClass = sourceClass.isAnonymousClass();
-//        if(anonymousClass) {
-//            Class<?> parentClass = sourceClass.getSuperclass();
-//            // 使用父类代理（通常情况下父类一定不是匿名类）
-//            while (parentClass.isAnonymousClass()) {
-//                parentClass = parentClass.getSuperclass();
-//            }
-//            if(parentClass == Object.class) {
-//                return null;
-//            }
-//            sourceClass = parentClass;
-//            wrapper = classStructureWarppers.get(sourceClass);
-//        }
 
         if (wrapper == null) {
             synchronized (sourceClass) {
@@ -232,10 +226,7 @@ public final class ClassStructureWrapper {
                     return classStructureWarppers.get(sourceClass);
                 }
 
-                wrapper = new ClassStructureWrapper();
-                wrapper.sourceClass = sourceClass;
-                wrapper.privateFlag = Modifier.isPrivate(sourceClass.getModifiers());
-                wrapper.assignableFromMap = Map.class.isAssignableFrom(sourceClass);
+                wrapper = new ClassStructureWrapper(sourceClass);
                 wrapper.checkClassStructure();
 
                 // parse genericClass
@@ -591,10 +582,15 @@ public final class ClassStructureWrapper {
         }
 
         // jdk17 java.lang.Record
-        if (sourceClass.getSuperclass().getName().equals("java.lang.Record")) {
+        Class<?> theSuperClass = sourceClass.getSuperclass();
+        if (theSuperClass.getName().equals("java.lang.Record")) {
             this.record = true;
             this.javaBuiltInModule = true;
             this.classWrapperType = ClassWrapperType.Record;
+        }
+
+        if(theSuperClass.isEnum()) {
+            this.subEnum =  true;
         }
 
         if (javaBuiltInModule) {

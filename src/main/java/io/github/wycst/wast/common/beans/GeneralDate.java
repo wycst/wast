@@ -529,7 +529,7 @@ public class GeneralDate {
         boolean isLeapYear;
 //        int year = (int) ((days + 1) * 100000 / 36524219) + 1;
         int year = (int) ((days * 400) / OFFSET_DAYS_DIVISOR + 1);
-        YearMeta targetMeta = getYearMeta(year);
+        GeneralDate.YearMeta targetMeta = getYearMeta(year);
         long offsetDays = targetMeta.offsetDays;
         if (days <= offsetDays) {
             targetMeta = getYearMeta(--year);

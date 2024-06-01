@@ -1,5 +1,6 @@
 package io.github.wycst.wast.common.reflect;
 
+import io.github.wycst.wast.common.utils.EnvUtils;
 import sun.misc.Unsafe;
 
 import java.io.ByteArrayOutputStream;
@@ -28,9 +29,13 @@ public final class UnsafeHelper {
     public static final long DEFAULT_TIME_ZONE_OFFSET;
     public static final long BIGINTEGER_MAG_OFFSET;
     public static final long ARRAYLIST_ELEMENT_DATA_OFFSET;
+    public static final long ARRAYLIST_SIZE_OFFSET;
     // maybe jdk9+ not supported
     public static final long OVERRIDE_OFFSET;
-//    private static final Map<Class<?>, Long> ObjectArrayOffsetScales = new ConcurrentHashMap<Class<?>, Long>();
+    public static final long INT64_MASK_7_BITS = 0x00FFFFFFFFFFFFFFL;
+    public static final long INT64_MASK_6_BITS = 0x0000FFFFFFFFFFFFL;
+    public static final long INT64_MASK_5_BITS = 0x000000FFFFFFFFFFL;
+    public static final int INT32_MASK_3_BITS = 0x00FFFFFF;
 
     static {
         Field theUnsafeField = null;
@@ -104,12 +109,23 @@ public final class UnsafeHelper {
     // ArrayList
     static {
         long elementDataOffset = -1;
+        long sizeOffset = -1;
         try {
-            Field magField = ArrayList.class.getDeclaredField("elementData");
-            elementDataOffset = objectFieldOffset(magField);
+            Field elementDataField = ArrayList.class.getDeclaredField("elementData");
+            elementDataOffset = objectFieldOffset(elementDataField);
         } catch (Exception e) {
         }
+        try {
+            Field sizeField = ArrayList.class.getDeclaredField("size");
+            sizeOffset = objectFieldOffset(sizeField);
+        } catch (Exception e) {
+        }
+        if (elementDataOffset == -1 || sizeOffset == -1) {
+            elementDataOffset = -1;
+            sizeOffset = -1;
+        }
         ARRAYLIST_ELEMENT_DATA_OFFSET = elementDataOffset;
+        ARRAYLIST_SIZE_OFFSET = sizeOffset;
     }
 
     // reflect
@@ -295,16 +311,15 @@ public final class UnsafeHelper {
     }
 
     /**
-     * 获取BigInteger的mag属性
+     * get mag of BigInteger
      *
      * @param value
      * @return
      */
     public static int[] getMag(BigInteger value) {
         if (BIGINTEGER_MAG_OFFSET > -1) {
+            value.getClass();
             return (int[]) UNSAFE.getObject(value, BIGINTEGER_MAG_OFFSET);
-        } else {
-
         }
         throw new UnsupportedOperationException();
     }
@@ -318,10 +333,32 @@ public final class UnsafeHelper {
      */
     public static Object[] getArrayListData(ArrayList value) {
         if (ARRAYLIST_ELEMENT_DATA_OFFSET > -1) {
+            value.getClass();
             return (Object[]) UNSAFE.getObject(value, ARRAYLIST_ELEMENT_DATA_OFFSET);
         } else {
             return value.toArray();
         }
+    }
+
+    /**
+     * <p> Building an ArrayList based on an array </p>
+     *
+     * @param elementData
+     * @param len
+     * @return
+     */
+    public static ArrayList fromArrayListData(Object[] elementData, int len) {
+        ArrayList arrayList = new ArrayList(len);
+        elementData.getClass();
+        if (ARRAYLIST_ELEMENT_DATA_OFFSET > -1 && len > -1) {
+            UNSAFE.putObject(arrayList, ARRAYLIST_ELEMENT_DATA_OFFSET, elementData);
+            UNSAFE.putInt(arrayList, ARRAYLIST_SIZE_OFFSET, len);
+        } else {
+            for (int i = 0; i < len; ++i) {
+                arrayList.add(elementData[i]);
+            }
+        }
+        return arrayList;
     }
 
     public static void copyMemory(char[] chars, int cOff, byte[] bytes, int bOff, int cLen) {
@@ -429,6 +466,107 @@ public final class UnsafeHelper {
     }
 
     /**
+     * <p> 高效比较两个字节数组片段 </p>
+     * <p>
+     * Refer to ArraysSupport # vectorizedMismatch
+     *
+     * @param a
+     * @param aOffset
+     * @param b
+     * @param bOffset
+     * @param len
+     * @return
+     * @throws IndexOutOfBoundsException
+     */
+    public static boolean equals(byte[] a, int aOffset, byte[] b, int bOffset, int len, long remValueForBytes) {
+        if (len >= 8) {
+            do {
+                long la = UnsafeHelper.getLong(a, aOffset);
+                long lb = UnsafeHelper.getLong(b, bOffset);
+                if (la != lb) return false;
+                len -= 8;
+                aOffset += 8;
+                bOffset += 8;
+            } while (len >= 8);
+            if (len == 0) return true;
+            int padd = 8 - len;
+            aOffset -= padd;
+            bOffset -= padd;
+            return UnsafeHelper.getLong(a, aOffset) == UnsafeHelper.getLong(b, bOffset);
+        }
+        if (len >= 4) {
+            int la = UnsafeHelper.getInt(a, aOffset);
+            int lb = UnsafeHelper.getInt(b, bOffset);
+            if (la != lb) return false;
+            int v = len - 4;
+            if (v == 0) return true;
+            aOffset += v;
+            bOffset += v;
+            return UnsafeHelper.getInt(a, aOffset) == UnsafeHelper.getInt(b, bOffset);
+        }
+        // 1 2 3
+        switch (len) {
+            case 1:
+                return a[aOffset] == remValueForBytes;
+            case 2:
+                return UnsafeHelper.getShort(a, aOffset) == remValueForBytes;
+            default:
+                return a[aOffset++] == b[bOffset] && UnsafeHelper.getShort(a, aOffset) == remValueForBytes;
+        }
+    }
+
+    /**
+     * <p> 高效比较两个字符数组片段 </p>
+     * <p>
+     * Refer to ArraysSupport # vectorizedMismatch
+     *
+     * @param a
+     * @param aOffset
+     * @param b
+     * @param bOffset
+     * @param len
+     * @return
+     * @throws IndexOutOfBoundsException
+     */
+    public static boolean equals(char[] a, int aOffset, char[] b, int bOffset, int len, long remValueForChars) {
+        if (len >= 4) {
+            do {
+                long la = UnsafeHelper.getLong(a, aOffset);
+                long lb = UnsafeHelper.getLong(b, bOffset);
+                if (la != lb) return false;
+                len -= 4;
+                aOffset += 4;
+                bOffset += 4;
+            } while (len >= 4);
+            if (len == 0) return true;
+            int v = 4 - len;
+            aOffset -= v;
+            bOffset -= v;
+            return UnsafeHelper.getLong(a, aOffset) == UnsafeHelper.getLong(b, bOffset);
+        }
+        // 1 2 3
+        switch (len) {
+            case 1:
+                return a[aOffset] == remValueForChars;
+            case 2:
+                return UnsafeHelper.getInt(a, aOffset) == remValueForChars;
+            default:
+                return a[aOffset++] == b[bOffset] && UnsafeHelper.getInt(a, aOffset) == remValueForChars;
+        }
+    }
+
+    /**
+     * 从offset开始读取2个字符
+     *
+     * @param buf
+     * @param offset
+     * @return
+     */
+    public static int getInt(char[] buf, int offset) {
+        return UNSAFE.getInt(buf, CHAR_ARRAY_OFFSET + (offset << 1));
+    }
+
+    /**
      * 从offset开始读取4个字符
      *
      * @param buf
@@ -461,6 +599,17 @@ public final class UnsafeHelper {
     }
 
     /**
+     * 从offset开始读取2个字节
+     *
+     * @param buf
+     * @param offset
+     * @return
+     */
+    public static short getShort(byte[] buf, int offset) {
+        return UNSAFE.getShort(buf, BYTE_ARRAY_OFFSET + offset);
+    }
+
+    /**
      * 从offset开始读取4个字节
      *
      * @param buf
@@ -469,6 +618,156 @@ public final class UnsafeHelper {
      */
     public static int getInt(byte[] buf, int offset) {
         return UNSAFE.getInt(buf, BYTE_ARRAY_OFFSET + offset);
+    }
+
+    /**
+     * 从offset开始读取8个字节
+     *
+     * @param buf
+     * @param offset
+     * @return
+     */
+    public static long getLong(byte[] buf, int offset) {
+        return UNSAFE.getLong(buf, BYTE_ARRAY_OFFSET + offset);
+    }
+
+//    /**
+//     * 字节数组的long值组成的数组
+//     *
+//     * @param buf
+//     * @return
+//     */
+//    public static long[] getUnsafeLongs(byte[] buf) {
+//        int byteLen = buf.length;
+//        int rem = byteLen & 7;
+//        int len = rem == 0 ? byteLen >> 3 : (byteLen >> 3) + 1;
+//        long[] longValues = new long[len];
+//        for (int i = 0; i < len; ++i) {
+//            int offset = i << 3;
+//            if(offset + 8 > byteLen) {
+//                offset = byteLen - 8;
+//                if(offset < 0) {
+//                    offset = 0;
+//                }
+//            }
+//            longValues[i] = getUnsafeLong(buf, offset, 8);
+//        }
+//        return longValues;
+//    }
+
+//    /**
+//     * 字符数组的long值组成的数组
+//     *
+//     * @param buf
+//     * @return
+//     */
+//    public static long[] getUnsafeLongs(char[] buf) {
+//        int byteLen = buf.length;
+//        int rem = byteLen & 3;
+//        int len = rem == 0 ? byteLen >> 2 : (byteLen >> 2) + 1;
+//        long[] longValues = new long[len];
+//        for (int i = 0; i < len; ++i) {
+//            longValues[i] = getUnsafeLong(buf, i * 4, 4);
+//        }
+//        return longValues;
+//    }
+
+    /**
+     * 从offset开始读取len个字节的long值,最多读取8个字节
+     *
+     * @param buf
+     * @param offset
+     * @param len
+     * @return
+     */
+    public static long getUnsafeLong(byte[] buf, int offset, int len) {
+        int remSize = buf.length - offset;
+        if (remSize > 8) {
+            switch (len) {
+                case 1:
+                    return buf[offset];
+                case 2:
+                    return UNSAFE.getShort(buf, BYTE_ARRAY_OFFSET + offset);
+                case 3: {
+                    int val = UNSAFE.getInt(buf, BYTE_ARRAY_OFFSET + offset);
+                    return EnvUtils.BIG_ENDIAN ? val >> 8 : val & INT32_MASK_3_BITS;
+                }
+                case 4:
+                    return UNSAFE.getInt(buf, BYTE_ARRAY_OFFSET + offset);
+                case 5: {
+                    long val = UNSAFE.getLong(buf, BYTE_ARRAY_OFFSET + offset);
+                    return EnvUtils.BIG_ENDIAN ? val >> 24 : val & INT64_MASK_5_BITS;
+                }
+                case 6: {
+                    long val = UNSAFE.getLong(buf, BYTE_ARRAY_OFFSET + offset);
+                    return EnvUtils.BIG_ENDIAN ? val >> 16 : val & INT64_MASK_6_BITS;
+                }
+                case 7: {
+                    long val = UNSAFE.getLong(buf, BYTE_ARRAY_OFFSET + offset);
+                    return EnvUtils.BIG_ENDIAN ? val >> 8 : val & INT64_MASK_7_BITS;
+                }
+                default: {
+                    return UNSAFE.getLong(buf, BYTE_ARRAY_OFFSET + offset);
+                }
+            }
+        } else {
+            // use bits
+            long val = 0;
+            if (offset + len > buf.length) {
+                len = buf.length - offset;
+            }
+            for (int i = 0; i < len; ++i) {
+                long b = buf[i + offset];
+                if (EnvUtils.BIG_ENDIAN) {
+                    val = val << 8 | b;
+                } else {
+                    val = val | (b << (i << 3));
+                }
+            }
+            return val;
+        }
+    }
+
+    /**
+     * 从offset开始读取len个字符的long值,最多读取4个字符
+     *
+     * @param buf
+     * @param offset
+     * @param len
+     * @return
+     */
+    public static long getUnsafeLong(char[] buf, int offset, int len) {
+        int remSize = buf.length - offset;
+        if (remSize > 4) {
+            switch (len) {
+                case 1:
+                    return buf[offset];
+                case 2:
+                    return UNSAFE.getInt(buf, CHAR_ARRAY_OFFSET + offset);
+                case 3: {
+                    long val = UNSAFE.getLong(buf, CHAR_ARRAY_OFFSET + offset);
+                    return EnvUtils.BIG_ENDIAN ? val >> 16 : val & INT64_MASK_6_BITS;
+                }
+                default: {
+                    return UNSAFE.getLong(buf, CHAR_ARRAY_OFFSET + offset);
+                }
+            }
+        } else {
+            // use bits
+            long val = 0;
+            if (offset + len > buf.length) {
+                len = buf.length - offset;
+            }
+            for (int i = 0; i < len; ++i) {
+                long b = buf[i + offset];
+                if (EnvUtils.BIG_ENDIAN) {
+                    val = val << 16 | b;
+                } else {
+                    val = val | (b << (i << 4));
+                }
+            }
+            return val;
+        }
     }
 
     public static int putInt(byte[] buf, int offset, int value) {
@@ -553,6 +852,19 @@ public final class UnsafeHelper {
     static Object getObjectValue(Object target, long fieldOffset) {
         target.getClass();
         return UNSAFE.getObject(target, fieldOffset);
+    }
+
+    public static Object newInstance(Class<?> targetClass) {
+        try {
+            return targetClass.newInstance();
+        } catch (Throwable throwable) {
+            try {
+                targetClass.getClass();
+                return UNSAFE.allocateInstance(targetClass);
+            } catch (Throwable e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     public static boolean setAccessible(AccessibleObject accessibleObject) {

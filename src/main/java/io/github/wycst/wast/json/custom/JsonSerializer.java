@@ -4,8 +4,6 @@ import io.github.wycst.wast.json.JSONConfig;
 import io.github.wycst.wast.json.JSONTypeSerializer;
 import io.github.wycst.wast.json.JSONWriter;
 
-import java.io.Writer;
-
 /**
  * 自定义序列化抽象类（Custom serialization abstract class）
  *
