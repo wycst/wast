@@ -27,6 +27,9 @@ public abstract class JSONWriter extends Writer {
     final static int Z_QUOT_INT;
     final static short Z_QUOT_SHORT;
 
+    // There is no need to consider thread safety issues
+    static int[] HC_STRING_SH = new int[512];
+
     static {
         // init memory:  16KB * 2 * 8 -> 256KB
         CACHE_BUFFER_SIZE = EnvUtils.JDK_VERSION >= 1.8f ? 1 << 14 : 1 << 12;
@@ -68,17 +71,22 @@ public abstract class JSONWriter extends Writer {
         }
     };
 
-    static JSONWriter forStringWriter() {
-        return new JSONCharArrayWriter();
+    static JSONWriter forStringWriter(JSONConfig jsonConfig) {
+        if (jsonConfig.isIgnoreEscapeCheck()) {
+            return new JSONCharArrayWriter.JSONCharArrayIgnoreEscapeWriter();
+        } else {
+            return new JSONCharArrayWriter();
+        }
     }
 
     /**
      * only use for toJsonBytes
      *
      * @param charset
+     * @param jsonConfig
      * @return
      */
-    static JSONWriter forBytesWriter(Charset charset) {
+    static JSONWriter forBytesWriter(Charset charset, JSONConfig jsonConfig) {
         return new JSONByteArrayWriter(charset);
 //        if (EnvUtils.JDK_9_PLUS) {
 //            return new JSONCharArrayWriter();
@@ -88,9 +96,13 @@ public abstract class JSONWriter extends Writer {
 //        }
     }
 
-    static JSONWriter forStreamWriter(Charset charset) {
+    static JSONWriter forStreamWriter(Charset charset, JSONConfig jsonConfig) {
         if (EnvUtils.JDK_9_PLUS) {
-            return new JSONCharArrayStreamWriter(charset);
+            if (jsonConfig.isIgnoreEscapeCheck()) {
+                return new JSONCharArrayWriter.JSONCharArrayIgnoreEscapeWriter(charset);
+            } else {
+                return new JSONCharArrayWriter(charset);
+            }
         } else {
             // The efficiency of using character stream writing is extremely low when outputting as a byte array for jdk8 and below
             return new JSONByteArrayWriter(charset);

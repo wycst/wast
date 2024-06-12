@@ -36,10 +36,10 @@ class JSONGeneral {
     protected final static char[] NULL = new char[]{'n', 'u', 'l', 'l'};
     protected final static char[] EMPTY_ARRAY = new char[]{'[', ']'};
     protected final static char[] EMPTY_OBJECT = new char[]{'{', '}'};
-    protected final static int TRUE_INT = UnsafeHelper.getInt(new byte[] {'t', 'r', 'u', 'e'}, 0);
-    protected final static long TRUE_LONG = UnsafeHelper.getLong(new char[] {'t', 'r', 'u', 'e'}, 0);
-    protected final static int ALSE_INT = UnsafeHelper.getInt(new byte[] {'a', 'l', 's', 'e'}, 0);
-    protected final static long ALSE_LONG = UnsafeHelper.getLong(new char[] {'a', 'l', 's', 'e'}, 0);
+    protected final static int TRUE_INT = UnsafeHelper.getInt(new byte[]{'t', 'r', 'u', 'e'}, 0);
+    protected final static long TRUE_LONG = UnsafeHelper.getLong(new char[]{'t', 'r', 'u', 'e'}, 0);
+    protected final static int ALSE_INT = UnsafeHelper.getInt(new byte[]{'a', 'l', 's', 'e'}, 0);
+    protected final static long ALSE_LONG = UnsafeHelper.getLong(new char[]{'a', 'l', 's', 'e'}, 0);
 
     protected final static byte ZERO = 0;
     protected final static byte COMMA = ',';
@@ -57,6 +57,7 @@ class JSONGeneral {
 
     // 转义字符与字符串映射（序列化）
     final static String[] ESCAPE_VALUES = new String[256];
+    final static byte[] ESCAPE_FLAGS = new byte[256];
 
     final static String MONTH_ABBR[] = {
             "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -138,6 +139,7 @@ class JSONGeneral {
     final static int[] EMPTY_INTS = new int[0];
     final static double[] EMPTY_DOUBLES = new double[0];
     final static String[] EMPTY_STRINGS = new String[0];
+
     public static String toEscapeString(int ch) {
         return String.format("\\u%04x", ch);
     }
@@ -173,6 +175,9 @@ class JSONGeneral {
                     if (i < 32) {
                         ESCAPE_VALUES[i] = toEscapeString(i);
                     }
+            }
+            if(i < 32 || i == '"' || i == '\\') {
+                ESCAPE_FLAGS[i] = 1;
             }
         }
 

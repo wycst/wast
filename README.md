@@ -20,7 +20,7 @@
 <dependency>
     <groupId>io.github.wycst</groupId>
     <artifactId>wast</artifactId>
-    <version>0.0.13</version>
+    <version>0.0.13.1</version>
 </dependency>
 ```
 
@@ -317,7 +317,6 @@ supports/json-springmvc/JSONHttpMessageConverter.java
 | KeepOpenStream   | 序列化后不关闭流，默认自动关闭流，开启后不会调用close                    |
 | AllowUnquotedMapKey   | 默认情况下map的key统一加双引号输出,开启后将根据实际的key值类型序列化          |
 | UseFields   | 默认通过实体类的getter方法序列化，开启后使用field字段进行序列化            |
-| WriteDecimalUseToString   | 默认浮点数的序列化使用科学计算法运算，启用配置可使用JDK内置的toString         |
 
 反序列化配置枚举类：ReadOption
 
@@ -329,8 +328,7 @@ supports/json-springmvc/JSONHttpMessageConverter.java
 | AllowSingleQuotes   | 非标准json特性：允许JSON字段的key使用单引号，注意仅仅是key                                                                            |
 | UnknownEnumAsNull   | 不存在的枚举类型解析时默认抛出异常，开启后解析为null                                                                                    |
 | UseDefaultFieldInstance   | 解析实体bean的场景下，如果其属性的类型为普通抽象类或者接口(Map和Collection极其子类接口除外)，如果指定了默认实例将使用默认实例对象,从使用上解决类型映射问题，而不用趟AutoType带来的各种安全漏洞的坑 |
-| UseBigDecimalAsDefaultNumber   | 开启后在不确定number类型情况下，统一转化为BigDecimal；默认自动判断number类型转化为int或long或者double                                            |
-| UseJDKDoubleParser   | 默认的double解析模式通过科学计算法运算, 启用配置可使用JDK内置的API进行解析                                                                    |
+| UseBigDecimalAsDefaultNumber   | 开启后在不确定number类型情况下，统一转化为BigDecimal；默认自动判断number类型转化为int或long或者double                                            | |
 | AllowLastEndComma   | 支持对象或者数组最后一个属性或者元素后面存在逗号，比如[1,2,3,]开启后也能正常解析                                                                    |
 | UnMatchedEmptyAsNull   | 解析到空字符串但目标类型又不是字符串时，返回null，否则抛出异常                                                                               |
 

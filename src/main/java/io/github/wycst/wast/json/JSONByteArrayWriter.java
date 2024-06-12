@@ -602,7 +602,7 @@ class JSONByteArrayWriter extends JSONWriter {
         if (nano > 0) {
             off = writeNano(nano, off);
         }
-        if (zoneId.hashCode() == 'Z') {
+        if (zoneId.length() == 1) {
             off += UnsafeHelper.putShort(buf, off, Z_QUOT_SHORT);
             count = off;
         } else {

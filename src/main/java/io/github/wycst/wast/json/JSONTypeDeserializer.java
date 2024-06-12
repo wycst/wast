@@ -1152,6 +1152,28 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             int endIndex = i - 1;
             jsonParseContext.endIndex = endIndex;
             if (returnType == TYPE_DOUBLE) {
+                if(cnt > 19) {
+                    // Compatible with double in abnormal length
+                    // Get the top 18 significant digits
+                    value = 0;
+                    cnt = 0;
+                    int j = fromIndex, decimalPointIndex = endIndex;
+                    decimalCount = 0;
+                    for (; ;++j) {
+                        if(isDigit(ch = buf[j])) {
+                            value = value * 10 + ch - 48;
+                            ++cnt;
+                            if(j > decimalPointIndex) {
+                                ++decimalCount;
+                            }
+                        } else {
+                            if(ch == '.') {
+                                decimalPointIndex = j;
+                            }
+                        }
+                        if(cnt == 18) break;
+                    }
+                }
                 double dv = NumberUtils.scientificToIEEEDouble(value, expNegative ? expValue + decimalCount : decimalCount - expValue);
                 return negative ? -dv : dv;
             } else {
@@ -1350,6 +1372,28 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             int endIndex = i - 1;
             jsonParseContext.endIndex = endIndex;
             if(returnType == TYPE_DOUBLE) {
+                if(cnt > 19) {
+                    // Compatible with double in abnormal length
+                    // Get the top 18 significant digits
+                    value = 0;
+                    cnt = 0;
+                    int j = fromIndex, decimalPointIndex = endIndex;
+                    decimalCount = 0;
+                    for (; ;++j) {
+                        if(isDigit(b = buf[j])) {
+                            value = value * 10 + b - 48;
+                            ++cnt;
+                            if(j > decimalPointIndex) {
+                                ++decimalCount;
+                            }
+                        } else {
+                            if(b == '.') {
+                                decimalPointIndex = j;
+                            }
+                        }
+                        if(cnt == 18) break;
+                    }
+                }
                 double dv = NumberUtils.scientificToIEEEDouble(value, expNegative ? expValue + decimalCount : decimalCount - expValue);
                 return negative ? -dv : dv;
             } else {
@@ -1624,16 +1668,16 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
 
         static class DoubleDeserializer extends NumberDeserializer {
             protected final Number deserializeNumber(long initValue, boolean negative, int cnt, char[] buf, int fromIndex, int offset, int toIndex, GenericParameterizedType parameterizedType, char endToken, JSONParseContext jsonParseContext) throws Exception {
-                if (jsonParseContext.useJDKDoubleParser) {
-                    return deserializeDouble(buf, fromIndex, endToken, jsonParseContext);
-                }
+//                if (jsonParseContext.useJDKDoubleParser) {
+//                    return deserializeDouble(buf, fromIndex, endToken, jsonParseContext);
+//                }
                 return deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, TYPE_DOUBLE, jsonParseContext).doubleValue();
             }
 
             protected final Number deserializeNumber(long initValue, boolean negative, int cnt, byte[] buf, int fromIndex, int offset, int toIndex, GenericParameterizedType parameterizedType, byte endToken, JSONParseContext jsonParseContext) throws Exception {
-                if (jsonParseContext.useJDKDoubleParser) {
-                    return deserializeDouble(buf, fromIndex, endToken, jsonParseContext);
-                }
+//                if (jsonParseContext.useJDKDoubleParser) {
+//                    return deserializeDouble(buf, fromIndex, endToken, jsonParseContext);
+//                }
                 return deserializeDefault0(buf, fromIndex, toIndex, offset, initValue, cnt, negative, endToken, TYPE_DOUBLE, jsonParseContext).doubleValue();
             }
         }

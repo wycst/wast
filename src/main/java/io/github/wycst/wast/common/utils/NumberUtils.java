@@ -570,72 +570,7 @@ public final class NumberUtils {
         return 18;
     }
 
-//    static BigInteger pow10Bi(int p10) {
-//        BigInteger pow10Bi = POW10_BI_VALUES[p10];
-//        if (pow10Bi == null) {
-//            POW10_BI_VALUES[p10] = pow10Bi = POW5_BI_VALUES[p10].shiftLeft(p10);
-//        }
-//        return pow10Bi;
-//    }
-//
-//    static long multiHigh64(long val, int[] mag) {
-//        return multiHigh64(val, mag, 0);
-//    }
-//
-//    /**
-//     * Accelerate operations
-//     *
-//     * @param val
-//     * @param mag
-//     * @return
-//     */
-//    static long multiHigh64(long val, int[] mag, int ro) {
-//        long a1 = val >> 32, a2 = val & MASK_32_BITS;
-//        if (a1 == 0) {
-//            a1 = a2;
-//            a2 = 0;
-//        }
-//        long b1, b2, b3, b4 = 0;
-//        if (mag.length == 2) {
-//            b1 = 0;
-//            b2 = mag[0] & MASK_32_BITS;
-//            b3 = mag[1] & MASK_32_BITS;
-//        } else {
-//            b1 = mag[0] & MASK_32_BITS;
-//            b2 = mag[1] & MASK_32_BITS;
-//            b3 = mag[2] & MASK_32_BITS;
-//            if (mag.length > 3) {
-//                b4 = mag[3] & MASK_32_BITS;
-//            }
-//        }
-//        long carry = a2 * b4 >>> 32;
-//        long h4 = a1 * b4 + carry;
-//        carry = h4 >>> 32;
-//        h4 = (h4 & MASK_32_BITS) + a2 * b3;
-//        carry += h4 >>> 32;
-//        long h3 = a1 * b3 + carry;
-//        carry = h3 >>> 32;
-//        h3 = (h3 & MASK_32_BITS) + a2 * b2;
-//        carry += h3 >>> 32;
-//        long h2 = a1 * b2 + carry;
-//        carry = h2 >>> 32;
-//        h2 = (h2 & MASK_32_BITS) + a2 * b1;
-//        carry += h2 >>> 32;
-//        long h1 = a1 * b1 + carry;
-//        carry = h1 >>> 32;
-//        if (ro == 1) {
-//            if (carry == 0) {
-//                return (h2 & MASK_32_BITS) << 32 | (h3 & MASK_32_BITS);
-//            } else {
-//                return (h1 & MASK_32_BITS) << 32 | (h2 & MASK_32_BITS);
-//            }
-//        }
-//        if (carry == 0) {
-//            return (h1 & MASK_32_BITS) << 32 | (h2 & MASK_32_BITS);
-//        }
-//        return carry << 32 | (h1 & MASK_32_BITS);
-//    }
-//    static long multiHighWithFactor(long val, int[] mag, int factor) {
+//    static int compareProductHigh(long val, int[] mag, long targetHigh64, long targetLow32) {
 //        long a1 = val >> 32, a2 = val & MASK_32_BITS;
 //        if (a1 == 0) {
 //            a1 = a2;
@@ -651,9 +586,7 @@ public final class NumberUtils {
 //            b2 = mag[1] & MASK_32_BITS;
 //            b3 = mag[2] & MASK_32_BITS;
 //            if (mag.length > 3) {
-//                b4 = (mag[3] & MASK_32_BITS) + factor;
-//            } else {
-//                b3 += factor;
+//                b4 = (mag[3] & MASK_32_BITS);
 //            }
 //        }
 //        long carry = a2 * b4 >>> 32;
@@ -671,107 +604,66 @@ public final class NumberUtils {
 //        carry += h2 >>> 32;
 //        long h1 = a1 * b1 + carry;
 //        carry = h1 >>> 32;
+//
+//        long resultHigh64, resultLow32;
 //        if (carry == 0) {
-//            return (h1 & MASK_32_BITS) << 32 | (h2 & MASK_32_BITS);
+//            resultHigh64 = (h1 & MASK_32_BITS) << 32 | (h2 & MASK_32_BITS);
+//            resultLow32 = h3 & MASK_32_BITS;
+//        } else {
+//            resultHigh64 = carry << 32 | (h1 & MASK_32_BITS);
+//            resultLow32 = h2 & MASK_32_BITS;
 //        }
-//        return carry << 32 | (h1 & MASK_32_BITS);
+//        if (resultHigh64 - targetHigh64 >= 0) {
+//            if (resultHigh64 == targetHigh64) {
+//                if (resultLow32 >= targetLow32) {
+//                    return 1;
+//                }
+//                if (targetLow32 - resultLow32 > 1) {
+//                    return -1;
+//                }
+//                return 0;
+//            }
+//            return 1;
+//        }
+//        return -1;
 //    }
-
-    static int compareProductHigh(long val, int[] mag, long targetHigh64, long targetLow32) {
-        long a1 = val >> 32, a2 = val & MASK_32_BITS;
-        if (a1 == 0) {
-            a1 = a2;
-            a2 = 0;
-        }
-        long b1, b2, b3, b4 = 0;
-        if (mag.length == 2) {
-            b1 = 0;
-            b2 = mag[0] & MASK_32_BITS;
-            b3 = (mag[1] & MASK_32_BITS);
-        } else {
-            b1 = mag[0] & MASK_32_BITS;
-            b2 = mag[1] & MASK_32_BITS;
-            b3 = mag[2] & MASK_32_BITS;
-            if (mag.length > 3) {
-                b4 = (mag[3] & MASK_32_BITS);
-            }
-        }
-        long carry = a2 * b4 >>> 32;
-        long h4 = a1 * b4 + carry;
-        carry = h4 >>> 32;
-        h4 = (h4 & MASK_32_BITS) + a2 * b3;
-        carry += h4 >>> 32;
-        long h3 = a1 * b3 + carry;
-        carry = h3 >>> 32;
-        h3 = (h3 & MASK_32_BITS) + a2 * b2;
-        carry += h3 >>> 32;
-        long h2 = a1 * b2 + carry;
-        carry = h2 >>> 32;
-        h2 = (h2 & MASK_32_BITS) + a2 * b1;
-        carry += h2 >>> 32;
-        long h1 = a1 * b1 + carry;
-        carry = h1 >>> 32;
-
-        long resultHigh64, resultLow32;
-        if (carry == 0) {
-            resultHigh64 = (h1 & MASK_32_BITS) << 32 | (h2 & MASK_32_BITS);
-            resultLow32 = h3 & MASK_32_BITS;
-        } else {
-            resultHigh64 = carry << 32 | (h1 & MASK_32_BITS);
-            resultLow32 = h2 & MASK_32_BITS;
-        }
-        if (resultHigh64 - targetHigh64 >= 0) {
-            if (resultHigh64 == targetHigh64) {
-                if (resultLow32 >= targetLow32) {
-                    return 1;
-                }
-                if (targetLow32 - resultLow32 > 1) {
-                    return -1;
-                }
-                return 0;
-            }
-            return 1;
-        }
-        return -1;
-    }
-
-    static double exactlyDoubleWithDiff(double val0, long bits, long mantissa0, long diff, long target) {
-        long doubleDiff = Math.abs(diff << 1);
-        if (doubleDiff < target) {
-            return val0;
-        }
-        if (diff < 0) {
-            // the estimated value is less than the accurate value
-            diff = -diff;
-            while (diff >= target) {
-                ++bits;
-                diff -= target;
-            }
-            diff = diff << 1;
-            if (diff > target || (diff == target && (mantissa0 & 1) == 1)) {
-                return Double.longBitsToDouble(bits + 1);
-            }
-            return Double.longBitsToDouble(bits);
-        } else {
-            // The estimated value is greater than the accurate value
-            while (diff >= target) {
-                --bits;
-                diff -= target;
-            }
-            diff <<= 1;
-            if (target > diff || (target == diff && (mantissa0 & 1) == 0)) {
-                return Double.longBitsToDouble(bits);
-            } else {
-                return Double.longBitsToDouble(bits - 1);
-            }
-        }
-    }
+//
+//    static double exactlyDoubleWithDiff(double val0, long bits, long mantissa0, long diff, long target) {
+//        long doubleDiff = Math.abs(diff << 1);
+//        if (doubleDiff < target) {
+//            return val0;
+//        }
+//        if (diff < 0) {
+//            // the estimated value is less than the accurate value
+//            diff = -diff;
+//            while (diff >= target) {
+//                ++bits;
+//                diff -= target;
+//            }
+//            diff = diff << 1;
+//            if (diff > target || (diff == target && (mantissa0 & 1) == 1)) {
+//                return Double.longBitsToDouble(bits + 1);
+//            }
+//            return Double.longBitsToDouble(bits);
+//        } else {
+//            // The estimated value is greater than the accurate value
+//            while (diff >= target) {
+//                --bits;
+//                diff -= target;
+//            }
+//            diff <<= 1;
+//            if (target > diff || (target == diff && (mantissa0 & 1) == 0)) {
+//                return Double.longBitsToDouble(bits);
+//            } else {
+//                return Double.longBitsToDouble(bits - 1);
+//            }
+//        }
+//    }
 
     /**
      * Convert to double through 64 bit integer val and precision scale
      *
      * <p> IEEEF Double 64 bits: 1 + 11 + 52  </p>
-     * <p> using the difference estimation method </p>
      * <p> ensure the parameter val is greater than 0, otherwise return 0 </p>
      *
      * @param val
@@ -789,462 +681,180 @@ public final class NumberUtils {
         }
         int leadingZeros = Long.numberOfLeadingZeros(val);
         double dv = val;
-        double val0;
         if (scale <= 0) {
             if (scale == 0) return dv;
             int e10 = -scale;
             if (e10 > 308) return Double.POSITIVE_INFINITY;
             if ((long) dv == val && e10 < 23) {
-                return dv * NumberUtils.getDecimalPowerValue(e10);
+                return dv * POSITIVE_DECIMAL_POWER[e10];
             }
             BigInteger multiplier = POW5_BI_VALUES[e10];
-            int multiBitLength = multiplier.bitLength();
-            int dt = multiBitLength + (64 - leadingZeros) - 53;
-            if (dt < 62) {
-                val0 = dv * NumberUtils.getDecimalPowerValue(e10);
-                if (val0 == Double.POSITIVE_INFINITY) return Double.POSITIVE_INFINITY;
-                long bits = Double.doubleToLongBits(val0);
-                long mantissa0 = 1L << 52 | (bits & MOD_DOUBLE_MANTISSA);
-                int e2 = (int) (bits >> 52) & MOD_DOUBLE_EXP;
-                int sb = e2 - 1075 - e10;
-                if (sb > 0) {
-                    if (e10 >= POW5_LONG_VALUES.length) {
-                        return exactlyDoubleWithDiff(val0, bits, mantissa0, (mantissa0 << sb) - (val * POW5_LONG_VALUES[e10 - POW5_LONG_VALUES.length + 1] * POW5_LONG_VALUES[POW5_LONG_VALUES.length - 1]), 1l << sb);
-                    } else {
-                        return exactlyDoubleWithDiff(val0, bits, mantissa0, (mantissa0 << sb) - val * POW5_LONG_VALUES[e10], 1l << sb);
-                    }
-                } else {
-                    // Perhaps it does not exist or appears with a small probability, but it has not been proven yet
-                    return exactlyDoubleWithDiff(val0, bits, mantissa0, mantissa0 - (val * POW5_LONG_VALUES[e10] << -sb), 1L);
-                }
-            }
             ED5 ed5 = ED5.ED5_A[e10];
             long left = val << (leadingZeros - 1);
-            int e52 = e10 + 1 - leadingZeros;
-            long output;
-            if (e10 < POW5_LONG_VALUES.length) {
-                output = multiplyOutput(left, POW5_LONG_VALUES[e10], multiBitLength);
-                e52 += multiBitLength;
+            long h = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(left, ed5.y);
+            int sr, mask, mmask;
+            if (h >= 1L << 61) {
+                sr = 9;
+                mask = 0xFF;
+                mmask = 0x1FF;
             } else {
-                output = multiplyfOutput(left, ed5.y, ed5.f + 1, 64);
-                e52 += ed5.dfb + 64;
+                sr = 8;
+                mask = 0x7F;
+                mmask = 0xFF;
             }
-            int sr = 11 - Long.numberOfLeadingZeros(output);
-            long mantissa0 = output >>> sr;
-            e52 += sr;
-            if (e52 >= 972) return Double.POSITIVE_INFINITY;
-            long remMask = (1L << sr) - 1, rem = output & remMask, half = (remMask >> 1) + 1;
-            if (rem > half) {
-                ++mantissa0;
-            } else {
-                if (rem == half) {
-                    boolean oddFlag = (mantissa0 & 1) == 1;
-                    long rightSum = (mantissa0 << 1) + 1;
-                    int sb = 1 - e52 + e10; // sb < 0
-
-                    int remBits = -sb & 63, rlz = Long.numberOfLeadingZeros(rightSum);
-//                    long rightHigh64 = rlz >= remBits ? rightSum << remBits : rightSum >> (64 - remBits);
-//                    long rLow32;
-//                    if ((rightHigh64 >>> 32) == 0) {
-//                        long rLow64 = rightSum << remBits;
-//                        rightHigh64 = (rightHigh64 << 32) | (rLow64 >>> 32);
-//                        rLow32 = rLow64 & MASK_32_BITS;
-//                    } else {
-//                        rLow32 = 0;
-//                    }
-
-                    long rightHigh64, rLow32;
-                    if(remBits == 0) {
-                        rightHigh64 = rightSum;
-                        rLow32 = 0;
-                    } else {
-                        long hr = rightSum >> (64 - remBits), lr = rightSum << remBits;
-                        if(hr == 0) {
-                            rightHigh64 = lr;
-                            rLow32 = 0;
-                        } else {
-                            if ((hr >>> 32) == 0) {
-                                rightHigh64 = (hr << 32) | (lr >>> 32);
-                                rLow32 = lr & MASK_32_BITS;
-                            } else {
-                                rightHigh64 = hr;
-                                rLow32 = lr >>> 32;
-                            }
-                        }
-                    }
-
-                    // diff high
-                    int compareFlag = compareProductHigh(val, UnsafeHelper.getMag(multiplier), rightHigh64, rLow32);
-                    if (compareFlag != 0) {
-                        if (compareFlag == 1) {
-                            ++mantissa0;
-                        }
-                    } else {
-                        // use BigInteger Accurate comparison
-                        long diff = BigInteger.valueOf(val).multiply(multiplier).compareTo(BigInteger.valueOf(rightSum).shiftLeft(-sb));
-                        if (diff > 0 || (diff == 0 && oddFlag)) {
-                            ++mantissa0;
-                        }
+            if (e10 < POW5_LONG_VALUES.length) {
+                // accurate mode
+                long mantissa0 = h >>> sr;
+                long e2 = e10 - leadingZeros + multiplier.bitLength() + sr + 1077;
+                long mod = h & mmask;
+                boolean plus = mod > mask + 1 || (mod == mask + 1 && ((mantissa0 & 1) == 1 || left * ed5.y != 0));
+                if (plus) {
+                    ++mantissa0;
+                    if (mantissa0 == 1L << 53) {
+                        mantissa0 = 1L << 52;
+                        ++e2;
                     }
                 }
+                long bits = (e2 << 52) | (mantissa0 & MOD_DOUBLE_MANTISSA);
+                return Double.longBitsToDouble(bits);
             }
-            long e2 = e52 + 1075;
-            long bits = (e2 << 52) | (mantissa0 & MOD_DOUBLE_MANTISSA);
-            return Double.longBitsToDouble(bits);
-////          The code implementation logic in the following comments is also correct, but the probability of hitting an efficient judgment is relatively low when the e10 value reaches a certain range
-//            val0 = dv * NumberUtils.getDecimalPowerValue(e10);
-//            if (val0 == Double.POSITIVE_INFINITY) return Double.POSITIVE_INFINITY;
-//            long bits = Double.doubleToLongBits(val0);
-//            long mantissa0 = 1L << 52 | (bits & MOD_DOUBLE_MANTISSA);
-//            int e2 = (int) (bits >> 52) & MOD_DOUBLE_EXP;
-//            int sb = e2 - 1075 - e10;
-//            if (sb < 62) {
-//                if (sb > 0) {
-//                    if (e10 >= POW5_LONG_VALUES.length) {
-//                        return exactlyDoubleWithDiff(val0, bits, mantissa0, (mantissa0 << sb) - (val * POW5_LONG_VALUES[e10 - POW5_LONG_VALUES.length + 1] * POW5_LONG_VALUES[POW5_LONG_VALUES.length - 1]), 1l << sb);
-//                    } else {
-//                        return exactlyDoubleWithDiff(val0, bits, mantissa0, (mantissa0 << sb) - val * POW5_LONG_VALUES[e10], 1l << sb);
-//                    }
-//                } else {
-//                    // Perhaps it does not exist or appears with a small probability, but it has not been proven yet
-//                    return exactlyDoubleWithDiff(val0, bits, mantissa0, mantissa0 - (val * POW5_LONG_VALUES[e10] << -sb), 1L);
-//                }
-//            } else {
-//                BigInteger pow5Bi = POW5_BI_VALUES[e10];
-//                int[] mag = UnsafeHelper.getMag(pow5Bi);
-//                int rb = sb & 31;
-//                if (rb == 0) {
-//                    rb = 32;
-//                }
-//                int srb = sb - rb;
-//                long r64 = mantissa0 << rb;
-//                long target = 1l << rb;
-//                long v64 = 0;
-//                int vb = 63 - Long.numberOfLeadingZeros(val) + pow5Bi.bitLength() - srb;
-//                boolean estimatedSupported = false;
-//                if (vb - 1 > 64 && rb > 11) {
-//                    v64 = multiHigh64(val, mag, 1);
-//                    estimatedSupported = true; // v64 >> 63 == r64 >> 63 && (v64 != Long.MIN_VALUE && v64 != Long.MAX_VALUE) ;
-//                } else if (vb < 64 && rb < 11) {
-//                    v64 = multiHigh64(val, mag);
-//                    estimatedSupported = true; // v64 != Long.MAX_VALUE;
-//                }
-//                if (estimatedSupported) {
-//                    long v64Plus = v64 + 1;
-//                    if (r64 > v64Plus) {
-//                        long diffH64Plus = r64 - v64;
-//                        long doubleDiffH64 = Math.abs(diffH64Plus << 1);
-//                        if (doubleDiffH64 < target) {
-//                            return val0;
-//                        }
-//                        long diffH64 = r64 - v64Plus;
-//                        if (diffH64 > target) {
-//                            long bits0 = bits;
-//                            do {
-//                                --bits0;
-//                                diffH64 -= target;
-//                            } while (diffH64 > target);
-//                            if (diffH64 << 1 > target) {
-//                                return Double.longBitsToDouble(bits0 - 1);
-//                            }
-//                            if ((diffH64) << 1 < target) {
-//                                return Double.longBitsToDouble(bits0);
-//                            }
-//                        } else if (diffH64Plus < target) {
-//                            if (diffH64 << 1 >= target) {
-//                                return Double.longBitsToDouble(bits - 1);
-//                            }
-//                            if (diffH64Plus << 1 <= target) {
-//                                return Double.longBitsToDouble(bits);
-//                            }
-//                        }
-//                    } else if (r64 < v64) {
-//                        long diffH64Plus = v64Plus - r64;
-//                        long doubleDiffH64 = Math.abs(diffH64Plus << 1);
-//                        if (doubleDiffH64 < target) {
-//                            return val0;
-//                        }
-//                        long diffH64 = v64 - r64;
-//                        if (diffH64 > target) {
-//                            long bits0 = bits;
-//                            do {
-//                                ++bits0;
-//                                diffH64 -= target;
-//                            } while (diffH64 > target);
-//                            if (diffH64 << 1 >= target) {
-//                                return Double.longBitsToDouble(bits0 + 1);
-//                            }
-//                            if (diffH64 << 1 < target) {
-//                                return Double.longBitsToDouble(bits0);
-//                            }
-//                        } else if (diffH64Plus < target) {
-//                            if (diffH64 << 1 >= target) {
-//                                return Double.longBitsToDouble(bits + 1);
-//                            }
-//                            if (diffH64Plus << 1 < target) {
-//                                return Double.longBitsToDouble(bits);
-//                            }
-//                        }
-//                    }
-//                }
-//            }
-//            return pow10Bi(e10).multiply(BigInteger.valueOf(val)).doubleValue();
+            if ((h & mask) != mask || ((h >> sr - 1) & 1) == 1) {
+                return longBitsToIntegerDouble(h, e10 - leadingZeros + ed5.dfb + sr + 1140, sr);
+            }
+            long l = left * ed5.y;
+            if (!checkLowCarry(l, left, ed5.f + 1)) {
+                // tail h like 01111111
+                return longBitsToIntegerDouble(h, e10 - leadingZeros + ed5.dfb + sr + 1140, sr);
+            } else if (checkLowCarry(l, left, ed5.f)) {
+                // tail h like 10000000
+                return longBitsToIntegerDouble(h + 1, e10 - leadingZeros + ed5.dfb + sr + 1140, sr);
+            } else {
+                // This is a scenario that is extremely rare or unlikely to occur, although the low bit is only 32 bits.
+                // If it occurs, use the difference method for carry detection
+                int e52 = e10 - leadingZeros + ed5.dfb + sr + 65;
+                if (e52 >= 972) return Double.POSITIVE_INFINITY;
+                long mantissa0 = h >>> sr;
+                long rightSum = (mantissa0 << 1) + 1;
+                int sb = 1 - e52 + e10; // sb < 0
+                long diff = BigInteger.valueOf(val).multiply(multiplier).compareTo(BigInteger.valueOf(rightSum).shiftLeft(-sb));
+                if (diff > 0 || (diff == 0 && (mantissa0 & 1) == 1)) {
+                    ++mantissa0;
+                    if (mantissa0 == 1l << 53) {
+                        mantissa0 >>= 1;
+                        ++e52;
+                    }
+                }
+                long e2 = e52 + 1075;
+                long bits = (e2 << 52) | (mantissa0 & MOD_DOUBLE_MANTISSA);
+                return Double.longBitsToDouble(bits);
+            }
         } else {
             if (scale > 342) return 0.0D;
             if ((long) dv == val && scale < 23) {
-                return dv / NumberUtils.getDecimalPowerValue(scale);
+                return dv / POSITIVE_DECIMAL_POWER[scale];
             }
-            if (scale < POW5_LONG_VALUES.length) {
-                val0 = dv / NumberUtils.getDecimalPowerValue(scale);
-                long bits = Double.doubleToLongBits(val0);
-                if (bits == 0) return 0.0D;
-                int e2 = (int) (bits >> 52) & MOD_DOUBLE_EXP;
-                int sb;
-                long mantissa0 = bits & MOD_DOUBLE_MANTISSA;
-                if (e2 > 0) {
-                    mantissa0 = 1L << 52 | mantissa0;
-                    sb = 1075 - scale - e2;
-                } else {
-                    sb = 1074 - scale;
-                }
-                if (sb > 0) {
-                    long p5sv = POW5_LONG_VALUES[scale];
-                    return exactlyDoubleWithDiff(val0, bits, mantissa0, mantissa0 * p5sv - (sb >= 64 ? 0 : val << sb), p5sv);
-                } else {
-                    long p = POW5_LONG_VALUES[scale] << (-sb);
-                    return exactlyDoubleWithDiff(val0, bits, mantissa0, mantissa0 * p - val, p);
-                }
-            }
-
             ED5 ed5 = ED5.ED5_A[scale];
+            long left = val << (leadingZeros - 1);
+            // h is 61~62 bits
+            long h = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(left, ed5.oy);
+            int sr, mask;
+            if (h >= 1L << 61) {
+                sr = 9;
+                mask = 0xFF;
+            } else {
+                sr = 8;
+                mask = 0x7F;
+            }
+            if ((h & mask) != mask || ((h >> sr - 1) & 1) == 1) {
+                return longBitsToDecimalDouble(h, 33 - scale - ed5.ob - leadingZeros + sr, sr);
+            }
+            long l = left * ed5.oy;
+            int e52 = 33 - scale - ed5.ob - leadingZeros + sr;
+            if (!checkLowCarry(l, left, ed5.of + 1)) {
+                // tail h like 01111111
+                return longBitsToDecimalDouble(h, e52, sr);
+            } else if (checkLowCarry(l, left, ed5.of)) {
+                // tail h like 10000000
+                return longBitsToDecimalDouble(h + 1, e52, sr);
+            } else if(scale < POW5_LONG_VALUES.length) {
+                // if reach here, there is a high probability that val can be evenly divided by p5sv
+                long p5sv = POW5_LONG_VALUES[scale];
+                long mantissa0 = h >>> sr;
+                long e2 = e52 + 1075;
+                long bits = (e2 << 52) | (mantissa0 & MOD_DOUBLE_MANTISSA);
+                double dv0 = Double.longBitsToDouble(bits);
+                int sb = 1 - scale - e52;
+                // difference comparison method: diff = dv - dv0 >= 1/2 * 2^e52  -> val * 2^sb - mantissa0 * 2 * p5sv >= p5sv
+                long diff = sb > 0 ? (val << sb) - (mantissa0 << 1) * p5sv - p5sv : val - (mantissa0 << 1 - sb) * p5sv - (p5sv << -sb);
+                if (diff > 0 || (diff == 0 && (mantissa0 & 1) == 1)) {
+                    return Double.longBitsToDouble(bits + 1);
+                }
+                return dv0;
+            }
+            // This is a scenario that is extremely rare or unlikely to occur, although the low bit is only 32 bits.
+            // If it occurs, use the difference method for carry detection
             BigInteger divisor = POW5_BI_VALUES[scale];
-            int srb = divisor.bitLength() + leadingZeros - 1;
-            // the output Greater than the true value by diff in [0, 1)
-            long output = multiplyfOutput(val, ed5.oy, ed5.of + 1, ed5.ob + 32 - srb);
-            int sr = output < 0 ? 11 : 10;
-            int e52 = -scale - srb + sr;
-            long e2;
+            long e2, mantissa0 = h >>> sr;
+            boolean oddFlag = (mantissa0 & 1) == 1;
             if (e52 < -1074) {
                 sr += -1074 - e52;
                 e2 = 0;
-                if (sr >= 64) {
-                    if (sr == 64 && output < 0) {
-                        return Double.MIN_VALUE;
-                    }
+                if (sr >= 62) {
                     return 0.0D;
                 }
             } else {
                 e2 = e52 + 1075;
             }
-            // 53bits
-            long mantissa0 = output >>> sr;
-            long remMask = (1L << sr) - 1, rem = output & remMask, half = (remMask >> 1) + 1;
-            if (rem > half) {
+            long rightSum = (mantissa0 << 1) + 1;
+            int sb = 1 - e52 - scale;
+            long diff = BigInteger.valueOf(val).shiftLeft(sb).compareTo(divisor.multiply(BigInteger.valueOf(rightSum)));
+            if (diff > 0 || (diff == 0 && oddFlag)) {
                 ++mantissa0;
-            } else {
-                boolean oddFlag = (mantissa0 & 1) == 1;
-                if (rem == half) {
-//                    long outputMin = multiplyfOutput(val, ed5.oy, ed5.of, ed5.ob + 32 - srb);
-//                    if (outputMin == output) {
-//                        ++mantissa0;
-//                    } else {
-//                    }
-                    long rightSum = (mantissa0 << 1) + 1;
-                    int sb = 1 - e52 - scale;
-
-                    int remBits = sb & 63;
-                    long rightHigh64, rLow32;
-                    if(remBits == 0) {
-                        rightHigh64 = val;
-                        rLow32 = 0;
-                    } else {
-                        long hr = val >> (64 - remBits), lr = val << remBits;
-                        if(hr == 0) {
-                            rightHigh64 = lr;
-                            rLow32 = 0;
-                        } else {
-                            if ((hr >>> 32) == 0) {
-                                rightHigh64 = (hr << 32) | (lr >>> 32);
-                                rLow32 = lr & MASK_32_BITS;
-                            } else {
-                                rightHigh64 = hr;
-                                rLow32 = lr >>> 32;
-                            }
-                        }
-                    }
-
-                    // diff high
-                    int compareFlag = compareProductHigh(rightSum, UnsafeHelper.getMag(divisor), rightHigh64, rLow32);
-                    if (compareFlag != 0) {
-                        if (compareFlag == -1) {
-                            ++mantissa0;
-                        }
-                    } else {
-                        long diff = BigInteger.valueOf(val).shiftLeft(sb).compareTo(divisor.multiply(BigInteger.valueOf(rightSum)));
-                        if (diff > 0 || (diff == 0 && oddFlag)) {
-                            ++mantissa0;
-                        }
-                    }
+                if (mantissa0 == 1l << 53) {
+                    mantissa0 >>= 1;
+                    ++e2;
                 }
             }
             long bits = (e2 << 52) | (mantissa0 & MOD_DOUBLE_MANTISSA);
             return Double.longBitsToDouble(bits);
-
-////          The code implementation logic in the following comments is also correct, but the probability of hitting an efficient judgment is relatively low when the e10 value reaches a certain range
-//
-//            if (scale >= 308) {
-//                val0 = dv / NumberUtils.getDecimalPowerValue(308) / NumberUtils.getDecimalPowerValue(scale - 308);
-//            } else {
-//                val0 = dv / NumberUtils.getDecimalPowerValue(scale);
-//            }
-//            long bits = Double.doubleToLongBits(val0);
-//            if (bits == 0) return 0.0D;
-//            int e2 = (int) (bits >> 52) & MOD_DOUBLE_EXP;
-//            int sb;
-//            long mantissa0 = bits & MOD_DOUBLE_MANTISSA;
-//            // boolean maxMantissaFlag = mantissa0 == MOD_DOUBLE_MANTISSA;
-//            if (e2 > 0) {
-//                mantissa0 = 1L << 52 | mantissa0;
-//                sb = 1075 - scale - e2;
-//            } else {
-//                sb = 1074 - scale;
-//            }
-//            if (sb > 0) {
-//                if (scale < POW5_LONG_VALUES.length) {
-//                    long p5sv = POW5_LONG_VALUES[scale];
-//                    return exactlyDoubleWithDiff(val0, bits, mantissa0, mantissa0 * p5sv - (sb >= 64 ? 0 : val << sb), p5sv);
-//                }
-//                BigInteger pow5Bi = POW5_BI_VALUES[scale];
-//                int tb = 64 - Long.numberOfLeadingZeros(val) + sb;
-//                int rem = tb & 31;
-//                int srb = rem == 0 ? tb - 64 : tb - (rem + 32);
-//                int p5hbits = pow5Bi.bitLength() - srb;
-//                boolean srsFlag = sb >= srb;
-//                if ((srsFlag || Long.numberOfTrailingZeros(val) >= (srb - sb)) && p5hbits > 0 && p5hbits < 62) {
-//                    long v64 = srsFlag ? val << (sb - srb) : val >> (srb - sb);
-//                    int[] mag = UnsafeHelper.getMag(pow5Bi);
-//                    int magn = mag.length - (srb >> 5);
-//                    long r64 = multiHigh64(mantissa0, mag);
-//                    long r64Plus = r64 + 1;
-//                    long p5h64;
-//                    if (magn == 1) {
-//                        p5h64 = mag[0] & MASK_32_BITS;
-//                    } else if (magn == 2) {
-//                        p5h64 = (mag[0] & MASK_32_BITS) << 32 | (mag[1] & MASK_32_BITS);
-//                    } else {
-//                        p5h64 = 0;
-//                    }
-//                    long p5h64Plus = p5h64 + 1;
-//                    if (r64 > v64) {
-//                        long diffH64Plus = r64Plus - v64;
-//                        long doubleDiffH64 = Math.abs(diffH64Plus << 1);
-//                        if (doubleDiffH64 <= p5h64) {
-//                            return val0;
-//                        }
-//                        long diffH64 = r64 - v64;
-//                        if (diffH64 > p5h64Plus) {
-//                            long bits0 = bits;
-//                            int n = 0;
-//                            do {
-//                                --bits0;
-//                                diffH64 -= p5h64Plus;
-//                                ++n;
-//                            } while (diffH64 > p5h64Plus);
-//                            if (diffH64 << 1 > p5h64Plus) {
-//                                return Double.longBitsToDouble(bits0 - 1);
-//                            }
-//                            if ((diffH64 + n * 2) << 1 < p5h64 && p5h64 > n) {
-//                                return Double.longBitsToDouble(bits0);
-//                            }
-//                        } else if (diffH64Plus < p5h64) {
-//                            if (diffH64 << 1 >= p5h64Plus) {
-//                                return Double.longBitsToDouble(bits - 1);
-//                            }
-//                            if (diffH64Plus << 1 <= p5h64) {
-//                                return Double.longBitsToDouble(bits);
-//                            }
-//                        }
-//                    } else if (r64Plus < v64) {
-//                        long diffH64Plus = v64 - r64;
-//                        long doubleDiffH64 = Math.abs(diffH64Plus << 1);
-//                        if (doubleDiffH64 <= p5h64) {
-//                            return val0;
-//                        }
-//                        long diffH64 = v64 - r64Plus;
-//                        if (diffH64 > p5h64Plus) {
-//                            long bits0 = bits;
-//                            int n = 0;
-//                            do {
-//                                ++bits0;
-//                                diffH64 -= p5h64Plus;
-//                                ++n;
-//                            } while (diffH64 > p5h64Plus);
-//                            if (diffH64 << 1 > p5h64Plus) {
-//                                return Double.longBitsToDouble(bits0 + 1);
-//                            }
-//                            if ((diffH64 + n * 2) << 1 < p5h64 && p5h64 > n) {
-//                                return Double.longBitsToDouble(bits0);
-//                            }
-//                        } else if (diffH64Plus < p5h64) {
-//                            if (diffH64 << 1 >= p5h64Plus) {
-//                                return Double.longBitsToDouble(bits + 1);
-//                            }
-//                            if (diffH64Plus << 1 <= p5h64) {
-//                                return Double.longBitsToDouble(bits);
-//                            }
-//                        }
-//                    }
-//                } else {
-//                    // todo
-//                    // The missed conditions can still be further optimized
-//                }
-//                BigInteger rbi = BigInteger.valueOf(mantissa0).multiply(pow5Bi);
-//                BigInteger vbi = BigInteger.valueOf(val).shiftLeft(sb);
-//                BigInteger dbi = rbi.subtract(vbi);
-//                BigInteger ddbi = dbi.shiftLeft(1).abs();
-//                if (ddbi.compareTo(pow5Bi) == -1) {
-//                    return val0;
-//                }
-//                int signnum = dbi.signum();
-//                if (signnum == -1) {
-//                    dbi = dbi.negate();
-//                    if (dbi.compareTo(pow5Bi) >= 0) {
-//                        do {
-//                            ++bits;
-//                            dbi = dbi.subtract(pow5Bi);
-//                        } while (dbi.compareTo(pow5Bi) >= 0);
-//                        dbi = dbi.shiftLeft(1);
-//                        int compareFlag = dbi.compareTo(pow5Bi);
-//                        if (compareFlag > 0 || (compareFlag == 0 && (mantissa0 & 1) == 1)) {
-//                            return Double.longBitsToDouble(bits + 1);
-//                        } else {
-//                            return Double.longBitsToDouble(bits);
-//                        }
-//                    } else {
-//                        return Double.longBitsToDouble(bits + 1);
-//                    }
-//                } else {
-//                    if (dbi.compareTo(pow5Bi) >= 0) {
-//                        do {
-//                            --bits;
-//                            dbi = dbi.subtract(pow5Bi);
-//                        } while (dbi.compareTo(pow5Bi) >= 0);
-//                        dbi = dbi.shiftLeft(1);
-//                        int compareFlag = pow5Bi.compareTo(dbi);
-//                        if (compareFlag > 0 || (compareFlag == 0 && (mantissa0 & 1) == 0)) {
-//                            return Double.longBitsToDouble(bits);
-//                        } else {
-//                            return Double.longBitsToDouble(bits - 1);
-//                        }
-//                    } else {
-//                        return Double.longBitsToDouble(bits - 1);
-//                    }
-//                }
-//            } else {
-//                long p = POW5_LONG_VALUES[scale] << (-sb);
-//                return exactlyDoubleWithDiff(val0, bits, mantissa0, mantissa0 * p - val, p);
-//            }
         }
+    }
+
+    private static boolean checkLowCarry(long l, long x, long y32) {
+        long h1 = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(x, y32), l1 = x * y32, carry = (h1 << 32) + (l1 >>> 32);
+        long l2 = l + carry;
+        return (l | carry) < 0 && ((l & carry) < 0 || l2 >= 0);
+    }
+
+    static double longBitsToDecimalDouble(long l62, int e52, int sr) {
+        long e2, mantissa0;
+        if (e52 < -1074) {
+            sr += -1074 - e52;
+            e2 = 0;
+            if (sr >= 62) {
+                return 0.0D;
+            }
+            mantissa0 = ((l62 >> sr - 1) + 1) >> 1;
+        } else {
+            e2 = e52 + 1075;
+            mantissa0 = ((l62 >>> sr - 1) + 1) >> 1;
+            if (mantissa0 == 1L << 53) {
+                mantissa0 >>= 1;
+                ++e2;
+            }
+        }
+        long bits = (e2 << 52) | (mantissa0 & MOD_DOUBLE_MANTISSA);
+        return Double.longBitsToDouble(bits);
+    }
+    static double longBitsToIntegerDouble(long l62, long e2, int sr) {
+        if (e2 >= 2047) return Double.POSITIVE_INFINITY;
+        long mantissa0 = ((l62 >>> sr - 1) + 1) >> 1;
+        if (mantissa0 == 1L << 53) {
+            mantissa0 = 1L << 52;
+            ++e2;
+        }
+        long bits = (e2 << 52) | (mantissa0 & MOD_DOUBLE_MANTISSA);
+        return Double.longBitsToDouble(bits);
     }
 
     /**
@@ -1292,27 +902,28 @@ public final class NumberUtils {
         return val0;
     }
 
-    /**
-     * Ensure x is greater than 0
-     *
-     * @param x
-     * @param index(0,17)
-     * @return
-     */
-    static long divPowTen(long x, int index) {
-        // Use Karatsuba technique with two base 2^32 digits.
-        long y = POW10_OPPOSITE_VALUES[index];
-        long x1 = x >>> 32;
-        long y1 = y >>> 32;
-        long x2 = x & 0xFFFFFFFFL;
-        long y2 = y & 0xFFFFFFFFL;
-        long A = x1 * y1;
-        long B = x2 * y2;
-        long C = (x1 + x2) * (y1 + y2);
-        long K = C - A - B;
-        long H = (((B >>> 32) + K) >>> 32) + A;
-        return H >> POW10_OPPOSITE_RB[index];
-    }
+//    /**
+//     * Ensure x is greater than 0
+//     *
+//     * @param x
+//     * @param index(0,17)
+//     * @return
+//     */
+//    static long divPowTen(long x, int index) {
+//        // Use Karatsuba technique with two base 2^32 digits.
+//        long y = POW10_OPPOSITE_VALUES[index];
+////        long x1 = x >>> 32;
+////        long y1 = y >>> 32;
+////        long x2 = x & 0xFFFFFFFFL;
+////        long y2 = y & 0xFFFFFFFFL;
+////        long A = x1 * y1;
+////        long B = x2 * y2;
+////        long C = (x1 + x2) * (y1 + y2);
+////        long K = C - A - B;
+////        long H = (((B >>> 32) + K) >>> 32) + A;
+//        long H = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(x, y);
+//        return H >> POW10_OPPOSITE_RB[index];
+//    }
 
     /**
      * multiplyOutput
@@ -1322,23 +933,14 @@ public final class NumberUtils {
      * @param shift > 0
      * @return
      */
-    static long multiplyOutput(long x, long y, int shift) {
-        long x1 = x >>> 32, x2 = x & MASK_32_BITS;
-        long y1 = y >>> 32, y2 = y & MASK_32_BITS;
-        long A = x1 * y1;
-        long B = x2 * y2;
-        long C = (x1 + x2) * (y1 + y2);
-        // karatsuba
-        long K = C - A - B;
-        long BC = B >>> 32;
-        long H = ((BC + K) >>> 32) + A;
+    static long multiplyHighAndShift(long x, long y, int shift) {
+        long H = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(x, y);
         if (shift >= 64) {
             int sr = shift - 64;
             return H >>> sr;
         }
-        long L = (((K & MASK_32_BITS) + BC) << 32) | (B & MASK_32_BITS);
-        int rn = 64 - shift;
-        return H << rn | (L >>> shift);
+        long L = x * y;
+        return H << (64 - shift) | (L >>> shift);
     }
 
     /**
@@ -1346,33 +948,20 @@ public final class NumberUtils {
      * <p>
      * use BigInteger:  BigInteger.valueOf(pd.y).shiftLeft(n).add(BigInteger.valueOf(f & MASK_32_BITS)).multiply(BigInteger.valueOf(x)).shiftRight(s + n).longValue()
      *
-     * @param x 63bits
-     * @param y 63bits
-     * @param f unsigned int32 f(32bits)
-     * @param s s > 0
+     * @param x   63bits
+     * @param y   63bits
+     * @param y32 unsigned int32 f(32bits)
+     * @param s   s > 0
      * @return
      */
-    static long multiplyfOutput(long x, long y, int f, int s) {
+    static long multiplyHighAndShift(long x, long y, long y32, int s) {
         int sr = s - 64;
-        // multiply x * y
-        long x1 = x >>> 32, x2 = x & MASK_32_BITS;
-        long y1 = y >>> 32, y2 = y & MASK_32_BITS;
-        long A = x1 * y1;
-        long B = x2 * y2;
-        long C = (x1 + x2) * (y1 + y2);
-        // karatsuba
-        long K = C - A - B;
-        long BC = B >>> 32;
-        long H = ((BC + K) >>> 32) + A;
-        long L = (((K & MASK_32_BITS) + BC) << 32) | (B & MASK_32_BITS);
+        long H = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(x, y);
+        long L = x * y;
 
         // cal x * f -> H1, L1
-        long fl = f & MASK_32_BITS;
-        long B1 = x2 * fl;
-        long K1 = x1 * fl;
-        long BC1 = B1 >>> 32;
-        long H1 = (BC1 + K1) >>> 32;
-        long L1 = (((K1 & MASK_32_BITS) + BC1) << 32) | (B1 & MASK_32_BITS);
+        long H1 = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(x, y32);
+        long L1 = x * y32;
 
         // carry = (H1 * 2^64 + L1) / 2^n
         long carry = (H1 << 32) + (L1 >>> 32);
@@ -1386,6 +975,22 @@ public final class NumberUtils {
         }
         return H << -sr | (L >>> s);
     }
+
+//    static long multiplyHigh(long x, long y, long y32) {
+//        long H = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(x, y);
+//        long L = x * y;
+//
+//        long H1 = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(x, y32);
+//        long L1 = x * y32;
+//
+//        // carry = (H1 * 2^64 + L1) / 2^n
+//        long carry = (H1 << 32) + (L1 >>> 32);
+//        long L2 = L + carry;
+//        if ((L | carry) < 0 && ((L & carry) < 0 || L2 >= 0)) {
+//            ++H;
+//        }
+//        return H;
+//    }
 
     /**
      * Conversion of ieee floating point numbers to Scientific notation
@@ -1407,6 +1012,7 @@ public final class NumberUtils {
         long rawOutput, d2, d3, d4;
         int e10, adl;
         if (e2 > 0) {
+            if (e2 == 2047) return Scientific.SCIENTIFIC_NULL;
             mantissa0 = 1L << 52 | mantissa0;
             e52 = e2 - 1075;
         } else {
@@ -1439,7 +1045,7 @@ public final class NumberUtils {
                 ED5 d5 = ED5.ED5_A[-o5];
                 int rb = sb - 10 - d5.ob;
                 // rawOutput = BigInteger.valueOf(mantissa0).shiftLeft(sb).divide(POW5_BI_VALUES[-o5]).longValue();
-                rawOutput = multiplyfOutput(mantissa0 << 10, d5.oy, d5.of, 32 - rb);
+                rawOutput = multiplyHighAndShift(mantissa0 << 10, d5.oy, d5.of, 32 - rb);
                 accurate = o5 == -1 && sb < 11;
             } else {
                 // o5 > 0 -> sb > 0
@@ -1474,12 +1080,12 @@ public final class NumberUtils {
             int sb = o5 + e52;
             if (sb < 0) {
                 if (o5 < POW5_LONG_VALUES.length) {
-                    rawOutput = multiplyOutput(mantissa0, ED5.ED5_A[o5].y, -sb);
+                    rawOutput = multiplyHighAndShift(mantissa0, POW5_LONG_VALUES[o5], -sb);
                 } else if (o5 < POW5_LONG_VALUES.length + 4) {
-                    rawOutput = multiplyOutput(mantissa0 * POW5_LONG_VALUES[o5 - POW5_LONG_VALUES.length + 1], ED5.ED5_A[POW5_LONG_VALUES.length - 1].y, -sb);
+                    rawOutput = multiplyHighAndShift(mantissa0 * POW5_LONG_VALUES[o5 - POW5_LONG_VALUES.length + 1], POW5_LONG_VALUES[POW5_LONG_VALUES.length - 1], -sb);
                 } else {
                     ED5 ed5 = ED5.ED5_A[o5];
-                    rawOutput = multiplyfOutput(mantissa0 << 10, ed5.y, ed5.f, -(ed5.dfb + sb) + 10);
+                    rawOutput = multiplyHighAndShift(mantissa0 << 10, ed5.y, ed5.f, -(ed5.dfb + sb) + 10);
                 }
             } else {
                 rawOutput = POW5_LONG_VALUES[o5] * mantissa0 << sb;
@@ -1593,7 +1199,7 @@ public final class NumberUtils {
         } else {
             rawOutput = (long) (dv / NumberUtils.getDecimalPowerValue(-rn));
         }
-        long div = divPowTen(rawOutput, 5); // rawOutput / 1000000
+        long div = rawOutput / 1000000;
         long rem = rawOutput - div * 1000000;
         long remUp = (1000001 - rem) << 1;
         boolean up = remUp <= d4;
@@ -1630,17 +1236,6 @@ public final class NumberUtils {
     public static int writeDouble(double doubleValue, char[] buf, int off) {
 
         final int beginIndex = off;
-
-        if (Double.isNaN(doubleValue)
-                || doubleValue == Double.POSITIVE_INFINITY
-                || doubleValue == Double.NEGATIVE_INFINITY) {
-            buf[off++] = 'n';
-            buf[off++] = 'u';
-            buf[off++] = 'l';
-            buf[off++] = 'l';
-            return off - beginIndex;
-        }
-
         long bits;
         if (doubleValue == 0) {
             bits = Double.doubleToLongBits(doubleValue);
@@ -1668,6 +1263,13 @@ public final class NumberUtils {
         int e10 = scientific.e10;
         if (!scientific.b) {
             return writeDecimal(scientific.output, scientific.count, e10, buf, beginIndex, off);
+        }
+        if (scientific == Scientific.SCIENTIFIC_NULL) {
+            buf[off++] = 'n';
+            buf[off++] = 'u';
+            buf[off++] = 'l';
+            buf[off++] = 'l';
+            return off - beginIndex;
         }
         if (e10 >= 0) {
             char[] chars = POSITIVE_DECIMAL_POWER_CHARS[e10];
@@ -1735,7 +1337,7 @@ public final class NumberUtils {
             }
         }
         // 是否使用科学计数法
-        boolean useScientific = !((e10 >= -3) && (e10 < 7));
+        boolean useScientific = e10 < -3 || e10 >= 7; // !((e10 >= -3) && (e10 < 7));
         if (useScientific) {
             if (digitCnt == 1) {
                 buf[off++] = (char) (value + 48);
@@ -1745,7 +1347,7 @@ public final class NumberUtils {
                 int pos = digitCnt - 2;
                 // 获取首位数字
                 long tl = POW10_LONG_VALUES[pos];
-                int fd = (int) divPowTen(value, pos); // (value / tl);
+                int fd = (int) (value / tl);
                 buf[off++] = (char) (fd + 48);
                 buf[off++] = '.';
 
@@ -1793,7 +1395,7 @@ public final class NumberUtils {
                 if (decimalPointPos > 0) {
                     int pos = decimalPointPos - 1;
                     long tl = POW10_LONG_VALUES[pos];
-                    int pointBefore = (int) divPowTen(value, pos); // (value / tl);
+                    int pointBefore = (int) (value / tl);
                     off += writePositiveLong(pointBefore, buf, off);
                     buf[off++] = '.';
                     long pointAfter = value - pointBefore * tl;
@@ -1830,16 +1432,6 @@ public final class NumberUtils {
     public static int writeDouble(double doubleValue, byte[] buf, int off) {
 
         final int beginIndex = off;
-        if (Double.isNaN(doubleValue)
-                || doubleValue == Double.POSITIVE_INFINITY
-                || doubleValue == Double.NEGATIVE_INFINITY) {
-            buf[off++] = 'n';
-            buf[off++] = 'u';
-            buf[off++] = 'l';
-            buf[off++] = 'l';
-            return off - beginIndex;
-        }
-
         long bits;
         if (doubleValue == 0) {
             bits = Double.doubleToLongBits(doubleValue);
@@ -1856,17 +1448,22 @@ public final class NumberUtils {
             buf[off++] = '-';
             doubleValue = -doubleValue;
         }
-
         if (doubleValue == (long) doubleValue) {
             long output = (long) doubleValue;
             int numLength = stringSize(output);
             return writeDecimal(output, numLength, numLength - 1, buf, beginIndex, off);
         }
-
         Scientific scientific = doubleToScientific(doubleValue);
         int e10 = scientific.e10;
         if (!scientific.b) {
             return writeDecimal(scientific.output, scientific.count, scientific.e10, buf, beginIndex, off);
+        }
+        if (scientific == Scientific.SCIENTIFIC_NULL) {
+            buf[off++] = 'n';
+            buf[off++] = 'u';
+            buf[off++] = 'l';
+            buf[off++] = 'l';
+            return off - beginIndex;
         }
         if (e10 >= 0) {
             char[] chars = POSITIVE_DECIMAL_POWER_CHARS[e10];
@@ -1935,8 +1532,8 @@ public final class NumberUtils {
                 }
             }
         }
-        // 是否使用科学计数法
-        boolean useScientific = !((e10 >= -3) && (e10 < 7));
+        // Whether to use Scientific notation
+        boolean useScientific = e10 < -3 || e10 >= 7; // !((e10 >= -3) && (e10 < 7));
         if (useScientific) {
             if (digitCnt == 1) {
                 buf[off++] = (byte) (value + 48);
@@ -2400,12 +1997,12 @@ public final class NumberUtils {
         return 2;
     }
 
-    /**
-     * 一次性写入pre + 2位数字字符 + suff到字符数组(长度4个字符)
-     *
-     * @param val
-     * @return 4
-     */
+    public static int writeFourDigits(int val, char roundChar, char[] chars, int off) {
+        long longVal = ((long) roundChar) << 48 | ((long) TWO_DIGITS_32_BITS[val]) << 16 | roundChar;
+        UnsafeHelper.putLong(chars, off, longVal);
+        return 4;
+    }
+
     public static int writeTwoDigitsAndPreSuffix(int val, char pre, char suff, char[] chars, int off) {
         long longVal;
         if (EnvUtils.BIG_ENDIAN) {
@@ -2423,14 +2020,20 @@ public final class NumberUtils {
      * @param val
      * @return 4
      */
-    public static int writeTwoDigitsAndPreSuffix(int val, char pre, char suff, byte[] chars, int off) {
+    public static int writeTwoDigitsAndPreSuffix(int val, char pre, char suff, byte[] buf, int off) {
         int intVal;
         if (EnvUtils.BIG_ENDIAN) {
             intVal = (pre << 24) | (TWO_DIGITS_16_BITS[val] << 8) | suff;
         } else {
             intVal = (suff << 24) | (TWO_DIGITS_16_BITS[val] << 8) | pre;
         }
-        UnsafeHelper.putInt(chars, off, intVal);
+        UnsafeHelper.putInt(buf, off, intVal);
+        return 4;
+    }
+
+    public static int writeFourDigits(int val, byte roundByte, byte[] buf, int off) {
+        int intVal = (roundByte << 24) | (TWO_DIGITS_16_BITS[val] << 8) | roundByte;
+        UnsafeHelper.putInt(buf, off, intVal);
         return 4;
     }
 
@@ -2501,19 +2104,17 @@ public final class NumberUtils {
         numValue = val;
         val = numValue / 10000;
         v4 = (int) (numValue - val * 10000);
-        if (val < 10000) {
-            v = (int) val;
-            if (v < 1000) {
-                off += writeThreeDigits(v, chars, off);
-            } else {
-                off += UnsafeHelper.putLong(chars, off, FOUR_DIGITS_64_BITS[v]);
-            }
-            off += UnsafeHelper.putLong(chars, off, FOUR_DIGITS_64_BITS[v4]);
-            off += UnsafeHelper.putLong(chars, off, FOUR_DIGITS_64_BITS[v3]);
-            off += UnsafeHelper.putLong(chars, off, FOUR_DIGITS_64_BITS[v2]);
-            off += UnsafeHelper.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
-            return off - beginIndex;
+        v = (int) val;
+
+        if (v < 1000) {
+            off += writeThreeDigits(v, chars, off);
+        } else {
+            off += UnsafeHelper.putLong(chars, off, FOUR_DIGITS_64_BITS[v]);
         }
+        off += UnsafeHelper.putLong(chars, off, FOUR_DIGITS_64_BITS[v4]);
+        off += UnsafeHelper.putLong(chars, off, FOUR_DIGITS_64_BITS[v3]);
+        off += UnsafeHelper.putLong(chars, off, FOUR_DIGITS_64_BITS[v2]);
+        off += UnsafeHelper.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
         return off - beginIndex;
     }
 
@@ -2584,19 +2185,17 @@ public final class NumberUtils {
         numValue = val;
         val = numValue / 10000;
         v4 = (int) (numValue - val * 10000);
-        if (val < 10000) {
-            v = (int) val;
-            if (v < 1000) {
-                off += writeThreeDigits(v, buf, off);
-            } else {
-                off += UnsafeHelper.putInt(buf, off, FOUR_DIGITS_32_BITS[v]);
-            }
-            off += UnsafeHelper.putInt(buf, off, FOUR_DIGITS_32_BITS[v4]);
-            off += UnsafeHelper.putInt(buf, off, FOUR_DIGITS_32_BITS[v3]);
-            off += UnsafeHelper.putInt(buf, off, FOUR_DIGITS_32_BITS[v2]);
-            off += UnsafeHelper.putInt(buf, off, FOUR_DIGITS_32_BITS[v1]);
-            return off - beginIndex;
+        v = (int) val;
+
+        if (v < 1000) {
+            off += writeThreeDigits(v, buf, off);
+        } else {
+            off += UnsafeHelper.putInt(buf, off, FOUR_DIGITS_32_BITS[v]);
         }
+        off += UnsafeHelper.putInt(buf, off, FOUR_DIGITS_32_BITS[v4]);
+        off += UnsafeHelper.putInt(buf, off, FOUR_DIGITS_32_BITS[v3]);
+        off += UnsafeHelper.putInt(buf, off, FOUR_DIGITS_32_BITS[v2]);
+        off += UnsafeHelper.putInt(buf, off, FOUR_DIGITS_32_BITS[v1]);
         return off - beginIndex;
     }
 
@@ -2634,6 +2233,9 @@ public final class NumberUtils {
     }
 
     public static String toString(double val) {
+        if (Double.isNaN(val)) return "NaN";
+        if (val == Double.POSITIVE_INFINITY) return "Infinity";
+        if (val == Double.NEGATIVE_INFINITY) return "-Infinity";
         char[] chars = THREAD_LOCAL_CHARS.get();
         return new String(chars, 0, writeDouble(val, chars, 0));
     }

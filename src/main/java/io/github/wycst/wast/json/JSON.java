@@ -1021,9 +1021,10 @@ public final class JSON extends JSONGeneral {
         if (obj == null) {
             return null;
         }
-        JSONWriter stringWriter = JSONWriter.forBytesWriter(charset);
+        JSONConfig jsonConfig = JSONConfig.config(options);
+        JSONWriter stringWriter = JSONWriter.forBytesWriter(charset, jsonConfig);
         try {
-            writeToJSONWriter(obj, stringWriter, options);
+            writeToJSONWriter(obj, stringWriter, jsonConfig);
             return stringWriter.toBytes();
         } finally {
             stringWriter.reset();
@@ -1045,7 +1046,7 @@ public final class JSON extends JSONGeneral {
     }
 
     private static String stringify(Object obj, JSONConfig jsonConfig, int indentLevel) {
-        JSONWriter content = JSONWriter.forStringWriter();
+        JSONWriter content = JSONWriter.forStringWriter(jsonConfig);
         try {
             stringify(obj, content, jsonConfig, indentLevel);
             return content.toString();
@@ -1084,7 +1085,7 @@ public final class JSON extends JSONGeneral {
      * @param options
      */
     public static void writeJsonTo(Object object, OutputStream os, WriteOption... options) {
-        writeJsonTo(object, os, Charset.defaultCharset(), options);
+        writeJsonTo(object, os, EnvUtils.CHARSET_DEFAULT, options);
     }
 
     /**
@@ -1096,9 +1097,10 @@ public final class JSON extends JSONGeneral {
      * @param options
      */
     public static void writeJsonTo(Object object, OutputStream os, Charset charset, WriteOption... options) {
-        JSONWriter streamWriter = JSONWriter.forStreamWriter(charset);
+        JSONConfig jsonConfig = JSONConfig.config(options);
+        JSONWriter streamWriter = JSONWriter.forStreamWriter(charset, jsonConfig);
         try {
-            writeToJSONWriter(object, streamWriter, options);
+            writeToJSONWriter(object, streamWriter, jsonConfig);
             streamWriter.toOutputStream(os);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -1106,6 +1108,26 @@ public final class JSON extends JSONGeneral {
             streamWriter.reset();
         }
     }
+
+//    /**
+//     * 将对象序列化内容直接写入os
+//     *
+//     * @param object
+//     * @param os
+//     * @param options
+//     */
+//    public static void writeToStream(Object object, OutputStream os, WriteOption... options) {
+//        JSONConfig jsonConfig = JSONConfig.config(options);
+//        JSONWriter streamWriter = JSONWriter.forBytesWriter(EnvUtils.CHARSET_DEFAULT, jsonConfig);
+//        try {
+//            writeToJSONWriter(object, streamWriter, jsonConfig);
+//            streamWriter.toOutputStream(os);
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        } finally {
+//            streamWriter.reset();
+//        }
+//    }
 
     /**
      * <p>
@@ -1125,7 +1147,7 @@ public final class JSON extends JSONGeneral {
      * @param options
      */
     public static void writeJsonTo(Object object, Writer writer, WriteOption... options) {
-        writeToJSONWriter(object, JSONWriter.wrap(writer), options);
+        writeToJSONWriter(object, JSONWriter.wrap(writer), JSONConfig.config(options));
     }
 
     /**
@@ -1133,12 +1155,10 @@ public final class JSON extends JSONGeneral {
      *
      * @param object
      * @param writer
-     * @param options
+     * @param jsonConfig
      */
-    static void writeToJSONWriter(Object object, JSONWriter writer, WriteOption... options) {
+    static void writeToJSONWriter(Object object, JSONWriter writer, JSONConfig jsonConfig) {
         if (object != null) {
-            JSONConfig jsonConfig = new JSONConfig();
-            JSONOptions.writeOptions(options, jsonConfig);
             try {
                 stringify(object, writer, jsonConfig, 0);
                 writer.flush();

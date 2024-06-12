@@ -11,7 +11,7 @@ import java.util.Map;
  * @Date 2024/4/14 8:59
  * @Created by wangyc
  */
-public class JSONValueMatcher<T> {
+class JSONValueMatcher<T> {
 
     protected final FixedNameValueMap<T> valueMapForChars;
     protected final FixedNameValueMap<T> valueMapForBytes;

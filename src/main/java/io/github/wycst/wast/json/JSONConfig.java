@@ -13,6 +13,7 @@ public final class JSONConfig {
     private static boolean defaultFormatIndentUseSpace;
     private static int defaultFormatIndentSpaceNum = 4;
     private static boolean defaultWriteEnumAsOrdinal;
+    private boolean disableHotspotCache;
 
     public static void setDefaultFullProperty(boolean defaultFullProperty) {
         JSONConfig.defaultFullProperty = defaultFullProperty;
@@ -106,9 +107,9 @@ public final class JSONConfig {
     private boolean bytesArrayToHex;
 
     /**
-     * 禁用转义符检查
+     * 忽略转义检查
      */
-    private boolean disableEscapeValidate;
+    private boolean ignoreEscapeCheck;
 
     /**
      * 跳过没有属性Field的getter方法序列化
@@ -152,6 +153,10 @@ public final class JSONConfig {
 
     public JSONConfig(WriteOption[] writeOptions) {
         JSONOptions.writeOptions(writeOptions, this);
+    }
+
+    public static JSONConfig config(WriteOption... options) {
+        return new JSONConfig(options);
     }
 
     public boolean isFormatIndentUseSpace() {
@@ -250,12 +255,12 @@ public final class JSONConfig {
         this.bytesArrayToHex = bytesArrayToHex;
     }
 
-    public boolean isDisableEscapeValidate() {
-        return disableEscapeValidate;
+    public boolean isIgnoreEscapeCheck() {
+        return ignoreEscapeCheck;
     }
 
-    public void setDisableEscapeValidate(boolean disableEscapeValidate) {
-        this.disableEscapeValidate = disableEscapeValidate;
+    public void setIgnoreEscapeCheck(boolean ignoreEscapeCheck) {
+        this.ignoreEscapeCheck = ignoreEscapeCheck;
     }
 
     public boolean isSkipGetterOfNoneField() {
@@ -354,7 +359,16 @@ public final class JSONConfig {
         this.writeDecimalUseToString = writeDecimalUseToString;
     }
 
+    @Deprecated
     public boolean isWriteDecimalUseToString() {
         return writeDecimalUseToString;
     }
+
+//    public void setDisableHotspotCache(boolean disableHotspotCache) {
+//        this.disableHotspotCache = disableHotspotCache;
+//    }
+//
+//    public boolean isDisableHotspotCache() {
+//        return disableHotspotCache;
+//    }
 }

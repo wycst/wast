@@ -49,17 +49,17 @@ final class JSONOptions {
                 case WriteNumberAsString:
                     jsonConfig.setWriteNumberAsString(true);
                     break;
-                case WriteDecimalUseToString:
-                    jsonConfig.setWriteDecimalUseToString(true);
-                    break;
+//                case WriteDecimalUseToString:
+//                    jsonConfig.setWriteDecimalUseToString(true);
+//                    break;
                 case SkipCircularReference:
                     jsonConfig.setSkipCircularReference(true);
                     break;
                 case BytesArrayToNative:
                     jsonConfig.setBytesArrayToNative(true);
                     break;
-                case DisableEscapeValidate:
-                    jsonConfig.setDisableEscapeValidate(true);
+                case IgnoreEscapeCheck:
+                    jsonConfig.setIgnoreEscapeCheck(true);
                     break;
                 case BytesArrayToHex:
                     jsonConfig.setBytesArrayToHex(true);
@@ -113,9 +113,9 @@ final class JSONOptions {
                 case UseBigDecimalAsDefault:
                     parseContext.useBigDecimalAsDefault = true;
                     break;
-                case UseJDKDoubleParser:
-                    parseContext.useJDKDoubleParser = true;
-                    break;
+//                case UseJDKDoubleParser:
+//                    parseContext.useJDKDoubleParser = true;
+//                    break;
                 case UnMatchedEmptyAsNull:
                     parseContext.unMatchedEmptyAsNull = true;
                     break;

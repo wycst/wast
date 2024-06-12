@@ -389,22 +389,22 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
 
             protected void serializeNumber(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
                 double numValue = ((Number) value).doubleValue();
-                if (jsonConfig.isWriteDecimalUseToString()) {
-                    writer.write(Double.toString(numValue));
-                } else {
-                    writer.writeDouble(numValue);
-                }
+//                if (jsonConfig.isWriteDecimalUseToString()) {
+//                    writer.write(Double.toString(numValue));
+//                } else {
+//                }
+                writer.writeDouble(numValue);
             }
         }
 
         static class SimpleFloatSerializer extends SimpleNumberSerializer {
             protected void serializeNumber(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
                 float numValue = ((Number) value).floatValue();
-                if (jsonConfig.isWriteDecimalUseToString()) {
-                    writer.write(Float.toString(numValue));
-                } else {
-                    writer.writeFloat(numValue);
-                }
+//                if (jsonConfig.isWriteDecimalUseToString()) {
+//                    writer.write(Float.toString(numValue));
+//                } else {
+//                }
+                writer.writeFloat(numValue);
             }
         }
     }
