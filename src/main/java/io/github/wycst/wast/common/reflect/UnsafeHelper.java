@@ -30,7 +30,6 @@ public final class UnsafeHelper {
     public static final long BIGINTEGER_MAG_OFFSET;
     public static final long ARRAYLIST_ELEMENT_DATA_OFFSET;
     public static final long ARRAYLIST_SIZE_OFFSET;
-    // maybe jdk9+ not supported
     public static final long OVERRIDE_OFFSET;
     public static final long INT64_MASK_7_BITS = 0x00FFFFFFFFFFFFFFL;
     public static final long INT64_MASK_6_BITS = 0x0000FFFFFFFFFFFFL;
@@ -362,6 +361,8 @@ public final class UnsafeHelper {
     }
 
     public static void copyMemory(char[] chars, int cOff, byte[] bytes, int bOff, int cLen) {
+        chars.getClass();
+        bytes.getClass();
         int arrayBaseOffset = ReflectConsts.PrimitiveType.PrimitiveCharacter.arrayBaseOffset;
         int arrayIndexScale = ReflectConsts.PrimitiveType.PrimitiveCharacter.arrayIndexScale;
         int targetArrayBaseOffset = ReflectConsts.PrimitiveType.PrimitiveByte.arrayBaseOffset;
@@ -370,6 +371,8 @@ public final class UnsafeHelper {
     }
 
     public static void copyMemory(byte[] bytes, int bOff, char[] chars, int cOff, int bLen) {
+        chars.getClass();
+        bytes.getClass();
         int arrayBaseOffset = ReflectConsts.PrimitiveType.PrimitiveByte.arrayBaseOffset;
         int arrayIndexScale = ReflectConsts.PrimitiveType.PrimitiveByte.arrayIndexScale;
         int targetArrayBaseOffset = ReflectConsts.PrimitiveType.PrimitiveCharacter.arrayBaseOffset;
@@ -574,6 +577,7 @@ public final class UnsafeHelper {
      * @return
      */
     public static long getLong(char[] buf, int offset) {
+        buf.getClass();
         return UNSAFE.getLong(buf, CHAR_ARRAY_OFFSET + (offset << 1));
     }
 
@@ -606,6 +610,7 @@ public final class UnsafeHelper {
      * @return
      */
     public static short getShort(byte[] buf, int offset) {
+        buf.getClass();
         return UNSAFE.getShort(buf, BYTE_ARRAY_OFFSET + offset);
     }
 
@@ -617,6 +622,7 @@ public final class UnsafeHelper {
      * @return
      */
     public static int getInt(byte[] buf, int offset) {
+        buf.getClass();
         return UNSAFE.getInt(buf, BYTE_ARRAY_OFFSET + offset);
     }
 
@@ -628,6 +634,7 @@ public final class UnsafeHelper {
      * @return
      */
     public static long getLong(byte[] buf, int offset) {
+        buf.getClass();
         return UNSAFE.getLong(buf, BYTE_ARRAY_OFFSET + offset);
     }
 
@@ -869,6 +876,7 @@ public final class UnsafeHelper {
 
     public static boolean setAccessible(AccessibleObject accessibleObject) {
         if (OVERRIDE_OFFSET > -1) {
+            accessibleObject.getClass();
             UNSAFE.putBoolean(accessibleObject, OVERRIDE_OFFSET, true);
             return true;
         }

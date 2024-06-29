@@ -16,7 +16,7 @@ public class GetterInfo {
     private boolean fieldPrimitive;
     // 基本类型类别
     private ReflectConsts.PrimitiveType primitiveType;
-
+    private GenericParameterizedType genericParameterizedType;
     // 名称
     private String name;
 
@@ -137,6 +137,14 @@ public class GetterInfo {
 
     public boolean isPrimitive() {
         return fieldPrimitive;
+    }
+
+    public GenericParameterizedType getGenericParameterizedType() {
+        return genericParameterizedType;
+    }
+
+    void setGenericParameterizedType(GenericParameterizedType genericParameterizedType) {
+        this.genericParameterizedType = genericParameterizedType;
     }
 
     public String getMethodName() {

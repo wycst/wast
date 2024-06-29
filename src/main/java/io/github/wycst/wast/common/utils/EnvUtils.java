@@ -18,6 +18,7 @@ public final class EnvUtils {
     public static final boolean BIG_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN;
     public static final int HI_BYTE_SHIFT;
     public static final int LO_BYTE_SHIFT;
+    public static final boolean SUPPORTED_VECTOR;
 
     // 'java.lang.String' hashcode
     public final static int STRING_HV = 1195259493;
@@ -82,6 +83,15 @@ public final class EnvUtils {
         }
         SC_HAS_NEGATIVES_METHOD = scHasNegatives;
 
+        boolean supportedVector = false;
+//        if(JDK_VERSION >= 17f) {
+//            try {
+//                Class.forName("jdk.incubator.vector.ByteVector");
+//                supportedVector = true;
+//            } catch (Throwable throwable) {
+//            }
+//        }
+        SUPPORTED_VECTOR = supportedVector;
 //        Method slIndexOfMethod = null;
 //        if (JDK_9_PLUS) {
 //            try {

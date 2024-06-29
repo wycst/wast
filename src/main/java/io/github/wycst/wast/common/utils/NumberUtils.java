@@ -5,6 +5,7 @@ import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.UUID;
 
 /**
  * @Author: wangy
@@ -35,11 +36,9 @@ public final class NumberUtils {
     final static BigInteger BI_MAX_VALUE_FOR_LONG = BigInteger.valueOf(Long.MAX_VALUE);
 
     //0-9a-f
-    final static char[] HEX_DIGITS = {
-            '0', '1', '2', '3', '4', '5',
-            '6', '7', '8', '9', 'a', 'b',
-            'c', 'd', 'e', 'f'
-    };
+    final static char[] HEX_DIGITS = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+
+    final static byte[] HEX_DIGITS_REVERSE = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0, 0, 0, 10, 11, 12, 13, 14, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 11, 12, 13, 14, 15};
 
     final static int[] HEX_DIGITS_INT32 = new int[256];
 
@@ -474,60 +473,109 @@ public final class NumberUtils {
         return new String(chars);
     }
 
-    // 18
-    public static int writeUUIDMostSignificantBits(long mostSigBits, char[] buf, int offset) {
+    public static int writeUUID(UUID uuid, char[] buf, int offset) {
+        long mostSigBits = uuid.getMostSignificantBits();
         long v1, v2, v3, v4;
-        int b1 = (int) (mostSigBits >>> 56 & 0xff), b2 = (int) (mostSigBits >>> 48 & 0xff), b3 = (int) (mostSigBits >>> 40 & 0xff), b4 = (int) (mostSigBits >>> 32 & 0xff);
-        int b5 = (int) (mostSigBits >>> 24 & 0xff), b6 = (int) (mostSigBits >>> 16 & 0xff), b7 = (int) (mostSigBits >>> 8 & 0xff), b8 = (int) (mostSigBits & 0xff);
-        if (EnvUtils.BIG_ENDIAN) {
-            v1 = (long) HEX_DIGITS_INT32[b1] << 32 | HEX_DIGITS_INT32[b2];
-            v2 = (long) HEX_DIGITS_INT32[b3] << 32 | HEX_DIGITS_INT32[b4];
-            v3 = (long) HEX_DIGITS_INT32[b5] << 32 | HEX_DIGITS_INT32[b6];
-            v4 = (long) HEX_DIGITS_INT32[b7] << 32 | HEX_DIGITS_INT32[b8];
-        } else {
-            v1 = (long) HEX_DIGITS_INT32[b2] << 32 | HEX_DIGITS_INT32[b1];
-            v2 = (long) HEX_DIGITS_INT32[b4] << 32 | HEX_DIGITS_INT32[b3];
-            v3 = (long) HEX_DIGITS_INT32[b6] << 32 | HEX_DIGITS_INT32[b5];
-            v4 = (long) HEX_DIGITS_INT32[b8] << 32 | HEX_DIGITS_INT32[b7];
+        {
+            int b1 = (int) (mostSigBits >>> 56 & 0xff), b2 = (int) (mostSigBits >>> 48 & 0xff), b3 = (int) (mostSigBits >>> 40 & 0xff), b4 = (int) (mostSigBits >>> 32 & 0xff);
+            int b5 = (int) (mostSigBits >>> 24 & 0xff), b6 = (int) (mostSigBits >>> 16 & 0xff), b7 = (int) (mostSigBits >>> 8 & 0xff), b8 = (int) (mostSigBits & 0xff);
+            if (EnvUtils.BIG_ENDIAN) {
+                v1 = (long) HEX_DIGITS_INT32[b1] << 32 | HEX_DIGITS_INT32[b2];
+                v2 = (long) HEX_DIGITS_INT32[b3] << 32 | HEX_DIGITS_INT32[b4];
+                v3 = (long) HEX_DIGITS_INT32[b5] << 32 | HEX_DIGITS_INT32[b6];
+                v4 = (long) HEX_DIGITS_INT32[b7] << 32 | HEX_DIGITS_INT32[b8];
+            } else {
+                v1 = (long) HEX_DIGITS_INT32[b2] << 32 | HEX_DIGITS_INT32[b1];
+                v2 = (long) HEX_DIGITS_INT32[b4] << 32 | HEX_DIGITS_INT32[b3];
+                v3 = (long) HEX_DIGITS_INT32[b6] << 32 | HEX_DIGITS_INT32[b5];
+                v4 = (long) HEX_DIGITS_INT32[b8] << 32 | HEX_DIGITS_INT32[b7];
+            }
+            offset += UnsafeHelper.putLong(buf, offset, v1);
+            offset += UnsafeHelper.putLong(buf, offset, v2);
+            buf[offset++] = '-';
+            offset += UnsafeHelper.putLong(buf, offset, v3);
+            buf[offset++] = '-';
+            offset += UnsafeHelper.putLong(buf, offset, v4);
         }
-        UnsafeHelper.putLong(buf, offset, v1);
-        offset += 4;
-        UnsafeHelper.putLong(buf, offset, v2);
-        offset += 4;
-        buf[offset++] = '-';
-        UnsafeHelper.putLong(buf, offset, v3);
-        offset += 4;
-        buf[offset++] = '-';
-        UnsafeHelper.putLong(buf, offset, v4);
-        return 18;
+        long leastSigBits = uuid.getLeastSignificantBits();
+        {
+            int b1 = (int) (leastSigBits >>> 56 & 0xff), b2 = (int) (leastSigBits >>> 48 & 0xff), b3 = (int) (leastSigBits >>> 40 & 0xff), b4 = (int) (leastSigBits >>> 32 & 0xff);
+            int b5 = (int) (leastSigBits >>> 24 & 0xff), b6 = (int) (leastSigBits >>> 16 & 0xff), b7 = (int) (leastSigBits >>> 8 & 0xff), b8 = (int) (leastSigBits & 0xff);
+            if (EnvUtils.BIG_ENDIAN) {
+                v1 = (long) HEX_DIGITS_INT32[b1] << 32 | HEX_DIGITS_INT32[b2];
+                v2 = (long) HEX_DIGITS_INT32[b3] << 32 | HEX_DIGITS_INT32[b4];
+                v3 = (long) HEX_DIGITS_INT32[b5] << 32 | HEX_DIGITS_INT32[b6];
+                v4 = (long) HEX_DIGITS_INT32[b7] << 32 | HEX_DIGITS_INT32[b8];
+            } else {
+                v1 = (long) HEX_DIGITS_INT32[b2] << 32 | HEX_DIGITS_INT32[b1];
+                v2 = (long) HEX_DIGITS_INT32[b4] << 32 | HEX_DIGITS_INT32[b3];
+                v3 = (long) HEX_DIGITS_INT32[b6] << 32 | HEX_DIGITS_INT32[b5];
+                v4 = (long) HEX_DIGITS_INT32[b8] << 32 | HEX_DIGITS_INT32[b7];
+            }
+            buf[offset++] = '-';
+            offset += UnsafeHelper.putLong(buf, offset, v1);
+            buf[offset++] = '-';
+            offset += UnsafeHelper.putLong(buf, offset, v2);
+            offset += UnsafeHelper.putLong(buf, offset, v3);
+            UnsafeHelper.putLong(buf, offset, v4);
+        }
+        return 36;
     }
 
-    public static int writeUUIDLeastSignificantBits(long leastSigBits, char[] buf, int offset) {
-        long v1, v2, v3, v4;
-        int b1 = (int) (leastSigBits >>> 56 & 0xff), b2 = (int) (leastSigBits >>> 48 & 0xff), b3 = (int) (leastSigBits >>> 40 & 0xff), b4 = (int) (leastSigBits >>> 32 & 0xff);
-        int b5 = (int) (leastSigBits >>> 24 & 0xff), b6 = (int) (leastSigBits >>> 16 & 0xff), b7 = (int) (leastSigBits >>> 8 & 0xff), b8 = (int) (leastSigBits & 0xff);
-        if (EnvUtils.BIG_ENDIAN) {
-            v1 = (long) HEX_DIGITS_INT32[b1] << 32 | HEX_DIGITS_INT32[b2];
-            v2 = (long) HEX_DIGITS_INT32[b3] << 32 | HEX_DIGITS_INT32[b4];
-            v3 = (long) HEX_DIGITS_INT32[b5] << 32 | HEX_DIGITS_INT32[b6];
-            v4 = (long) HEX_DIGITS_INT32[b7] << 32 | HEX_DIGITS_INT32[b8];
-        } else {
-            v1 = (long) HEX_DIGITS_INT32[b2] << 32 | HEX_DIGITS_INT32[b1];
-            v2 = (long) HEX_DIGITS_INT32[b4] << 32 | HEX_DIGITS_INT32[b3];
-            v3 = (long) HEX_DIGITS_INT32[b6] << 32 | HEX_DIGITS_INT32[b5];
-            v4 = (long) HEX_DIGITS_INT32[b8] << 32 | HEX_DIGITS_INT32[b7];
-        }
-        buf[offset++] = '-';
-        UnsafeHelper.putLong(buf, offset, v1);
-        offset += 4;
-        buf[offset++] = '-';
-        UnsafeHelper.putLong(buf, offset, v2);
-        offset += 4;
-        UnsafeHelper.putLong(buf, offset, v3);
-        offset += 4;
-        UnsafeHelper.putLong(buf, offset, v4);
-        return 18;
-    }
+//    // 18
+//    public static int writeUUIDMostSignificantBits(long mostSigBits, char[] buf, int offset) {
+//        long v1, v2, v3, v4;
+//        int b1 = (int) (mostSigBits >>> 56 & 0xff), b2 = (int) (mostSigBits >>> 48 & 0xff), b3 = (int) (mostSigBits >>> 40 & 0xff), b4 = (int) (mostSigBits >>> 32 & 0xff);
+//        int b5 = (int) (mostSigBits >>> 24 & 0xff), b6 = (int) (mostSigBits >>> 16 & 0xff), b7 = (int) (mostSigBits >>> 8 & 0xff), b8 = (int) (mostSigBits & 0xff);
+//        if (EnvUtils.BIG_ENDIAN) {
+//            v1 = (long) HEX_DIGITS_INT32[b1] << 32 | HEX_DIGITS_INT32[b2];
+//            v2 = (long) HEX_DIGITS_INT32[b3] << 32 | HEX_DIGITS_INT32[b4];
+//            v3 = (long) HEX_DIGITS_INT32[b5] << 32 | HEX_DIGITS_INT32[b6];
+//            v4 = (long) HEX_DIGITS_INT32[b7] << 32 | HEX_DIGITS_INT32[b8];
+//        } else {
+//            v1 = (long) HEX_DIGITS_INT32[b2] << 32 | HEX_DIGITS_INT32[b1];
+//            v2 = (long) HEX_DIGITS_INT32[b4] << 32 | HEX_DIGITS_INT32[b3];
+//            v3 = (long) HEX_DIGITS_INT32[b6] << 32 | HEX_DIGITS_INT32[b5];
+//            v4 = (long) HEX_DIGITS_INT32[b8] << 32 | HEX_DIGITS_INT32[b7];
+//        }
+//        UnsafeHelper.putLong(buf, offset, v1);
+//        offset += 4;
+//        UnsafeHelper.putLong(buf, offset, v2);
+//        offset += 4;
+//        buf[offset++] = '-';
+//        UnsafeHelper.putLong(buf, offset, v3);
+//        offset += 4;
+//        buf[offset++] = '-';
+//        UnsafeHelper.putLong(buf, offset, v4);
+//        return 18;
+//    }
+//
+//    public static int writeUUIDLeastSignificantBits(long leastSigBits, char[] buf, int offset) {
+//        long v1, v2, v3, v4;
+//        int b1 = (int) (leastSigBits >>> 56 & 0xff), b2 = (int) (leastSigBits >>> 48 & 0xff), b3 = (int) (leastSigBits >>> 40 & 0xff), b4 = (int) (leastSigBits >>> 32 & 0xff);
+//        int b5 = (int) (leastSigBits >>> 24 & 0xff), b6 = (int) (leastSigBits >>> 16 & 0xff), b7 = (int) (leastSigBits >>> 8 & 0xff), b8 = (int) (leastSigBits & 0xff);
+//        if (EnvUtils.BIG_ENDIAN) {
+//            v1 = (long) HEX_DIGITS_INT32[b1] << 32 | HEX_DIGITS_INT32[b2];
+//            v2 = (long) HEX_DIGITS_INT32[b3] << 32 | HEX_DIGITS_INT32[b4];
+//            v3 = (long) HEX_DIGITS_INT32[b5] << 32 | HEX_DIGITS_INT32[b6];
+//            v4 = (long) HEX_DIGITS_INT32[b7] << 32 | HEX_DIGITS_INT32[b8];
+//        } else {
+//            v1 = (long) HEX_DIGITS_INT32[b2] << 32 | HEX_DIGITS_INT32[b1];
+//            v2 = (long) HEX_DIGITS_INT32[b4] << 32 | HEX_DIGITS_INT32[b3];
+//            v3 = (long) HEX_DIGITS_INT32[b6] << 32 | HEX_DIGITS_INT32[b5];
+//            v4 = (long) HEX_DIGITS_INT32[b8] << 32 | HEX_DIGITS_INT32[b7];
+//        }
+//        buf[offset++] = '-';
+//        UnsafeHelper.putLong(buf, offset, v1);
+//        offset += 4;
+//        buf[offset++] = '-';
+//        UnsafeHelper.putLong(buf, offset, v2);
+//        offset += 4;
+//        UnsafeHelper.putLong(buf, offset, v3);
+//        offset += 4;
+//        UnsafeHelper.putLong(buf, offset, v4);
+//        return 18;
+//    }
 
     public static int writeUUIDMostSignificantBits(long mostSigBits, byte[] buf, int offset) {
         // last 4
@@ -776,7 +824,7 @@ public final class NumberUtils {
             } else if (checkLowCarry(l, left, ed5.of)) {
                 // tail h like 10000000
                 return longBitsToDecimalDouble(h + 1, e52, sr);
-            } else if(scale < POW5_LONG_VALUES.length) {
+            } else if (scale < POW5_LONG_VALUES.length) {
                 // if reach here, there is a high probability that val can be evenly divided by p5sv
                 long p5sv = POW5_LONG_VALUES[scale];
                 long mantissa0 = h >>> sr;
@@ -846,6 +894,7 @@ public final class NumberUtils {
         long bits = (e2 << 52) | (mantissa0 & MOD_DOUBLE_MANTISSA);
         return Double.longBitsToDouble(bits);
     }
+
     static double longBitsToIntegerDouble(long l62, long e2, int sr) {
         if (e2 >= 2047) return Double.POSITIVE_INFINITY;
         long mantissa0 = ((l62 >>> sr - 1) + 1) >> 1;
@@ -998,7 +1047,7 @@ public final class NumberUtils {
      * <p> Using the difference estimation method </p>
      * <p> The output may not be the shortest, but the general result is correct </p>
      *
-     * @param doubleValue != 0
+     * @param doubleValue > 0
      * @return
      */
     static Scientific doubleToScientific(double doubleValue) {
@@ -1009,7 +1058,7 @@ public final class NumberUtils {
         boolean flagForDown = mantissa0 > 0;
         int e52;
         long output;
-        long rawOutput, d2, d3, d4;
+        long rawOutput, /*d2, */d3, d4;
         int e10, adl;
         if (e2 > 0) {
             if (e2 == 2047) return Scientific.SCIENTIFIC_NULL;
@@ -1020,12 +1069,12 @@ public final class NumberUtils {
             mantissa0 <<= lz52;
             e52 = -1074 - lz52;
         }
-        boolean tflag = true, accurate = false;
+        boolean /*tflag = true,*/ accurate = false;
         if (e52 >= 0) {
             ED d = ED.E2_D_A[e52];
             e10 = d.e10;   // e10 > 15
             adl = d.adl;
-            d2 = d.d2;
+            // d2 = d.d2;
             d3 = d.d3;
             d4 = d.d4;
             if (d.b && mantissa0 >= d.bv) {
@@ -1059,7 +1108,7 @@ public final class NumberUtils {
             ED d = ED.E5_D_A[e5];
             e10 = d.e10;
             adl = d.adl;
-            d2 = d.d2;
+            // d2 = d.d2;
             d3 = d.d3;
             d4 = d.d4;
             if (d.b && mantissa0 >= d.bv) {
@@ -1095,51 +1144,66 @@ public final class NumberUtils {
             rawOutput = rawOutput / 10;
             if (adl == 16) {
                 --adl;
-                long rem = rawOutput % 10;
-                rawOutput = rawOutput / 10 + (rem >= 5 ? 1 : 0);
+                rawOutput = (rawOutput + 5) / 10; // rawOutput = rawOutput / 10 + ((rawOutput % 10) >= 5 ? 1 : 0);
             }
             return new Scientific(rawOutput, adl + 2, e10);
         }
-        if (rawOutput < 0) {
-            rawOutput = (rawOutput >>> 1) / 5;
-            tflag = false;
-        }
-        long div, rem;
-        if (tflag) {
-            // rem <= Actual Rem Value
-            div = rawOutput / 1000;
-            rem = rawOutput - div * 1000;
-            long remUp = (10001 - rem * 10) << 1;
-            boolean up;
-            if ((up = (remUp <= d4)) || ((rem + 1) << (flagForDown ? 1 : 2)) <= d3) {
-                output = div + (up ? 1 : 0);
-                --adl;
-            } else {
-                if (flagForDown) {
-                    div = rawOutput / 100;
-                    rem = rawOutput - div * 100;
-                    output = div + (rem >= 50 ? 1 : 0);
-                } else {
-                    div = rawOutput / 10;
-                    rem = rawOutput - div * 10;
-                    output = div + (rem >= 5 ? 1 : 0);
-                    ++adl;
-                }
-            }
+//        if (rawOutput < 0) {
+//            rawOutput = (rawOutput >>> 1) / 5;
+//            tflag = false;
+//        }
+//        long div, rem;
+//        if (tflag) {
+//            // rem <= Actual Rem Value
+//            div = rawOutput / 1000;
+//            rem = rawOutput - div * 1000;
+//            long remUp = (10001 - rem * 10) << 1;
+//            boolean up;
+//            if ((up = (remUp <= d4)) || ((rem + 1) << (flagForDown ? 1 : 2)) <= d3) {
+//                output = div + (up ? 1 : 0);
+//                --adl;
+//            } else {
+//                if (flagForDown) {
+//                    div = rawOutput / 100;
+//                    rem = rawOutput - div * 100;
+//                    output = div + (rem >= 50 ? 1 : 0);
+//                } else {
+//                    div = rawOutput / 10;
+//                    rem = rawOutput - div * 10;
+//                    output = div + (rem >= 5 ? 1 : 0);
+//                    ++adl;
+//                }
+//            }
+//        } else {
+//            rem = rawOutput % 100;
+//            long remUp = (101 - rem) << 1;
+//            boolean up;
+//            if ((up = (remUp <= d2)) || (rem + 1) << (flagForDown ? 1 : 2) <= d2) {
+//                output = rawOutput / 100 + (up ? 1 : 0);
+//                --adl;
+//            } else {
+//                if (flagForDown) {
+//                    output = rawOutput / 10 + (rem % 10 >= 5 ? 1 : 0);
+//                } else {
+//                    output = rawOutput;
+//                    ++adl;
+//                }
+//            }
+//        }
+
+        // rem <= Actual Rem Value
+        long div = rawOutput / 1000, rem = rawOutput - div * 1000;
+        long remUp = (10001 - rem * 10) << 1;
+        boolean up;
+        if ((up = (remUp <= d4)) || ((rem + 1) << (flagForDown ? 1 : 2)) <= d3) {
+            output = div + (up ? 1 : 0);
+            --adl;
         } else {
-            rem = rawOutput % 100;
-            long remUp = (101 - rem) << 1;
-            boolean up;
-            if ((up = (remUp <= d2)) || (rem + 1) << (flagForDown ? 1 : 2) <= d2) {
-                output = rawOutput / 100 + (up ? 1 : 0);
-                --adl;
+            if (flagForDown) {
+                output = (rawOutput + 50) / 100; // rawOutput / 100 + ((rawOutput % 100) >= 50 ? 1 : 0)
             } else {
-                if (flagForDown) {
-                    output = rawOutput / 10 + (rem % 10 >= 5 ? 1 : 0);
-                } else {
-                    output = rawOutput;
-                    ++adl;
-                }
+                output = (rawOutput + 5) / 10; // rawOutput / 10 + ((rawOutput % 10) >= 5 ? 1 : 0)
+                ++adl;
             }
         }
         return new Scientific(output, adl + 1, e10);
@@ -2104,13 +2168,8 @@ public final class NumberUtils {
         numValue = val;
         val = numValue / 10000;
         v4 = (int) (numValue - val * 10000);
-        v = (int) val;
 
-        if (v < 1000) {
-            off += writeThreeDigits(v, chars, off);
-        } else {
-            off += UnsafeHelper.putLong(chars, off, FOUR_DIGITS_64_BITS[v]);
-        }
+        off += writeThreeDigits((int) val, chars, off);
         off += UnsafeHelper.putLong(chars, off, FOUR_DIGITS_64_BITS[v4]);
         off += UnsafeHelper.putLong(chars, off, FOUR_DIGITS_64_BITS[v3]);
         off += UnsafeHelper.putLong(chars, off, FOUR_DIGITS_64_BITS[v2]);
@@ -2185,13 +2244,8 @@ public final class NumberUtils {
         numValue = val;
         val = numValue / 10000;
         v4 = (int) (numValue - val * 10000);
-        v = (int) val;
 
-        if (v < 1000) {
-            off += writeThreeDigits(v, buf, off);
-        } else {
-            off += UnsafeHelper.putInt(buf, off, FOUR_DIGITS_32_BITS[v]);
-        }
+        off += writeThreeDigits((int) val, buf, off);
         off += UnsafeHelper.putInt(buf, off, FOUR_DIGITS_32_BITS[v4]);
         off += UnsafeHelper.putInt(buf, off, FOUR_DIGITS_32_BITS[v3]);
         off += UnsafeHelper.putInt(buf, off, FOUR_DIGITS_32_BITS[v2]);
@@ -2230,6 +2284,10 @@ public final class NumberUtils {
                 throw new IllegalArgumentException("invalid hex char " + (char) c);
             }
         }
+    }
+
+    public static byte hexDigitAt(int c) {
+        return HEX_DIGITS_REVERSE[c];
     }
 
     public static String toString(double val) {

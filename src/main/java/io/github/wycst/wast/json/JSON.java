@@ -96,7 +96,7 @@ import java.util.*;
 public final class JSON extends JSONGeneral {
 
     /**
-     * 将json字符串转为对象或者数组(Convert JSON strings to objects or arrays)
+     * json -> Map(LinkHashMap)/List(ArrayList)/String
      *
      * @param json        source
      * @param readOptions 解析配置项
@@ -108,7 +108,7 @@ public final class JSON extends JSONGeneral {
     }
 
     /**
-     * 将json字符串转化为指定map
+     * json -> map
      *
      * @param json
      * @param mapCls
@@ -117,6 +117,18 @@ public final class JSON extends JSONGeneral {
      */
     public static Map parseMap(String json, Class<? extends Map> mapCls, ReadOption... readOptions) {
         return JSONDefaultParser.parseMap(json, mapCls, readOptions);
+    }
+
+    /**
+     * === > JSONNode.parse
+     *
+     * @param json
+     * @param readOptions
+     * @return
+     */
+    public static JSONNode parseNode(String json, ReadOption... readOptions) {
+        if (json == null) return null;
+        return JSONNode.parse(json, readOptions);
     }
 
     /**

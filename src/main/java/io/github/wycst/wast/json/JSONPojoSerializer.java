@@ -147,7 +147,7 @@ public class JSONPojoSerializer<T> extends JSONTypeSerializer {
             int hashcode = -1;
             if (jsonConfig.isSkipCircularReference()) {
                 if (jsonConfig.getStatus(hashcode = System.identityHashCode(obj)) == 0) {
-                    writer.write(NULL);
+                    writer.writeNull();
                     return;
                 }
                 jsonConfig.setStatus(hashcode, 0);

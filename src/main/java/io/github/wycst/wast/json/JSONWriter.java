@@ -27,9 +27,6 @@ public abstract class JSONWriter extends Writer {
     final static int Z_QUOT_INT;
     final static short Z_QUOT_SHORT;
 
-    // There is no need to consider thread safety issues
-    static int[] HC_STRING_SH = new int[512];
-
     static {
         // init memory:  16KB * 2 * 8 -> 256KB
         CACHE_BUFFER_SIZE = EnvUtils.JDK_VERSION >= 1.8f ? 1 << 14 : 1 << 12;
@@ -476,13 +473,13 @@ public abstract class JSONWriter extends Writer {
         write('"');
     }
 
-    public void writeFieldString(String value, int offset, int len) throws IOException {
-        write(value, offset, len);
-    }
-
-    public final void writeFieldString(String value) throws IOException {
-        writeFieldString(value, 0, value.length());
-    }
+//    public void writeFieldString(String value, int offset, int len) throws IOException {
+//        write(value, offset, len);
+//    }
+//
+//    public final void writeFieldString(String value) throws IOException {
+//        writeFieldString(value, 0, value.length());
+//    }
 
     /**
      * 通过unsafe写入4 * n个字符（4 * n 字节）
@@ -519,5 +516,9 @@ public abstract class JSONWriter extends Writer {
 
     public void writeEmptyArray() throws IOException {
         write(JSONGeneral.EMPTY_ARRAY);
+    }
+
+    final static boolean isNoEscape(int b) {
+        return JSONGeneral.ESCAPE_FLAGS[b] == 0;
     }
 }

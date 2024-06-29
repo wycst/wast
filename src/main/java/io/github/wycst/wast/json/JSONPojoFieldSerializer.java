@@ -1,5 +1,6 @@
 package io.github.wycst.wast.json;
 
+import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.GetterInfo;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
@@ -9,6 +10,7 @@ import io.github.wycst.wast.json.annotations.JsonSerialize;
 import io.github.wycst.wast.json.custom.JsonSerializer;
 
 import java.io.IOException;
+import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -90,6 +92,14 @@ public class JSONPojoFieldSerializer extends JSONTypeSerializer {
             // From cache by different number types (int/float/double/long...)
             return JSONTypeSerializer.getTypeSerializer(returnType);
         } else {
+            GenericParameterizedType genericParameterizedType = getterInfo.getGenericParameterizedType();
+            if (classCategory == ReflectConsts.ClassCategory.CollectionCategory && genericParameterizedType != null) {
+                GenericParameterizedType valueType = genericParameterizedType.getValueType();
+                Class<?> valueClass = valueType.getActualType();
+                if (Modifier.isFinal(valueClass.getModifiers())) {
+                    return JSONTypeSerializer.createCollectionSerializer(valueClass);
+                }
+            }
             return JSONTypeSerializer.getFieldTypeSerializer(classCategory, returnType, jsonProperty);
         }
     }
@@ -132,7 +142,7 @@ public class JSONPojoFieldSerializer extends JSONTypeSerializer {
             writer.writeUnsafe(fieldNameTokenLongs, fieldNameTokenInts, fieldNameTokenOffset);
         } else {
             if (fieldNameToken != null) {
-                writer.writeFieldString(fieldNameToken, 0, fieldNameTokenOffset);
+                writer.write(fieldNameToken, 0, fieldNameTokenOffset);
             } else {
                 writer.writeShortChars(fieldNameTokenChars, 0, fieldNameTokenOffset);
             }

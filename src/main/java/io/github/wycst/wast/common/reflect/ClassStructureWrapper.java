@@ -98,7 +98,7 @@ public final class ClassStructureWrapper {
     // getter的属性和GetInfo映射
     private Map<String, GetterInfo> getterInfoMap = new HashMap<String, GetterInfo>();
 
-    private FieldInfo[] fieldInfos;
+    private Map<String, FieldInfo> fieldInfoMap = new HashMap<String, FieldInfo>();
 
     private long fieldsCheckCode;
 
@@ -141,6 +141,13 @@ public final class ClassStructureWrapper {
 
     private void fillGetterInfoMap() {
         for (GetterInfo getterInfo : getterInfos) {
+            if (getterInfo.existField()) {
+                String name = getterInfo.getField().getName();
+                FieldInfo fieldInfo = fieldInfoMap.get(name);
+                if (fieldInfo != null) {
+                    getterInfo.setGenericParameterizedType(fieldInfo.getSetterInfo().getGenericParameterizedType());
+                }
+            }
             getterInfoMap.put(getterInfo.getName(), getterInfo);
         }
         for (GetterInfo getterInfo : getterInfoOfFields) {
@@ -248,12 +255,11 @@ public final class ClassStructureWrapper {
                 }
 
                 if (wrapper.record) {
-                    // 通过构造信息初始化wrapper
+                    // Initialize the wrapper by constructing information
                     wrapperWithRecordConstructor(wrapper, superGenericClassMap);
                 } else {
-                    // 通过pojo或者javabean的规范（公约）即method或者field初始化wrapper
+                    // Initialize the wrapper through the specifications (conventions) of pojo or Javabeans, namely method or field
                     wrapperWithMethodAndField(wrapper, superGenericClassMap);
-
                 }
 
                 classStructureWarppers.put(sourceClass, wrapper);
@@ -292,7 +298,7 @@ public final class ClassStructureWrapper {
             Object[] constructorArgs = new Object[len];
             wrapper.constructorArgs = constructorArgs;
 
-            List<FieldInfo> fieldInfos = new ArrayList<FieldInfo>();
+            Map<String, FieldInfo> fieldInfoMap = new HashMap<String, FieldInfo>();
             long fieldsCheckCode = 0;
             for (int i = 0; i < len; i++) {
                 Object parameter = parameters[i];
@@ -302,7 +308,7 @@ public final class ClassStructureWrapper {
                 }
                 // invoke name
                 String name = (String) parameterNameMethod.invoke(parameter);
-                if(fieldsCheckCode == 0) {
+                if (fieldsCheckCode == 0) {
                     fieldsCheckCode = FNV.hash64(name);
                 } else {
                     fieldsCheckCode = FNV.hash64(fieldsCheckCode, name);
@@ -349,10 +355,9 @@ public final class ClassStructureWrapper {
 
                 fieldInfo.setGetterInfo(getterInfo);
                 fieldInfo.setSetterInfo(setterInfo);
-                fieldInfos.add(fieldInfo);
+                fieldInfoMap.put(name, fieldInfo);
             }
-
-            wrapper.fieldInfos = fieldInfos.toArray(new FieldInfo[fieldInfos.size()]);
+            wrapper.fieldInfoMap = fieldInfoMap;
             wrapper.fieldsCheckCode = fieldsCheckCode;
         } catch (Throwable throwable) {
         }
@@ -422,7 +427,7 @@ public final class ClassStructureWrapper {
                 if (methodName.length() == startIndex)
                     continue;
                 boolean boolGetter = !startsWithGet;
-                if(boolGetter && returnType != boolean.class) {
+                if (boolGetter && returnType != boolean.class) {
                     // isXXX only supported boolean
                     continue;
                 }
@@ -455,7 +460,7 @@ public final class ClassStructureWrapper {
                     }
                     addAnnotations(annotationMap, field.getAnnotations());
                 } catch (Exception e) {
-                    if(boolGetter) {
+                    if (boolGetter) {
                         // isXXX
                         try {
                             Field field = sourceClass.getDeclaredField(methodName);
@@ -529,10 +534,10 @@ public final class ClassStructureWrapper {
             }
         }
 
-        // 解析所有字段
+        // Resolve all fields
         parseWrapperFields(wrapper, sourceClass, superGenericClassMap);
 
-        // 排序输出防止每次重启jvm后序列化顺序不一致
+        // Sort output to prevent inconsistent serialization order after each restart of the JVM
         Collections.sort(getterInfos, new Comparator<GetterInfo>() {
             public int compare(GetterInfo o1, GetterInfo o2) {
                 return o1.getName().compareTo(o2.getName());
@@ -548,9 +553,9 @@ public final class ClassStructureWrapper {
     }
 
     private static boolean compatibleType(Class<?> type, Class<?> parameterType) {
-        if(type.isAssignableFrom(parameterType)) return true;
+        if (type.isAssignableFrom(parameterType)) return true;
         List<Class<?>> types = COMPATIBLE_TYPES.get(type);
-        if(types == null) return false;
+        if (types == null) return false;
         return types.indexOf(parameterType) > -1;
     }
 
@@ -589,8 +594,8 @@ public final class ClassStructureWrapper {
             this.classWrapperType = ClassWrapperType.Record;
         }
 
-        if(theSuperClass.isEnum()) {
-            this.subEnum =  true;
+        if (theSuperClass.isEnum()) {
+            this.subEnum = true;
         }
 
         if (javaBuiltInModule) {
@@ -617,7 +622,7 @@ public final class ClassStructureWrapper {
             } else if (className.equals("java.time.ZonedDateTime")) {
                 this.classWrapperType = ClassWrapperType.TemporalZonedDateTime;
                 this.temporal = true;
-            } else if(className.equals("java.time.OffsetDateTime")) {
+            } else if (className.equals("java.time.OffsetDateTime")) {
                 this.classWrapperType = ClassWrapperType.TemporalOffsetDateTime;
                 this.temporal = true;
             }
@@ -722,7 +727,7 @@ public final class ClassStructureWrapper {
         Class<?> target = sourceClass;
         Set<String> fieldNames = new HashSet<String>();
         List<GetterInfo> getterInfoOfFields = new ArrayList<GetterInfo>();
-        List<FieldInfo> fieldInfos = new ArrayList<FieldInfo>();
+        Map<String, FieldInfo> fieldInfoMap = new HashMap<String, FieldInfo>();
         int cnt = 0, index = 0;
         long fieldsCheckCode = 0;
         while (target != Object.class) {
@@ -741,7 +746,7 @@ public final class ClassStructureWrapper {
                     fieldInfo.setName(fieldName);
                     fieldInfo.setIndex(index++);
 
-                    if(fieldsCheckCode == 0) {
+                    if (fieldsCheckCode == 0) {
                         fieldsCheckCode = FNV.hash64(fieldName);
                     } else {
                         fieldsCheckCode = FNV.hash64(fieldsCheckCode, fieldName);
@@ -772,6 +777,9 @@ public final class ClassStructureWrapper {
                     parseSetterGenericType(superGenericClassMap, sourceClass, declaringClass, setterInfo, genericType, fieldType);
                     setterInfo.setAnnotations(annotationMap);
 
+                    // Consistent getter and setter generic information reflected by attributes
+                    getterInfo.setGenericParameterizedType(setterInfo.getGenericParameterizedType());
+
                     SetterInfo oldSetterInfo = wrapper.setterInfos.get(fieldName);
                     if (oldSetterInfo == null || !oldSetterInfo.isFieldDisabled()) {
                         wrapper.setterInfos.put(fieldName, setterInfo);
@@ -781,7 +789,7 @@ public final class ClassStructureWrapper {
                         wrapper.setterInfos.put(underlineName, setterInfo);
                     }
                     fieldInfo.setSetterInfo(setterInfo);
-                    fieldInfos.add(fieldInfo);
+                    fieldInfoMap.put(fieldName, fieldInfo);
                 }
             }
             target = target.getSuperclass();
@@ -791,7 +799,7 @@ public final class ClassStructureWrapper {
             }
         }
         wrapper.getterInfoOfFields = Collections.unmodifiableList(getterInfoOfFields);
-        wrapper.fieldInfos = fieldInfos.toArray(new FieldInfo[fieldInfos.size()]);
+        wrapper.fieldInfoMap = fieldInfoMap;
         wrapper.fieldsCheckCode = fieldsCheckCode;
     }
 
@@ -915,7 +923,8 @@ public final class ClassStructureWrapper {
     }
 
     public FieldInfo[] getFieldInfos() {
-        return Arrays.copyOf(fieldInfos, fieldInfos.length);
+        FieldInfo[] fieldInfos = new FieldInfo[fieldInfoMap.size()];
+        return fieldInfoMap.values().toArray(fieldInfos);
     }
 
     public long getFieldsCheckCode() {

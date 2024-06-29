@@ -68,15 +68,10 @@ class JSONWrapWriter extends JSONWriter {
 
     @Override
     public void writeUUID(UUID uuid) throws IOException {
-        long mostSigBits = uuid.getMostSignificantBits();
-        long leastSigBits = uuid.getLeastSignificantBits();
         writer.write('"');
-        char[] chars = JSONGeneral.CACHED_CHARS_24.get();
-        NumberUtils.writeUUIDMostSignificantBits(mostSigBits, chars, 0);
-        writer.write(chars, 0, 18);
-
-        NumberUtils.writeUUIDLeastSignificantBits(leastSigBits, chars, 0);
-        writer.write(chars, 0, 18);
+        char[] chars = new char[36];
+        NumberUtils.writeUUID(uuid, chars, 0);
+        writer.write(chars, 0, 36);
         writer.write('"');
     }
 

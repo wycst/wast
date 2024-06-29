@@ -3,11 +3,9 @@ package io.github.wycst.wast.common.utils;
 import io.github.wycst.wast.common.beans.DateParser;
 import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.common.exceptions.TypeNotMatchExecption;
-import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
-import io.github.wycst.wast.common.reflect.GetterInfo;
-import io.github.wycst.wast.common.reflect.ReflectConsts;
-import io.github.wycst.wast.common.reflect.SetterInfo;
+import io.github.wycst.wast.common.reflect.*;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -430,8 +428,15 @@ public final class ObjectUtils {
                     return (E) new Date(time);
                 } else if (valueClass == Timestamp.class) {
                     return (E) new Timestamp(time);
+                } else {
+                    try {
+                        Constructor constructor = valueClass.getDeclaredConstructor(new Class[]{long.class});
+                        UnsafeHelper.setAccessible(constructor);
+                        return (E) constructor.newInstance(time);
+                    } catch (Exception e) {
+                        throw new UnsupportedOperationException("not supported for date type " + valueClass);
+                    }
                 }
-                break;
             }
             case EnumCategory: {
                 if (value instanceof Number) {

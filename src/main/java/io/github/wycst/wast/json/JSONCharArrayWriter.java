@@ -228,18 +228,23 @@ class JSONCharArrayWriter extends JSONWriter {
     public void write(String str, int off, int len) {
         if (len == 0) return;
         ensureCapacity(len + SECURITY_UNCHECK_SPACE);
-        str.getChars(off, off + len, buf, count);
-        count += len;
+        int count = this.count, i = 0;
+        for (; i < len; ++i) {
+            buf[count++] = str.charAt(off++);
+        }
+        this.count = count;
+//        str.getChars(off, off + len, buf, count);
+//        count += len;
     }
 
-    @Override
-    public void writeFieldString(String value, int offset, int len) throws IOException {
-        if (len >= SECURITY_UNCHECK_SPACE) {
-            ensureCapacity(len + SECURITY_UNCHECK_SPACE);
-        }
-        value.getChars(offset, offset + len, buf, count);
-        count += len;
-    }
+//    @Override
+//    public void writeFieldString(String value, int offset, int len) throws IOException {
+//        if (len >= SECURITY_UNCHECK_SPACE) {
+//            ensureCapacity(len + SECURITY_UNCHECK_SPACE);
+//        }
+//        value.getChars(offset, offset + len, buf, count);
+//        count += len;
+//    }
 
     @Override
     public void flush() throws IOException {
@@ -374,7 +379,7 @@ class JSONCharArrayWriter extends JSONWriter {
     }
 
     @Override
-    public void writeLong(long numValue) throws IOException {
+    public final void writeLong(long numValue) throws IOException {
         if (numValue == 0) {
             ensureCapacity(1 + SECURITY_UNCHECK_SPACE);
             buf[count++] = '0';
@@ -428,20 +433,17 @@ class JSONCharArrayWriter extends JSONWriter {
     }
 
     @Override
-    public void writeUUID(UUID uuid) {
-        long mostSigBits = uuid.getMostSignificantBits();
-        long leastSigBits = uuid.getLeastSignificantBits();
+    public final void writeUUID(UUID uuid) {
         ensureCapacity(38 + SECURITY_UNCHECK_SPACE);
         int off = count;
         buf[off++] = '"';
-        off += NumberUtils.writeUUIDMostSignificantBits(mostSigBits, buf, off);
-        off += NumberUtils.writeUUIDLeastSignificantBits(leastSigBits, buf, off);
+        off += NumberUtils.writeUUID(uuid, buf, off);
         buf[off++] = '"';
         count = off;
     }
 
     @Override
-    public void writeDouble(double numValue) {
+    public final void writeDouble(double numValue) {
         ensureCapacity(24 + SECURITY_UNCHECK_SPACE);
         int off = this.count;
         off += NumberUtils.writeDouble(numValue, buf, off);
@@ -449,13 +451,13 @@ class JSONCharArrayWriter extends JSONWriter {
     }
 
     @Override
-    public void writeFloat(float numValue) {
+    public final void writeFloat(float numValue) {
         ensureCapacity(24 + SECURITY_UNCHECK_SPACE);
         count += NumberUtils.writeFloat(numValue, buf, count);
     }
 
     @Override
-    public void writeJSONLocalDateTime(int year, int month, int day, int hour, int minute, int second, int nano, String zoneId) throws IOException {
+    public final void writeJSONLocalDateTime(int year, int month, int day, int hour, int minute, int second, int nano, String zoneId) throws IOException {
         ensureCapacity(36 + SECURITY_UNCHECK_SPACE);
         int off = count;
         buf[off++] = '"';
@@ -487,7 +489,7 @@ class JSONCharArrayWriter extends JSONWriter {
         }
     }
 
-    int writeNano(int nano, int off) {
+    final int writeNano(int nano, int off) {
         // 4 + 2 + 3
         buf[off++] = '.';
         // seg1 4
@@ -514,7 +516,7 @@ class JSONCharArrayWriter extends JSONWriter {
     }
 
     @Override
-    public void writeJSONLocalDate(int year, int month, int day) {
+    public final void writeJSONLocalDate(int year, int month, int day) {
         ensureCapacity(13 + SECURITY_UNCHECK_SPACE);
         int off = count;
         buf[off++] = '"';
@@ -534,7 +536,7 @@ class JSONCharArrayWriter extends JSONWriter {
     }
 
     @Override
-    public void writeTime(int hourOfDay, int minute, int second) {
+    public final void writeTime(int hourOfDay, int minute, int second) {
         ensureCapacity(10 + SECURITY_UNCHECK_SPACE);
         int off = count;
         off += NumberUtils.writeTwoDigits(hourOfDay, buf, off);
@@ -544,7 +546,7 @@ class JSONCharArrayWriter extends JSONWriter {
     }
 
     @Override
-    public void writeJSONTimeWithNano(int hourOfDay, int minute, int second, int nano) {
+    public final void writeJSONTimeWithNano(int hourOfDay, int minute, int second, int nano) {
         ensureCapacity(22 + SECURITY_UNCHECK_SPACE);
         int off = count;
         buf[off++] = '"';
@@ -559,7 +561,7 @@ class JSONCharArrayWriter extends JSONWriter {
     }
 
     @Override
-    public void writeDate(int year, int month, int day, int hourOfDay, int minute, int second) {
+    public final void writeDate(int year, int month, int day, int hourOfDay, int minute, int second) {
         ensureCapacity(24 + SECURITY_UNCHECK_SPACE);
         int off = count;
         if (year < 0) {
@@ -581,7 +583,7 @@ class JSONCharArrayWriter extends JSONWriter {
     }
 
     @Override
-    public void writeBigInteger(BigInteger bigInteger) {
+    public final void writeBigInteger(BigInteger bigInteger) {
         int increment = ((bigInteger.bitLength() / 60) + 1) * 18;
         ensureCapacity(increment + SECURITY_UNCHECK_SPACE);
         count += NumberUtils.writeBigInteger(bigInteger, buf, count);
@@ -650,46 +652,176 @@ class JSONCharArrayWriter extends JSONWriter {
         }
     }
 
+    final static int escapeBytesToChars(byte[] bytes, int begin, char[] buf, int offset) {
+        for (int i = begin, len = bytes.length; i < len; ++i) {
+            int b = bytes[i] & 0xFF;
+            if (isNoEscape(b)) {
+                buf[offset++] = (char) b;
+            } else {
+                String escapeStr = JSONGeneral.ESCAPE_VALUES[b];
+                int escapesLen = escapeStr.length();
+                escapeStr.getChars(0, escapesLen, buf, offset);
+                offset += escapesLen;
+            }
+        }
+        return offset;
+    }
+
+    final static int mod4BytesToChars(byte[] bytes, int byteOffset, char[] chars, int charOffset) {
+        int len = bytes.length;
+        if (byteOffset < len) {
+            int b = bytes[byteOffset++] & 0xFF;
+            if (isNoEscape(b)) {
+                chars[charOffset++] = (char) b;
+            } else {
+                String escapeStr = JSONGeneral.ESCAPE_VALUES[b];
+                int escapesLen = escapeStr.length();
+                escapeStr.getChars(0, escapesLen, chars, charOffset);
+                charOffset += escapesLen;
+            }
+            if (byteOffset < len) {
+                b = bytes[byteOffset++] & 0xFF;
+                if (isNoEscape(b)) {
+                    chars[charOffset++] = (char) b;
+                } else {
+                    String escapeStr = JSONGeneral.ESCAPE_VALUES[b];
+                    int escapesLen = escapeStr.length();
+                    escapeStr.getChars(0, escapesLen, chars, charOffset);
+                    charOffset += escapesLen;
+                }
+                if (byteOffset < len) {
+                    b = bytes[byteOffset++] & 0xFF;
+                    if (isNoEscape(b)) {
+                        chars[charOffset++] = (char) b;
+                    } else {
+                        String escapeStr = JSONGeneral.ESCAPE_VALUES[b];
+                        int escapesLen = escapeStr.length();
+                        escapeStr.getChars(0, escapesLen, chars, charOffset);
+                        charOffset += escapesLen;
+                    }
+                    if (byteOffset < len) {
+                        b = bytes[byteOffset] & 0xFF;
+                        if (isNoEscape(b)) {
+                            chars[charOffset++] = (char) b;
+                        } else {
+                            String escapeStr = JSONGeneral.ESCAPE_VALUES[b];
+                            int escapesLen = escapeStr.length();
+                            escapeStr.getChars(0, escapesLen, chars, charOffset);
+                            charOffset += escapesLen;
+                        }
+                    }
+                }
+            }
+        }
+        return charOffset;
+    }
+
     @Override
     public void writeLatinJSONString(String value, byte[] bytes) throws IOException {
         int len = bytes.length;
         ensureCapacity(len + (2 + SECURITY_UNCHECK_SPACE));
         int count = this.count;
         buf[count++] = '"';
-        int beginIndex = 0;
-        for (int i = 0; i < len; ++i) {
-            int b = bytes[i] & 0xFF;
-            if(JSONGeneral.ESCAPE_FLAGS[b] == 0) continue;
-            String escapeStr = JSONGeneral.ESCAPE_VALUES[b];
-            int length = i - beginIndex;
-            expandCapacity(length + count + 8);
+        if (len > 15) {
+            int beginIndex = 0;
+            for (int i = 0; i < len; ++i) {
+                int b = bytes[i] & 0xFF;
+                if (JSONGeneral.ESCAPE_FLAGS[b] == 0) continue;
+                String escapeStr = JSONGeneral.ESCAPE_VALUES[b];
+                int length = i - beginIndex;
+                expandCapacity(length + count + 8);
+                if (length > 0) {
+                    value.getChars(beginIndex, i, buf, count);
+                    count += length;
+                }
+                int escapesLen = escapeStr.length();
+                escapeStr.getChars(0, escapesLen, buf, count);
+                count += escapesLen;
+                beginIndex = i + 1;
+            }
+            int length = len - beginIndex;
             if (length > 0) {
-                value.getChars(beginIndex, i, buf, count);
+                value.getChars(beginIndex, len, buf, count);
                 count += length;
             }
-            int escapesLen = escapeStr.length();
-            escapeStr.getChars(0, escapesLen, buf, count);
-            count += escapesLen;
-            beginIndex = i + 1;
-        }
-        int length = len - beginIndex;
-        if (length > 0) {
-            value.getChars(beginIndex, len, buf, count);
-            count += length;
+        } else {
+            int i = 0, limit = len - 5, b, b1, b2, b3, b4;
+            do {
+                if (i <= limit) {
+                    if (isNoEscape(b = bytes[i] & 0xFF)
+                            && isNoEscape(b1 = bytes[i + 1] & 0xFF)
+                            && isNoEscape(b2 = bytes[i + 2] & 0xFF)
+                            && isNoEscape(b3 = bytes[i + 3] & 0xFF)
+                            && isNoEscape(b4 = bytes[i + 4] & 0xFF)) {
+                        buf[count++] = (char) b;
+                        buf[count++] = (char) b1;
+                        buf[count++] = (char) b2;
+                        buf[count++] = (char) b3;
+                        buf[count++] = (char) b4;
+                        i += 5;
+                    } else {
+                        count = escapeBytesToChars(bytes, i, buf, count);
+                        break;
+                    }
+                } else {
+                    count = mod4BytesToChars(bytes, i, buf, count);
+                    break;
+                }
+                if (i <= limit) {
+                    if (isNoEscape(b = bytes[i] & 0xFF)
+                            && isNoEscape(b1 = bytes[i + 1] & 0xFF)
+                            && isNoEscape(b2 = bytes[i + 2] & 0xFF)
+                            && isNoEscape(b3 = bytes[i + 3] & 0xFF)
+                            && isNoEscape(b4 = bytes[i + 4] & 0xFF)) {
+                        buf[count++] = (char) b;
+                        buf[count++] = (char) b1;
+                        buf[count++] = (char) b2;
+                        buf[count++] = (char) b3;
+                        buf[count++] = (char) b4;
+                        i += 5;
+                    } else {
+                        count = escapeBytesToChars(bytes, i, buf, count);
+                        break;
+                    }
+                } else {
+                    count = mod4BytesToChars(bytes, i, buf, count);
+                    break;
+                }
+                if (i <= limit) {
+                    if (isNoEscape(b = bytes[i] & 0xFF)
+                            && isNoEscape(b1 = bytes[i + 1] & 0xFF)
+                            && isNoEscape(b2 = bytes[i + 2] & 0xFF)
+                            && isNoEscape(b3 = bytes[i + 3] & 0xFF)
+                            && isNoEscape(b4 = bytes[i + 4] & 0xFF)) {
+                        buf[count++] = (char) b;
+                        buf[count++] = (char) b1;
+                        buf[count++] = (char) b2;
+                        buf[count++] = (char) b3;
+                        buf[count++] = (char) b4;
+                        break;
+                    } else {
+                        count = escapeBytesToChars(bytes, i, buf, count);
+                        break;
+                    }
+                } else {
+                    count = mod4BytesToChars(bytes, i, buf, count);
+                    break;
+                }
+            } while (false);
         }
         buf[count++] = '"';
         this.count = count;
     }
 
     @Override
-    public void writeUnsafe(long fourChars, int fourBytes, int len) throws IOException {
+    public final void writeUnsafe(long fourChars, int fourBytes, int len) throws IOException {
         // ensureCapacity(4 + SECURITY_UNCHECK_SPACE);
         UnsafeHelper.putLong(buf, count, fourChars);
         count += len;
     }
 
     @Override
-    public void writeUnsafe(long[] fourChars, int[] fourBytes, int totalCount) throws IOException {
+    public final void writeUnsafe(long[] fourChars, int[] fourBytes, int totalCount) throws IOException {
         int n = fourChars.length;
         ensureCapacity((n << 2) + SECURITY_UNCHECK_SPACE);
         int count = this.count;
@@ -701,7 +833,7 @@ class JSONCharArrayWriter extends JSONWriter {
     }
 
     @Override
-    public void writeEmptyArray() throws IOException {
+    public final void writeEmptyArray() throws IOException {
         ensureCapacity(2 + SECURITY_UNCHECK_SPACE);
         UnsafeHelper.putInt(buf, count, EMPTY_ARRAY_INT);
         count += 2;

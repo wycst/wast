@@ -181,12 +181,12 @@ public final class ReflectConsts {
         PrimitiveByte(byte[].class, arrayBaseOffset(byte[].class), arrayIndexScale(byte[].class)) {
             @Override
             void putValue(Object target, long fieldOffset, Object value) {
-                UnsafeHelper.getUnsafe().putByte(target, fieldOffset, (Byte) value);
+                UnsafeHelper.UNSAFE.putByte(target, fieldOffset, (Byte) value);
             }
 
             @Override
             Object getValue(Object target, long fieldOffset) {
-                return UnsafeHelper.getUnsafe().getByte(target, fieldOffset);
+                return UnsafeHelper.UNSAFE.getByte(target, fieldOffset);
             }
 
             @Override
@@ -202,12 +202,12 @@ public final class ReflectConsts {
         PrimitiveShort(short[].class, arrayBaseOffset(short[].class), arrayIndexScale(short[].class)) {
             @Override
             void putValue(Object target, long fieldOffset, Object value) {
-                UnsafeHelper.getUnsafe().putShort(target, fieldOffset, (Short) value);
+                UnsafeHelper.UNSAFE.putShort(target, fieldOffset, (Short) value);
             }
 
             @Override
             Object getValue(Object target, long fieldOffset) {
-                return UnsafeHelper.getUnsafe().getShort(target, fieldOffset);
+                return UnsafeHelper.UNSAFE.getShort(target, fieldOffset);
             }
 
             @Override
@@ -223,12 +223,12 @@ public final class ReflectConsts {
         PrimitiveInt(int[].class, arrayBaseOffset(int[].class), arrayIndexScale(int[].class)) {
             @Override
             void putValue(Object target, long fieldOffset, Object value) {
-                UnsafeHelper.getUnsafe().putInt(target, fieldOffset, ((Number) value).intValue());
+                UnsafeHelper.UNSAFE.putInt(target, fieldOffset, ((Number) value).intValue());
             }
 
             @Override
             Object getValue(Object target, long fieldOffset) {
-                return UnsafeHelper.getUnsafe().getInt(target, fieldOffset);
+                return UnsafeHelper.UNSAFE.getInt(target, fieldOffset);
             }
 
             @Override
@@ -244,12 +244,12 @@ public final class ReflectConsts {
         PrimitiveFloat(float[].class, arrayBaseOffset(float[].class), arrayIndexScale(float[].class)) {
             @Override
             void putValue(Object target, long fieldOffset, Object value) {
-                UnsafeHelper.getUnsafe().putFloat(target, fieldOffset, ((Number) value).floatValue());
+                UnsafeHelper.UNSAFE.putFloat(target, fieldOffset, ((Number) value).floatValue());
             }
 
             @Override
             Object getValue(Object target, long fieldOffset) {
-                return UnsafeHelper.getUnsafe().getFloat(target, fieldOffset);
+                return UnsafeHelper.UNSAFE.getFloat(target, fieldOffset);
             }
 
             @Override
@@ -265,12 +265,12 @@ public final class ReflectConsts {
         PrimitiveLong(long[].class, arrayBaseOffset(long[].class), arrayIndexScale(long[].class)) {
             @Override
             void putValue(Object target, long fieldOffset, Object value) {
-                UnsafeHelper.getUnsafe().putLong(target, fieldOffset, ((Number) value).longValue());
+                UnsafeHelper.UNSAFE.putLong(target, fieldOffset, ((Number) value).longValue());
             }
 
             @Override
             Object getValue(Object target, long fieldOffset) {
-                return UnsafeHelper.getUnsafe().getLong(target, fieldOffset);
+                return UnsafeHelper.UNSAFE.getLong(target, fieldOffset);
             }
 
             @Override
@@ -286,12 +286,12 @@ public final class ReflectConsts {
         PrimitiveDouble(double[].class, arrayBaseOffset(double[].class), arrayIndexScale(double[].class)) {
             @Override
             void putValue(Object target, long fieldOffset, Object value) {
-                UnsafeHelper.getUnsafe().putDouble(target, fieldOffset, ((Number) value).doubleValue());
+                UnsafeHelper.UNSAFE.putDouble(target, fieldOffset, ((Number) value).doubleValue());
             }
 
             @Override
             Object getValue(Object target, long fieldOffset) {
-                return UnsafeHelper.getUnsafe().getDouble(target, fieldOffset);
+                return UnsafeHelper.UNSAFE.getDouble(target, fieldOffset);
             }
 
             @Override
@@ -307,12 +307,12 @@ public final class ReflectConsts {
         PrimitiveBoolean(boolean[].class, arrayBaseOffset(boolean[].class), arrayIndexScale(boolean[].class)) {
             @Override
             void putValue(Object target, long fieldOffset, Object value) {
-                UnsafeHelper.getUnsafe().putBoolean(target, fieldOffset, (Boolean) value);
+                UnsafeHelper.UNSAFE.putBoolean(target, fieldOffset, (Boolean) value);
             }
 
             @Override
             Object getValue(Object target, long fieldOffset) {
-                return UnsafeHelper.getUnsafe().getBoolean(target, fieldOffset);
+                return UnsafeHelper.UNSAFE.getBoolean(target, fieldOffset);
             }
 
             @Override
@@ -328,12 +328,12 @@ public final class ReflectConsts {
         PrimitiveCharacter(char[].class, arrayBaseOffset(char[].class), arrayIndexScale(char[].class)) {
             @Override
             void putValue(Object target, long fieldOffset, Object value) {
-                UnsafeHelper.getUnsafe().putChar(target, fieldOffset, (Character) value);
+                UnsafeHelper.UNSAFE.putChar(target, fieldOffset, (Character) value);
             }
 
             @Override
             Object getValue(Object target, long fieldOffset) {
-                return UnsafeHelper.getUnsafe().getChar(target, fieldOffset);
+                return UnsafeHelper.UNSAFE.getChar(target, fieldOffset);
             }
 
             @Override
