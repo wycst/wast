@@ -1,5 +1,6 @@
 package io.github.wycst.wast.common.reflect;
 
+import io.github.wycst.wast.common.annotation.MethodInvokePriority;
 import io.github.wycst.wast.common.exceptions.InvokeReflectException;
 import io.github.wycst.wast.common.tools.FNV;
 import io.github.wycst.wast.common.utils.StringUtils;
@@ -366,7 +367,7 @@ public final class ClassStructureWrapper {
     private static void wrapperWithMethodAndField(ClassStructureWrapper wrapper, Map<String, Class<?>> superGenericClassMap) {
         // sourceClass
         Class<?> sourceClass = wrapper.sourceClass;
-
+        boolean globalMIP = sourceClass.getDeclaredAnnotation(MethodInvokePriority.class) != null;
         /** 获取构造方法参数最少的作为默认构造方法 */
         Constructor<?>[] constructors = sourceClass.getDeclaredConstructors();
         Constructor<?> defaultConstructor = null;
@@ -448,30 +449,31 @@ public final class ClassStructureWrapper {
                 // load annotations
                 Map<Class<? extends Annotation>, Annotation> annotationMap = new HashMap<Class<? extends Annotation>, Annotation>();
                 addAnnotations(annotationMap, method.getAnnotations());
-                // 查找和getter method匹配的声明field（不考虑继承过来的field）
-                try {
-                    // 属性
-                    Field field = sourceClass.getDeclaredField(fieldName);
-                    if (!Modifier.isStatic(field.getModifiers())) {
-                        // 当声明属性的类型和getter方法返回的类型不一致时，如果触发invoke，则以method的call为准
-                        if (setAccessible(field) && compatibleType(returnType, field.getType())) {
-                            getterInfo.setField(field);
-                        }
-                    }
-                    addAnnotations(annotationMap, field.getAnnotations());
-                } catch (Exception e) {
-                    if (boolGetter) {
-                        // isXXX
-                        try {
-                            Field field = sourceClass.getDeclaredField(methodName);
-                            if (!Modifier.isStatic(field.getModifiers())) {
-                                // 当声明属性的类型和getter方法返回的类型不一致时，如果触发invoke，则以method的call为准
-                                if (setAccessible(field) && field.getType() == boolean.class) {
-                                    getterInfo.setField(field);
-                                    getterInfo.setName(field.getName());
-                                }
+                if(!globalMIP && !annotationMap.containsKey(MethodInvokePriority.class)) {
+                    try {
+                        // declared field, not considering inheriting
+                        Field field = sourceClass.getDeclaredField(fieldName);
+                        if (!Modifier.isStatic(field.getModifiers())) {
+                            // 当声明属性的类型和getter方法返回的类型不一致时，如果触发invoke，则以method的call为准
+                            if (setAccessible(field) && compatibleType(returnType, field.getType())) {
+                                getterInfo.setField(field);
                             }
-                        } catch (Exception exception) {
+                        }
+                        addAnnotations(annotationMap, field.getAnnotations());
+                    } catch (Exception e) {
+                        if (boolGetter) {
+                            // isXXX
+                            try {
+                                Field field = sourceClass.getDeclaredField(methodName);
+                                if (!Modifier.isStatic(field.getModifiers())) {
+                                    // 当声明属性的类型和getter方法返回的类型不一致时，如果触发invoke，则以method的call为准
+                                    if (setAccessible(field) && field.getType() == boolean.class) {
+                                        getterInfo.setField(field);
+                                        getterInfo.setName(field.getName());
+                                    }
+                                }
+                            } catch (Exception exception) {
+                            }
                         }
                     }
                 }
@@ -513,23 +515,21 @@ public final class ClassStructureWrapper {
 
                 Annotation[] methodAnnotations = method.getAnnotations();
                 addAnnotations(annotationMap, methodAnnotations);
-                try {
-                    Field field = sourceClass.getDeclaredField(setFieldName);
-                    if (!Modifier.isStatic(field.getModifiers()) && !Modifier.isFinal(field.getModifiers())) {
-                        // 确保unsafe能安全调用,需要判断参数类型和field类型一致或者是field类型的子类
-                        // 通常情况下method都会被后续的同名的field构建的SetterInfo替换掉
-                        if (setAccessible(field) && compatibleType(field.getType(), parameterType)) {
-                            setterInfo.setField(field);
-                        } else {
-                            // 以method为准,禁用field
-                            setterInfo.setFieldDisabled(true);
+                if(!globalMIP && !annotationMap.containsKey(MethodInvokePriority.class)) {
+                    try {
+                        Field field = sourceClass.getDeclaredField(setFieldName);
+                        if (!Modifier.isStatic(field.getModifiers()) && !Modifier.isFinal(field.getModifiers())) {
+                            if (setAccessible(field) && compatibleType(field.getType(), parameterType)) {
+                                setterInfo.setField(field);
+                            } else {
+                                setterInfo.setFieldDisabled(true);
+                            }
                         }
+                        Annotation[] fieldAnnotations = field.getAnnotations();
+                        addAnnotations(annotationMap, fieldAnnotations);
+                    } catch (Exception e) {
                     }
-                    Annotation[] fieldAnnotations = field.getAnnotations();
-                    addAnnotations(annotationMap, fieldAnnotations);
-                } catch (Exception e) {
                 }
-                // 注解集合
                 setterInfo.setAnnotations(annotationMap);
             }
         }
@@ -540,6 +540,14 @@ public final class ClassStructureWrapper {
         // Sort output to prevent inconsistent serialization order after each restart of the JVM
         Collections.sort(getterInfos, new Comparator<GetterInfo>() {
             public int compare(GetterInfo o1, GetterInfo o2) {
+//                if(o1.getName().charAt(0) == o2.getName().charAt(0)) {
+//                    if(o1.isPrimitive()) {
+//                        return -1;
+//                    }
+//                    if(o2.isPrimitive()) {
+//                        return 1;
+//                    }
+//                }
                 return o1.getName().compareTo(o2.getName());
             }
         });

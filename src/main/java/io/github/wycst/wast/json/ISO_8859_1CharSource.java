@@ -1,15 +1,8 @@
-package io.github.wycst.wast.common.beans;
+package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import io.github.wycst.wast.common.utils.EnvUtils;
-/**
- * <p> create string source use iso_8859_1
- * <p> jdk9以下不要使用
- *
- * @Date 2024/3/28 20:34
- * @Created by wangyc
- */
-public class ISO_8859_1CharSource implements CharSource {
+class ISO_8859_1CharSource implements CharSource {
 
     final String input;
     final byte[] bytes;
@@ -19,12 +12,6 @@ public class ISO_8859_1CharSource implements CharSource {
         this.bytes = bytes;
     }
 
-    /**
-     * 构建对象
-     *
-     * @param bytes
-     * @return
-     */
     public static ISO_8859_1CharSource of(byte[] bytes) {
         String input = UnsafeHelper.getAsciiString(bytes);
         return new ISO_8859_1CharSource(input, bytes);

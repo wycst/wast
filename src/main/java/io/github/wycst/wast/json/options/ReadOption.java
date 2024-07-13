@@ -1,5 +1,4 @@
 package io.github.wycst.wast.json.options;
-
 /**
  * JSON解析读取配置
  *
@@ -72,7 +71,6 @@ public enum ReadOption {
      * <p> 通常都能提升解析性能，不排除发生桶索引（index）大量碰撞的场景，会导致链表过长反而影响性能
      * <p> 设置此项配置可禁用cache key
      *
-     * @see io.github.wycst.wast.json.util.FixedNameValueMap
      */
     DisableCacheMapKey,
 

@@ -188,10 +188,10 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                                 UnsafeHelper.setAccessible(constructor);
                                 typeSerializer = (JSONPojoSerializer) constructor.newInstance(jsonPojoStructure);
                             } catch (Throwable throwable) {
-                                typeSerializer = new ObjectSerializer.ObjectWrapperSerializer(cls);
+                                typeSerializer = new ObjectSerializer.ObjectWrapperSerializer(cls, jsonPojoStructure);
                             }
                         } else {
-                            typeSerializer = new ObjectSerializer.ObjectWrapperSerializer(cls);
+                            typeSerializer = new ObjectSerializer.ObjectWrapperSerializer(cls, jsonPojoStructure);
                         }
                     }
                 } else {
@@ -380,10 +380,6 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
 
             protected void serializeNumber(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
                 double numValue = ((Number) value).doubleValue();
-//                if (jsonConfig.isWriteDecimalUseToString()) {
-//                    writer.write(Double.toString(numValue));
-//                } else {
-//                }
                 writer.writeDouble(numValue);
             }
         }
@@ -391,10 +387,6 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
         static class FloatSerializer extends SimpleNumberSerializer {
             protected void serializeNumber(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
                 float numValue = ((Number) value).floatValue();
-//                if (jsonConfig.isWriteDecimalUseToString()) {
-//                    writer.write(Float.toString(numValue));
-//                } else {
-//                }
                 writer.writeFloat(numValue);
             }
         }
@@ -490,19 +482,42 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
             }
         }
 
-        static class EnumInstanceSerializer extends EnumSerializer {
-
-            final char[][] enumNameTokenChars;
-            String[] enumNameTokens;
-
-            EnumInstanceSerializer(char[][] enumNameTokenChars) {
+        static class EnumFieldNameData {
+            final String enumNameTokenStr; // \"${name}\"
+            final char[] enumNameTokenChars; // \"${name}\"
+            final long[] enumNameTokenCharLongs;
+            final long[] enumNameTokenByteLongs;
+            final int tokenLength;
+            final boolean useLong;
+            public EnumFieldNameData(String enumNameTokenStr, char[] enumNameTokenChars, long[] enumNameTokenCharLongs, long[] enumNameTokenByteLongs, int tokenLength) {
+                this.enumNameTokenStr = enumNameTokenStr;
                 this.enumNameTokenChars = enumNameTokenChars;
-                if (EnvUtils.JDK_9_PLUS) {
-                    this.enumNameTokens = new String[enumNameTokenChars.length];
-                    for (int i = 0; i < enumNameTokenChars.length; ++i) {
-                        enumNameTokens[i] = new String(enumNameTokenChars[i]);
+                this.enumNameTokenCharLongs = enumNameTokenCharLongs;
+                this.enumNameTokenByteLongs = enumNameTokenByteLongs;
+                this.tokenLength = tokenLength;
+                this.useLong = enumNameTokenCharLongs != null;
+            }
+        }
+
+        static class EnumInstanceSerializer extends EnumSerializer {
+            final EnumFieldNameData[] enumFieldNameDatas;
+            EnumInstanceSerializer(char[][] enumNameTokenChars) {
+                EnumFieldNameData[] enumFieldNameDatas = new EnumFieldNameData[enumNameTokenChars.length];
+                for (int i = 0; i < enumNameTokenChars.length; ++i) {
+                    char[] chars = enumNameTokenChars[i];
+                    String enumNameTokenStr = new String(chars);
+                    boolean useUnsafe = enumNameTokenStr.getBytes().length == chars.length;
+                    if(useUnsafe) {
+                        enumFieldNameDatas[i] = new EnumFieldNameData(null, null, UnsafeHelper.getCharLongs(enumNameTokenStr), UnsafeHelper.getByteLongs(enumNameTokenStr), chars.length);
+                    } else {
+                        if (EnvUtils.JDK_9_PLUS) {
+                            enumFieldNameDatas[i] = new EnumFieldNameData(enumNameTokenStr, null, null, null, chars.length);
+                        } else {
+                            enumFieldNameDatas[i] = new EnumFieldNameData(null, chars, null, null, chars.length);
+                        }
                     }
                 }
+                this.enumFieldNameDatas = enumFieldNameDatas;
             }
 
             @Override
@@ -510,13 +525,18 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                 Enum enmuValue = (Enum) value;
                 int ordinal = enmuValue.ordinal();
                 if (!jsonConfig.isWriteEnumAsOrdinal()) {
-                    if (EnvUtils.JDK_9_PLUS) {
-                        String enumNameToken = enumNameTokens[ordinal];
-                        // writeShortString(writer, enumNameToken, 0, enumNameToken.length());
-                        writer.write(enumNameToken, 0, enumNameToken.length());
+                    EnumFieldNameData fieldNameData = enumFieldNameDatas[ordinal];
+                    if(fieldNameData.useLong) {
+                        writer.writeMemory(fieldNameData.enumNameTokenCharLongs, fieldNameData.enumNameTokenByteLongs, fieldNameData.tokenLength);
                     } else {
-                        char[] chars = enumNameTokenChars[ordinal];
-                        writer.writeShortChars(chars, 0, chars.length);
+                        if (EnvUtils.JDK_9_PLUS) {
+                            String enumNameToken = fieldNameData.enumNameTokenStr;
+                            // writeShortString(writer, enumNameToken, 0, enumNameToken.length());
+                            writer.write(enumNameToken, 0, enumNameToken.length());
+                        } else {
+                            char[] chars = fieldNameData.enumNameTokenChars;
+                            writer.writeShortChars(chars, 0, chars.length);
+                        }
                     }
                 } else {
                     NUMBER_LONG.serializeNumber(ordinal, writer, jsonConfig, indent);
@@ -641,7 +661,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
             }
 
             @Override
-            protected void writeArray(Object obj, JSONWriter writer, JSONConfig jsonConfig, int indentLevel) throws Exception {
+            protected final void serialize(Object obj, JSONWriter writer, JSONConfig jsonConfig, int indentLevel) throws Exception {
                 boolean formatOut = jsonConfig.isFormatOut();
                 int length = primitiveType.arrayLength(obj);
                 if (length > 0) {
@@ -658,7 +678,6 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                     writeFormatOutSymbols(writer, indentLevel, formatOut, jsonConfig);
                     writer.writeJSONToken(']');
                 } else {
-//                    writer.write(EMPTY_ARRAY);
                     writer.writeEmptyArray();
                 }
             }
@@ -667,7 +686,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
 
     private static class CollectionSerializer extends JSONTypeSerializer {
 
-        protected void writeCollectionValue(Object obj, JSONWriter writer, JSONConfig jsonConfig, int indentLevel) throws Exception {
+        protected void writeCollection(Object obj, JSONWriter writer, JSONConfig jsonConfig, int indentLevel) throws Exception {
             boolean formatOut = jsonConfig.isFormatOut();
             Collection<?> collect = (Collection<?>) obj;
             if (collect.size() > 0) {
@@ -719,7 +738,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                 }
                 jsonConfig.setStatus(hashcode, 0);
             }
-            writeCollectionValue(obj, writer, jsonConfig, indent);
+            writeCollection(obj, writer, jsonConfig, indent);
             jsonConfig.setStatus(hashcode, -1);
         }
 
@@ -731,7 +750,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
             }
 
             @Override
-            protected final void writeCollectionValue(Object obj, JSONWriter writer, JSONConfig jsonConfig, int indentLevel) throws Exception {
+            protected final void writeCollection(Object obj, JSONWriter writer, JSONConfig jsonConfig, int indentLevel) throws Exception {
                 boolean formatOut = jsonConfig.isFormatOut();
                 Collection<Object> collect = (Collection<Object>) obj;
                 if (collect.size() > 0) {
@@ -922,16 +941,16 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
         }
 
         final static class ObjectWrapperSerializer extends ObjectSerializer {
-            final JSONPojoStructure classStructureWrapper;
+            final JSONPojoStructure pojoStructure;
             final Class objectCls;
 
-            ObjectWrapperSerializer(Class cls) {
+            ObjectWrapperSerializer(Class cls, JSONPojoStructure pojoStructure) {
                 this.objectCls = cls;
-                classStructureWrapper = JSONPojoStructure.get(cls);
+                this.pojoStructure = pojoStructure;
             }
 
             JSONPojoStructure getObjectStructureWrapper(Class clazz) {
-                return clazz == objectCls ? classStructureWrapper : JSONPojoStructure.get(clazz);
+                return clazz == objectCls ? pojoStructure : JSONPojoStructure.get(clazz);
             }
         }
     }

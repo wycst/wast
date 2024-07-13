@@ -1,4 +1,4 @@
-package io.github.wycst.wast.common.beans;
+package io.github.wycst.wast.json;
 
 /**
  * 字符源（只作为一个字符读取外壳代替原来的char[]，未实现iterator）

@@ -4,12 +4,14 @@ import io.github.wycst.wast.common.beans.GeneralDate;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import io.github.wycst.wast.common.utils.EnvUtils;
 import io.github.wycst.wast.common.utils.NumberUtils;
+import io.github.wycst.wast.common.utils.Scientific;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.Writer;
 import java.math.BigInteger;
 import java.nio.charset.Charset;
+import java.util.Collection;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -26,6 +28,21 @@ public abstract class JSONWriter extends Writer {
     final static short EMPTY_ARRAY_SHORT;
     final static int Z_QUOT_INT;
     final static short Z_QUOT_SHORT;
+    final static char[] HEX_DIGITS = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+    final static long[] POW10_LONG_VALUES = new long[]{
+            10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000, 10000000000L, 100000000000L, 1000000000000L, 10000000000000L, 100000000000000L, 1000000000000000L, 10000000000000000L, 100000000000000000L, 1000000000000000000L, 9223372036854775807L
+    };
+    final static char[][] POSITIVE_DECIMAL_POWER_CHARS = new char[325][];
+    final static char[][] NEGATIVE_DECIMAL_POWER_CHARS = new char[325][];
+    final static long[] FOUR_DIGITS_64_BITS = new long[10000];
+    final static int[] FOUR_DIGITS_32_BITS = new int[10000];
+    final static int[] TWO_DIGITS_32_BITS = new int[100];
+    final static short[] TWO_DIGITS_16_BITS = new short[100];
+    final static int[] HEX_DIGITS_INT32 = new int[256];
+    final static int[] HEX_DIGITS_INT16 = new int[256];
+
+    final static BigInteger BI_TO_DECIMAL_BASE = BigInteger.valueOf(1000000000L);
+    final static BigInteger BI_MAX_VALUE_FOR_LONG = BigInteger.valueOf(Long.MAX_VALUE);
 
     static {
         // init memory:  16KB * 2 * 8 -> 256KB
@@ -51,6 +68,54 @@ public abstract class JSONWriter extends Writer {
             Z_QUOT_INT = '"' << 16 | 'Z';
             Z_QUOT_SHORT = '"' << 8 | 'Z';
         }
+
+        for (long d1 = 0; d1 < 10; ++d1) {
+            for (long d2 = 0; d2 < 10; ++d2) {
+                long intVal64;
+                int intVal32;
+                if (EnvUtils.BIG_ENDIAN) {
+                    intVal64 = (d1 + 48) << 16 | (d2 + 48);
+                    intVal32 = ((int) d1 + 48) << 8 | ((int) d2 + 48);
+                } else {
+                    intVal64 = (d2 + 48) << 16 | (d1 + 48);
+                    intVal32 = ((int) d2 + 48) << 8 | ((int) d1 + 48);
+                }
+                int k = (int) (d1 * 10 + d2);
+                TWO_DIGITS_32_BITS[k] = (int) intVal64;
+                TWO_DIGITS_16_BITS[k] = (short) intVal32;
+                for (long d3 = 0; d3 < 10; ++d3) {
+                    for (long d4 = 0; d4 < 10; ++d4) {
+                        long int64;
+                        int int32;
+                        if (EnvUtils.BIG_ENDIAN) {
+                            int64 = (intVal64 << 32) | (d3 + 48) << 16 | (d4 + 48);
+                            int32 = (intVal32 << 16) | ((int) d3 + 48) << 8 | ((int) d4 + 48);
+                        } else {
+                            int64 = ((d4 + 48) << 48) | ((d3 + 48) << 32) | intVal64;
+                            int32 = (((int) d4 + 48) << 24) | (((int) d3 + 48) << 16) | intVal32;
+                        }
+                        int index = (int) (d1 * 1000 + d2 * 100 + d3 * 10 + d4);
+                        FOUR_DIGITS_64_BITS[index] = int64;
+                        FOUR_DIGITS_32_BITS[index] = int32;
+                    }
+                }
+            }
+        }
+
+        // 0-255 for HEX
+        for (int b = 0; b < 256; b++) {
+            int b1 = b >> 4, b2 = b & 0xF;
+            HEX_DIGITS_INT32[b] = EnvUtils.BIG_ENDIAN ? (HEX_DIGITS[b1] << 16 | HEX_DIGITS[b2]) : (HEX_DIGITS[b2] << 16 | HEX_DIGITS[b1]);
+            HEX_DIGITS_INT16[b] = EnvUtils.BIG_ENDIAN ? (HEX_DIGITS[b1] << 8 | HEX_DIGITS[b2]) : (HEX_DIGITS[b2] << 8 | HEX_DIGITS[b1]);
+        }
+
+        for (int i = 0, len = POSITIVE_DECIMAL_POWER_CHARS.length; i < len; ++i) {
+            String positive = "1.0E" + i;
+            String negative = "1.0E-" + i;
+            POSITIVE_DECIMAL_POWER_CHARS[i] = positive.toCharArray();
+            NEGATIVE_DECIMAL_POWER_CHARS[i] = negative.toCharArray();
+        }
+        NEGATIVE_DECIMAL_POWER_CHARS[NEGATIVE_DECIMAL_POWER_CHARS.length - 1] = "4.9E-324".toCharArray();
     }
 
     JSONWriter() {
@@ -85,25 +150,10 @@ public abstract class JSONWriter extends Writer {
      */
     static JSONWriter forBytesWriter(Charset charset, JSONConfig jsonConfig) {
         return new JSONByteArrayWriter(charset);
-//        if (EnvUtils.JDK_9_PLUS) {
-//            return new JSONCharArrayWriter();
-//        } else {
-//            // The efficiency of using character stream writing is extremely low when outputting as a byte array for jdk8 and below
-//            return new JSONByteArrayWriter(charset);
-//        }
     }
 
     static JSONWriter forStreamWriter(Charset charset, JSONConfig jsonConfig) {
-        if (EnvUtils.JDK_9_PLUS) {
-            if (jsonConfig.isIgnoreEscapeCheck()) {
-                return new JSONCharArrayWriter.JSONCharArrayIgnoreEscapeWriter(charset);
-            } else {
-                return new JSONCharArrayWriter(charset);
-            }
-        } else {
-            // The efficiency of using character stream writing is extremely low when outputting as a byte array for jdk8 and below
-            return new JSONByteArrayWriter(charset);
-        }
+        return new JSONByteArrayWriter(charset);
     }
 
     static JSONWriter wrap(Writer writer) {
@@ -123,7 +173,7 @@ public abstract class JSONWriter extends Writer {
     protected abstract void toOutputStream(OutputStream os) throws IOException;
 
     protected byte[] toBytes(Charset charset) {
-        return toString().getBytes();
+        return toString().getBytes(charset);
     }
 
     void reset() {
@@ -287,6 +337,25 @@ public abstract class JSONWriter extends Writer {
         }
     }
 
+    // only use by JIT compact
+    public final void writeStringCollection(Collection values) throws IOException {
+        int size = values.size();
+        if (size > 0) {
+            writeJSONToken('[');
+            boolean hasAddFlag = false;
+            for (Object value : values) {
+                if (hasAddFlag) {
+                    writeJSONToken(',');
+                } else {
+                    hasAddFlag = true;
+                }
+                writeStringCompatibleNull((String) value);
+            }
+            writeJSONToken(']');
+        } else {
+            writeEmptyArray();
+        }
+    }
 
     public final void writeJSONInstant(long epochSeconds, int nanos) throws IOException {
         GeneralDate generalDate = new GeneralDate(epochSeconds * 1000, JSONGeneral.ZERO_TIME_ZONE);
@@ -388,26 +457,6 @@ public abstract class JSONWriter extends Writer {
         write('"');
     }
 
-//    public void writeLongJSONChars(char[] chars) throws IOException {
-//        int beginIndex = 0, len = chars.length;
-//        write('"');
-//        for (int i = 0; i < len; ++i) {
-//            char ch = chars[i];
-//            String escapeStr;
-//            if ((ch > '"' && ch != '\\') || (escapeStr = JSONGeneral.ESCAPE_VALUES[ch]) == null) continue;
-//            int length = i - beginIndex;
-//            // 很诡异的问题
-//            if (length > 0) {
-//                write(chars, beginIndex, length);
-//            }
-//            write(escapeStr);
-//            beginIndex = i + 1;
-//        }
-//        int size = len - beginIndex;
-//        write(chars, beginIndex, size);
-//        write('"');
-//    }
-
     /**
      * @param value
      * @throws IOException
@@ -473,14 +522,6 @@ public abstract class JSONWriter extends Writer {
         write('"');
     }
 
-//    public void writeFieldString(String value, int offset, int len) throws IOException {
-//        write(value, offset, len);
-//    }
-//
-//    public final void writeFieldString(String value) throws IOException {
-//        writeFieldString(value, 0, value.length());
-//    }
-
     /**
      * 通过unsafe写入4 * n个字符（4 * n 字节）
      *
@@ -489,26 +530,42 @@ public abstract class JSONWriter extends Writer {
      * @param len
      * @throws IOException
      */
-    public void writeUnsafe(long fourChars, int fourBytes, int len) throws IOException {
+    void writeMemory(long fourChars, int fourBytes, int len) throws IOException {
         char[] chars = new char[4];
-        UnsafeHelper.putLong(chars, 0, fourChars);
+        JSONUnsafe.putLong(chars, 0, fourChars);
         write(chars, 0, len);
     }
 
     /**
-     * 通过unsafe写入4 * n个字符（4 * n 字节）
+     * 一次性写入6-8个字符(字节)
+     *
+     * @param fourChars1
+     * @param fourChars2
+     * @param fourBytes
+     * @param len
+     * @throws IOException
+     */
+    void writeMemory(long fourChars1, long fourChars2, long fourBytes, int len) throws IOException {
+        char[] chars = new char[8];
+        JSONUnsafe.putLong(chars, 0, fourChars1);
+        JSONUnsafe.putLong(chars, 4, fourChars2);
+        write(chars, 0, len);
+    }
+
+    /**
+     * 通过unsafe写入totalCount个字节
      *
      * @param fourChars
      * @param fourBytes
      * @param totalCount 实际长度
      * @throws IOException
      */
-    public void writeUnsafe(long[] fourChars, int[] fourBytes, int totalCount) throws IOException {
+    void writeMemory(long[] fourChars, long[] fourBytes, int totalCount) throws IOException {
         int n = fourChars.length;
         char[] chars = new char[n << 2];
         int offset = 0;
         for (long fourChar : fourChars) {
-            UnsafeHelper.putLong(chars, offset, fourChar);
+            JSONUnsafe.putLong(chars, offset, fourChar);
             offset += 4;
         }
         write(chars, 0, totalCount);
@@ -521,4 +578,775 @@ public abstract class JSONWriter extends Writer {
     final static boolean isNoEscape(int b) {
         return JSONGeneral.ESCAPE_FLAGS[b] == 0;
     }
+
+    final static int writeUUID(UUID uuid, char[] buf, int offset) {
+        long mostSigBits = uuid.getMostSignificantBits();
+        long v1, v2, v3, v4;
+        {
+            int b1 = (int) (mostSigBits >>> 56 & 0xff), b2 = (int) (mostSigBits >>> 48 & 0xff), b3 = (int) (mostSigBits >>> 40 & 0xff), b4 = (int) (mostSigBits >>> 32 & 0xff);
+            int b5 = (int) (mostSigBits >>> 24 & 0xff), b6 = (int) (mostSigBits >>> 16 & 0xff), b7 = (int) (mostSigBits >>> 8 & 0xff), b8 = (int) (mostSigBits & 0xff);
+            if (EnvUtils.BIG_ENDIAN) {
+                v1 = (long) HEX_DIGITS_INT32[b1] << 32 | HEX_DIGITS_INT32[b2];
+                v2 = (long) HEX_DIGITS_INT32[b3] << 32 | HEX_DIGITS_INT32[b4];
+                v3 = (long) HEX_DIGITS_INT32[b5] << 32 | HEX_DIGITS_INT32[b6];
+                v4 = (long) HEX_DIGITS_INT32[b7] << 32 | HEX_DIGITS_INT32[b8];
+            } else {
+                v1 = (long) HEX_DIGITS_INT32[b2] << 32 | HEX_DIGITS_INT32[b1];
+                v2 = (long) HEX_DIGITS_INT32[b4] << 32 | HEX_DIGITS_INT32[b3];
+                v3 = (long) HEX_DIGITS_INT32[b6] << 32 | HEX_DIGITS_INT32[b5];
+                v4 = (long) HEX_DIGITS_INT32[b8] << 32 | HEX_DIGITS_INT32[b7];
+            }
+            offset += JSONUnsafe.putLong(buf, offset, v1);
+            offset += JSONUnsafe.putLong(buf, offset, v2);
+            buf[offset++] = '-';
+            offset += JSONUnsafe.putLong(buf, offset, v3);
+            buf[offset++] = '-';
+            offset += JSONUnsafe.putLong(buf, offset, v4);
+        }
+        long leastSigBits = uuid.getLeastSignificantBits();
+        {
+            int b1 = (int) (leastSigBits >>> 56 & 0xff), b2 = (int) (leastSigBits >>> 48 & 0xff), b3 = (int) (leastSigBits >>> 40 & 0xff), b4 = (int) (leastSigBits >>> 32 & 0xff);
+            int b5 = (int) (leastSigBits >>> 24 & 0xff), b6 = (int) (leastSigBits >>> 16 & 0xff), b7 = (int) (leastSigBits >>> 8 & 0xff), b8 = (int) (leastSigBits & 0xff);
+            if (EnvUtils.BIG_ENDIAN) {
+                v1 = (long) HEX_DIGITS_INT32[b1] << 32 | HEX_DIGITS_INT32[b2];
+                v2 = (long) HEX_DIGITS_INT32[b3] << 32 | HEX_DIGITS_INT32[b4];
+                v3 = (long) HEX_DIGITS_INT32[b5] << 32 | HEX_DIGITS_INT32[b6];
+                v4 = (long) HEX_DIGITS_INT32[b7] << 32 | HEX_DIGITS_INT32[b8];
+            } else {
+                v1 = (long) HEX_DIGITS_INT32[b2] << 32 | HEX_DIGITS_INT32[b1];
+                v2 = (long) HEX_DIGITS_INT32[b4] << 32 | HEX_DIGITS_INT32[b3];
+                v3 = (long) HEX_DIGITS_INT32[b6] << 32 | HEX_DIGITS_INT32[b5];
+                v4 = (long) HEX_DIGITS_INT32[b8] << 32 | HEX_DIGITS_INT32[b7];
+            }
+            buf[offset++] = '-';
+            offset += JSONUnsafe.putLong(buf, offset, v1);
+            buf[offset++] = '-';
+            offset += JSONUnsafe.putLong(buf, offset, v2);
+            offset += JSONUnsafe.putLong(buf, offset, v3);
+            JSONUnsafe.putLong(buf, offset, v4);
+        }
+        return 36;
+    }
+
+    final static int writeUUID(UUID uuid, byte[] buf, int offset) {
+        long mostSigBits = uuid.getMostSignificantBits();
+        {
+            long v1;
+            int v2, v3;
+            int b1 = (int) (mostSigBits >>> 56 & 0xff), b2 = (int) (mostSigBits >>> 48 & 0xff), b3 = (int) (mostSigBits >>> 40 & 0xff), b4 = (int) (mostSigBits >>> 32 & 0xff);
+            int b5 = (int) (mostSigBits >>> 24 & 0xff), b6 = (int) (mostSigBits >>> 16 & 0xff), b7 = (int) (mostSigBits >>> 8 & 0xff), b8 = (int) (mostSigBits & 0xff);
+            if (EnvUtils.BIG_ENDIAN) {
+                v1 = (long) HEX_DIGITS_INT16[b1] << 48 | (long) HEX_DIGITS_INT16[b2] << 32 | HEX_DIGITS_INT16[b3] << 16 | HEX_DIGITS_INT16[b4];
+                v2 = HEX_DIGITS_INT16[b5] << 16 | HEX_DIGITS_INT16[b6];
+                v3 = HEX_DIGITS_INT16[b7] << 16 | HEX_DIGITS_INT16[b8];
+            } else {
+                v1 = (long) HEX_DIGITS_INT16[b4] << 48 | (long) HEX_DIGITS_INT16[b3] << 32 | HEX_DIGITS_INT16[b2] << 16 | HEX_DIGITS_INT16[b1];
+                v2 = HEX_DIGITS_INT16[b6] << 16 | HEX_DIGITS_INT16[b5];
+                v3 = HEX_DIGITS_INT16[b8] << 16 | HEX_DIGITS_INT16[b7];
+            }
+            offset += JSONUnsafe.putLong(buf, offset, v1);
+            buf[offset++] = '-';
+            offset += JSONUnsafe.putInt(buf, offset, v2);
+            buf[offset++] = '-';
+            offset += JSONUnsafe.putInt(buf, offset, v3);
+        }
+        long leastSigBits = uuid.getLeastSignificantBits();
+        {
+            int v1, v2;
+            long v3;
+            int b1 = (int) (leastSigBits >>> 56 & 0xff), b2 = (int) (leastSigBits >>> 48 & 0xff), b3 = (int) (leastSigBits >>> 40 & 0xff), b4 = (int) (leastSigBits >>> 32 & 0xff);
+            int b5 = (int) (leastSigBits >>> 24 & 0xff), b6 = (int) (leastSigBits >>> 16 & 0xff), b7 = (int) (leastSigBits >>> 8 & 0xff), b8 = (int) (leastSigBits & 0xff);
+            if (EnvUtils.BIG_ENDIAN) {
+                v1 = HEX_DIGITS_INT16[b1] << 16 | HEX_DIGITS_INT16[b2];
+                v2 = HEX_DIGITS_INT16[b3] << 16 | HEX_DIGITS_INT16[b4];
+                v3 = (long) HEX_DIGITS_INT16[b5] << 48 | (long) HEX_DIGITS_INT16[b6] << 32 | HEX_DIGITS_INT16[b7] << 16 | HEX_DIGITS_INT16[b8];
+            } else {
+                v1 = HEX_DIGITS_INT16[b2] << 16 | HEX_DIGITS_INT16[b1];
+                v2 = HEX_DIGITS_INT16[b4] << 16 | HEX_DIGITS_INT16[b3];
+                v3 = (long) HEX_DIGITS_INT16[b8] << 48 | (long) HEX_DIGITS_INT16[b7] << 32 | HEX_DIGITS_INT16[b6] << 16 | HEX_DIGITS_INT16[b5];
+            }
+            buf[offset++] = '-';
+            offset += JSONUnsafe.putInt(buf, offset, v1);
+            buf[offset++] = '-';
+            offset += JSONUnsafe.putInt(buf, offset, v2);
+            JSONUnsafe.putLong(buf, offset, v3);
+        }
+        return 36;
+    }
+
+    final static int writeDouble(double doubleValue, char[] buf, int off) {
+        final int beginIndex = off;
+        long bits;
+        if (doubleValue == 0) {
+            bits = Double.doubleToLongBits(doubleValue);
+            if (bits == 0x8000000000000000L) {
+                buf[off++] = '-';
+            }
+            buf[off++] = '0';
+            buf[off++] = '.';
+            buf[off++] = '0';
+            return off - beginIndex;
+        }
+        boolean sign = doubleValue < 0;
+        if (sign) {
+            buf[off++] = '-';
+            doubleValue = -doubleValue;
+        }
+
+        if (doubleValue == (long) doubleValue) {
+            long output = (long) doubleValue;
+            int numLength = NumberUtils.stringSize(output);
+            return writeDecimal(output, numLength, numLength - 1, buf, beginIndex, off);
+        }
+
+        Scientific scientific = NumberUtils.doubleToScientific(doubleValue);
+        int e10 = scientific.e10;
+        if (!scientific.b) {
+            return writeDecimal(scientific.output, scientific.count, e10, buf, beginIndex, off);
+        }
+        if (scientific == Scientific.SCIENTIFIC_NULL) {
+            buf[off++] = 'n';
+            buf[off++] = 'u';
+            buf[off++] = 'l';
+            buf[off++] = 'l';
+            return off - beginIndex;
+        }
+        if (e10 >= 0) {
+            char[] chars = POSITIVE_DECIMAL_POWER_CHARS[e10];
+            System.arraycopy(chars, 0, buf, off, chars.length);
+            off += chars.length;
+            return off - beginIndex;
+        } else {
+            char[] chars = NEGATIVE_DECIMAL_POWER_CHARS[-e10];
+            System.arraycopy(chars, 0, buf, off, chars.length);
+            off += chars.length;
+            return off - beginIndex;
+        }
+    }
+
+    /**
+     * float写入buf
+     *
+     * @param floatValue
+     * @param buf
+     * @param off
+     * @return
+     */
+    final static int writeFloat(float floatValue, char[] buf, int off) {
+        final int beginIndex = off;
+        if (Float.isNaN(floatValue) || floatValue == Float.POSITIVE_INFINITY || floatValue == Float.NEGATIVE_INFINITY) {
+            buf[off++] = 'n';
+            buf[off++] = 'u';
+            buf[off++] = 'l';
+            buf[off++] = 'l';
+            return off - beginIndex;
+        }
+        int bits;
+        if (floatValue == 0) {
+            bits = Float.floatToIntBits(floatValue);
+            if (bits == 0x80000000) {
+                buf[off++] = '-';
+            }
+            buf[off++] = '0';
+            buf[off++] = '.';
+            buf[off++] = '0';
+            return off - beginIndex;
+        }
+        boolean sign = floatValue < 0;
+        if (sign) {
+            buf[off++] = '-';
+            floatValue = -floatValue;
+        }
+
+        Scientific scientific = NumberUtils.floatToScientific(floatValue);
+        return writeDecimal(scientific.output, scientific.count, scientific.e10, buf, beginIndex, off);
+    }
+
+    final static int writeDecimal(long value, int digitCnt, int e10, char[] buf, int beginIndex, int off) {
+        if ((value & 1) == 0 && value % 5 == 0) {
+            while (value % 100 == 0) {
+                digitCnt -= 2;
+                value /= 100;
+                if (digitCnt == 1) break;
+            }
+            if ((value & 1) == 0 && value % 5 == 0) {
+                if (value > 0) {
+                    --digitCnt;
+                    value /= 10;
+                }
+            }
+        }
+        // 是否使用科学计数法
+        boolean useScientific = e10 < -3 || e10 >= 7; // !((e10 >= -3) && (e10 < 7));
+        if (useScientific) {
+            if (digitCnt == 1) {
+                buf[off++] = (char) (value + 48);
+                buf[off++] = '.';
+                buf[off++] = '0';
+            } else {
+                int pos = digitCnt - 2;
+                // 获取首位数字
+                long tl = POW10_LONG_VALUES[pos];
+                int fd = (int) (value / tl);
+                buf[off++] = (char) (fd + 48);
+                buf[off++] = '.';
+
+                long pointAfter = value - fd * tl;
+                // 补0
+                while (--pos > -1 && pointAfter < POW10_LONG_VALUES[pos]) {
+                    buf[off++] = '0';
+                }
+                off += writeInteger(pointAfter, buf, off);
+            }
+            buf[off++] = 'E';
+            if (e10 < 0) {
+                buf[off++] = '-';
+                e10 = -e10;
+            }
+            if (e10 > 99) {
+                int n = e10 / 100;
+                buf[off++] = (char) (n + 48);
+                e10 = e10 - n * 100;
+
+                buf[off++] = JSONGeneral.DigitTens[e10];
+                buf[off++] = JSONGeneral.DigitOnes[e10];
+            } else {
+                if (e10 > 9) {
+                    buf[off++] = JSONGeneral.DigitTens[e10];
+                }
+                buf[off++] = JSONGeneral.DigitOnes[e10];
+            }
+        } else {
+            // 非科学计数法例如12345, 在size = decimalExp时写入小数点.
+            if (e10 < 0) {
+                // -1/-2/-3
+                buf[off++] = '0';
+                buf[off++] = '.';
+                if (e10 == -2) {
+                    buf[off++] = '0';
+                } else if (e10 == -3) {
+                    buf[off++] = '0';
+                    buf[off++] = '0';
+                }
+                off += writeInteger(value, buf, off);
+            } else {
+                // 0 - 6
+                int decimalPointPos = (digitCnt - 1) - e10;
+                if (decimalPointPos > 0) {
+                    int pos = decimalPointPos - 1;
+                    long tl = POW10_LONG_VALUES[pos];
+                    int pointBefore = (int) (value / tl);
+                    off += writeInteger(pointBefore, buf, off);
+                    buf[off++] = '.';
+                    long pointAfter = value - pointBefore * tl;
+                    // 补0
+                    while (--pos > -1 && pointAfter < POW10_LONG_VALUES[pos]) {
+                        buf[off++] = '0';
+                    }
+                    off += writeInteger(pointAfter, buf, off);
+                } else {
+                    off += writeInteger(value, buf, off);
+                    int zeroCnt = -decimalPointPos;
+                    if (zeroCnt > 0) {
+                        for (int i = 0; i < zeroCnt; ++i) {
+                            buf[off++] = '0';
+                        }
+                    }
+                    buf[off++] = '.';
+                    buf[off++] = '0';
+                }
+            }
+        }
+
+        return off - beginIndex;
+    }
+
+    /**
+     * 将double值写入到字节数组(保留16位有效数字)
+     *
+     * @param doubleValue
+     * @param buf
+     * @param off
+     * @return
+     */
+    final static int writeDouble(double doubleValue, byte[] buf, int off) {
+
+        final int beginIndex = off;
+        long bits;
+        if (doubleValue == 0) {
+            bits = Double.doubleToLongBits(doubleValue);
+            if (bits == 0x8000000000000000L) {
+                buf[off++] = '-';
+            }
+            buf[off++] = '0';
+            buf[off++] = '.';
+            buf[off++] = '0';
+            return off - beginIndex;
+        }
+        boolean sign = doubleValue < 0;
+        if (sign) {
+            buf[off++] = '-';
+            doubleValue = -doubleValue;
+        }
+        if (doubleValue == (long) doubleValue) {
+            long output = (long) doubleValue;
+            int numLength = NumberUtils.stringSize(output);
+            return writeDecimal(output, numLength, numLength - 1, buf, beginIndex, off);
+        }
+        Scientific scientific = NumberUtils.doubleToScientific(doubleValue);
+        int e10 = scientific.e10;
+        if (!scientific.b) {
+            return writeDecimal(scientific.output, scientific.count, scientific.e10, buf, beginIndex, off);
+        }
+        if (scientific == Scientific.SCIENTIFIC_NULL) {
+            buf[off++] = 'n';
+            buf[off++] = 'u';
+            buf[off++] = 'l';
+            buf[off++] = 'l';
+            return off - beginIndex;
+        }
+        if (e10 >= 0) {
+            char[] chars = POSITIVE_DECIMAL_POWER_CHARS[e10];
+            for (char c : chars) {
+                buf[off++] = (byte) c;
+            }
+            return off - beginIndex;
+        } else {
+            char[] chars = NEGATIVE_DECIMAL_POWER_CHARS[-e10];
+            for (char c : chars) {
+                buf[off++] = (byte) c;
+            }
+            return off - beginIndex;
+        }
+    }
+
+    /**
+     * float写入buf（保留7位有效数字）
+     *
+     * @param floatValue
+     * @param buf
+     * @param off
+     * @return
+     */
+    final static int writeFloat(float floatValue, byte[] buf, int off) {
+        final int beginIndex = off;
+        if (Float.isNaN(floatValue) || floatValue == Float.POSITIVE_INFINITY || floatValue == Float.NEGATIVE_INFINITY) {
+            buf[off++] = 'n';
+            buf[off++] = 'u';
+            buf[off++] = 'l';
+            buf[off++] = 'l';
+            return off - beginIndex;
+        }
+        int bits;
+        if (floatValue == 0) {
+            bits = Float.floatToIntBits(floatValue);
+            if (bits == 0x80000000) {
+                buf[off++] = '-';
+            }
+            buf[off++] = '0';
+            buf[off++] = '.';
+            buf[off++] = '0';
+            return off - beginIndex;
+        }
+        boolean sign = floatValue < 0;
+        if (sign) {
+            buf[off++] = '-';
+            floatValue = -floatValue;
+        }
+
+        Scientific scientific = NumberUtils.floatToScientific(floatValue);
+        return writeDecimal(scientific.output, scientific.count, scientific.e10, buf, beginIndex, off);
+    }
+
+    final static int writeDecimal(long value, int digitCnt, int e10, byte[] buf, int beginIndex, int off) {
+        if ((value & 1) == 0 && value % 5 == 0) {
+            while (value % 100 == 0) {
+                digitCnt -= 2;
+                value /= 100;
+                if (digitCnt == 1) break;
+            }
+            if ((value & 1) == 0 && value % 5 == 0) {
+                if (value > 0) {
+                    --digitCnt;
+                    value /= 10;
+                }
+            }
+        }
+        // Whether to use Scientific notation
+        boolean useScientific = e10 < -3 || e10 >= 7; // !((e10 >= -3) && (e10 < 7));
+        if (useScientific) {
+            if (digitCnt == 1) {
+                buf[off++] = (byte) (value + 48);
+                buf[off++] = '.';
+                buf[off++] = '0';
+            } else {
+                int pos = digitCnt - 2;
+                // 获取首位数字
+                long tl = POW10_LONG_VALUES[pos];
+                int fd = (int) (value / tl);
+                buf[off++] = (byte) (fd + 48);
+                buf[off++] = '.';
+
+                long pointAfter = value - fd * tl;
+                // 补0
+                while (--pos > -1 && pointAfter < POW10_LONG_VALUES[pos]) {
+                    buf[off++] = '0';
+                }
+                off += writeInteger(pointAfter, buf, off);
+            }
+            buf[off++] = 'E';
+            if (e10 < 0) {
+                buf[off++] = '-';
+                e10 = -e10;
+            }
+            if (e10 > 99) {
+                int n = e10 / 100;
+                buf[off++] = (byte) (n + 48);
+                e10 = e10 - n * 100;
+
+                buf[off++] = (byte) JSONGeneral.DigitTens[e10];
+                buf[off++] = (byte) JSONGeneral.DigitOnes[e10];
+            } else {
+                if (e10 > 9) {
+                    buf[off++] = (byte) JSONGeneral.DigitTens[e10];
+                }
+                buf[off++] = (byte) JSONGeneral.DigitOnes[e10];
+            }
+        } else {
+            // 非科学计数法例如12345, 在size = decimalExp时写入小数点.
+            if (e10 < 0) {
+                // -1/-2/-3
+                buf[off++] = '0';
+                buf[off++] = '.';
+                if (e10 == -2) {
+                    buf[off++] = '0';
+                } else if (e10 == -3) {
+                    buf[off++] = '0';
+                    buf[off++] = '0';
+                }
+                off += writeInteger(value, buf, off);
+            } else {
+                // 0 - 6
+                int decimalPointPos = (digitCnt - 1) - e10;
+                if (decimalPointPos > 0) {
+                    int pos = decimalPointPos - 1;
+                    long tl = POW10_LONG_VALUES[pos];
+                    int pointBefore = (int) (value / tl);
+                    off += writeInteger(pointBefore, buf, off);
+                    buf[off++] = '.';
+                    long pointAfter = value - pointBefore * tl;
+                    // 补0
+                    while (--pos > -1 && pointAfter < POW10_LONG_VALUES[pos]) {
+                        buf[off++] = '0';
+                    }
+                    off += writeInteger(pointAfter, buf, off);
+                } else {
+                    off += writeInteger(value, buf, off);
+                    int zeroCnt = -decimalPointPos;
+                    if (zeroCnt > 0) {
+                        for (int i = 0; i < zeroCnt; ++i) {
+                            buf[off++] = '0';
+                        }
+                    }
+                    buf[off++] = '.';
+                    buf[off++] = '0';
+                }
+            }
+        }
+
+        return off - beginIndex;
+    }
+
+    final static int writeBigInteger(BigInteger val, char[] chars, int off) {
+        final int beginIndex = off;
+        if (val.signum() == -1) {
+            chars[off++] = '-';
+            val = val.negate();
+        }
+        if (val.compareTo(BI_MAX_VALUE_FOR_LONG) < 1) {
+            long value = val.longValue();
+            off += writeInteger(value, chars, off);
+            return off - beginIndex;
+        }
+        int bigLength = val.bitLength();
+        int[] values = new int[bigLength / 31];
+        int len = 0;
+        do {
+            BigInteger[] bigIntegers = val.divideAndRemainder(BI_TO_DECIMAL_BASE);
+            int rem = bigIntegers[1].intValue();
+            val = bigIntegers[0];
+            if (val.compareTo(BI_MAX_VALUE_FOR_LONG) < 1) {
+                long headNum = val.longValue();
+                off += writeInteger(headNum, chars, off);
+                // rem < BI_TO_DECIMAL_BASE
+                int pos = 8;
+                while (--pos > -1 && rem < POW10_LONG_VALUES[pos]) {
+                    chars[off++] = '0';
+                }
+                off += writeInteger(rem, chars, off);
+                for (int j = len - 1; j > -1; --j) {
+                    int value = values[j];
+                    pos = 8;
+                    // value < BI_TO_DECIMAL_BASE
+                    while (--pos > -1 && value < POW10_LONG_VALUES[pos]) {
+                        chars[off++] = '0';
+                    }
+                    off += writeInteger(value, chars, off);
+                }
+                return off - beginIndex;
+            }
+            values[len++] = rem;
+        } while (true);
+    }
+
+    final static int writeBigInteger(BigInteger val, byte[] buf, int off) {
+        final int beginIndex = off;
+        if (val.signum() == -1) {
+            buf[off++] = '-';
+            val = val.negate();
+        }
+        if (val.compareTo(BI_MAX_VALUE_FOR_LONG) < 1) {
+            long value = val.longValue();
+            off += writeInteger(value, buf, off);
+            return off - beginIndex;
+        }
+        int bigLength = val.bitLength();
+        int[] values = new int[bigLength / 31];
+        int len = 0;
+        do {
+            BigInteger[] bigIntegers = val.divideAndRemainder(BI_TO_DECIMAL_BASE);
+            int rem = bigIntegers[1].intValue();
+            val = bigIntegers[0];
+            if (val.compareTo(BI_MAX_VALUE_FOR_LONG) < 1) {
+                long headNum = val.longValue();
+                off += writeInteger(headNum, buf, off);
+                // rem < BI_TO_DECIMAL_BASE
+                int pos = 8;
+                while (--pos > -1 && rem < POW10_LONG_VALUES[pos]) {
+                    buf[off++] = '0';
+                }
+                off += writeInteger(rem, buf, off);
+                for (int j = len - 1; j > -1; --j) {
+                    int value = values[j];
+                    pos = 8;
+                    // value < BI_TO_DECIMAL_BASE
+                    while (--pos > -1 && value < POW10_LONG_VALUES[pos]) {
+                        buf[off++] = '0';
+                    }
+                    off += writeInteger(value, buf, off);
+                }
+                return off - beginIndex;
+            }
+            values[len++] = rem;
+        } while (true);
+    }
+
+    final static int writeThreeDigits(int val, char[] chars, int off) {
+        if (val < 10) {
+            chars[off] = JSONGeneral.DigitOnes[val];
+            return 1;
+        }
+        if (val < 100) {
+            JSONUnsafe.putInt(chars, off, TWO_DIGITS_32_BITS[val]);
+            return 2;
+        }
+        int v = val / 100;
+        int v1 = val - v * 100;
+        chars[off++] = JSONGeneral.DigitOnes[v];
+        JSONUnsafe.putInt(chars, off, TWO_DIGITS_32_BITS[v1]);
+        return 3;
+    }
+
+    final static int writeThreeDigits(int val, byte[] buf, int off) {
+        if (val < 10) {
+            buf[off] = (byte) JSONGeneral.DigitOnes[val];
+            return 1;
+        }
+        if (val < 100) {
+            JSONUnsafe.putShort(buf, off, TWO_DIGITS_16_BITS[val]);
+            return 2;
+        }
+        int v = val / 100;
+        int v1 = val - v * 100;
+        buf[off++] = (byte) JSONGeneral.DigitOnes[v];
+        JSONUnsafe.putShort(buf, off, TWO_DIGITS_16_BITS[v1]);
+        return 3;
+    }
+
+    /**
+     * ensure val >= 0 && chars.length > off + 19
+     *
+     * @param val
+     * @param chars
+     * @param off
+     * @return
+     */
+    final static int writeInteger(long val, char[] chars, int off) {
+        int v, v1, v2, v3, v4;
+        if (val < 10000) {
+            v = (int) val;
+            if (v < 1000) {
+                return writeThreeDigits(v, chars, off);
+            } else {
+                return JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v]);
+            }
+        }
+        final int beginIndex = off;
+        long numValue = val;
+        val = numValue / 10000;
+        v1 = (int) (numValue - val * 10000);
+        if (val < 10000) {
+            v = (int) val;
+            if (v < 1000) {
+                off += writeThreeDigits(v, chars, off);
+            } else {
+                off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v]);
+            }
+            off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
+            return off - beginIndex;
+        }
+
+        numValue = val;
+        val = numValue / 10000;
+        v2 = (int) (numValue - val * 10000);
+        if (val < 10000) {
+            v = (int) val;
+            if (v < 1000) {
+                off += writeThreeDigits(v, chars, off);
+            } else {
+                off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v]);
+            }
+            off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v2]);
+            off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
+            return off - beginIndex;
+        }
+
+        numValue = val;
+        val = numValue / 10000;
+        v3 = (int) (numValue - val * 10000);
+        if (val < 10000) {
+            v = (int) val;
+            if (v < 1000) {
+                off += writeThreeDigits(v, chars, off);
+            } else {
+                off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v]);
+            }
+            off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v3]);
+            off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v2]);
+            off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
+            return off - beginIndex;
+        }
+
+        numValue = val;
+        val = numValue / 10000;
+        v4 = (int) (numValue - val * 10000);
+
+        off += writeThreeDigits((int) val, chars, off);
+        off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v4]);
+        off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v3]);
+        off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v2]);
+        off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
+        return off - beginIndex;
+    }
+
+    final static long mergeInt64(int val, char pre, char suff) {
+        return EnvUtils.BIG_ENDIAN ? ((long) pre) << 48 | ((long) TWO_DIGITS_32_BITS[val]) << 16 | suff : ((long) suff) << 48 | ((long) TWO_DIGITS_32_BITS[val]) << 16 | pre;
+    }
+
+    final static int mergeInt32(int val, char pre, char suff) {
+        return EnvUtils.BIG_ENDIAN ? (pre << 24) | (TWO_DIGITS_16_BITS[val] << 8) | suff : (suff << 24) | (TWO_DIGITS_16_BITS[val] << 8) | pre;
+    }
+
+    final static long mergeInt64(int t, int r) {
+        long top32 = FOUR_DIGITS_32_BITS[t];
+        long rem32 = FOUR_DIGITS_32_BITS[r];
+        return EnvUtils.BIG_ENDIAN ? top32 << 32 | rem32 : rem32 << 32 | top32;
+    }
+
+    // yyyy-MM-
+    final static long mergeYYYY_MM_(int year, int month) {
+        long year32 = FOUR_DIGITS_32_BITS[year];
+        long month16 = TWO_DIGITS_16_BITS[month];
+        return EnvUtils.BIG_ENDIAN
+                ? year32 << 32 | '-' << 24 | month16 << 8 | '-'
+                : (long) '-' << 56 | month16 << 40 | (long) '-' << 32 | year32;
+    }
+
+    final static long mergeInt64(int s1, char c, int s2, char c1, int s3) {
+        return EnvUtils.BIG_ENDIAN
+                ? (long) TWO_DIGITS_16_BITS[s1] << 48 | (long) c << 40 | (long) TWO_DIGITS_16_BITS[s2] << 24 | c1 << 16 | TWO_DIGITS_16_BITS[s3]
+                : (long) TWO_DIGITS_16_BITS[s3] << 48 | (long) c1 << 40 | (long) TWO_DIGITS_16_BITS[s2] << 24 | c << 16 | TWO_DIGITS_16_BITS[s1];
+    }
+
+    /**
+     * ensure val >= 0 && chars.length > off + 19
+     *
+     * @param val
+     * @param buf
+     * @param off
+     * @return
+     */
+    final static int writeInteger(long val, byte[] buf, int off) {
+        int v, v1, v2, v3, v4;
+        if (val < 10000) {
+            v = (int) val;
+            if (v < 1000) {
+                return writeThreeDigits(v, buf, off);
+            } else {
+                return JSONUnsafe.putInt(buf, off, FOUR_DIGITS_32_BITS[v]);
+            }
+        }
+        final int beginIndex = off;
+        long numValue = val;
+        val = numValue / 10000;
+        v1 = (int) (numValue - val * 10000);
+        if (val < 10000) {
+            v = (int) val;
+            if (v < 1000) {
+                off += writeThreeDigits(v, buf, off);
+                off += JSONUnsafe.putInt(buf, off, FOUR_DIGITS_32_BITS[v1]);
+            } else {
+                off += JSONUnsafe.putLong(buf, off, mergeInt64(v, v1));
+            }
+            return off - beginIndex;
+        }
+
+        numValue = val;
+        val = numValue / 10000;
+        v2 = (int) (numValue - val * 10000);
+        if (val < 10000) {
+            v = (int) val;
+            if (v < 1000) {
+                off += writeThreeDigits(v, buf, off);
+            } else {
+                off += JSONUnsafe.putInt(buf, off, FOUR_DIGITS_32_BITS[v]);
+            }
+            off += JSONUnsafe.putLong(buf, off, mergeInt64(v2, v1));
+            return off - beginIndex;
+        }
+
+        numValue = val;
+        val = numValue / 10000;
+        v3 = (int) (numValue - val * 10000);
+        if (val < 10000) {
+            v = (int) val;
+            if (v < 1000) {
+                off += writeThreeDigits(v, buf, off);
+                off += JSONUnsafe.putInt(buf, off, FOUR_DIGITS_32_BITS[v3]);
+            } else {
+                off += JSONUnsafe.putLong(buf, off, mergeInt64(v, v3));
+            }
+            off += JSONUnsafe.putLong(buf, off, mergeInt64(v2, v1));
+            return off - beginIndex;
+        }
+
+        numValue = val;
+        val = numValue / 10000;
+        v4 = (int) (numValue - val * 10000);
+        off += writeThreeDigits((int) val, buf, off);
+        off += JSONUnsafe.putLong(buf, off, mergeInt64(v4, v3));
+        off += JSONUnsafe.putLong(buf, off, mergeInt64(v2, v1));
+        return off - beginIndex;
+    }
+
 }

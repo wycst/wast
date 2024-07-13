@@ -7,7 +7,6 @@ import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import io.github.wycst.wast.common.utils.NumberUtils;
 import io.github.wycst.wast.json.exceptions.JSONException;
 import io.github.wycst.wast.json.options.ReadOption;
-import io.github.wycst.wast.json.util.FixedNameValueMap;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,13 +33,13 @@ class JSONGeneral {
 
     protected final static char[] EMPTY_ARRAY = new char[]{'[', ']'};
     protected final static char[] EMPTY_OBJECT = new char[]{'{', '}'};
-    protected final static int TRUE_INT = UnsafeHelper.getInt(new byte[]{'t', 'r', 'u', 'e'}, 0);
-    protected final static long TRUE_LONG = UnsafeHelper.getLong(new char[]{'t', 'r', 'u', 'e'}, 0);
-    protected final static int ALSE_INT = UnsafeHelper.getInt(new byte[]{'a', 'l', 's', 'e'}, 0);
-    protected final static long ALSE_LONG = UnsafeHelper.getLong(new char[]{'a', 'l', 's', 'e'}, 0);
+    protected final static int TRUE_INT = JSONUnsafe.getInt(new byte[]{'t', 'r', 'u', 'e'}, 0);
+    protected final static long TRUE_LONG = JSONUnsafe.getLong(new char[]{'t', 'r', 'u', 'e'}, 0);
+    protected final static int ALSE_INT = JSONUnsafe.getInt(new byte[]{'a', 'l', 's', 'e'}, 0);
+    protected final static long ALSE_LONG = JSONUnsafe.getLong(new char[]{'a', 'l', 's', 'e'}, 0);
 
-    protected final static long NULL_INT = UnsafeHelper.getInt(new byte[]{'n', 'u', 'l', 'l'}, 0);
-    protected final static long NULL_LONG = UnsafeHelper.getLong(new char[]{'n', 'u', 'l', 'l'}, 0);
+    protected final static long NULL_INT = JSONUnsafe.getInt(new byte[]{'n', 'u', 'l', 'l'}, 0);
+    protected final static long NULL_LONG = JSONUnsafe.getLong(new char[]{'n', 'u', 'l', 'l'}, 0);
 
     protected final static byte ZERO = 0;
     protected final static byte COMMA = ',';
@@ -446,9 +445,8 @@ class JSONGeneral {
      * @return 返回转义内容处理完成后的下一个未知字符位置
      */
     final static int escapeAscii(String source, byte[] bytes, byte next, int i, int beginIndex, JSONCharArrayWriter writer, JSONParseContext jsonParseContext) {
-
         if (i > beginIndex) {
-            writer.write(source, beginIndex, i - beginIndex);
+            writer.writeString(source, beginIndex, i - beginIndex);
         }
         if (next == 'u') {
             int c;
@@ -1240,7 +1238,7 @@ class JSONGeneral {
             }
             int count = to - from;
             if (count == 4) {
-                long lv = UnsafeHelper.getLong(buf, from);
+                long lv = JSONUnsafe.getLong(buf, from);
                 if (lv == NULL_LONG/*buf[from] == 'n' && buf[from + 1] == 'u' && buf[from + 2] == 'l' && buf[from + 3] == 'l'*/) {
                     return null;
                 }
@@ -1248,7 +1246,7 @@ class JSONGeneral {
                     return true;
                 }
             }
-            if (count == 5 && buf[from] == 'f' && UnsafeHelper.getLong(buf, from + 1) == ALSE_LONG/*buf[from + 1] == 'a' && buf[from + 2] == 'l' && buf[from + 3] == 's' && buf[from + 4] == 'e'*/) {
+            if (count == 5 && buf[from] == 'f' && JSONUnsafe.getLong(buf, from + 1) == ALSE_LONG/*buf[from + 1] == 'a' && buf[from + 2] == 'l' && buf[from + 3] == 's' && buf[from + 4] == 'e'*/) {
                 return false;
             }
             boolean numberFlag = true;
@@ -1302,7 +1300,7 @@ class JSONGeneral {
             }
             int count = to - from;
             if (count == 4) {
-                int iv = UnsafeHelper.getInt(buf, from);
+                int iv = JSONUnsafe.getInt(buf, from);
                 if (iv == NULL_INT/*buf[from] == 'n' && buf[from + 1] == 'u' && buf[from + 2] == 'l' && buf[from + 3] == 'l'*/) {
                     return null;
                 }
@@ -1310,7 +1308,7 @@ class JSONGeneral {
                     return true;
                 }
             }
-            if (count == 5 && buf[from] == 'f' && UnsafeHelper.getInt(buf, from + 1) == ALSE_INT/*buf[from + 1] == 'a' && buf[from + 2] == 'l' && buf[from + 3] == 's' && buf[from + 4] == 'e'*/) {
+            if (count == 5 && buf[from] == 'f' && JSONUnsafe.getInt(buf, from + 1) == ALSE_INT/*buf[from + 1] == 'a' && buf[from + 2] == 'l' && buf[from + 3] == 's' && buf[from + 4] == 'e'*/) {
                 return false;
             }
             boolean numberFlag = true;

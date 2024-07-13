@@ -1,7 +1,4 @@
-package io.github.wycst.wast.json.util;
-
-import io.github.wycst.wast.common.reflect.UnsafeHelper;
-
+package io.github.wycst.wast.json;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -13,7 +10,7 @@ import java.util.Set;
  * @Date: 2022/7/9 11:57
  * @Description:
  */
-public class FixedNameValueMap<T> {
+class FixedNameValueMap<T> {
 
     final int capacity;
     final int mask;
@@ -323,7 +320,7 @@ public class FixedNameValueMap<T> {
                 }
                 case 2:
                 case 3: {
-                    remValueForChars = UnsafeHelper.getInt(chars, charLen - 2);
+                    remValueForChars = JSONUnsafe.getInt(chars, charLen - 2);
                     break;
                 }
             }
@@ -338,7 +335,7 @@ public class FixedNameValueMap<T> {
                 }
                 case 2:
                 case 3: {
-                    remValueForBytes = UnsafeHelper.getShort(bytes, byteLen - 2);
+                    remValueForBytes = JSONUnsafe.getShort(bytes, byteLen - 2);
                     break;
                 }
             }
@@ -355,11 +352,11 @@ public class FixedNameValueMap<T> {
         NameValueEntryNode<T> next;
 
         public final boolean equals(char[] buf, int offset, int len) {
-            return len == chars.length && UnsafeHelper.equals(buf, offset, chars, 0, len, remCharsValue);
+            return len == chars.length && JSONUnsafe.equals(buf, offset, chars, 0, len, remCharsValue);
         }
 
         public final boolean equals(byte[] buf, int offset, int len) {
-            return len == bytes.length && UnsafeHelper.equals(buf, offset, bytes, 0, len, remBytesValue);
+            return len == bytes.length && JSONUnsafe.equals(buf, offset, bytes, 0, len, remBytesValue);
         }
     }
 

@@ -16,10 +16,6 @@
  */
 package io.github.wycst.wast.json;
 
-import io.github.wycst.wast.common.beans.AsciiStringSource;
-import io.github.wycst.wast.common.beans.CharSource;
-import io.github.wycst.wast.common.beans.ISO_8859_1CharSource;
-import io.github.wycst.wast.common.beans.UTF16ByteArraySource;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
@@ -1008,6 +1004,34 @@ public final class JSON extends JSONGeneral {
         JSONConfig jsonConfig = new JSONConfig();
         JSONOptions.writeOptions(options, jsonConfig);
         return stringify(obj, jsonConfig, 0);
+    }
+
+    final static JSONConfig PRETTIFY_CONFIG = JSONConfig.config(WriteOption.FormatOutColonSpace);
+
+    /**
+     * 将对象转化为美化后的json字符串
+     *
+     * @param obj
+     * @return
+     */
+    public static String toPrettifyJsonString(Object obj) {
+        if (obj == null) {
+            return null;
+        }
+        return stringify(obj, PRETTIFY_CONFIG, 0);
+    }
+
+    /**
+     * 将json字符串转为美化后的json字符串
+     *
+     * @param json
+     * @return
+     */
+    public static String prettifyJsonString(String json) {
+        if (json == null) {
+            return null;
+        }
+        return stringify(parse(json), PRETTIFY_CONFIG, 0);
     }
 
     /**

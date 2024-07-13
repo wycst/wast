@@ -92,18 +92,6 @@ public final class EnvUtils {
 //            }
 //        }
         SUPPORTED_VECTOR = supportedVector;
-//        Method slIndexOfMethod = null;
-//        if (JDK_9_PLUS) {
-//            try {
-//                // public static int indexOf(byte[] value, int valueCount, byte[] str, int strCount, int fromIndex)
-//                Class<?> scClass = Class.forName("java.lang.StringLatin1");
-//                slIndexOfMethod = scClass.getMethod("indexOf", new Class[]{byte[].class, int.class, byte[].class, int.class, int.class});
-//                UnsafeHelper.setAccessible(slIndexOfMethod);
-//            } catch (Exception e) {
-//                slIndexOfMethod = null;
-//            }
-//        }
-//        SL_INDEX_OF_METHOD = slIndexOfMethod;
     }
 
     public static final JdkApiAgent JDK_AGENT_INSTANCE;
@@ -114,7 +102,7 @@ public final class EnvUtils {
             try {
                 MemoryClassLoader memoryClassLoader = new MemoryClassLoader();
                 Class agentClass = memoryClassLoader.loadClass("io.github.wycst.wast.common.utils.JdkApiAgentJdk9Plus", ByteUtils.hexString2Bytes("CAFEBABE00000035001A0A000400140A001500160700170700180100063C696E69743E010003282956010004436F646501000F4C696E654E756D6265725461626C650100124C6F63616C5661726961626C655461626C65010004746869730100374C696F2F6769746875622F77796373742F776173742F636F6D6D6F6E2F7574696C732F4A646B4170694167656E744A646B39506C75733B01000C6D756C7469706C7948696768010005284A4A294A010001780100014A010001790100156D756C7469706C79486967684B617261747375626101000A536F7572636546696C650100184A646B4170694167656E744A646B39506C75732E6A6176610C000500060700190C000C000D010035696F2F6769746875622F77796373742F776173742F636F6D6D6F6E2F7574696C732F4A646B4170694167656E744A646B39506C757301002D696F2F6769746875622F77796373742F776173742F636F6D6D6F6E2F7574696C732F4A646B4170694167656E7401000E6A6176612F6C616E672F4D617468003100030004000000000003000100050006000100070000002F00010001000000052AB70001B10000000200080000000600010000000700090000000C000100000005000A000B00000001000C000D000100070000004400040005000000061F21B80002AD0000000200080000000600010000000A000900000020000300000006000A000B000000000006000E000F0001000000060010000F000300010011000D000100070000004400040005000000061F21B80002AD0000000200080000000600010000000E000900000020000300000006000A000B000000000006000E000F0001000000060010000F000300010012000000020013"));
-                apiAgent = (JdkApiAgent) UnsafeHelper.getUnsafe().allocateInstance(agentClass);
+                apiAgent = (JdkApiAgent) UnsafeHelper.newInstance(agentClass);
             } catch (Throwable throwable) {
             }
         }
@@ -133,29 +121,29 @@ public final class EnvUtils {
         }
     }
 
-    public static final long NEGATIVE_MASK = 0x8080808080808080L;
+//    public static final long NEGATIVE_MASK = 0x8080808080808080L;
 
+    // only supported on JDK9+
     public static boolean hasNegatives(byte[] bytes, int offset, int len) {
         try {
-            if (SC_HAS_NEGATIVES_METHOD != null) {
-                return (Boolean) SC_HAS_NEGATIVES_METHOD.invoke(null, bytes, offset, len);
-            }
+            return (Boolean) SC_HAS_NEGATIVES_METHOD.invoke(null, bytes, offset, len);
         } catch (Exception e) {
+            throw new UnsupportedOperationException();
         }
-        if (len > 7) {
-            do {
-                long val = UnsafeHelper.getLong(bytes, offset);
-                if ((val & NEGATIVE_MASK) != 0) return true;
-                offset += 8;
-                len -= 8;
-            } while (len > 7);
-            if (len == 0) return false;
-            return (UnsafeHelper.getLong(bytes, offset + len - 8) & NEGATIVE_MASK) != 0;
-        } else {
-            for (int i = offset, end = offset + len; i < end; ++i) {
-                if (bytes[i] < 0) return true;
-            }
-            return false;
-        }
+//        if (len > 7) {
+//            do {
+//                long val = UnsafeHelper.getLong(bytes, offset);
+//                if ((val & NEGATIVE_MASK) != 0) return true;
+//                offset += 8;
+//                len -= 8;
+//            } while (len > 7);
+//            if (len == 0) return false;
+//            return (UnsafeHelper.getLong(bytes, offset + len - 8) & NEGATIVE_MASK) != 0;
+//        } else {
+//            for (int i = offset, end = offset + len; i < end; ++i) {
+//                if (bytes[i] < 0) return true;
+//            }
+//            return false;
+//        }
     }
 }

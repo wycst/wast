@@ -1,6 +1,5 @@
 package io.github.wycst.wast.json;
 
-import io.github.wycst.wast.common.beans.CharSource;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.SetterInfo;

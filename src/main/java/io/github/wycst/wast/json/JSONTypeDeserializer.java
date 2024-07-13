@@ -1,12 +1,14 @@
 package io.github.wycst.wast.json;
 
-import io.github.wycst.wast.common.beans.CharSource;
 import io.github.wycst.wast.common.beans.DateTemplate;
 import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
-import io.github.wycst.wast.common.utils.*;
+import io.github.wycst.wast.common.utils.EnvUtils;
+import io.github.wycst.wast.common.utils.NumberUtils;
+import io.github.wycst.wast.common.utils.ObjectUtils;
+import io.github.wycst.wast.common.utils.ReflectUtils;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.exceptions.JSONException;
 
@@ -691,8 +693,8 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             @Override
             final Object charSequenceResult(char[] buf, int beginIndex, int len, boolean unEscape, JSONCharArrayWriter writer, GenericParameterizedType parameterizedType) {
                 if (unEscape) {
-//                     return new String(buf, beginIndex, len);
-                    return UnsafeHelper.getString(MemoryOptimizerUtils.copyOfRange(buf, beginIndex, len));
+                    return UnsafeHelper.getString(JSONUnsafe.copyChars(buf, beginIndex, len));
+                    // return UnsafeHelper.getString(MemoryOptimizerUtils.copyOfRange(buf, beginIndex, len));
                 } else {
                     writer.write(buf, beginIndex, len);
                     return writer.toString();
@@ -1688,7 +1690,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
 
         Object deserializeTrue(char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, JSONParseContext jsonParseContext) throws Exception {
             int endIndex = fromIndex + 3;
-            if (UnsafeHelper.getLong(buf, fromIndex) == TRUE_LONG/*buf[fromIndex + 1] == 'r' && buf[fromIndex + 2] == 'u' && buf[endIndex] == 'e'*/) {
+            if (JSONUnsafe.getLong(buf, fromIndex) == TRUE_LONG/*buf[fromIndex + 1] == 'r' && buf[fromIndex + 2] == 'u' && buf[endIndex] == 'e'*/) {
                 jsonParseContext.endIndex = endIndex;
                 return true;
             }
@@ -1698,7 +1700,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
 
         Object deserializeFalse(char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, JSONParseContext jsonParseContext) throws Exception {
             int endIndex = fromIndex + 4;
-            if (UnsafeHelper.getLong(buf, fromIndex + 1) == ALSE_LONG/*buf[fromIndex + 1] == 'a'
+            if (JSONUnsafe.getLong(buf, fromIndex + 1) == ALSE_LONG/*buf[fromIndex + 1] == 'a'
                     && buf[fromIndex + 2] == 'l'
                     && buf[fromIndex + 3] == 's'
                     && buf[endIndex] == 'e'*/) {
@@ -2539,7 +2541,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                             throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "' the closing symbol ']' is not allowed here.");
                         }
                         jsonParseContext.endIndex = i;
-                        return len == 0 ? EMPTY_STRINGS : MemoryOptimizerUtils.copyOfRange(arr, 0, len);
+                        return len == 0 ? EMPTY_STRINGS : JSONUnsafe.copyStrings(arr, 0, len);
                     }
 
                     String value = (String) CHAR_SEQUENCE_STRING.deserialize(charSource, buf, i, toIndex, null, null, ']', jsonParseContext);
@@ -2559,7 +2561,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     }
                     if (ch == ']') {
                         jsonParseContext.endIndex = i;
-                        return MemoryOptimizerUtils.copyOfRange(arr, 0, len);
+                        return JSONUnsafe.copyStrings(arr, 0, len);
                     }
                     String errorContextTextAt = createErrorContextText(buf, i);
                     throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + ch + "', expected ',' or ']'");
@@ -2590,7 +2592,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                             throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "' the closing symbol ']' is not allowed here.");
                         }
                         jsonParseContext.endIndex = i;
-                        return len == 0 ? EMPTY_STRINGS : MemoryOptimizerUtils.copyOfRange(arr, 0, len);
+                        return len == 0 ? EMPTY_STRINGS : JSONUnsafe.copyStrings(arr, 0, len);
                     }
 
                     String value = (String) CHAR_SEQUENCE_STRING.deserialize(charSource, buf, i, toIndex, null, null, END_ARRAY, jsonParseContext);
@@ -2611,7 +2613,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     }
                     if (b == END_ARRAY) {
                         jsonParseContext.endIndex = i;
-                        return MemoryOptimizerUtils.copyOfRange(arr, 0, len);
+                        return JSONUnsafe.copyStrings(arr, 0, len);
                     }
                     String errorContextTextAt = createErrorContextText(buf, i);
                     throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + (char) b + "', expected ',' or ']'");
@@ -2684,7 +2686,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             @Override
             public Object subOf(Object arr, int len) {
                 double[] value = (double[]) arr;
-                return MemoryOptimizerUtils.copyOfRange(value, 0, len);
+                return JSONUnsafe.copyDoubles(value, 0, len);
             }
 
             @Override
@@ -2758,7 +2760,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             @Override
             public Object subOf(Object arr, int len) {
                 long[] value = (long[]) arr;
-                return MemoryOptimizerUtils.copyOfRange(value, 0, len);
+                return JSONUnsafe.copyLongs(value, 0, len);
             }
 
             @Override
@@ -4426,8 +4428,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
      */
     protected final static boolean parseTrue(byte[] bytes, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
         int endIndex = fromIndex + 3;
-        if (UnsafeHelper.getInt(bytes, fromIndex) == TRUE_INT
-            /*bytes[fromIndex + 1] == 'r' && bytes[fromIndex + 2] == 'u' && bytes[endIndex] == 'e'*/) {
+        if (JSONUnsafe.getInt(bytes, fromIndex) == TRUE_INT) {
             jsonParseContext.endIndex = endIndex;
             return true;
         }
@@ -4447,10 +4448,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
      */
     protected final static boolean parseFalse(byte[] bytes, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
         int endIndex = fromIndex + 4;
-        if (UnsafeHelper.getInt(bytes, fromIndex + 1) == ALSE_INT/*bytes[fromIndex + 1] == 'a'
-                && bytes[fromIndex + 2] == 'l'
-                && bytes[fromIndex + 3] == 's'
-                && bytes[endIndex] == 'e'*/) {
+        if (JSONUnsafe.getInt(bytes, fromIndex + 1) == ALSE_INT) {
             jsonParseContext.endIndex = endIndex;
             return false;
         }

@@ -70,7 +70,7 @@ class JSONWrapWriter extends JSONWriter {
     public void writeUUID(UUID uuid) throws IOException {
         writer.write('"');
         char[] chars = new char[36];
-        NumberUtils.writeUUID(uuid, chars, 0);
+        writeUUID(uuid, chars, 0);
         writer.write(chars, 0, 36);
         writer.write('"');
     }
@@ -78,14 +78,14 @@ class JSONWrapWriter extends JSONWriter {
     @Override
     public void writeDouble(double numValue) throws IOException {
         char[] chars = JSONGeneral.CACHED_CHARS_24.get();
-        int len = NumberUtils.writeDouble(numValue, chars, 0);
+        int len = writeDouble(numValue, chars, 0);
         writer.write(chars, 0, len);
     }
 
     @Override
     public void writeFloat(float numValue) throws IOException {
         char[] chars = JSONGeneral.CACHED_CHARS_24.get();
-        int len = NumberUtils.writeFloat(numValue, chars, 0);
+        int len = writeFloat(numValue, chars, 0);
         writer.write(chars, 0, len);
     }
 
@@ -195,7 +195,7 @@ class JSONWrapWriter extends JSONWriter {
     public void writeBigInteger(BigInteger bigInteger) throws IOException {
         int increment = ((bigInteger.bitLength() / 60) + 1) * 18;
         char[] chars = new char[increment];
-        int len = NumberUtils.writeBigInteger(bigInteger, chars, 0);
+        int len = writeBigInteger(bigInteger, chars, 0);
         writer.write(chars, 0, len);
     }
 

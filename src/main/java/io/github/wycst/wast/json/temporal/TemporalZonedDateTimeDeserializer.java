@@ -3,7 +3,6 @@ package io.github.wycst.wast.json.temporal;
 import io.github.wycst.wast.common.beans.GeneralDate;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
-import io.github.wycst.wast.common.utils.NumberUtils;
 import io.github.wycst.wast.json.JSONParseContext;
 import io.github.wycst.wast.json.JSONTemporalDeserializer;
 import io.github.wycst.wast.json.exceptions.JSONException;
@@ -117,20 +116,86 @@ public class TemporalZonedDateTimeDeserializer extends JSONTemporalDeserializer 
 
     // default format yyyy-MM-ddTHH:mm:ss.SSS+08:00[Asia/Shanghai] not supported 'T'
     @Override
-    protected Object deserializeDefaultTemporal(char[] buf, int offset, char endChar, JSONParseContext jsonParseContext) throws Exception {
-        int year = NumberUtils.parseInt4(buf, offset);
-        int month = NumberUtils.parseInt2(buf, offset + 5);
-        int day = NumberUtils.parseInt2(buf, offset + 8);
-        int hour = NumberUtils.parseInt2(buf, offset + 11);
-        int minute = NumberUtils.parseInt2(buf, offset + 14);
-        int second = NumberUtils.parseInt2(buf, offset + 17);
+    protected Object deserializeDefaultTemporal(char[] buf, int offset, char endToken, JSONParseContext jsonParseContext) throws Exception {
+        int i = offset;
+        int year, month, day, hour, minute, second;
+        char c1, c2, c3, c4;
+        if (isDigit(c1 = buf[i]) && isDigit(c2 = buf[++i]) && isDigit(c3 = buf[++i]) && isDigit(c4 = buf[++i])) {
+            year = c1 * 1000 + c2 * 100 + c3 * 10 + c4 - 53328;
+        } else {
+            if (c1 == '-' && isDigit(c1 = buf[++i]) && isDigit(c2 = buf[++i]) && isDigit(c3 = buf[++i]) && isDigit(c4 = buf[++i])) {
+                year = c1 * 1000 + c2 * 100 + c3 * 10 + c4 -53328;
+                year = -year;
+            } else {
+                String errorContextTextAt = createErrorContextText(buf, i);
+                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', year field error ");
+            }
+        }
+        ++i;
+        if (isDigit(c1 = buf[++i])) {
+            month = c1 - 48;
+        } else {
+            String errorContextTextAt = createErrorContextText(buf, i);
+            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', month field error ");
+        }
+        if (isDigit(c1 = buf[++i])) {
+            month = (month << 3) + (month << 1) + c1 - 48;
+        }
+        ++i;
+        if (isDigit(c1 = buf[++i])) {
+            day = c1 - 48;
+        } else {
+            String errorContextTextAt = createErrorContextText(buf, i);
+            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', day field error ");
+        }
+        if (isDigit(c1 = buf[++i])) {
+            day = (day << 3) + (day << 1) + c1 - 48;
+        }
+        ++i;
+        if (isDigit(c1 = buf[++i])) {
+            hour = c1 - 48;
+        } else {
+            String errorContextTextAt = createErrorContextText(buf, i);
+            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', hour field error ");
+        }
+        if (isDigit(c1 = buf[++i])) {
+            hour = (hour << 3) + (hour << 1) + c1 - 48;
+        }
+        ++i;
+        if (isDigit(c1 = buf[++i])) {
+            minute = c1 - 48;
+        } else {
+            String errorContextTextAt = createErrorContextText(buf, i);
+            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', minute field error ");
+        }
+        if (isDigit(c1 = buf[++i])) {
+            minute = (minute << 3) + (minute << 1) + c1 - 48;
+        }
+
+        ++i;
+        if (isDigit(c1 = buf[++i])) {
+            second = c1 - 48;
+        } else {
+            String errorContextTextAt = createErrorContextText(buf, i);
+            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', second field error ");
+        }
+        if (isDigit(c1 = buf[++i])) {
+            second = (second << 3) + (second << 1) + c1 - 48;
+            c1 = buf[++i];
+        }
+
         int nanoOfSecond = 0;
-        offset += 19;
-        char c = buf[offset];
+        char c = c1;
         if (c == '.') {
             int cnt = 9;
-            while (isDigit((c = buf[++offset]))) {
+            boolean isDigitFlag;
+            while ((isDigitFlag = isDigit(c = buf[++i])) && isDigit(c1 = buf[++i])) {
+                cnt -= 2;
+                nanoOfSecond = nanoOfSecond * 100 + c * 10 + c1 - 528;
+            }
+            if(isDigitFlag) {
                 nanoOfSecond = (nanoOfSecond << 3) + (nanoOfSecond << 1) + c - 48;
+                c = c1;
                 --cnt;
             }
             if (cnt > 0) {
@@ -142,41 +207,41 @@ public class TemporalZonedDateTimeDeserializer extends JSONTemporalDeserializer 
             case 'z':
             case 'Z': {
                 zoneObject = ZERO;
-                c = buf[++offset];
+                c = buf[++i];
                 break;
             }
             case '+':
             case '-': {
-                int zoneBeginOff = offset;
+                int zoneBeginOff = i;
                 // parse +08:00
-                while (isDigit(c = buf[++offset]) || c == ':') ;
-                zoneObject = ofZoneId(new String(buf, offset, offset - zoneBeginOff));
+                while (isDigit(c = buf[++i]) || c == ':') ;
+                zoneObject = ofZoneId(new String(buf, zoneBeginOff, i - zoneBeginOff));
                 break;
             }
         }
         if (c == '[') {
             if (supportedZoneRegion()) {
-                int zoneRegionOff = offset;
-                while (buf[++offset] != ']') ;
-                zoneObject = ofZoneId(new String(buf, zoneRegionOff + 1, offset - zoneRegionOff - 1));
-                c = buf[++offset];
+                int zoneRegionOff = i;
+                while (buf[++i] != ']') ;
+                zoneObject = ofZoneId(new String(buf, zoneRegionOff + 1, i - zoneRegionOff - 1));
+                c = buf[++i];
             } else {
-                while (buf[++offset] != ']') ;
-                c = buf[++offset];
+                while (buf[++i] != ']') ;
+                c = buf[++i];
             }
         }
-        if (c == endChar) {
-            jsonParseContext.endIndex = offset;
+        if (c == endToken) {
+            jsonParseContext.endIndex = i;
             return ofTemporalDateTime(year, month, day, hour, minute, second, nanoOfSecond, zoneObject);
         }
 
-        String errorContextTextAt = createErrorContextText(buf, offset);
-        throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', unexpected token '" + c + "', expected '" + endChar + "'");
+        String errorContextTextAt = createErrorContextText(buf, i);
+        throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token '" + c + "', expected '" + endToken + "'");
     }
 
     // default format yyyy*MM*dd*HH*mm*ss.SSS+08:00[Asia/Shanghai] not supported 'T'
     @Override
-    protected Object deserializeDefaultTemporal(byte[] buf, int offset, char endChar, JSONParseContext jsonParseContext) throws Exception {
+    protected Object deserializeDefaultTemporal(byte[] buf, int offset, char endToken, JSONParseContext jsonParseContext) throws Exception {
         int i = offset;
         int year, month, day, hour, minute, second;
         byte b1, b2, b3, b4;
@@ -275,7 +340,7 @@ public class TemporalZonedDateTimeDeserializer extends JSONTemporalDeserializer 
                 int zoneBeginOff = i;
                 // parse +08:00
                 while (isDigit(c = buf[++i]) || c == ':') ;
-                zoneObject = ofZoneId(new String(buf, i, i - zoneBeginOff));
+                zoneObject = ofZoneId(new String(buf, zoneBeginOff, i - zoneBeginOff));
                 break;
             }
         }
@@ -290,13 +355,13 @@ public class TemporalZonedDateTimeDeserializer extends JSONTemporalDeserializer 
                 c = buf[++i];
             }
         }
-        if (c == endChar) {
+        if (c == endToken) {
             jsonParseContext.endIndex = i;
             return ofTemporalDateTime(year, month, day, hour, minute, second, nanoOfSecond, zoneObject);
         }
 
         String errorContextTextAt = createErrorContextText(buf, i);
-        throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token '" + (char) c + "', expected '" + endChar + "'");
+        throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token '" + (char) c + "', expected '" + endToken + "'");
     }
 
     protected boolean supportedZoneRegion() {

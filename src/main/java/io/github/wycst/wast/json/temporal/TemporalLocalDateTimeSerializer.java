@@ -53,6 +53,6 @@ public class TemporalLocalDateTimeSerializer extends JSONTemporalSerializer {
                 localDateTime.getMinute(),
                 localDateTime.getSecond(),
                 localDateTime.getNano(),
-                null);
+                "");
     }
 }

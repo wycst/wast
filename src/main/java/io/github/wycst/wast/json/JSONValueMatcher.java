@@ -1,8 +1,5 @@
 package io.github.wycst.wast.json;
 
-import io.github.wycst.wast.common.beans.CharSource;
-import io.github.wycst.wast.json.util.FixedNameValueMap;
-
 import java.util.Map;
 
 /**

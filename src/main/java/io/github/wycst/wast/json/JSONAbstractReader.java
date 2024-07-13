@@ -20,6 +20,7 @@ import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.SetterInfo;
+import io.github.wycst.wast.common.utils.NumberUtils;
 import io.github.wycst.wast.common.utils.ObjectUtils;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.exceptions.JSONException;
@@ -27,7 +28,6 @@ import io.github.wycst.wast.json.options.ReadOption;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -293,7 +293,9 @@ abstract class JSONAbstractReader extends JSONGeneral {
         } else {
             Class<?> actualType = genericType.getActualType();
             if (!Collection.class.isAssignableFrom(actualType)) {
-                this.genericType = GenericParameterizedType.collectionType(ArrayList.class, actualType);
+                if(!actualType.isArray()) {
+                    this.genericType = GenericParameterizedType.collectionType(ArrayList.class, actualType);
+                }
             }
         }
     }
@@ -412,11 +414,21 @@ abstract class JSONAbstractReader extends JSONGeneral {
     }
 
     private Number readNumber(char endSyntax) throws Exception {
-
-        // use bigdecimal
         final boolean useBigDecimal = parseContext.useBigDecimalAsDefault;
-
-        // append current
+        if(useBigDecimal) {
+            writer.setLength(0);
+            writer.append((char) current);
+            int ch;
+            while ((ch = readNext()) != ',' && ch != endSyntax) {
+                writer.append((char) ch);
+            }
+            String text = writer.toString();
+            try {
+                return new BigDecimal(text.trim());
+            } catch (NumberFormatException  numberFormatException) {
+                throw new NumberFormatException("offset " + offset + ", error input " + text);
+            }
+        }
         boolean negative = false;
         char beginChar = (char) current;
         if (beginChar == '-') {
@@ -426,16 +438,12 @@ abstract class JSONAbstractReader extends JSONGeneral {
         } else if (beginChar == '+') {
             readNext();
         }
-
         long value = 0;
         int decimalCount = 0;
         int expValue = 0;
         boolean expNegative = false;
-        // init integer type
         int mode = 0;
-        // number suffix
         int specifySuffix = 0;
-
         do {
             while (isDigit(current)) {
                 value = (value << 3) + (value << 1) + current - 48;
@@ -512,11 +520,6 @@ abstract class JSONAbstractReader extends JSONGeneral {
             }
         } while (false);
 
-        if (useBigDecimal) {
-            value = negative ? -value : value;
-            return new BigDecimal(BigInteger.valueOf(value), expNegative ? expValue + decimalCount : decimalCount - expValue);
-        }
-
         if (mode == 0) {
             value = negative ? -value : value;
             if (specifySuffix > 0) {
@@ -533,16 +536,17 @@ abstract class JSONAbstractReader extends JSONGeneral {
             }
             return value;
         } else {
-            double doubleVal = value;
-            expValue = expNegative ? -expValue - decimalCount : expValue - decimalCount;
-            if (expValue > 0) {
-                double powValue = getDecimalPowerValue(expValue); // Math.pow(radix, expValue);
-                doubleVal *= powValue;
-            } else if (expValue < 0) {
-                double powValue = getDecimalPowerValue(-expValue);// Math.pow(radix, -expValue);
-                doubleVal /= powValue;
-            }
-            doubleVal = negative ? -doubleVal : doubleVal;
+//            double doubleVal = value;
+//            expValue = expNegative ? -expValue - decimalCount : expValue - decimalCount;
+//            if (expValue > 0) {
+//                double powValue = getDecimalPowerValue(expValue); // Math.pow(radix, expValue);
+//                doubleVal *= powValue;
+//            } else if (expValue < 0) {
+//                double powValue = getDecimalPowerValue(-expValue);// Math.pow(radix, -expValue);
+//                doubleVal /= powValue;
+//            }
+            double dv = NumberUtils.scientificToIEEEDouble(value, expNegative ? expValue + decimalCount : decimalCount - expValue);
+            double doubleVal = negative ? -dv : dv;
             if (specifySuffix > 0) {
                 switch (specifySuffix) {
                     case 1:

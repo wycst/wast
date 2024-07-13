@@ -16,9 +16,6 @@
  */
 package io.github.wycst.wast.json;
 
-import io.github.wycst.wast.common.beans.AsciiStringSource;
-import io.github.wycst.wast.common.beans.CharSource;
-import io.github.wycst.wast.common.beans.UTF16ByteArraySource;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.SetterInfo;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
@@ -251,7 +248,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
             switch (start) {
                 case 't': {
                     if (len == 4) {
-                        long unsafeValue = UnsafeHelper.getLong(buf, beginIndex);
+                        long unsafeValue = JSONUnsafe.getLong(buf, beginIndex);
                         if (unsafeValue == TRUE_LONG) {
                             type = BOOLEAN;
                             leafValue = true;
@@ -262,7 +259,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
                 }
                 case 'f': {
                     if (len == 5) {
-                        long unsafeValue = UnsafeHelper.getLong(buf, beginIndex + 1);
+                        long unsafeValue = JSONUnsafe.getLong(buf, beginIndex + 1);
                         if (unsafeValue == ALSE_LONG) {
                             type = BOOLEAN;
                             leafValue = false;
@@ -273,7 +270,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
                 }
                 case 'n': {
                     if (len == 4) {
-                        long unsafeValue = UnsafeHelper.getLong(buf, beginIndex);
+                        long unsafeValue = JSONUnsafe.getLong(buf, beginIndex);
                         if (unsafeValue == NULL_LONG) {
                             type = NULL;
                             leafValue = null;
@@ -312,7 +309,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
             switch (start) {
                 case 't': {
                     if (len == 4) {
-                        long unsafeValue = UnsafeHelper.getInt(buf, beginIndex);
+                        long unsafeValue = JSONUnsafe.getInt(buf, beginIndex);
                         if (unsafeValue == TRUE_INT) {
                             type = BOOLEAN;
                             leafValue = true;
@@ -323,7 +320,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
                 }
                 case 'f': {
                     if (len == 5) {
-                        long unsafeValue = UnsafeHelper.getInt(buf, beginIndex + 1);
+                        long unsafeValue = JSONUnsafe.getInt(buf, beginIndex + 1);
                         if (unsafeValue == ALSE_INT) {
                             type = BOOLEAN;
                             leafValue = false;
@@ -334,7 +331,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
                 }
                 case 'n': {
                     if (len == 4) {
-                        long unsafeValue = UnsafeHelper.getInt(buf, beginIndex);
+                        long unsafeValue = JSONUnsafe.getInt(buf, beginIndex);
                         if (unsafeValue == NULL_INT) {
                             type = NULL;
                             leafValue = null;

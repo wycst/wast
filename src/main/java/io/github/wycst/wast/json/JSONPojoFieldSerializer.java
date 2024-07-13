@@ -20,32 +20,16 @@ import java.util.Map;
  */
 public class JSONPojoFieldSerializer extends JSONTypeSerializer {
 
-    /**
-     * getter信息
-     */
-    private final GetterInfo getterInfo;
-    private final JsonProperty jsonProperty;
-
-    /**
-     * name
-     */
+    final GetterInfo getterInfo;
+    final JsonProperty jsonProperty;
     final String name;
-
-    /**
-     * 类型
-     */
-    private final ReflectConsts.ClassCategory classCategory;
-
-    /**
-     * 序列化器
-     */
-    private JSONTypeSerializer serializer;
-
+    final ReflectConsts.ClassCategory classCategory;
+    JSONTypeSerializer serializer;
     private char[] fieldNameTokenChars;
     private String fieldNameToken;
     private int fieldNameTokenOffset;
-    private long[] fieldNameTokenLongs;
-    private int[] fieldNameTokenInts;
+    private long[] fieldNameCharLongs;
+    private long[] fieldNameByteLongs;
     /**
      * 自定义序列化器
      */
@@ -104,6 +88,14 @@ public class JSONPojoFieldSerializer extends JSONTypeSerializer {
         }
     }
 
+    public boolean isStringCollection() {
+        if(classCategory == ReflectConsts.ClassCategory.CollectionCategory) {
+            GenericParameterizedType parameterizedType = getterInfo.getGenericParameterizedType();
+            return parameterizedType != null && parameterizedType.getValueType() == GenericParameterizedType.StringType;
+        }
+        return false;
+    }
+
     private void setFieldNameToken() {
         int len = name.length();
         // "${name}":null
@@ -124,8 +116,8 @@ public class JSONPojoFieldSerializer extends JSONTypeSerializer {
         // optimize use unsafe(适用JDK8，JDK9+提升不明显)
         if (name.getBytes().length == len) {
             String stringForUnsafe = new String(fieldNameTokenChars, 0, fieldNameTokenOffset);
-            fieldNameTokenLongs = UnsafeHelper.getLongs(stringForUnsafe);
-            fieldNameTokenInts = UnsafeHelper.getInts(stringForUnsafe);
+            fieldNameCharLongs = UnsafeHelper.getCharLongs(stringForUnsafe);
+            fieldNameByteLongs = UnsafeHelper.getByteLongs(stringForUnsafe);
         }
     }
 
@@ -137,9 +129,9 @@ public class JSONPojoFieldSerializer extends JSONTypeSerializer {
         return getterInfo.invoke(pojo);
     }
 
-    public void writeJSONFieldName(JSONWriter writer) throws IOException {
-        if (fieldNameTokenLongs != null) {
-            writer.writeUnsafe(fieldNameTokenLongs, fieldNameTokenInts, fieldNameTokenOffset);
+    void writeJSONFieldName(JSONWriter writer) throws IOException {
+        if (fieldNameCharLongs != null) {
+            writer.writeMemory(fieldNameCharLongs, fieldNameByteLongs, fieldNameTokenOffset);
         } else {
             if (fieldNameToken != null) {
                 writer.write(fieldNameToken, 0, fieldNameTokenOffset);
@@ -149,7 +141,7 @@ public class JSONPojoFieldSerializer extends JSONTypeSerializer {
         }
     }
 
-    public void writeJSONFieldNameWithNull(JSONWriter writer) throws IOException {
+    void writeJSONFieldNameWithNull(JSONWriter writer) throws IOException {
         if (fieldNameToken != null) {
             writer.write(fieldNameToken, 0, fieldNameTokenChars.length);
         } else {

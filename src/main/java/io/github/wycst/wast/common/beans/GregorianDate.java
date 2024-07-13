@@ -16,8 +16,6 @@
  */
 package io.github.wycst.wast.common.beans;
 
-import io.github.wycst.wast.common.utils.NumberUtils;
-
 import java.util.TimeZone;
 
 /**
@@ -378,25 +376,34 @@ public class GregorianDate extends GeneralDate implements java.io.Serializable, 
      * @return
      */
     public String format(char dateSyntax, char timeSyntax) {
-        char[] buf = new char[25];
-        int offset = 0;
+        StringBuilder builder = new StringBuilder(19);
         int year = this.year;
         if (year < 0) {
-            buf[offset++] = '-';
+            builder.append("-");
             year = -year;
         }
-        if (year < 10000) {
-            offset += NumberUtils.writeFourDigits(year, buf, offset);
-        } else {
-            offset += NumberUtils.writePositiveLong(year, buf, offset);
-        }
-        offset += NumberUtils.writeTwoDigitsAndPreSuffix(month, dateSyntax, dateSyntax, buf, offset);
-        offset += NumberUtils.writeTwoDigits(dayOfMonth, buf, offset);
-        offset += NumberUtils.writeTwoDigitsAndPreSuffix(hourOfDay, ' ', timeSyntax, buf, offset);
-        offset += NumberUtils.writeTwoDigits(minute, buf, offset);
-        buf[offset++] = timeSyntax;
-        offset += NumberUtils.writeTwoDigits(second, buf, offset);
-        return new String(buf, 0, offset);
+        int y1 = year / 100;
+        int y2 = year % 100;
+        builder.append(DateTemplate.DigitTens[y1]);
+        builder.append(DateTemplate.DigitOnes[y1]);
+        builder.append(DateTemplate.DigitTens[y2]);
+        builder.append(DateTemplate.DigitOnes[y2]);
+        builder.append(dateSyntax);
+        builder.append(DateTemplate.DigitTens[month]);
+        builder.append(DateTemplate.DigitOnes[month]);
+        builder.append(dateSyntax);
+        builder.append(DateTemplate.DigitTens[dayOfMonth]);
+        builder.append(DateTemplate.DigitOnes[dayOfMonth]);
+        builder.append(' ');
+        builder.append(DateTemplate.DigitTens[hourOfDay]);
+        builder.append(DateTemplate.DigitOnes[hourOfDay]);
+        builder.append(timeSyntax);
+        builder.append(DateTemplate.DigitTens[minute]);
+        builder.append(DateTemplate.DigitOnes[minute]);
+        builder.append(timeSyntax);
+        builder.append(DateTemplate.DigitTens[second]);
+        builder.append(DateTemplate.DigitOnes[second]);
+        return builder.toString();
     }
 
     /**
