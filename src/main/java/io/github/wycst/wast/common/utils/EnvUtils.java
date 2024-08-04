@@ -11,6 +11,7 @@ public final class EnvUtils {
 
     public static final float JDK_VERSION;
 
+    public static final boolean JDK_7_BELOW;
     public static final boolean JDK_16_PLUS;
     public static final boolean JDK_9_PLUS;
     public static final boolean JDK_20_PLUS;
@@ -43,11 +44,7 @@ public final class EnvUtils {
     public final static Charset CHARSET_DEFAULT = Charset.defaultCharset();
     public final static Charset CHARSET_ISO_8859_1 = forCharsetName("ISO_8859_1");
     public final static Charset CHARSET_UTF_8 = forCharsetName("UTF-8");
-
     public static final Method SC_HAS_NEGATIVES_METHOD;
-//    public static final Method SL_INDEX_OF_METHOD;
-
-
     static {
         float jdkVersion = 1.8f;
         try {
@@ -59,6 +56,7 @@ public final class EnvUtils {
         } catch (Throwable throwable) {
         }
         JDK_VERSION = jdkVersion;
+        JDK_7_BELOW = JDK_VERSION < 1.7f;
         JDK_9_PLUS = JDK_VERSION >= 9;
         JDK_16_PLUS = JDK_VERSION >= 16;
         JDK_20_PLUS = JDK_VERSION >= 20;
@@ -84,13 +82,13 @@ public final class EnvUtils {
         SC_HAS_NEGATIVES_METHOD = scHasNegatives;
 
         boolean supportedVector = false;
-//        if(JDK_VERSION >= 17f) {
+        if(JDK_VERSION >= 17f) {
 //            try {
-//                Class.forName("jdk.incubator.vector.ByteVector");
-//                supportedVector = true;
+//                List<String> inputArguments = ManagementFactory.getRuntimeMXBean().getInputArguments();
+//                supportedVector = inputArguments.contains("--add-modules=jdk.incubator.vector");
 //            } catch (Throwable throwable) {
 //            }
-//        }
+        }
         SUPPORTED_VECTOR = supportedVector;
     }
 

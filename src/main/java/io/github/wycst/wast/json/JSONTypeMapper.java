@@ -1,29 +1,37 @@
 package io.github.wycst.wast.json;
 
+import java.util.List;
+import java.util.Map;
+
 /**
- * 提供更方便的类型拓展注册机制
+ * <p> 提供更方便的类型拓展注册机制;
  *
  * @Created by wangyc
  */
 public interface JSONTypeMapper<T> {
 
     /**
-     * 将解析的类型对象（String/Number/boolean/null/Map/List）转化为指定对象T
+     * 反序列化时将解析的基本对象(JSONType#value), 转化为指定对象T <br>
      *
-     * @param any
+     * @param value
      * @return
      * @see io.github.wycst.wast.json.custom.JsonDeserializer
+     * @see JSONValue#get()
      */
-    T read(Object any) throws Exception;
+    T readOf(Object value) throws Exception;
 
     /**
-     * 将T个性化写入
+     * 反序列化时将T转化为基本对象
      *
-     * @param writer
      * @param t
      * @param jsonConfig
-     * @param indent
+     * @return
      * @see io.github.wycst.wast.json.custom.JsonSerializer
+     * @see JSONValue#of(Map)
+     * @see JSONValue#of(List)
+     * @see JSONValue#of(Number)
+     * @see JSONValue#of(boolean)
+     * @see JSONValue#of(String)
      */
-    void write(JSONWriter writer, T t, JSONConfig jsonConfig, int indent) throws Exception;
+    JSONValue<?> writeAs(T t, JSONConfig jsonConfig) throws Exception;
 }

@@ -24,4 +24,15 @@ public class Scientific {
         this.e10 = e10;
         this.b = b;
     }
+
+    @Override
+    public String toString() {
+        if (this == SCIENTIFIC_NULL) {
+            return "null";
+        }
+        if (b) {
+            return "1e" + e10;
+        }
+        return output + "|" + e10;
+    }
 }

@@ -198,6 +198,11 @@ public final class ReflectConsts {
             public Byte elementAt(Object objects, int index) {
                 return ((byte[]) objects)[index];
             }
+
+            @Override
+            public void setElementAt(Object objects, int index, Object value) {
+                ((byte[]) objects)[index] = (Byte) value;
+            }
         },
         PrimitiveShort(short[].class, arrayBaseOffset(short[].class), arrayIndexScale(short[].class)) {
             @Override
@@ -218,6 +223,11 @@ public final class ReflectConsts {
             @Override
             public Short elementAt(Object objects, int index) {
                 return ((short[]) objects)[index];
+            }
+
+            @Override
+            public void setElementAt(Object objects, int index, Object value) {
+                ((short[]) objects)[index] = (Short) value;
             }
         },
         PrimitiveInt(int[].class, arrayBaseOffset(int[].class), arrayIndexScale(int[].class)) {
@@ -240,6 +250,11 @@ public final class ReflectConsts {
             public Integer elementAt(Object objects, int index) {
                 return ((int[]) objects)[index];
             }
+
+            @Override
+            public void setElementAt(Object objects, int index, Object value) {
+                ((int[]) objects)[index] = (Integer) value;
+            }
         },
         PrimitiveFloat(float[].class, arrayBaseOffset(float[].class), arrayIndexScale(float[].class)) {
             @Override
@@ -260,6 +275,11 @@ public final class ReflectConsts {
             @Override
             public Float elementAt(Object objects, int index) {
                 return ((float[]) objects)[index];
+            }
+
+            @Override
+            public void setElementAt(Object objects, int index, Object value) {
+                ((float[]) objects)[index] = (Float) value;
             }
         },
         PrimitiveLong(long[].class, arrayBaseOffset(long[].class), arrayIndexScale(long[].class)) {
@@ -282,6 +302,11 @@ public final class ReflectConsts {
             public Long elementAt(Object objects, int index) {
                 return ((long[]) objects)[index];
             }
+
+            @Override
+            public void setElementAt(Object objects, int index, Object value) {
+                ((long[]) objects)[index] = (Long) value;
+            }
         },
         PrimitiveDouble(double[].class, arrayBaseOffset(double[].class), arrayIndexScale(double[].class)) {
             @Override
@@ -302,6 +327,11 @@ public final class ReflectConsts {
             @Override
             public Double elementAt(Object objects, int index) {
                 return ((double[]) objects)[index];
+            }
+
+            @Override
+            public void setElementAt(Object objects, int index, Object value) {
+                ((double[]) objects)[index] = (Double) value;
             }
         },
         PrimitiveBoolean(boolean[].class, arrayBaseOffset(boolean[].class), arrayIndexScale(boolean[].class)) {
@@ -324,6 +354,11 @@ public final class ReflectConsts {
             public Boolean elementAt(Object objects, int index) {
                 return ((boolean[]) objects)[index];
             }
+
+            @Override
+            public void setElementAt(Object objects, int index, Object value) {
+                ((boolean[]) objects)[index] = (Boolean) value;
+            }
         },
         PrimitiveCharacter(char[].class, arrayBaseOffset(char[].class), arrayIndexScale(char[].class)) {
             @Override
@@ -345,6 +380,11 @@ public final class ReflectConsts {
             public Character elementAt(Object objects, int index) {
                 return ((char[]) objects)[index];
             }
+
+            @Override
+            public void setElementAt(Object objects, int index, Object value) {
+                ((char[]) objects)[index] = (Character) value;
+            }
         };
 
         final Class genericArrayType;
@@ -361,9 +401,9 @@ public final class ReflectConsts {
             return 0;
         }
 
-        public Object elementAt(Object objects, int index) {
-            return null;
-        }
+        public abstract Object elementAt(Object objects, int index);
+
+        public abstract void setElementAt(Object objects, int index, Object value);
 
         void put(Object target, long fieldOffset, Object value) {
             target.getClass();

@@ -1,10 +1,10 @@
 package io.github.wycst.wast.common.utils;
 
+import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
 
 import java.lang.reflect.Array;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
 /**
  * 集合和数组类工具方法
@@ -14,6 +14,22 @@ import java.util.List;
  * @Description:
  */
 public final class CollectionUtils {
+
+    public static List listOf(Object... elements) {
+        List list = new ArrayList();
+        for (Object element : elements) {
+            list.add(element);
+        }
+        return list;
+    }
+
+    public static Set setOf(Object... elements) {
+        Set set = new HashSet();
+        for (Object element : elements) {
+            set.add(element);
+        }
+        return set;
+    }
 
     /**
      * 返回数组中元素等于obj的索引位置,如果没有找到返回-1
@@ -127,28 +143,6 @@ public final class CollectionUtils {
     }
 
     /**
-     * 注：jdk 1.8 已有类似的方法
-     *
-     * @param arr
-     * @param delimiter
-     * @return
-     */
-    public static String join(Object[] arr, String delimiter) {
-        if (arr == null) return null;
-        if (delimiter == null) delimiter = ",";
-        StringBuilder sb = new StringBuilder();
-        boolean appendDelimiterFlag = false;
-        for (Object val : arr) {
-            sb.append(val).append(delimiter);
-            appendDelimiterFlag = true;
-        }
-        if (appendDelimiterFlag) {
-            sb.delete(sb.length() - delimiter.length(), sb.length());
-        }
-        return sb.toString();
-    }
-
-    /**
      * 判断集合中是否包含obj
      *
      * @param arr
@@ -190,7 +184,7 @@ public final class CollectionUtils {
         if (target instanceof Collection) {
             return ((Collection<?>) target).size();
         }
-        if(target instanceof Object[]) {
+        if (target instanceof Object[]) {
             return ((Object[]) target).length;
         }
         return Array.getLength(target);
@@ -207,11 +201,11 @@ public final class CollectionUtils {
         if (target == null) return null;
         Object[] arr = null;
         if (target instanceof Collection) {
-            if(target instanceof List) {
+            if (target instanceof List) {
                 return ((List<?>) target).get(index);
             }
             arr = ((Collection<?>) target).toArray();
-        } else if(arr instanceof Object[]) {
+        } else if (arr instanceof Object[]) {
             arr = (Object[]) target;
         } else {
             try {
@@ -237,4 +231,30 @@ public final class CollectionUtils {
             arr[index] = value;
         }
     }
+
+    /**
+     * 集合转化为指定组件的数组
+     *
+     * @param collection
+     * @param componentType
+     * @return
+     */
+    public static Object toArray(Collection collection, Class<?> componentType) {
+        componentType.getClass();
+        Object array = Array.newInstance(componentType, collection.size());
+        int k = 0;
+        ReflectConsts.PrimitiveType primitiveType = ReflectConsts.PrimitiveType.typeOf(componentType);
+        if (primitiveType != null) {
+            for (Object obj : collection) {
+                primitiveType.setElementAt(array, k++, obj);
+            }
+        } else {
+            Object[] objects = (Object[]) array;
+            for (Object obj : collection) {
+                objects[k++] = obj;
+            }
+        }
+        return array;
+    }
+
 }

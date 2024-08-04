@@ -8,6 +8,7 @@ import io.github.wycst.wast.json.JSONWriter;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 
 import java.time.Instant;
+import java.util.TimeZone;
 
 /**
  * Instant序列化
@@ -20,8 +21,17 @@ import java.time.Instant;
  */
 public class TemporalInstantSerializer extends JSONTemporalSerializer {
 
+    final TimeZone timeZone;
+    final boolean asTimestamp;
+
     public TemporalInstantSerializer(Class<?> temporalClass, JsonProperty property) {
         super(temporalClass, property);
+        TimeZone timeZone = ZERO_TIME_ZONE;
+        if (dateFormatter != null && property.timezone().length() > 0) {
+            timeZone = getTimeZone(property.timezone());
+        }
+        this.timeZone = timeZone;
+        this.asTimestamp = property != null && property.asTimestamp();
     }
 
     protected void checkClass(Class<?> temporalClass) {
@@ -30,19 +40,27 @@ public class TemporalInstantSerializer extends JSONTemporalSerializer {
     @Override
     protected void writeTemporalWithTemplate(Object value, JSONWriter writer, JSONConfig jsonConfig) throws Exception {
         Instant instant = (Instant) value;
-        long epochMilli = instant.toEpochMilli();
-        GeneralDate date = new GeneralDate(epochMilli, ZERO_TIME_ZONE);
-        writer.write('"');
-        writeGeneralDate(date, dateFormatter, writer);
-        writer.write('"');
+        if (asTimestamp) {
+            writer.writeLong(instant.toEpochMilli());
+        } else {
+            long epochMilli = instant.toEpochMilli();
+            GeneralDate date = new GeneralDate(epochMilli, timeZone);
+            writer.write('"');
+            writeGeneralDate(date, dateFormatter, writer);
+            writer.write('"');
+        }
     }
 
     // YYYY-MM-ddTHH:mm:ss.SSSZ(时区为0)
     @Override
     protected void writeDefault(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
         Instant instant = (Instant) value;
-        long epochSeconds = instant.getEpochSecond();
-        int nano = instant.getNano();
-        writer.writeJSONInstant(epochSeconds, nano);
+        if (asTimestamp) {
+            writer.writeLong(instant.toEpochMilli());
+        } else {
+            long epochSeconds = instant.getEpochSecond();
+            int nano = instant.getNano();
+            writer.writeJSONInstant(epochSeconds, nano);
+        }
     }
 }

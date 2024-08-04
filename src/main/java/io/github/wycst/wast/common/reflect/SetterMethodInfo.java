@@ -20,10 +20,12 @@ final class SetterMethodInfo extends SetterInfo {
         this.method = method;
     }
 
-    /**
-     * 反射调用
-     */
     public void invoke(Object target, Object value) {
+        invokeInternal(target, value);
+    }
+
+    @Override
+    void invokeInternal(Object target, Object value) {
         try {
             method.invoke(target, value);
         } catch (Exception e) {
@@ -35,12 +37,10 @@ final class SetterMethodInfo extends SetterInfo {
         return null;
     }
 
-    // 是否通过setter方法
     public boolean isMethod() {
         return true;
     }
 
-    // 是否private私有方法
     public boolean isPrivate() {
         return Modifier.isPrivate(method.getModifiers());
     }

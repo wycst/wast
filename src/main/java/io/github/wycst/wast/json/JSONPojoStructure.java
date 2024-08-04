@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class JSONPojoStructure {
 
-    private static Map<Class<?>, JSONPojoStructure> objectStructureWarppers = new ConcurrentHashMap<Class<?>, JSONPojoStructure>();
+    private final static Map<Class<?>, JSONPojoStructure> OBJECT_STRUCTURE_WARPPERS = new ConcurrentHashMap<Class<?>, JSONPojoStructure>();
 
     private final ClassStructureWrapper classStructureWrapper;
     private ClassStructureWrapper.ClassWrapperType classWrapperType;
@@ -32,7 +32,8 @@ public final class JSONPojoStructure {
     private JSONPojoFieldSerializer[] getterFieldSerializers;
     private boolean forceUseFields;
     private JsonTypeSetting jsonTypeSetting;
-    volatile boolean initialized;
+    volatile boolean fieldDeserializersInitialized;
+    volatile boolean fieldSerializersInitialized;
     private final boolean supportedJavaBeanConvention;
     private final boolean enableJIT;
 
@@ -41,7 +42,7 @@ public final class JSONPojoStructure {
         this.classStructureWrapper = classStructureWrapper;
         this.classWrapperType = classStructureWrapper.getClassWrapperType();
         this.forceUseFields = classStructureWrapper.isForceUseFields();
-        this.jsonTypeSetting = classStructureWrapper.getSourceClass().getDeclaredAnnotation(JsonTypeSetting.class);
+        this.jsonTypeSetting = (JsonTypeSetting) classStructureWrapper.getDeclaredAnnotation(JsonTypeSetting.class);
         // serializer info
         List<GetterInfo> getterInfos = classStructureWrapper.getGetterInfos();
         List<JSONPojoFieldSerializer> fieldSerializers = new ArrayList<JSONPojoFieldSerializer>();
@@ -120,39 +121,32 @@ public final class JSONPojoStructure {
      * @return
      */
     private boolean checkJavaBeanConvention(Map<String, JSONPojoFieldSerializer> fieldSerializerHashMap) {
-        // private class is not supported
-//        if (classStructureWrapper.isPrivate()) {
-//            return false;
-//        }
-//        if (classStructureWrapper.isForceUseFields()) return true;
-//        for (JSONPojoFieldSerializer fieldSerializer : getterFieldSerializers) {
-//            JSONPojoFieldSerializer methodSerializer = fieldSerializerHashMap.get(fieldSerializer.name);
-//            if (methodSerializer == null || methodSerializer.getGetterInfo().getReturnType() != fieldSerializer.getGetterInfo().getReturnType() || !methodSerializer.getGetterInfo().existField()) {
-//                return false;
-//            }
-//        }
         return !classStructureWrapper.isPrivate();
     }
 
-    void ensureInitialized() {
-        if (initialized) return;
+    void ensureInitializedFieldSerializers() {
+        if(fieldSerializersInitialized) return;
         synchronized (this) {
-            if (initialized) return;
-            initialize();
+            if(fieldSerializersInitialized) return;
+            for (JSONPojoFieldSerializer fieldSerializer : getterMethodSerializers) {
+                fieldSerializer.initSerializer();
+            }
+            for (JSONPojoFieldSerializer fieldSerializer : getterFieldSerializers) {
+                fieldSerializer.initSerializer();
+            }
+            fieldSerializersInitialized = true;
         }
     }
 
-    void initialize() {
-        for (JSONPojoFieldDeserializer fieldDeserializer : fieldDeserializers) {
-            fieldDeserializer.initDeserializer();
+    void ensureInitializedFieldDeserializers() {
+        if(fieldDeserializersInitialized) return;
+        synchronized (this) {
+            if(fieldDeserializersInitialized) return;
+            for (JSONPojoFieldDeserializer fieldDeserializer : fieldDeserializers) {
+                fieldDeserializer.initDeserializer();
+            }
+            fieldDeserializersInitialized = true;
         }
-        for (JSONPojoFieldSerializer fieldSerializer : getterMethodSerializers) {
-            fieldSerializer.initSerializer();
-        }
-        for (JSONPojoFieldSerializer fieldSerializer : getterFieldSerializers) {
-            fieldSerializer.initSerializer();
-        }
-        initialized = true;
     }
 
     public Class<?> getSourceClass() {
@@ -179,34 +173,6 @@ public final class JSONPojoStructure {
         return classStructureWrapper.createConstructorArgs();
     }
 
-//    public long hashChar(long rv, int c) {
-//        return fieldDeserializerMatcher.hash(rv, c);
-//    }
-//
-//    public long hashChar(long hv, int c1, int c2) {
-//        return fieldDeserializerMatcher.hash(hv, c1, c2);
-//    }
-//
-//    public JSONPojoFieldDeserializer matchFieldDeserializer(CharSource source, char[] buf, int offset, int endToken, JSONParseContext parseContext) {
-//        return fieldDeserializerMatcher.matchValue(source, buf, offset, endToken, parseContext);
-//    }
-//
-//    public JSONPojoFieldDeserializer matchFieldDeserializer(CharSource source, byte[] buf, int offset, int endToken, JSONParseContext parseContext) {
-//        return fieldDeserializerMatcher.matchValue(source, buf, offset, endToken, parseContext);
-//    }
-//
-//    public JSONPojoFieldDeserializer getFieldDeserializer(String fieldName) {
-//        return fieldDeserializerMatcher.getValue(fieldName);
-//    }
-//
-//    public JSONPojoFieldDeserializer getFieldDeserializer(char[] buf, int beginIndex, int endIndex, long hashValue) {
-//        return fieldDeserializerMatcher.getValue(buf, beginIndex, endIndex, hashValue);
-//    }
-//
-//    public JSONPojoFieldDeserializer getFieldDeserializer(byte[] buf, int beginIndex, int endIndex, long hashValue) {
-//        return fieldDeserializerMatcher.getValue(buf, beginIndex, endIndex, hashValue);
-//    }
-
     /**
      * create structure
      *
@@ -217,24 +183,22 @@ public final class JSONPojoStructure {
         if (pojoClass == null) {
             throw new IllegalArgumentException("pojoClass is null");
         }
-        JSONPojoStructure objectWrapper = objectStructureWarppers.get(pojoClass);
-        if (objectWrapper != null) {
-            return objectWrapper;
+        JSONPojoStructure pojoStructure = OBJECT_STRUCTURE_WARPPERS.get(pojoClass);
+        if (pojoStructure != null) {
+            return pojoStructure;
         }
         synchronized (pojoClass) {
-            if (objectStructureWarppers.containsKey(pojoClass)) {
-                return objectStructureWarppers.get(pojoClass);
+            if (OBJECT_STRUCTURE_WARPPERS.containsKey(pojoClass)) {
+                return OBJECT_STRUCTURE_WARPPERS.get(pojoClass);
             }
-            ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(pojoClass);
-            if (classStructureWrapper == null) {
+            ClassStructureWrapper wrapper = ClassStructureWrapper.get(pojoClass);
+            if (wrapper == null) {
                 throw new IllegalArgumentException("pojoClass " + pojoClass + " is not supported !");
             }
-            objectWrapper = new JSONPojoStructure(classStructureWrapper);
-            objectStructureWarppers.put(pojoClass, objectWrapper);
-            // Delay initialization to solve the problem of circular dependency
-            objectWrapper.initialize();
+            pojoStructure = new JSONPojoStructure(wrapper);
+            OBJECT_STRUCTURE_WARPPERS.put(pojoClass, pojoStructure);
         }
-        return objectWrapper;
+        return pojoStructure;
     }
 
     public Object newInstance() throws Exception {

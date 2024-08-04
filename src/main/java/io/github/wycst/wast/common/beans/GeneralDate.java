@@ -1,6 +1,7 @@
 package io.github.wycst.wast.common.beans;
 
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
+import io.github.wycst.wast.common.utils.EnvUtils;
 import io.github.wycst.wast.common.utils.NumberUtils;
 
 import java.lang.reflect.Field;
@@ -94,6 +95,7 @@ public class GeneralDate {
     // 公元元年（0001）.1.1 ~ 1970.1.1  相对毫秒数
     // 计算来源: RELATIVE_DAYS * 24 * 3600 * 1000
     public final static long RELATIVE_MILLS = 62135769600000l;
+    public final static long RELATIVE_SECONDS = 62135769600l;
 
     // 以1970.1.1  周四 作为参考
     public final static int RELATIVE_DAY_OF_WEEK = 5;
@@ -110,8 +112,8 @@ public class GeneralDate {
     // 公元元年（0001）.1.1 ~ current 相对天数
     protected long currentDays;
 
-    private static final int[] DaysOfYearOffset = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
-    private static final int[] DaysOfLeapYearOffset = {0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335};
+    private static final int[] DAYS_OF_YEAR_OFFSET = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
+    private static final int[] DAYS_OF_LEAP_YEAR_OFFSET = {0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335};
 
     // 一天(24小时)实际毫秒数
     protected static final long MILLS_DAY = 86400000; // 24 * 3600 * 1000
@@ -119,16 +121,16 @@ public class GeneralDate {
     protected static final long MILLS_365_DAY = 365 * MILLS_DAY;
     // 闰年一年（366天）毫秒数
     protected static final long MILLS_366_DAY = 366 * MILLS_DAY;
-    protected static final long Seconds_1991_09_14_23_59_59 = 62820658799l;
-    protected static final long Seconds_1900_01_01_07_59_59 = 59926809599l;
+    protected static final long SECONDS_1991_09_14_23_59_59 = 62820658799l;
+    protected static final long SECONDS_1900_01_01_07_59_59 = 59926809599l;
 
-    protected static final long Time_1900_01_01_08_05_43 = -2208988800000l;
-    protected static final long Time_1991_09_15_00_00_00 = 684864000000l;
+    protected static final long TIME_1900_01_01_08_05_43 = -2208988800000l;
+    protected static final long TIME_1991_09_15_00_00_00 = 684864000000l;
 
-    protected static final YearMeta[] Positive_Year_Metas = new YearMeta[2100];
-    protected static final long MaxCacheOffsetDays;
-    protected static final MonthDayMeta[] Month_Day_Of_Year = new MonthDayMeta[365];
-    protected static final MonthDayMeta[] Month_Day_Of_LeapYear = new MonthDayMeta[366];
+    protected static final YearMeta[] POSITIVE_YEAR_METAS = new YearMeta[2100];
+    protected static final long MAX_CACHE_OFFSET_DAYS;
+    protected static final MonthDayMeta[] MONTH_DAY_OF_YEAR = new MonthDayMeta[365];
+    protected static final MonthDayMeta[] MONTH_DAY_OF_LEAP_YEAR = new MonthDayMeta[366];
 
     static final int OFFSET_DAYS_DIVISOR = 146097;
 
@@ -252,28 +254,28 @@ public class GeneralDate {
         }
         defaultTimeZoneField = timeZoneField;
         getDefaultTimeZone();
-        for (int year = 0; year < Positive_Year_Metas.length; year++) {
-            Positive_Year_Metas[year] = createYearMeta(year);
+        for (int year = 0; year < POSITIVE_YEAR_METAS.length; year++) {
+            POSITIVE_YEAR_METAS[year] = createYearMeta(year);
         }
-        MaxCacheOffsetDays = Positive_Year_Metas[Positive_Year_Metas.length - 1].offsetDays;
+        MAX_CACHE_OFFSET_DAYS = POSITIVE_YEAR_METAS[POSITIVE_YEAR_METAS.length - 1].offsetDays;
 
         int monthOfYear = 1;
         int monthOfLeapYear = 1;
-        int daysOfYearOffset = DaysOfYearOffset[monthOfYear - 1];
-        int daysOfLeapYearOffset = DaysOfLeapYearOffset[monthOfLeapYear - 1];
+        int daysOfYearOffset = DAYS_OF_YEAR_OFFSET[monthOfYear - 1];
+        int daysOfLeapYearOffset = DAYS_OF_LEAP_YEAR_OFFSET[monthOfLeapYear - 1];
         for (int i = 0; i < 366; i++) {
             if (i < 365) {
                 int dayOfMonthAtYear = i - daysOfYearOffset + 1;
                 // 4位（0-11） + 5位（0-30）
-                Month_Day_Of_Year[i] = new MonthDayMeta(monthOfYear, dayOfMonthAtYear);
-                if (monthOfYear < 12 && i == DaysOfYearOffset[monthOfYear] - 1) {
-                    daysOfYearOffset = DaysOfYearOffset[monthOfYear++];
+                MONTH_DAY_OF_YEAR[i] = new MonthDayMeta(monthOfYear, dayOfMonthAtYear);
+                if (monthOfYear < 12 && i == DAYS_OF_YEAR_OFFSET[monthOfYear] - 1) {
+                    daysOfYearOffset = DAYS_OF_YEAR_OFFSET[monthOfYear++];
                 }
             }
             int dayOfMonthAtLeapYear = i - daysOfLeapYearOffset + 1;
-            Month_Day_Of_LeapYear[i] = new MonthDayMeta(monthOfLeapYear, dayOfMonthAtLeapYear);
-            if (monthOfLeapYear < 12 && i == DaysOfLeapYearOffset[monthOfLeapYear] - 1) {
-                daysOfLeapYearOffset = DaysOfLeapYearOffset[monthOfLeapYear++];
+            MONTH_DAY_OF_LEAP_YEAR[i] = new MonthDayMeta(monthOfLeapYear, dayOfMonthAtLeapYear);
+            if (monthOfLeapYear < 12 && i == DAYS_OF_LEAP_YEAR_OFFSET[monthOfLeapYear] - 1) {
+                daysOfLeapYearOffset = DAYS_OF_LEAP_YEAR_OFFSET[monthOfLeapYear++];
             }
         }
     }
@@ -283,6 +285,34 @@ public class GeneralDate {
         GeneralDate generalDate = new GeneralDate(year, month, day, hour, minute, second, millisecond, timeZone);
         generalDate.updateTime();
         return generalDate.timeMills;
+    }
+
+    public final static long getSeconds(int year, int month, int dayOfMonth, int hourOfDay, int minute, int second) {
+        if (month > 12) {
+            int increaseYear = (month - 1) / 12;
+            year += increaseYear;
+            month = month - increaseYear * 12;
+        } else if (month < 1) {
+            int increaseYear = month / 12 - 1;
+            year += increaseYear;
+            month = month - increaseYear * 12;
+        }
+        YearMeta meta = getYearMeta(year);
+        boolean isLeapYear = meta.leap;
+        long days = meta.offsetDays;
+        int offset = isLeapYear ? DAYS_OF_LEAP_YEAR_OFFSET[month - 1] : DAYS_OF_YEAR_OFFSET[month - 1];
+        int daysOfYear = offset + dayOfMonth;
+        if (year == 1582 && month > 9) {
+            if (month == 10) {
+                if (dayOfMonth > 14) {
+                    daysOfYear -= 10;
+                }
+            } else {
+                daysOfYear -= 10;
+            }
+        }
+        days += daysOfYear;
+        return days * 86400 + hourOfDay * 3600 + minute * 60 + second - RELATIVE_SECONDS;
     }
 
     /**
@@ -436,7 +466,7 @@ public class GeneralDate {
 
         // 0001.1.1~{year}.1.1的天数
         long days = meta.offsetDays;
-        int offset = isLeapYear ? DaysOfLeapYearOffset[month - 1] : DaysOfYearOffset[month - 1];
+        int offset = isLeapYear ? DAYS_OF_LEAP_YEAR_OFFSET[month - 1] : DAYS_OF_YEAR_OFFSET[month - 1];
         int daysOfYear = offset + dayOfMonth;
 
         // compute days
@@ -467,7 +497,7 @@ public class GeneralDate {
         this.standardMills = this.timeMills;
 
         // Asia/* 时区下区间offset调整
-        if (seconds <= Seconds_1991_09_14_23_59_59 && seconds > Seconds_1900_01_01_07_59_59) {
+        if (seconds <= SECONDS_1991_09_14_23_59_59 && seconds > SECONDS_1900_01_01_07_59_59) {
             // 时区调整（Asia/* 夏令时调整）
             int actualOffset = timeZone.getOffset(this.timeMills);
             this.timeMills += this.currentOffset - actualOffset;
@@ -483,7 +513,7 @@ public class GeneralDate {
 
     void setTime(long timeMills, boolean reset) {
         this.timeMills = timeMills;
-        if (timeMills >= Time_1900_01_01_08_05_43 && timeMills < Time_1991_09_15_00_00_00) {
+        if (timeMills >= TIME_1900_01_01_08_05_43 && timeMills < TIME_1991_09_15_00_00_00) {
             // actual mills for compute
             int zoneOffset = timeZone.getOffset(timeMills);
             timeMills -= this.currentOffset - zoneOffset;
@@ -495,7 +525,7 @@ public class GeneralDate {
         int millisecond;
         int offsetYear = 0;
         if (timeMills > 0) {
-            seconds = timeMills / 1000;
+            seconds = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(timeMills, 0x4189374bc6a7ef9eL) >> 8; // timeMills / 1000;
             millisecond = (int) (timeMills - seconds * 1000);
         } else {
             if (this.timeMills > Long.MAX_VALUE - offset) {
@@ -506,7 +536,6 @@ public class GeneralDate {
             } else {
                 // 如果是公元元年之前先计算年份，然后将timeMills补齐到正数在进行计算
                 // 这里只做了初略的转正处理，确保time段(时分秒)解析正确
-                // todo 公元元年之前的时间可以使用码表处理，或者可以使用通用码表
                 do {
                     boolean leap = ((offsetYear + 1) & 3) == 0;
                     timeMills += leap ? MILLS_366_DAY : MILLS_365_DAY;
@@ -518,17 +547,17 @@ public class GeneralDate {
             }
         }
 
-        long days = seconds / 86400l;
+        long days = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(seconds, 0x611722833944a55cL) >> 15; // seconds / 86400l;
         int secondsOfDay = (int) (seconds - days * 86400l);
-        int hour = secondsOfDay / 3600;
+        int hour = (int) EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(secondsOfDay, 0x123456789abce0L); // secondsOfDay / 3600;
         secondsOfDay = secondsOfDay - hour * 3600;
-        int minute = secondsOfDay / 60;
+        int minute = (int) EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(secondsOfDay, 0x444444444444445L); // secondsOfDay / 60;
         int second = secondsOfDay - minute * 60;
 
         int daysOfYear;
         boolean isLeapYear;
 //        int year = (int) ((days + 1) * 100000 / 36524219) + 1;
-        int year = (int) ((days * 400) / OFFSET_DAYS_DIVISOR + 1);
+        int year = (int) EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(days * 400, 0x72d60d7991f1L) + 1; // (int) ((days * 400) / OFFSET_DAYS_DIVISOR + 1);
         GeneralDate.YearMeta targetMeta = getYearMeta(year);
         long offsetDays = targetMeta.offsetDays;
         if (days <= offsetDays) {
@@ -540,26 +569,26 @@ public class GeneralDate {
         MonthDayMeta monthDayMeta;
         try {
             int dayIndex = daysOfYear - 1;
-            if(isLeapYear) {
-                if(daysOfYear > Month_Day_Of_LeapYear.length) {
+            if (isLeapYear) {
+                if (daysOfYear > MONTH_DAY_OF_LEAP_YEAR.length) {
                     daysOfYear -= 366;
                     dayIndex -= 366;
                     ++year;
                     isLeapYear = false;
                 }
-                monthDayMeta = Month_Day_Of_LeapYear[dayIndex];
+                monthDayMeta = MONTH_DAY_OF_LEAP_YEAR[dayIndex];
             } else {
-                if(daysOfYear > Month_Day_Of_Year.length) {
+                if (daysOfYear > MONTH_DAY_OF_YEAR.length) {
                     daysOfYear -= 365;
                     dayIndex -= 365;
                     ++year;
                     isLeapYear = isLeapYear(year);
                 }
-                monthDayMeta = Month_Day_Of_Year[dayIndex];
+                monthDayMeta = MONTH_DAY_OF_YEAR[dayIndex];
             }
             // monthDayMeta = isLeapYear ? Month_Day_Of_LeapYear[daysOfYear - 1] : Month_Day_Of_Year[daysOfYear - 1];
         } catch (Throwable throwable) {
-            throw new IllegalArgumentException("error for " + this.timeMills);
+            throw new IllegalArgumentException("error mills for " + this.timeMills);
         }
         int month = monthDayMeta.month;
         int day = monthDayMeta.day;
@@ -603,8 +632,8 @@ public class GeneralDate {
     }
 
     static YearMeta getYearMeta(int year) {
-        if (year > -1 && year < Positive_Year_Metas.length) {
-            return Positive_Year_Metas[year];
+        if (year > -1 && year < POSITIVE_YEAR_METAS.length) {
+            return POSITIVE_YEAR_METAS[year];
         }
         return createYearMeta(year);
     }

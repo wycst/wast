@@ -235,4 +235,15 @@ public class TemporalLocalDateTimeDeserializer extends JSONTemporalDeserializer 
     protected Object valueOf(String value, Class<?> actualType) throws Exception {
         return LocalDateTime.parse(value);
     }
+
+    @Override
+    protected Object fromTime(long timestamp) {
+        GeneralDate generalDate = new GeneralDate(timestamp);
+        return LocalDateTime.of(generalDate.getYear(), generalDate.getMonth(), generalDate.getDay(), generalDate.getHourOfDay(), generalDate.getMinute(), generalDate.getSecond(), generalDate.getMillisecond() * 1000000);
+    }
+
+    @Override
+    protected boolean supportedTime() {
+        return true;
+    }
 }

@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 @SuppressWarnings("unchecked")
-public final class ObjectUtils {
+public final class ObjectUtils extends InvokeUtils {
 
     public static boolean contains(Object target, String key) {
         target.getClass();
@@ -227,7 +227,7 @@ public final class ObjectUtils {
                     ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(target.getClass());
                     SetterInfo setterInfo = classStructureWrapper.getSetterInfo(key);
                     if (setterInfo != null) {
-                        setterInfo.invoke(target, value);
+                        invokeSet(setterInfo, target, ObjectUtils.toType(value, setterInfo.getParameterType()));
                     }
                 }
             }
@@ -254,7 +254,7 @@ public final class ObjectUtils {
         ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(target.getClass());
         List<GetterInfo> getterInfos = classStructureWrapper.getGetterInfos();
         for (GetterInfo getterInfo : getterInfos) {
-            map.put(getterInfo.getName(), getterInfo.invoke(target));
+            map.put(getterInfo.getName(), invokeGet(getterInfo, target));
         }
 
         return map;

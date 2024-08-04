@@ -4,6 +4,7 @@ import io.github.wycst.wast.common.beans.DateTemplate;
 import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
+import io.github.wycst.wast.common.utils.EnvUtils;
 import io.github.wycst.wast.common.utils.NumberUtils;
 import io.github.wycst.wast.json.exceptions.JSONException;
 import io.github.wycst.wast.json.options.ReadOption;
@@ -26,6 +27,12 @@ class JSONGeneral {
     // Format output character pool
     static final char[] FORMAT_OUT_SYMBOL_TABS = "\n\t\t\t\t\t\t\t\t\t\t".toCharArray();
     static final char[] FORMAT_OUT_SYMBOL_SPACES = new char[32];
+    static final int FONT_INDENT2_INT32 = EnvUtils.BIG_ENDIAN ? '\n' << 16 | '\t' : '\t' << 16 | '\n';
+    static final short FONT_INDENT2_INT16 = EnvUtils.BIG_ENDIAN ? (short) ('\n' << 8 | '\t') : (short) ('\t' << 8 | '\n');
+    static final int FOTT_INDENT2_INT32 = '\t' << 16 | '\t';
+    static final short FOTT_INDENT2_INT16 = (short) ('\t' << 8 | '\t');
+    static final long FO_INDENT4_INT64 = EnvUtils.BIG_ENDIAN ? ((long) FONT_INDENT2_INT32) << 32 | FOTT_INDENT2_INT32 : ((long) FOTT_INDENT2_INT32) << 32 | FONT_INDENT2_INT32;
+    static final int FO_INDENT4_INT32 = EnvUtils.BIG_ENDIAN ? FONT_INDENT2_INT16 << 16 | FOTT_INDENT2_INT16 : FOTT_INDENT2_INT16 << 16 | FONT_INDENT2_INT16;
 
     static {
         Arrays.fill(FORMAT_OUT_SYMBOL_SPACES, ' ');
@@ -38,7 +45,7 @@ class JSONGeneral {
     protected final static int ALSE_INT = JSONUnsafe.getInt(new byte[]{'a', 'l', 's', 'e'}, 0);
     protected final static long ALSE_LONG = JSONUnsafe.getLong(new char[]{'a', 'l', 's', 'e'}, 0);
 
-    protected final static long NULL_INT = JSONUnsafe.getInt(new byte[]{'n', 'u', 'l', 'l'}, 0);
+    protected final static int NULL_INT = JSONUnsafe.getInt(new byte[]{'n', 'u', 'l', 'l'}, 0);
     protected final static long NULL_LONG = JSONUnsafe.getLong(new char[]{'n', 'u', 'l', 'l'}, 0);
 
     protected final static byte ZERO = 0;
@@ -56,29 +63,23 @@ class JSONGeneral {
     final static int TYPE_DOUBLE = 4;
 
     final static String[] ESCAPE_VALUES = new String[256];
-    final static byte[] ESCAPE_FLAGS = new byte[256];
+    final static boolean[] NO_ESCAPE_FLAGS = new boolean[256];
 
     final static String MONTH_ABBR[] = {
             "Jan", "Feb", "Mar", "Apr", "May", "Jun",
             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
     };
 
-    final static char[] DigitOnes = NumberUtils.copyDigitOnes();
-
-    final static char[] DigitTens = NumberUtils.copyDigitTens();
-
     final static int[] ESCAPE_CHARS = new int[160];
 
     // cache keys
-    private static FixedNameValueMap<String> KEY_32_TABLE = new FixedNameValueMap<String>(4096);
-    private static FixedNameValueMap<String> KEY_EIGHT_BYTES_TABLE = new FixedNameValueMap<String>(2048);
+    private static final JSONKeyValueMap<String> KEY_32_TABLE = new JSONKeyValueMap<String>(4096);
+    private static final JSONKeyValueMap<String> KEY_EIGHT_BYTES_TABLE = new JSONKeyValueMap<String>(2048);
 
     static {
         for (int i = 0; i < 160; i++) {
             ESCAPE_CHARS[i] = i;
         }
-//        ESCAPE_CHARS['\''] = '\'';
-//        ESCAPE_CHARS['"'] = '"';
         ESCAPE_CHARS['n'] = '\n';
         ESCAPE_CHARS['r'] = '\r';
         ESCAPE_CHARS['t'] = '\t';
@@ -92,25 +93,11 @@ class JSONGeneral {
 
     // zero zone
     public final static TimeZone ZERO_TIME_ZONE = TimeZone.getTimeZone("GMT+00:00");
-
-    // 24
-    final static ThreadLocal<char[]> CACHED_CHARS_24 = new ThreadLocal<char[]>() {
+    // 36
+    final static ThreadLocal<char[]> CACHED_CHARS_36 = new ThreadLocal<char[]>() {
         @Override
         protected char[] initialValue() {
-            return new char[24];
-        }
-    };
-
-    // "yyyy-MM-dd HH:mm:ss"
-    final static ThreadLocal<char[]> CACHED_CHARS_DATE_21 = new ThreadLocal<char[]>() {
-        @Override
-        protected char[] initialValue() {
-            char[] chars = new char[21];
-            chars[0] = chars[20] = '"';
-            chars[5] = chars[8] = '-';
-            chars[11] = ' ';
-            chars[14] = chars[17] = ':';
-            return chars;
+            return new char[36];
         }
     };
 
@@ -136,13 +123,9 @@ class JSONGeneral {
     final static int[] EMPTY_INTS = new int[0];
     final static double[] EMPTY_DOUBLES = new double[0];
     final static String[] EMPTY_STRINGS = new String[0];
-
-    public static String toEscapeString(int ch) {
-        return String.format("\\u%04x", ch);
-    }
-
     // Default interface or abstract class implementation class configuration
-    private static final Map<Class<?>, JSONImplInstCreator> DEFAULT_IMPL_INST_CREATOR_MAP = new HashMap<Class<?>, JSONImplInstCreator>();
+    static final Map<Class<?>, JSONImplInstCreator> DEFAULT_IMPL_INST_CREATOR_MAP = new ConcurrentHashMap<Class<?>, JSONImplInstCreator>();
+    protected final static JSONSecureTrustedAccess JSON_SECURE_TRUSTED_ACCESS = new JSONSecureTrustedAccess();
 
     static {
         for (int i = 0; i < ESCAPE_VALUES.length; ++i) {
@@ -173,9 +156,7 @@ class JSONGeneral {
                         ESCAPE_VALUES[i] = toEscapeString(i);
                     }
             }
-            if (i < 32 || i == '"' || i == '\\') {
-                ESCAPE_FLAGS[i] = 1;
-            }
+            NO_ESCAPE_FLAGS[i] = !(i < 32 || i == '"' || i == '\\');
         }
 
         String[] availableIDs = TimeZone.getAvailableIDs();
@@ -188,8 +169,11 @@ class JSONGeneral {
         GMT_TIME_ZONE_MAP.put("-00:00", timeZone);
         GMT_TIME_ZONE_MAP.put("+0", timeZone);
         GMT_TIME_ZONE_MAP.put("-0", timeZone);
-        GMT_TIME_ZONE_MAP.put("+08:00", timeZone = TimeZone.getTimeZone("GMT+08:00"));
-        GMT_TIME_ZONE_MAP.put("GMT+08:00", timeZone);
+        try {
+            GMT_TIME_ZONE_MAP.put("+08:00", timeZone = TimeZone.getTimeZone("GMT+08:00"));
+            GMT_TIME_ZONE_MAP.put("GMT+08:00", timeZone);
+        } catch (Throwable throwable) {
+        }
 
         registerImplCreator(EnumSet.class, new JSONImplInstCreator<EnumSet>() {
             @Override
@@ -207,11 +191,10 @@ class JSONGeneral {
         });
     }
 
-    /**
-     * @param parentClass
-     * @param creator
-     * @param <T>
-     */
+    public static String toEscapeString(int ch) {
+        return String.format("\\u%04x", ch);
+    }
+
     public final static <T> void registerImplCreator(Class<? extends T> parentClass, JSONImplInstCreator<T> creator) {
         DEFAULT_IMPL_INST_CREATOR_MAP.put(parentClass, creator);
     }
@@ -264,16 +247,6 @@ class JSONGeneral {
     }
 
     /**
-     * 获取以10为底数的指定数值（-1 < expValue > 310）指数值
-     *
-     * @param expValue
-     * @return
-     */
-    protected static double getDecimalPowerValue(int expValue) {
-        return NumberUtils.getDecimalPowerValue(expValue);
-    }
-
-    /**
      * 转化为2位int数字
      *
      * @param buf
@@ -295,6 +268,24 @@ class JSONGeneral {
     protected final static int parseInt4(char[] buf, int fromIndex)
             throws NumberFormatException {
         return NumberUtils.parseInt4(buf, fromIndex);
+    }
+
+    final static boolean isNoEscape32Bits(byte[] bytes, int offset) {
+        return NO_ESCAPE_FLAGS[bytes[offset] & 0xff]
+                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
+                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
+                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff];
+    }
+
+    final static boolean isNoEscape64Bits(byte[] bytes, int offset) {
+        return NO_ESCAPE_FLAGS[bytes[offset] & 0xff]
+                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
+                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
+                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
+                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
+                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
+                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
+                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff];
     }
 
     /**
@@ -328,18 +319,6 @@ class JSONGeneral {
             writer.write(next);
             beginIndex = ++i + 1;
         }
-//        if (next == 'u') {
-//            int c = hex4(buf, i + 2);
-//            writer.append((char) c);
-//            i += 4;
-//            beginIndex = ++i + 1;
-//        } else if (next < 160) {
-//            writer.append(ESCAPE_CHARS[next]);
-//            beginIndex = ++i + 1;
-//        } else {
-//            writer.append(next);
-//            beginIndex = ++i + 1;
-//        }
         jsonParseContext.endIndex = i;
         return beginIndex;
     }
@@ -476,37 +455,37 @@ class JSONGeneral {
         return beginIndex;
     }
 
-    /**
-     * 解析处理字符串中转义字符，如果不存在转义字符，返回原字符串
-     *
-     * @param str
-     * @return
-     */
-    public static final String parseEscapeString(String str) {
-        str.getClass();
-        int beginIndex = str.indexOf('\\');
-        // none Escape
-        if (beginIndex == -1) return str;
-
-        JSONParseContext jsonParseContext = new JSONParseContext();
-        JSONCharArrayWriter writer = getContextWriter(jsonParseContext);
-        try {
-            char[] chars = getChars(str);
-            char next = chars[beginIndex + 1];
-            beginIndex = escapeNext(chars, next, beginIndex, 0, writer, jsonParseContext);
-            int max = chars.length;
-            for (int i = beginIndex + 1; i < max; i++) {
-                if (chars[i] != '\\') continue;
-                next = chars[i + 1];
-                beginIndex = escapeNext(chars, next, i, beginIndex, writer, jsonParseContext);
-                i = jsonParseContext.endIndex;
-            }
-            writer.write(chars, beginIndex, max - beginIndex);
-            return writer.toString();
-        } finally {
-            jsonParseContext.clear();
-        }
-    }
+//    /**
+//     * 解析处理字符串中转义字符，如果不存在转义字符，返回原字符串
+//     *
+//     * @param str
+//     * @return
+//     */
+//    public static final String parseEscapeString(String str) {
+//        str.getClass();
+//        int beginIndex = str.indexOf('\\');
+//        // none Escape
+//        if (beginIndex == -1) return str;
+//
+//        JSONParseContext jsonParseContext = new JSONParseContext();
+//        JSONCharArrayWriter writer = getContextWriter(jsonParseContext);
+//        try {
+//            char[] chars = getChars(str);
+//            char next = chars[beginIndex + 1];
+//            beginIndex = escapeNext(chars, next, beginIndex, 0, writer, jsonParseContext);
+//            int max = chars.length;
+//            for (int i = beginIndex + 1; i < max; i++) {
+//                if (chars[i] != '\\') continue;
+//                next = chars[i + 1];
+//                beginIndex = escapeNext(chars, next, i, beginIndex, writer, jsonParseContext);
+//                i = jsonParseContext.endIndex;
+//            }
+//            writer.write(chars, beginIndex, max - beginIndex);
+//            return writer.toString();
+//        } finally {
+//            jsonParseContext.clear();
+//        }
+//    }
 
     /**
      * 将\\u后面的4个16进制字符转化为int值
@@ -968,43 +947,43 @@ class JSONGeneral {
         }
     }
 
-    /***
-     * 反序列化日期（Deserialization date）
-     *
-     * @param buf  字符数组
-     * @param from     开始位置（双引号或者数字首位置）
-     * @param to       结束位置(逗号或者括号位置)
-     * @param pattern  日期格式
-     * @param timezone 时区
-     * @param dateCls  日期类型
-     * @return 日期对象
-     */
-    protected static Date parseDateValue(char[] buf, int from, int to, String pattern, String timezone,
-                                         Class<? extends Date> dateCls) {
-        int realFrom = from;
-        int realTo = to;
-        // 去除前后空格
-        char start = '"';
-        while ((from < to) && ((start = buf[from]) <= ' ')) {
-            from++;
-        }
-        char end = '"';
-        while ((to > from) && ((end = buf[to - 1]) <= ' ')) {
-            to--;
-        }
-        if (start == '"' && end == '"') {
-            return parseDateValueOfString(buf, from, to, pattern, pattern == null ? 0 : 4, pattern == null ? null : new DateTemplate(pattern), timezone, dateCls);
-        } else {
-            // If it is a long time rub, it has nothing to do with the time zone
-            try {
-                long timestamp = Long.parseLong(new String(buf, from, to - from));
-                return parseDate(timestamp, dateCls);
-            } catch (Exception e) {
-                String timestampStr = new String(buf, from, to - from);
-                throw new JSONException("fromIndex " + realFrom + ", toIndex " + realTo + " str " + timestampStr + " error !");
-            }
-        }
-    }
+//    /***
+//     * 反序列化日期（Deserialization date）
+//     *
+//     * @param buf  字符数组
+//     * @param from     开始位置（双引号或者数字首位置）
+//     * @param to       结束位置(逗号或者括号位置)
+//     * @param pattern  日期格式
+//     * @param timezone 时区
+//     * @param dateCls  日期类型
+//     * @return 日期对象
+//     */
+//    protected static Date parseDateValue(char[] buf, int from, int to, String pattern, String timezone,
+//                                         Class<? extends Date> dateCls) {
+//        int realFrom = from;
+//        int realTo = to;
+//        // 去除前后空格
+//        char start = '"';
+//        while ((from < to) && ((start = buf[from]) <= ' ')) {
+//            from++;
+//        }
+//        char end = '"';
+//        while ((to > from) && ((end = buf[to - 1]) <= ' ')) {
+//            to--;
+//        }
+//        if (start == '"' && end == '"') {
+//            return parseDateValueOfString(buf, from, to, pattern, pattern == null ? 0 : 4, pattern == null ? null : new DateTemplate(pattern), timezone, dateCls);
+//        } else {
+//            // If it is a long time rub, it has nothing to do with the time zone
+//            try {
+//                long timestamp = Long.parseLong(new String(buf, from, to - from));
+//                return parseDate(timestamp, dateCls);
+//            } catch (Exception e) {
+//                String timestampStr = new String(buf, from, to - from);
+//                throw new JSONException("fromIndex " + realFrom + ", toIndex " + realTo + " str " + timestampStr + " error !");
+//            }
+//        }
+//    }
 
     /**
      * 清除注释和空白,返回第一个非空字符 （Clear comments and whitespace and return the first non empty character）
@@ -1133,32 +1112,59 @@ class JSONGeneral {
      */
     protected final static void writeFormatOutSymbols(JSONWriter content, int level, boolean formatOut, JSONConfig jsonConfig) throws IOException {
         if (formatOut && level > -1) {
-            boolean formatIndentUseSpace = jsonConfig.isFormatIndentUseSpace();
-            if (formatIndentUseSpace) {
-                content.write('\n');
-                if (level == 0) return;
-                int totalSpaceNum = level * jsonConfig.getFormatIndentSpaceNum();
-                int symbolSpaceNum = FORMAT_OUT_SYMBOL_SPACES.length;
-                while (totalSpaceNum >= symbolSpaceNum) {
-                    content.write(FORMAT_OUT_SYMBOL_SPACES);
-                    totalSpaceNum -= symbolSpaceNum;
-                }
-                while (totalSpaceNum-- > 0) {
-                    content.write(' ');
+            writeFormatOutSymbols(content, level, jsonConfig);
+        }
+    }
+
+    protected final static void writeFormatOutSymbols(JSONWriter content, int level, JSONConfig jsonConfig) throws IOException {
+        boolean formatIndentUseSpace = jsonConfig.isFormatIndentUseSpace();
+        if (formatIndentUseSpace) {
+            content.writeJSONToken('\n');
+            if (level == 0) return;
+            int totalSpaceNum = level * jsonConfig.getFormatIndentSpaceNum();
+            int symbolSpaceNum = FORMAT_OUT_SYMBOL_SPACES.length;
+            while (totalSpaceNum >= symbolSpaceNum) {
+                content.write(FORMAT_OUT_SYMBOL_SPACES);
+                totalSpaceNum -= symbolSpaceNum;
+            }
+            while (totalSpaceNum-- > 0) {
+                content.write(' ');
+            }
+        } else {
+            char[] symbol = FORMAT_OUT_SYMBOL_TABS;
+            final int symbolLen = 11; // symbol.length;
+            if (level < symbolLen - 1) {
+                switch (level) {
+                    case 5:
+                        content.writeMemory(FO_INDENT4_INT64, FO_INDENT4_INT32, 4);
+                        content.writeMemory2(FOTT_INDENT2_INT32, FOTT_INDENT2_INT16, symbol, 1);
+                        break;
+                    case 4:
+                        content.writeMemory(FO_INDENT4_INT64, FO_INDENT4_INT32, 4);
+                        content.writeJSONToken('\t');
+                        break;
+                    case 3:
+                        content.writeMemory(FO_INDENT4_INT64, FO_INDENT4_INT32, 4);
+                        break;
+                    case 2:
+                        content.writeJSONToken('\n');
+                        content.writeMemory2(FOTT_INDENT2_INT32, FOTT_INDENT2_INT16, symbol, 1);
+                        break;
+                    case 1:
+                        content.writeMemory2(FONT_INDENT2_INT32, FONT_INDENT2_INT16, symbol, 0);
+                        break;
+                    case 0:
+                        content.writeJSONToken('\n');
+                        break;
+                    default: {
+                        content.write(symbol, 0, level + 1);
+                    }
                 }
             } else {
-                char[] symbol = FORMAT_OUT_SYMBOL_TABS;
-                int symbolLen = 11;
-                if (symbolLen - 1 > level) {
-                    content.write(symbol, 0, level + 1);
-                } else {
-                    // 全部的symbol
-                    content.write(symbol);
-                    // 补齐差的\t个数
-                    int appendTabLen = level - symbolLen + 1;
-                    while (appendTabLen-- > 0) {
-                        content.write('\t');
-                    }
+                content.write(symbol);
+                int appendTabLen = level - (symbolLen - 1);
+                while (appendTabLen-- > 0) {
+                    content.write('\t');
                 }
             }
         }
@@ -1239,14 +1245,14 @@ class JSONGeneral {
             int count = to - from;
             if (count == 4) {
                 long lv = JSONUnsafe.getLong(buf, from);
-                if (lv == NULL_LONG/*buf[from] == 'n' && buf[from + 1] == 'u' && buf[from + 2] == 'l' && buf[from + 3] == 'l'*/) {
+                if (lv == NULL_LONG) {
                     return null;
                 }
-                if (lv == TRUE_LONG/*buf[from] == 't' && buf[from + 1] == 'r' && buf[from + 2] == 'u' && buf[from + 3] == 'e'*/) {
+                if (lv == TRUE_LONG) {
                     return true;
                 }
             }
-            if (count == 5 && buf[from] == 'f' && JSONUnsafe.getLong(buf, from + 1) == ALSE_LONG/*buf[from + 1] == 'a' && buf[from + 2] == 'l' && buf[from + 3] == 's' && buf[from + 4] == 'e'*/) {
+            if (count == 5 && buf[from] == 'f' && JSONUnsafe.getLong(buf, from + 1) == ALSE_LONG) {
                 return false;
             }
             boolean numberFlag = true;
@@ -1283,13 +1289,6 @@ class JSONGeneral {
         }
     }
 
-    /**
-     * @param from
-     * @param to
-     * @param buf
-     * @param isUnquotedFieldName
-     * @return
-     */
     final static Serializable parseKeyOfMap(byte[] buf, int from, int to, boolean isUnquotedFieldName) {
         if (isUnquotedFieldName) {
             while ((from < to) && ((buf[from]) <= ' ')) {
@@ -1301,14 +1300,14 @@ class JSONGeneral {
             int count = to - from;
             if (count == 4) {
                 int iv = JSONUnsafe.getInt(buf, from);
-                if (iv == NULL_INT/*buf[from] == 'n' && buf[from + 1] == 'u' && buf[from + 2] == 'l' && buf[from + 3] == 'l'*/) {
+                if (iv == NULL_INT) {
                     return null;
                 }
-                if (iv == TRUE_INT/*buf[from] == 't' && buf[from + 1] == 'r' && buf[from + 2] == 'u' && buf[from + 3] == 'e'*/) {
+                if (iv == TRUE_INT) {
                     return true;
                 }
             }
-            if (count == 5 && buf[from] == 'f' && JSONUnsafe.getInt(buf, from + 1) == ALSE_INT/*buf[from + 1] == 'a' && buf[from + 2] == 'l' && buf[from + 3] == 's' && buf[from + 4] == 'e'*/) {
+            if (count == 5 && buf[from] == 'f' && JSONUnsafe.getInt(buf, from + 1) == ALSE_INT) {
                 return false;
             }
             boolean numberFlag = true;
@@ -1343,22 +1342,6 @@ class JSONGeneral {
             int len = to - from - 2;
             return new String(buf, from + 1, len);
         }
-    }
-
-    // 字节数组转16进制字符串
-    protected static String printHexString(byte[] b, char splitChar) {
-        StringBuilder returnValue = new StringBuilder();
-        for (int i = 0; i < b.length; ++i) {
-            String hex = Integer.toHexString(b[i] & 0xFF);
-            if (hex.length() == 1) {
-                hex = '0' + hex;
-            }
-            returnValue.append(hex.toUpperCase());
-            if (splitChar > 0) {
-                returnValue.append(splitChar);
-            }
-        }
-        return returnValue.toString();
     }
 
     // 16进制字符数组（字符串）转化字节数组
@@ -1474,18 +1457,6 @@ class JSONGeneral {
         return 0;
     }
 
-
-    /**
-     * collection -> array
-     *
-     * @param collection
-     * @param componentType
-     * @return
-     */
-    protected static Object collectionToArray(Collection<Object> collection, Class<?> componentType) {
-        return UnsafeHelper.toArray(collection, componentType);
-    }
-
     protected static final int COLLECTION_ARRAYLIST_TYPE = 1;
     protected static final int COLLECTION_HASHSET_TYPE = 2;
     protected static final int COLLECTION_OTHER_TYPE = 3;
@@ -1510,12 +1481,12 @@ class JSONGeneral {
                 throw new UnsupportedOperationException("Unsupported for collection type '" + collectionCls + "', Please specify an implementation class");
             }
         } else {
-            if (collectionCls == ArrayList.class || collectionCls == Object.class) {
-                return new HashSet<Object>();
-            } else if (collectionCls == HashSet.class) {
+            if (collectionCls == HashSet.class) {
                 return new HashSet<Object>();
             } else if (collectionCls == Vector.class) {
                 return new Vector<Object>();
+            } else if (collectionCls == ArrayList.class || collectionCls == Object.class) {
+                return new ArrayList<Object>();
             } else {
                 try {
                     return (Collection<Object>) collectionCls.newInstance();
@@ -1527,7 +1498,7 @@ class JSONGeneral {
     }
 
     // create map
-    static Map createMapInstance(GenericParameterizedType genericParameterizedType) {
+    final static Map createMapInstance(GenericParameterizedType genericParameterizedType) {
         Class<? extends Map> mapCls = genericParameterizedType.getActualType();
         Map map = createCommonMapInstance(mapCls);
         if (map != null) return map;
@@ -1542,7 +1513,7 @@ class JSONGeneral {
         }
     }
 
-    static Map createMapInstance(Class<? extends Map> mapCls) {
+    final static Map createMapInstance(Class<? extends Map> mapCls) {
         Map map = createCommonMapInstance(mapCls);
         if (map != null) return map;
         try {
@@ -1552,14 +1523,15 @@ class JSONGeneral {
         }
     }
 
-    static Map createCommonMapInstance(Class<? extends Map> mapCls) {
+    final static Map createCommonMapInstance(Class<? extends Map> targetCls) {
+        Class<?> mapCls = targetCls;
         if (mapCls == Map.class || mapCls == null || mapCls == LinkedHashMap.class) {
             return new LinkedHashMap();
         }
         if (mapCls == HashMap.class) {
             return new HashMap();
         }
-        if (mapCls == Hashtable.class) {
+        if (mapCls == Hashtable.class || mapCls == Dictionary.class) {
             return new Hashtable();
         }
         if (mapCls == AbstractMap.class) {
@@ -1624,7 +1596,7 @@ class JSONGeneral {
      * @return
      */
     protected final static Object getStringValue(String value) {
-        return UnsafeHelper.getStringValue(value);
+        return JSONUnsafe.getStringValue(value.toString());
     }
 
 }

@@ -116,7 +116,6 @@ public final class GenericParameterizedType<T> {
             genericParameterizedType = new GenericParameterizedType();
             genericParameterizedType.setActualType(actualType);
             genericParameterizedType.actualClassCategory = ReflectConsts.getClassCategory(actualType);
-//            genericParameterizedType.initParamClassType();
             GENERIC_PARAMETERIZED_TYPE_MAP.put(actualType, genericParameterizedType);
         }
         return genericParameterizedType;
@@ -133,9 +132,47 @@ public final class GenericParameterizedType<T> {
         GenericParameterizedType genericParameterizedType = new GenericParameterizedType();
         genericParameterizedType.setActualType(actualType);
         genericParameterizedType.actualClassCategory = ReflectConsts.getClassCategory(actualType);
-//        genericParameterizedType.initParamClassType();
         return genericParameterizedType;
     }
+
+    public static GenericParameterizedType mapOf(Class<? extends Map> mapClass) {
+        Type type = mapClass.getGenericSuperclass();
+        if (type instanceof ParameterizedType) {
+            ParameterizedType parameterizedType = (ParameterizedType) type;
+            Type[] actualTypeArguments = parameterizedType.getActualTypeArguments();
+            if (actualTypeArguments != null && actualTypeArguments.length == 2) {
+                Type arg0 = actualTypeArguments[0], arg1 = actualTypeArguments[1];
+                if (arg0 instanceof Class) {
+                    return GenericParameterizedType.mapType(mapClass, (Class<?>) arg0, GenericParameterizedType.of(arg1));
+                }
+            }
+        }
+        return actualType(mapClass);
+    }
+
+    public static GenericParameterizedType collectionOf(Class<? extends Collection> collectionClass) {
+        Type type = collectionClass.getGenericSuperclass();
+        if (type instanceof ParameterizedType) {
+            ParameterizedType parameterizedType = (ParameterizedType) type;
+            Type[] actualTypeArguments = parameterizedType.getActualTypeArguments();
+            if (actualTypeArguments != null && actualTypeArguments.length == 1) {
+                return collectionType(collectionClass, GenericParameterizedType.of(actualTypeArguments[0]));
+            }
+        }
+        return actualType(collectionClass);
+    }
+
+//    static Type getEntityGenericParameterizedType(Class entityClass) {
+//        Type type = entityClass.getGenericSuperclass();
+//        if (type instanceof ParameterizedType) {
+//            ParameterizedType parameterizedType = (ParameterizedType) type;
+//            Type[] actualTypeArguments = parameterizedType.getActualTypeArguments();
+//            if (actualTypeArguments != null && actualTypeArguments.length == 1) {
+//                return actualTypeArguments[0];
+//            }
+//        }
+//        return null;
+//    }
 
     private <T> void setActualType(Class<T> actualType) {
         this.actualType = actualType;
@@ -158,7 +195,6 @@ public final class GenericParameterizedType<T> {
 
         GenericParameterizedType valueType = new GenericParameterizedType();
         valueType.setActualType(valueActualType);
-//        valueType.initParamClassType();
 
         parameterizedType.valueType = valueType;
         return parameterizedType;
@@ -179,7 +215,6 @@ public final class GenericParameterizedType<T> {
         parameterizedType.mapKeyClass = mapKeyClass;
 
         parameterizedType.valueType = valueType;
-//        valueType.initParamClassType();
         return parameterizedType;
     }
 
@@ -244,7 +279,6 @@ public final class GenericParameterizedType<T> {
         parameterizedType.generic = true;
         parameterizedType.setActualType(collectionClass);
         parameterizedType.valueType = valueType;
-//        valueType.initParamClassType();
         return parameterizedType;
     }
 
@@ -319,8 +353,7 @@ public final class GenericParameterizedType<T> {
         GenericParameterizedType genericParameterizedType = new GenericParameterizedType();
         genericParameterizedType.setActualType(parameterType);
         genericParameterizedType.generic = true;
-        genericParameterizedType.mapKeyClass = (key instanceof WildcardType || !(key instanceof Class<?>)) ? Object.class : (Class<?>) key;
-
+        genericParameterizedType.mapKeyClass = !(key instanceof Class<?>) ? Object.class : (Class<?>) key;
         parseValueType(genericParameterizedType, value);
         return genericParameterizedType;
     }
@@ -337,7 +370,6 @@ public final class GenericParameterizedType<T> {
         genericParameterizedType.setActualType(parameterType);
         genericParameterizedType.genericName = genericName;
         genericParameterizedType.camouflage = true;
-
         return genericParameterizedType;
     }
 
@@ -440,9 +472,6 @@ public final class GenericParameterizedType<T> {
         return generic;
     }
 
-//    void initParamClassType() {
-//    }
-
     public boolean isCamouflage() {
         return camouflage;
     }
@@ -470,7 +499,13 @@ public final class GenericParameterizedType<T> {
      */
     public static GenericParameterizedType of(Type type) {
         if (type instanceof Class<?>) {
-            return actualType((Class<?>) type);
+            Class typeClass = (Class<?>) type;
+            if (Map.class.isAssignableFrom(typeClass)) {
+                return mapOf(typeClass);
+            } else if (Collection.class.isAssignableFrom(typeClass)) {
+                return collectionOf(typeClass);
+            }
+            return actualType(typeClass);
         }
         try {
             if (type instanceof ParameterizedType) {
@@ -478,16 +513,12 @@ public final class GenericParameterizedType<T> {
                 Type[] actualTypeArguments = pt.getActualTypeArguments();
                 Type rawType = pt.getRawType();
                 if (rawType instanceof Class<?>) {
-                    Class<?> rawClass = (Class<?>) rawType;
+                    Class rawClass = (Class<?>) rawType;
                     if (Collection.class.isAssignableFrom(rawClass)) {
-                        Type actualTypeArgument = actualTypeArguments[0];
-                        if (actualTypeArgument instanceof Class<?>) {
-                            return collectionType(rawClass, (Class<?>) actualTypeArgument);
-                        } else {
-                            return collectionType(rawClass, of(actualTypeArgument));
-                        }
+                        return collectionType(rawClass, of(actualTypeArguments[0]));
                     } else if (Map.class.isAssignableFrom(rawClass)) {
-                        return genericMapType(rawClass, actualTypeArguments[0], actualTypeArguments[1]);
+                        Type key = actualTypeArguments[0];
+                        return mapType(rawClass, key instanceof Class<?> ? (Class<?>) key : Object.class, of(actualTypeArguments[1]));
                     } else {
                         // maybe an entity<T>
                         return genericEntityType(rawClass, actualTypeArguments[0].getTypeName());

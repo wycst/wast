@@ -50,6 +50,10 @@ public final class ClassStructureWrapper {
         this.sourceClass = sourceClass;
         this.privateFlag = Modifier.isPrivate(sourceClass.getModifiers());
         this.assignableFromMap = Map.class.isAssignableFrom(sourceClass);
+
+        Map<Class<? extends Annotation>, Annotation> annotationMap = new HashMap<Class<? extends Annotation>, Annotation>();
+        addAnnotations(annotationMap, sourceClass.getDeclaredAnnotations());
+        this.annotationMap = annotationMap;
     }
 
     /**
@@ -59,10 +63,9 @@ public final class ClassStructureWrapper {
 
     // jdk invoke
     private final Class<?> sourceClass;
-
     private final boolean privateFlag;
-
     private final boolean assignableFromMap;
+    private final Map<Class<? extends Annotation>, Annotation> annotationMap;
 
     // type
     private ClassWrapperType classWrapperType = ClassWrapperType.Normal;
@@ -367,7 +370,7 @@ public final class ClassStructureWrapper {
     private static void wrapperWithMethodAndField(ClassStructureWrapper wrapper, Map<String, Class<?>> superGenericClassMap) {
         // sourceClass
         Class<?> sourceClass = wrapper.sourceClass;
-        boolean globalMIP = sourceClass.getDeclaredAnnotation(MethodInvokePriority.class) != null;
+        boolean globalMIP = wrapper.annotationMap.containsKey(MethodInvokePriority.class);
         /** 获取构造方法参数最少的作为默认构造方法 */
         Constructor<?>[] constructors = sourceClass.getDeclaredConstructors();
         Constructor<?> defaultConstructor = null;
@@ -941,6 +944,14 @@ public final class ClassStructureWrapper {
 
     public boolean isPrivate() {
         return privateFlag;
+    }
+
+    public boolean isJavaBuiltInModule() {
+        return javaBuiltInModule;
+    }
+
+    public Annotation getDeclaredAnnotation(Class<? extends Annotation> annotationClass) {
+        return annotationMap.get(annotationClass);
     }
 
     public enum ClassWrapperType {

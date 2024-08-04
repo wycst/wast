@@ -16,11 +16,12 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
 
     protected final JSONPojoStructure pojoStructure;
     final JSONValueMatcher<JSONPojoFieldDeserializer> fieldDeserializerMatcher;
+    final GenericParameterizedType genericType;
 
     public JSONPojoDeserializer(Class<T> pojoClass) {
         this(checkPojoStructure(pojoClass));
+        initialize();
     }
-
     static <T> JSONPojoStructure checkPojoStructure(Class<T> pojoClass) {
         JSONPojoStructure pojoStructure = JSONPojoStructure.get(pojoClass);
         if (pojoStructure == null) {
@@ -31,7 +32,13 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
 
     JSONPojoDeserializer(JSONPojoStructure pojoStructure) {
         this.pojoStructure = pojoStructure;
+        this.genericType = pojoStructure.getGenericType();
         this.fieldDeserializerMatcher = pojoStructure.fieldDeserializerMatcher;
+    }
+
+    @Override
+    final void initialize() {
+        pojoStructure.ensureInitializedFieldDeserializers();
     }
 
     protected final T deserialize(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object entity, char endToken, JSONParseContext jsonParseContext) throws Exception {
@@ -319,12 +326,12 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                     JSONTypeDeserializer.ANY.skip(charSource, buf, i, toIndex, '}', jsonParseContext);
                 }
                 i = jsonParseContext.endIndex;
-                int endChar = jsonParseContext.endChar;
+                int endChar = jsonParseContext.endToken;
                 if (endChar == 0) {
                     while ((ch = buf[++i]) <= ' ') ;
                 } else {
                     ch = (char) endChar;
-                    jsonParseContext.endChar = 0;
+                    jsonParseContext.endToken = 0;
                 }
                 if (ch == ',') {
                     continue;
@@ -552,12 +559,12 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                     JSONTypeDeserializer.ANY.skip(charSource, buf, i, toIndex, END_OBJECT, jsonParseContext);
                 }
                 i = jsonParseContext.endIndex;
-                int endChar = jsonParseContext.endChar;
+                int endChar = jsonParseContext.endToken;
                 if (endChar == 0) {
                     while ((b = buf[++i]) <= WHITE_SPACE) ;
                 } else {
                     b = (byte) endChar;
-                    jsonParseContext.endChar = 0;
+                    jsonParseContext.endToken = 0;
                 }
                 if (b == COMMA) {
                     continue;
@@ -619,7 +626,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
         T entity;
         try {
             entity = createPojo();
-            deserializePojo(charSource, buf, fromIndex, toIndex, getGenericParameterizedType(), entity, '}', jsonParseContext);
+            deserializePojo(charSource, buf, fromIndex, toIndex, genericType, entity, '}', jsonParseContext);
         } catch (Throwable throwable) {
             handleCatchException(throwable, buf, toIndex);
             throw new JSONException(throwable.getMessage(), throwable);
@@ -650,7 +657,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
         T entity;
         try {
             entity = createPojo();
-            deserializePojo(charSource, buf, fromIndex, toIndex, getGenericParameterizedType(), entity, END_OBJECT, jsonParseContext);
+            deserializePojo(charSource, buf, fromIndex, toIndex, genericType, entity, END_OBJECT, jsonParseContext);
         } catch (Throwable throwable) {
             handleCatchException(throwable, buf, toIndex);
             throw new JSONException(throwable.getMessage(), throwable);
@@ -660,22 +667,22 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
     }
 
     protected void setFieldValue(T entity, JSONPojoFieldDeserializer fieldDeserializer, Object value) {
-        fieldDeserializer.invoke(entity, value);
+        JSON_SECURE_TRUSTED_ACCESS.set(fieldDeserializer.setterInfo, entity, value); // fieldDeserializer.setterInfo.invoke(entity, value);
     }
 
     protected T createPojo() throws Exception {
         return (T) pojoStructure.newInstance();
     }
 
-    protected final GenericParameterizedType getGenericParameterizedType() {
-        return pojoStructure.getGenericType();
+    protected final <T> GenericParameterizedType getGenericParameterizedType(Class<T> actualType) {
+        return genericType;
     }
 
     // record supported
-    public static class JSONRecordDeserializer<T> extends JSONPojoDeserializer {
+    public static class RecordImpl<T> extends JSONPojoDeserializer {
 
-        JSONRecordDeserializer(JSONPojoStructure objectStructureWrapper) {
-            super(objectStructureWrapper);
+        RecordImpl(JSONPojoStructure pojoStructure) {
+            super(pojoStructure);
         }
 
         protected Object createPojo() throws Exception {
@@ -684,7 +691,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
 
         protected final void setFieldValue(Object entity, JSONPojoFieldDeserializer fieldDeserializer, Object value) {
             Object[] argValues = (Object[]) entity;
-            argValues[fieldDeserializer.getIndex()] = value;
+            argValues[fieldDeserializer.fieldIndex] = value;
         }
 
         protected final Object pojo(Object value) {

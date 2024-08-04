@@ -13,7 +13,7 @@ public class JSONParseContext {
      * 解析上下文结束位置
      */
     public int endIndex;
-    public int endChar;
+    public int endToken;
 
     /**
      * JSON写入器

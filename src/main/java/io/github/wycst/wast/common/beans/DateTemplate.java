@@ -710,13 +710,13 @@ public final class DateTemplate {
                                 buf[off++] = '-';
                                 year = -year;
                             }
-                            int y2 = year % 100;
+                            int y1 = year / 100;
+                            int y2 = year - y1 * 100;
                             if (count == 2) {
                                 // 输出2位数年份
                                 buf[off++] = DigitTens[y2];
                                 buf[off++] = DigitOnes[y2];
                             } else {
-                                int y1 = year / 100;
                                 // 输出完整的年份
                                 buf[off++] = DigitTens[y1];
                                 buf[off++] = DigitOnes[y1];

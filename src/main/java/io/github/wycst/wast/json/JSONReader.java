@@ -195,7 +195,7 @@ public class JSONReader extends JSONAbstractReader {
         try {
             this.readBuffer();
             if (!multiple && this.isCompleted()) {
-                return JSONDefaultParser.parse(null, buf, 0, count, null, readOptions);
+                return JSONDefaultParser.parseInternal(null, buf, 0, count, null, readOptions);
             }
             this.defaultRead();
         } catch (Exception e) {

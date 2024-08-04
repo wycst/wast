@@ -10,55 +10,36 @@ import java.util.Map;
 public class GetterInfo {
 
     private Field field;
-    // field 偏移
     private long fieldOffset = -1;
-    // 是否基本类型
     private boolean fieldPrimitive;
-    // 基本类型类别
     private ReflectConsts.PrimitiveType primitiveType;
     private GenericParameterizedType genericParameterizedType;
-    // 名称
     private String name;
-
     private String underlineName;
-
-    // 注解集合
     private Map<Class<? extends Annotation>, Annotation> annotations;
-
-    // 输出值分类
     private ReflectConsts.ClassCategory classCategory;
     private boolean record;
-
-    public static GetterInfo fromField(Field field) {
-        GetterInfo getterInfo = new GetterInfo();
-        getterInfo.setField(field);
-        return getterInfo;
-    }
-
-    /**
-     * 获取Getter类型分类
-     */
     public ReflectConsts.ClassCategory getClassCategory() {
         if (classCategory != null) {
             return classCategory;
         }
-        if (fieldOffset > -1) {
-            // field
-            return classCategory = ReflectConsts.getClassCategory(getReturnType());
-        }
-        // getter method
         return classCategory = ReflectConsts.getClassCategory(getReturnType());
     }
 
-    /**
-     * 反射属性
-     */
+    public final boolean isInstance(Object target) {
+        return field.getDeclaringClass().isInstance(target);
+    }
+
     public final Object invoke(Object target) {
         if (fieldOffset > -1) {
-            if (fieldPrimitive) {
-                return primitiveType.get(target, fieldOffset);
+            if(isInstance(target)) {
+                if (fieldPrimitive) {
+                    return primitiveType.get(target, fieldOffset);
+                } else {
+                    return UnsafeHelper.getObjectValue(target, fieldOffset);
+                }
             } else {
-                return UnsafeHelper.getObjectValue(target, fieldOffset);
+                throw new SecurityException("invoke error: parameter mismatch");
             }
         }
         return invokeObjectValue(target);
@@ -70,6 +51,17 @@ public class GetterInfo {
         } catch (Exception e) {
             throw new InvokeReflectException(e);
         }
+    }
+
+    Object invokeInternal(Object target) {
+        if (fieldOffset > -1) {
+            if (fieldPrimitive) {
+                return primitiveType.getValue(target, fieldOffset);
+            } else {
+                return UnsafeHelper.UNSAFE.getObject(target, fieldOffset);
+            }
+        }
+        return invokeObjectValue(target);
     }
 
     void setField(Field field) {
@@ -117,7 +109,7 @@ public class GetterInfo {
         return field.getType();
     }
 
-    public void setUnderlineName(String underlineName) {
+    void setUnderlineName(String underlineName) {
         this.underlineName = underlineName;
     }
 
@@ -159,7 +151,7 @@ public class GetterInfo {
         return field.getName();
     }
 
-    public void setRecord(boolean record) {
+    void setRecord(boolean record) {
         this.record = record;
     }
 }

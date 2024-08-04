@@ -17,18 +17,10 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implements Comparable<JSONPojoFieldDeserializer> {
 
-    /**
-     * name
-     */
-    private final String name;
-
-    /**
-     * setter信息
-     */
+    final String name;
+    final int fieldIndex;
     final SetterInfo setterInfo;
-
-    private final JsonProperty jsonProperty;
-
+    final JsonProperty jsonProperty;
     /**
      * 类型信息
      */
@@ -37,9 +29,9 @@ public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implem
     /**
      * 类型分类
      */
-    private final ReflectConsts.ClassCategory classCategory;
+    final ReflectConsts.ClassCategory classCategory;
 
-    private Class<?> implClass;
+    Class<?> implClass;
 
     /**
      * 反序列化器
@@ -49,11 +41,11 @@ public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implem
     /**
      * 是否自定义反序列器
      */
-    private boolean customDeserialize = false;
+    boolean customDeserialize = false;
 
-    private final String pattern;
-    private final String timezone;
-    private boolean initialized;
+    final String pattern;
+    final String timezone;
+    boolean initialized;
 
     /**
      * 自定义反序列化器
@@ -62,11 +54,9 @@ public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implem
     private boolean priority;
 
     JSONPojoFieldDeserializer(String name, SetterInfo setterInfo, JsonProperty jsonProperty) {
-        if (setterInfo == null) {
-            throw new IllegalArgumentException("setterInfo is null");
-        }
         this.name = name;
         this.setterInfo = setterInfo;
+        this.fieldIndex = setterInfo.getIndex();
         this.jsonProperty = jsonProperty;
         this.genericParameterizedType = setterInfo.getGenericParameterizedType();
 
@@ -166,29 +156,17 @@ public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implem
         throw new UnsupportedOperationException();
     }
 
-//    public JSONTypeDeserializer getDeserializer() {
-//        return deserializer;
-//    }
-
-    public Object getDefaultFieldValue(Object instance) {
-        return setterInfo.getDefaultFieldValue(instance);
+    Object getDefaultFieldValue(Object instance) {
+        return JSON_SECURE_TRUSTED_ACCESS.getSetterDefault(setterInfo, instance);
     }
 
     public int getIndex() {
         return setterInfo.getIndex();
     }
 
-    public void invoke(Object entity, Object value) {
-        setterInfo.invoke(entity, value);
-    }
-
-    public String getDatePattern() {
-        return pattern;
-    }
-
-    public String getDateTimezone() {
-        return timezone;
-    }
+//    public void invoke(Object entity, Object value) {
+//        JSON_SECURE_TRUSTED_ACCESS.set(setterInfo, entity, value); // setterInfo.invoke(entity, value);
+//    }
 
     public Class<?> getImplClass() {
         return implClass;

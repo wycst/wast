@@ -1,7 +1,7 @@
 package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.common.beans.GeneralDate;
-import io.github.wycst.wast.common.reflect.UnsafeHelper;
+import io.github.wycst.wast.common.utils.Base64Utils;
 import io.github.wycst.wast.common.utils.EnvUtils;
 import io.github.wycst.wast.common.utils.NumberUtils;
 import io.github.wycst.wast.common.utils.Scientific;
@@ -28,6 +28,12 @@ public abstract class JSONWriter extends Writer {
     final static short EMPTY_ARRAY_SHORT;
     final static int Z_QUOT_INT;
     final static short Z_QUOT_SHORT;
+    final static int ZERO_DOT_32 = EnvUtils.BIG_ENDIAN ? '0' << 16 | '.' : '.' << 16 | '0';
+    final static short ZERO_DOT_16 = EnvUtils.BIG_ENDIAN ? (short) ('0' << 8 | '.') : (short) ('.' << 8 | '0');
+    final static int DOT_ZERO_32 = EnvUtils.BIG_ENDIAN ? '.' << 16 | '0' : '0' << 16 | '.';
+    final static short DOT_ZERO_16 = EnvUtils.BIG_ENDIAN ? (short) ('.' << 8 | '0') : (short) ('0' << 8 | '.');
+    final static int ZERO_ZERO_32 = '0' << 16 | '0';
+    final static short ZERO_ZERO_16 = '0' << 8 | '0';
     final static char[] HEX_DIGITS = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
     final static long[] POW10_LONG_VALUES = new long[]{
             10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000, 10000000000L, 100000000000L, 1000000000000L, 10000000000000L, 100000000000000L, 1000000000000000L, 10000000000000000L, 100000000000000000L, 1000000000000000000L, 9223372036854775807L
@@ -135,7 +141,7 @@ public abstract class JSONWriter extends Writer {
 
     static JSONWriter forStringWriter(JSONConfig jsonConfig) {
         if (jsonConfig.isIgnoreEscapeCheck()) {
-            return new JSONCharArrayWriter.JSONCharArrayIgnoreEscapeWriter();
+            return new JSONCharArrayWriter.IgnoreEscapeWriter();
         } else {
             return new JSONCharArrayWriter();
         }
@@ -196,6 +202,36 @@ public abstract class JSONWriter extends Writer {
             }
             NumberUtils.writePositiveLong(nano, content);
         }
+    }
+
+    final static int writeNano(int nano, char[] buf, int off) {
+        // 4 + 2 + 3
+        buf[off++] = '.';
+        // seg1 4
+        int div1 = (int) EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(nano, 0x4189374bc6a7f0L); // nano / 1000;
+        // 4
+        int seg1 = (int) EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(div1, 0x28f5c28f5c28f5dL); // div1 / 100;
+        // 2
+        int seg2 = div1 - 100 * seg1;
+        // 3
+        int seg3 = nano - div1 * 1000;
+        off += JSONUnsafe.putLong(buf, off, FOUR_DIGITS_64_BITS[seg1]);
+        if (seg3 > 0) {
+            off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[seg2]);
+            int pos = --off;
+            char last = buf[pos];
+            off += JSONUnsafe.putLong(buf, pos, FOUR_DIGITS_64_BITS[seg3]); // writeFourDigits(seg3, buf, pos);
+            buf[pos] = last;
+        } else {
+            if (seg2 == 0 && (seg1 & 1) == 0 && seg1 % 5 == 0) {
+                // 4 - 1
+                --off;
+            } else {
+                // 4 + 2
+                off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[seg2]);
+            }
+        }
+        return off;
     }
 
     /**
@@ -463,10 +499,10 @@ public abstract class JSONWriter extends Writer {
      */
     public final void writeJSONString(String value) throws IOException {
         if (EnvUtils.JDK_9_PLUS) {
-            byte[] bytes = (byte[]) UnsafeHelper.getStringValue(value);
+            byte[] bytes = (byte[]) JSONUnsafe.getStringValue(value.toString());
             writeJSONStringBytes(value, bytes);
         } else {
-            writeJSONChars(UnsafeHelper.getChars(value));
+            writeJSONChars((char[]) JSONUnsafe.getStringValue(value.toString()));
         }
     }
 
@@ -522,6 +558,10 @@ public abstract class JSONWriter extends Writer {
         write('"');
     }
 
+    void writeMemory2(int int32, short int16, char[] source, int off) throws IOException {
+        write(source, off, 2);
+    }
+
     /**
      * 通过unsafe写入4 * n个字符（4 * n 字节）
      *
@@ -572,11 +612,11 @@ public abstract class JSONWriter extends Writer {
     }
 
     public void writeEmptyArray() throws IOException {
-        write(JSONGeneral.EMPTY_ARRAY);
+        write(JSONGeneral.EMPTY_ARRAY, 0, 2);
     }
 
     final static boolean isNoEscape(int b) {
-        return JSONGeneral.ESCAPE_FLAGS[b] == 0;
+        return JSONGeneral.NO_ESCAPE_FLAGS[b];
     }
 
     final static int writeUUID(UUID uuid, char[] buf, int offset) {
@@ -683,8 +723,7 @@ public abstract class JSONWriter extends Writer {
                 buf[off++] = '-';
             }
             buf[off++] = '0';
-            buf[off++] = '.';
-            buf[off++] = '0';
+            off += JSONUnsafe.putInt(buf, off, DOT_ZERO_32); // .0
             return off - beginIndex;
         }
         boolean sign = doubleValue < 0;
@@ -705,10 +744,7 @@ public abstract class JSONWriter extends Writer {
             return writeDecimal(scientific.output, scientific.count, e10, buf, beginIndex, off);
         }
         if (scientific == Scientific.SCIENTIFIC_NULL) {
-            buf[off++] = 'n';
-            buf[off++] = 'u';
-            buf[off++] = 'l';
-            buf[off++] = 'l';
+            off += JSONUnsafe.putLong(buf, off, JSONGeneral.NULL_LONG);
             return off - beginIndex;
         }
         if (e10 >= 0) {
@@ -733,14 +769,10 @@ public abstract class JSONWriter extends Writer {
      * @return
      */
     final static int writeFloat(float floatValue, char[] buf, int off) {
-        final int beginIndex = off;
         if (Float.isNaN(floatValue) || floatValue == Float.POSITIVE_INFINITY || floatValue == Float.NEGATIVE_INFINITY) {
-            buf[off++] = 'n';
-            buf[off++] = 'u';
-            buf[off++] = 'l';
-            buf[off++] = 'l';
-            return off - beginIndex;
+            return JSONUnsafe.putLong(buf, off, JSONGeneral.NULL_LONG);
         }
+        final int beginIndex = off;
         int bits;
         if (floatValue == 0) {
             bits = Float.floatToIntBits(floatValue);
@@ -748,8 +780,7 @@ public abstract class JSONWriter extends Writer {
                 buf[off++] = '-';
             }
             buf[off++] = '0';
-            buf[off++] = '.';
-            buf[off++] = '0';
+            off += JSONUnsafe.putInt(buf, off, DOT_ZERO_32); // .0
             return off - beginIndex;
         }
         boolean sign = floatValue < 0;
@@ -781,8 +812,7 @@ public abstract class JSONWriter extends Writer {
         if (useScientific) {
             if (digitCnt == 1) {
                 buf[off++] = (char) (value + 48);
-                buf[off++] = '.';
-                buf[off++] = '0';
+                off += JSONUnsafe.putInt(buf, off, DOT_ZERO_32); // .0
             } else {
                 int pos = digitCnt - 2;
                 // 获取首位数字
@@ -807,26 +837,23 @@ public abstract class JSONWriter extends Writer {
                 int n = e10 / 100;
                 buf[off++] = (char) (n + 48);
                 e10 = e10 - n * 100;
-
-                buf[off++] = JSONGeneral.DigitTens[e10];
-                buf[off++] = JSONGeneral.DigitOnes[e10];
+                off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[e10]);
             } else {
                 if (e10 > 9) {
-                    buf[off++] = JSONGeneral.DigitTens[e10];
+                    off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[e10]);
+                } else {
+                    buf[off++] = (char) (e10 + 48);
                 }
-                buf[off++] = JSONGeneral.DigitOnes[e10];
             }
         } else {
             // 非科学计数法例如12345, 在size = decimalExp时写入小数点.
             if (e10 < 0) {
                 // -1/-2/-3
-                buf[off++] = '0';
-                buf[off++] = '.';
+                off += JSONUnsafe.putInt(buf, off, ZERO_DOT_32); // 0.
                 if (e10 == -2) {
                     buf[off++] = '0';
                 } else if (e10 == -3) {
-                    buf[off++] = '0';
-                    buf[off++] = '0';
+                    off += JSONUnsafe.putInt(buf, off, ZERO_ZERO_32); // 00
                 }
                 off += writeInteger(value, buf, off);
             } else {
@@ -852,8 +879,7 @@ public abstract class JSONWriter extends Writer {
                             buf[off++] = '0';
                         }
                     }
-                    buf[off++] = '.';
-                    buf[off++] = '0';
+                    off += JSONUnsafe.putInt(buf, off, DOT_ZERO_32); // .0
                 }
             }
         }
@@ -879,8 +905,7 @@ public abstract class JSONWriter extends Writer {
                 buf[off++] = '-';
             }
             buf[off++] = '0';
-            buf[off++] = '.';
-            buf[off++] = '0';
+            off += JSONUnsafe.putShort(buf, off, DOT_ZERO_16); // .0
             return off - beginIndex;
         }
         boolean sign = doubleValue < 0;
@@ -899,10 +924,7 @@ public abstract class JSONWriter extends Writer {
             return writeDecimal(scientific.output, scientific.count, scientific.e10, buf, beginIndex, off);
         }
         if (scientific == Scientific.SCIENTIFIC_NULL) {
-            buf[off++] = 'n';
-            buf[off++] = 'u';
-            buf[off++] = 'l';
-            buf[off++] = 'l';
+            off += JSONUnsafe.putInt(buf, off, JSONGeneral.NULL_INT);
             return off - beginIndex;
         }
         if (e10 >= 0) {
@@ -929,14 +951,10 @@ public abstract class JSONWriter extends Writer {
      * @return
      */
     final static int writeFloat(float floatValue, byte[] buf, int off) {
-        final int beginIndex = off;
         if (Float.isNaN(floatValue) || floatValue == Float.POSITIVE_INFINITY || floatValue == Float.NEGATIVE_INFINITY) {
-            buf[off++] = 'n';
-            buf[off++] = 'u';
-            buf[off++] = 'l';
-            buf[off++] = 'l';
-            return off - beginIndex;
+            return JSONUnsafe.putInt(buf, off, JSONGeneral.NULL_INT);
         }
+        final int beginIndex = off;
         int bits;
         if (floatValue == 0) {
             bits = Float.floatToIntBits(floatValue);
@@ -944,8 +962,7 @@ public abstract class JSONWriter extends Writer {
                 buf[off++] = '-';
             }
             buf[off++] = '0';
-            buf[off++] = '.';
-            buf[off++] = '0';
+            off += JSONUnsafe.putShort(buf, off, DOT_ZERO_16); // .0
             return off - beginIndex;
         }
         boolean sign = floatValue < 0;
@@ -977,8 +994,7 @@ public abstract class JSONWriter extends Writer {
         if (useScientific) {
             if (digitCnt == 1) {
                 buf[off++] = (byte) (value + 48);
-                buf[off++] = '.';
-                buf[off++] = '0';
+                off += JSONUnsafe.putShort(buf, off, DOT_ZERO_16); // .0
             } else {
                 int pos = digitCnt - 2;
                 // 获取首位数字
@@ -1003,26 +1019,23 @@ public abstract class JSONWriter extends Writer {
                 int n = e10 / 100;
                 buf[off++] = (byte) (n + 48);
                 e10 = e10 - n * 100;
-
-                buf[off++] = (byte) JSONGeneral.DigitTens[e10];
-                buf[off++] = (byte) JSONGeneral.DigitOnes[e10];
+                off += JSONUnsafe.putShort(buf, off, TWO_DIGITS_16_BITS[e10]);
             } else {
                 if (e10 > 9) {
-                    buf[off++] = (byte) JSONGeneral.DigitTens[e10];
+                    off += JSONUnsafe.putShort(buf, off, TWO_DIGITS_16_BITS[e10]);
+                } else {
+                    buf[off++] = (byte) (e10 + 48);
                 }
-                buf[off++] = (byte) JSONGeneral.DigitOnes[e10];
             }
         } else {
             // 非科学计数法例如12345, 在size = decimalExp时写入小数点.
             if (e10 < 0) {
                 // -1/-2/-3
-                buf[off++] = '0';
-                buf[off++] = '.';
+                off += JSONUnsafe.putShort(buf, off, ZERO_DOT_16); // 0.
                 if (e10 == -2) {
                     buf[off++] = '0';
                 } else if (e10 == -3) {
-                    buf[off++] = '0';
-                    buf[off++] = '0';
+                    off += JSONUnsafe.putShort(buf, off, ZERO_ZERO_16); // 00
                 }
                 off += writeInteger(value, buf, off);
             } else {
@@ -1048,8 +1061,7 @@ public abstract class JSONWriter extends Writer {
                             buf[off++] = '0';
                         }
                     }
-                    buf[off++] = '.';
-                    buf[off++] = '0';
+                    off += JSONUnsafe.putShort(buf, off, DOT_ZERO_16); // .0
                 }
             }
         }
@@ -1143,32 +1155,32 @@ public abstract class JSONWriter extends Writer {
 
     final static int writeThreeDigits(int val, char[] chars, int off) {
         if (val < 10) {
-            chars[off] = JSONGeneral.DigitOnes[val];
+            chars[off] = (char) (val + 48);
             return 1;
         }
         if (val < 100) {
             JSONUnsafe.putInt(chars, off, TWO_DIGITS_32_BITS[val]);
             return 2;
         }
-        int v = val / 100;
+        int v = (int) EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(val, 0x28f5c28f5c28f5dL);  // val / 100;
         int v1 = val - v * 100;
-        chars[off++] = JSONGeneral.DigitOnes[v];
+        chars[off++] = (char) (v + 48);
         JSONUnsafe.putInt(chars, off, TWO_DIGITS_32_BITS[v1]);
         return 3;
     }
 
     final static int writeThreeDigits(int val, byte[] buf, int off) {
         if (val < 10) {
-            buf[off] = (byte) JSONGeneral.DigitOnes[val];
+            buf[off] = (byte) (val + 48);
             return 1;
         }
         if (val < 100) {
             JSONUnsafe.putShort(buf, off, TWO_DIGITS_16_BITS[val]);
             return 2;
         }
-        int v = val / 100;
+        int v = (int) EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(val, 0x28f5c28f5c28f5dL);  // val / 100;
         int v1 = val - v * 100;
-        buf[off++] = (byte) JSONGeneral.DigitOnes[v];
+        buf[off++] = (byte) (v + 48);
         JSONUnsafe.putShort(buf, off, TWO_DIGITS_16_BITS[v1]);
         return 3;
     }
@@ -1193,7 +1205,7 @@ public abstract class JSONWriter extends Writer {
         }
         final int beginIndex = off;
         long numValue = val;
-        val = numValue / 10000;
+        val = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710cb296L) >> 12; // numValue / 10000;
         v1 = (int) (numValue - val * 10000);
         if (val < 10000) {
             v = (int) val;
@@ -1207,7 +1219,7 @@ public abstract class JSONWriter extends Writer {
         }
 
         numValue = val;
-        val = numValue / 10000;
+        val = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710ccL); // numValue / 10000;
         v2 = (int) (numValue - val * 10000);
         if (val < 10000) {
             v = (int) val;
@@ -1222,7 +1234,7 @@ public abstract class JSONWriter extends Writer {
         }
 
         numValue = val;
-        val = numValue / 10000;
+        val = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710ccL); // numValue / 10000;
         v3 = (int) (numValue - val * 10000);
         if (val < 10000) {
             v = (int) val;
@@ -1238,7 +1250,7 @@ public abstract class JSONWriter extends Writer {
         }
 
         numValue = val;
-        val = numValue / 10000;
+        val = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710ccL); // numValue / 10000;
         v4 = (int) (numValue - val * 10000);
 
         off += writeThreeDigits((int) val, chars, off);
@@ -1298,7 +1310,7 @@ public abstract class JSONWriter extends Writer {
         }
         final int beginIndex = off;
         long numValue = val;
-        val = numValue / 10000;
+        val = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710cb296L) >> 12; // numValue / 10000;
         v1 = (int) (numValue - val * 10000);
         if (val < 10000) {
             v = (int) val;
@@ -1312,7 +1324,7 @@ public abstract class JSONWriter extends Writer {
         }
 
         numValue = val;
-        val = numValue / 10000;
+        val = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710ccL); // numValue / 10000;
         v2 = (int) (numValue - val * 10000);
         if (val < 10000) {
             v = (int) val;
@@ -1326,7 +1338,7 @@ public abstract class JSONWriter extends Writer {
         }
 
         numValue = val;
-        val = numValue / 10000;
+        val = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710ccL); // numValue / 10000;
         v3 = (int) (numValue - val * 10000);
         if (val < 10000) {
             v = (int) val;
@@ -1341,7 +1353,7 @@ public abstract class JSONWriter extends Writer {
         }
 
         numValue = val;
-        val = numValue / 10000;
+        val = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710ccL); // numValue / 10000;
         v4 = (int) (numValue - val * 10000);
         off += writeThreeDigits((int) val, buf, off);
         off += JSONUnsafe.putLong(buf, off, mergeInt64(v4, v3));
@@ -1349,4 +1361,37 @@ public abstract class JSONWriter extends Writer {
         return off - beginIndex;
     }
 
+    public final void writeJSONChar(char ch) throws IOException {
+        writeJSONToken('"');
+        String escapeStr;
+        if ((ch > '"' && ch != '\\') || (escapeStr = JSONGeneral.ESCAPE_VALUES[ch]) == null) {
+            writeJSONToken(ch);
+        } else {
+            write(escapeStr, 0, escapeStr.length());
+        }
+        writeJSONToken('"');
+    }
+
+    public void writeAsBase64String(byte[] src) throws IOException {
+        writeJSONToken('"');
+        char[] chars = new char[(src.length / 3 + 1) << 2];
+        int len = Base64Utils.encode(src, chars, 0);
+        write(chars, 0, len);
+        writeJSONToken('"');
+    }
+
+    public void writeAsHexString(byte[] src) throws IOException {
+        writeJSONToken('"');
+        char[] buf = new char[src.length << 1];
+        int count = 0;
+        for (byte b : src) {
+            count += JSONUnsafe.putInt(buf, count, HEX_DIGITS_INT32[b & 0xff]);
+        }
+        write(buf, 0, count);
+        writeJSONToken('"');
+    }
+
+    public void writeTo(Writer writer) throws IOException {
+        throw new UnsupportedOperationException();
+    }
 }

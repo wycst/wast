@@ -36,17 +36,10 @@ public class JSONNodeContext extends JSONParseContext {
     /**
      * 提取数据列表
      */
-    public List extractValues;
+    public List extractValues = new ArrayList();
 
-    public void extractValue(Object value) {
-        if (extractValues == null) {
-            extractValues = new ArrayList();
-        }
+    void extractValue(Object value) {
         extractValues.add(value);
-    }
-
-    public List getExtractValues() {
-        return extractValues;
     }
 
     public void reset() {

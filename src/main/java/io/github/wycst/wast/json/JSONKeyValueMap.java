@@ -10,11 +10,11 @@ import java.util.Set;
  * @Date: 2022/7/9 11:57
  * @Description:
  */
-class FixedNameValueMap<T> {
+class JSONKeyValueMap<T> {
 
     final int capacity;
     final int mask;
-    final NameValueEntryNode<T>[] valueEntryNodes;
+    final EntryNode<T>[] valueEntryNodes;
     int count;
     final int maxCount;
 
@@ -24,15 +24,15 @@ class FixedNameValueMap<T> {
 
     static final int[] PRIMES = new int[]{5, 7, 11, 13, 17, 19, 23, 29, 31};
 
-    public static <E> FixedNameValueMap<E> build(Map<String, E> values) {
+    public static <E> JSONKeyValueMap<E> build(Map<String, E> values) {
         return build(values, false);
     }
 
-    public static <E> FixedNameValueMap<E> build(Map<String, E> values, boolean forByte) {
+    public static <E> JSONKeyValueMap<E> build(Map<String, E> values, boolean forByte) {
         int size = values.size();
-        BHFixedNameValueMap<E> bhNameValueMap = new BHFixedNameValueMap<E>(size << 1);
+        BihvImpl<E> bhNameValueMap = new BihvImpl<E>(size << 1);
         final int capacity = bhNameValueMap.capacity;
-        NameValueEntryNode<E>[] valueEntryNodes = bhNameValueMap.valueEntryNodes;
+        EntryNode<E>[] valueEntryNodes = bhNameValueMap.valueEntryNodes;
 
         String[] names = values.keySet().toArray(new String[size]);
         long[] hashValues = new long[size];
@@ -54,10 +54,10 @@ class FixedNameValueMap<T> {
                     String name = names[i];
                     long hashValue = hashValues[i];
                     E value = values.get(name);
-                    valueEntryNodes[remValues[i]] = new NameValueEntryNode<E>(name.toCharArray(), name.getBytes(), value, hashValue);
+                    valueEntryNodes[remValues[i]] = new EntryNode<E>(name.toCharArray(), name.getBytes(), value, hashValue);
                 }
                 if (bits == 0) {
-                    return new PHFixedNameValueMap<E>(size, capacity, valueEntryNodes);
+                    return new PlhvImpl<E>(size, capacity, valueEntryNodes);
                 }
                 bhNameValueMap.bits = bits;
                 bhNameValueMap.count = size;
@@ -68,7 +68,7 @@ class FixedNameValueMap<T> {
 
         // use default
         // Find the most suitable prime number to minimize conflicts
-        FixedNameValueMap<E> dftNameValueMap = new FixedNameValueMap<E>(size << 1);
+        JSONKeyValueMap<E> dftNameValueMap = new JSONKeyValueMap<E>(size << 1);
         Set<Long> hashValueSet = new LinkedHashSet<Long>();
         int primeValue = 5;
         for (int prime : PRIMES) {
@@ -91,7 +91,7 @@ class FixedNameValueMap<T> {
                     String name = names[i];
                     long hashValue = hashValues[i];
                     E value = values.get(name);
-                    valueEntryNodes[remValues[i]] = new NameValueEntryNode<E>(name.toCharArray(), name.getBytes(), value, hashValue);
+                    valueEntryNodes[remValues[i]] = new EntryNode<E>(name.toCharArray(), name.getBytes(), value, hashValue);
                 }
                 return dftNameValueMap;
             }
@@ -108,17 +108,17 @@ class FixedNameValueMap<T> {
         return dftNameValueMap;
     }
 
-    public static <E> FixedNameValueMap<E> build(int mask, long[] hashValues, E[] values) {
+    public static <E> JSONKeyValueMap<E> build(int mask, long[] hashValues, E[] values) {
         int cap = mask + 1;
-        NameValueEntryNode[] valueEntryNodes = new NameValueEntryNode[cap];
+        EntryNode[] valueEntryNodes = new EntryNode[cap];
         for (int i = 0, len = hashValues.length; i < len; ++i) {
             long hashValue = hashValues[i];
-            valueEntryNodes[(int) (hashValue & mask)] = new NameValueEntryNode(null, null, values[i], hashValues[i]);
+            valueEntryNodes[(int) (hashValue & mask)] = new EntryNode(null, null, values[i], hashValues[i]);
         }
-        return new FixedNameValueMap(cap, cap, mask, valueEntryNodes);
+        return new JSONKeyValueMap(cap, cap, mask, valueEntryNodes);
     }
 
-    public FixedNameValueMap(int size) {
+    public JSONKeyValueMap(int size) {
         if(size > 1 << 14) {
             throw new IllegalArgumentException("too large for size " + size);
         }
@@ -129,14 +129,14 @@ class FixedNameValueMap<T> {
         this.maxCount = size;
         this.capacity = capacity;
         this.mask = capacity - 1;
-        valueEntryNodes = new NameValueEntryNode[capacity];
+        valueEntryNodes = new EntryNode[capacity];
     }
 
-    FixedNameValueMap(int capacity, NameValueEntryNode[] valueEntryNodes) {
+    JSONKeyValueMap(int capacity, EntryNode[] valueEntryNodes) {
         this(capacity << 1, capacity, capacity - 1, valueEntryNodes);
     }
 
-    FixedNameValueMap(int maxCount, int capacity, int mask, NameValueEntryNode[] valueEntryNodes) {
+    JSONKeyValueMap(int maxCount, int capacity, int mask, EntryNode[] valueEntryNodes) {
         this.maxCount = maxCount;
         this.capacity = capacity;
         this.mask = mask;
@@ -167,8 +167,8 @@ class FixedNameValueMap<T> {
             count++;
         }
         int index = (int) (keyHash & mask);
-        NameValueEntryNode valueEntryNode = new NameValueEntryNode(name.toCharArray(), name.getBytes(), value, keyHash);
-        NameValueEntryNode oldEntryNode = valueEntryNodes[index];
+        EntryNode valueEntryNode = new EntryNode(name.toCharArray(), name.getBytes(), value, keyHash);
+        EntryNode oldEntryNode = valueEntryNodes[index];
         valueEntryNodes[index] = valueEntryNode;
         if (oldEntryNode != null) {
             // use link table
@@ -184,8 +184,8 @@ class FixedNameValueMap<T> {
             count++;
         }
         int index = (int) (hash & mask);
-        NameValueEntryNode valueEntryNode = new NameValueEntryNode(value, hash);
-        NameValueEntryNode oldEntryNode = valueEntryNodes[index];
+        EntryNode valueEntryNode = new EntryNode(value, hash);
+        EntryNode oldEntryNode = valueEntryNodes[index];
         valueEntryNodes[index] = valueEntryNode;
         if (oldEntryNode != null) {
             // use link table
@@ -222,7 +222,7 @@ class FixedNameValueMap<T> {
      */
     public final T getValue(char[] buf, int beginIndex, int endIndex, long hashValue) {
         int index = (int) (hashValue & mask);
-        NameValueEntryNode<T> entryNode = valueEntryNodes[index];
+        EntryNode<T> entryNode = valueEntryNodes[index];
         if (entryNode == null) {
             return null;
         }
@@ -249,7 +249,7 @@ class FixedNameValueMap<T> {
      */
     public final T getValue(byte[] bytes, int beginIndex, int endIndex, long hashValue) {
         int index = (int) (hashValue & mask);
-        NameValueEntryNode<T> entryNode = valueEntryNodes[index];
+        EntryNode<T> entryNode = valueEntryNodes[index];
         if (entryNode == null) {
             return null;
         }
@@ -273,7 +273,7 @@ class FixedNameValueMap<T> {
      */
     public final T getValueByHash(long hashValue) {
         int index = (int) (hashValue & mask);
-        NameValueEntryNode<T> entryNode = valueEntryNodes[index];
+        EntryNode<T> entryNode = valueEntryNodes[index];
         if (entryNode != null && entryNode.hash == hashValue) {
             return entryNode.value;
         }
@@ -298,14 +298,14 @@ class FixedNameValueMap<T> {
         return hash(hv, c2);
     }
 
-    static class NameValueEntryNode<T> {
+    static class EntryNode<T> {
 
-        public NameValueEntryNode(T value, long keyHash) {
+        public EntryNode(T value, long keyHash) {
             this.hash = keyHash;
             this.value = value;
         }
 
-        public NameValueEntryNode(char[] chars, byte[] bytes, T value, long keyHash) {
+        public EntryNode(char[] chars, byte[] bytes, T value, long keyHash) {
             this.chars = chars;
             this.bytes = bytes;
             this.hash = keyHash;
@@ -349,7 +349,7 @@ class FixedNameValueMap<T> {
         long remBytesValue;
 
         T value;
-        NameValueEntryNode<T> next;
+        EntryNode<T> next;
 
         public final boolean equals(char[] buf, int offset, int len) {
             return len == chars.length && JSONUnsafe.equals(buf, offset, chars, 0, len, remCharsValue);
@@ -448,10 +448,10 @@ class FixedNameValueMap<T> {
         return val;
     }
 
-    static final class BHFixedNameValueMap<E> extends FixedNameValueMap {
+    static final class BihvImpl<E> extends JSONKeyValueMap {
         private int bits;
 
-        public BHFixedNameValueMap(int size) {
+        public BihvImpl(int size) {
             super(size);
         }
 
@@ -471,8 +471,8 @@ class FixedNameValueMap<T> {
         }
     }
 
-    static final class PHFixedNameValueMap<E> extends FixedNameValueMap {
-        public PHFixedNameValueMap(int count, int capacity, NameValueEntryNode[] valueEntryNodes) {
+    static final class PlhvImpl<E> extends JSONKeyValueMap {
+        public PlhvImpl(int count, int capacity, EntryNode[] valueEntryNodes) {
             super(capacity, valueEntryNodes);
             this.count = count;
         }

@@ -5,6 +5,8 @@ import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.temporal.*;
 
+import java.util.TimeZone;
+
 /**
  * java.time support
  * <p>
@@ -88,5 +90,9 @@ public abstract class JSONTemporalSerializer extends JSONTypeSerializer {
     protected void writeDefault(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
         String temporal = value.toString();
         CHAR_SEQUENCE_STRING.serialize(temporal, writer, jsonConfig, indent);
+    }
+
+    protected final static TimeZone getTimeZone(String zoneId) {
+        return JSONGeneral.getTimeZone(zoneId);
     }
 }

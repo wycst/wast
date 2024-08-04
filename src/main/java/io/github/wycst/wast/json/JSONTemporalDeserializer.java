@@ -108,6 +108,13 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
             case 'n':
                 return NULL.deserialize(null, buf, fromIndex, toIndex, null, null, jsonParseContext);
             default: {
+                if(supportedTime()) {
+                    try {
+                        long timestamp = (Long) NUMBER_LONG.deserialize(charSource, buf, fromIndex, toIndex, GenericParameterizedType.LongType, null, endToken, jsonParseContext);
+                        return fromTime(timestamp);
+                    } catch (Throwable throwable) {
+                    }
+                }
                 // not support or custom handle ?
                 String errorContextTextAt = createErrorContextText(buf, fromIndex);
                 throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected '" + beginChar + "' for Temporal Type, expected '\"' ");
@@ -154,11 +161,27 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
             case 'n':
                 return parseNull(buf, fromIndex, toIndex, jsonParseContext);
             default: {
+                if(supportedTime()) {
+                    try {
+                        // long
+                        long timestamp = (Long) NUMBER_LONG.deserialize(charSource, buf, fromIndex, toIndex, GenericParameterizedType.LongType, null, endToken, jsonParseContext);
+                        return fromTime(timestamp);
+                    } catch (Throwable throwable) {
+                    }
+                }
                 // not support or custom handle ?
                 String errorContextTextAt = createErrorContextText(buf, fromIndex);
                 throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected '" + beginChar + "' for Temporal Type, expected '\"' ");
             }
         }
+    }
+
+    protected Object fromTime(long timestamp) {
+        throw new UnsupportedOperationException();
+    }
+
+    protected boolean supportedTime() {
+        return false;
     }
 
     protected abstract Object deserializeTemporal(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception;

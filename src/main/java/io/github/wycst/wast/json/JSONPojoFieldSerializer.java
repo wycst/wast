@@ -79,9 +79,11 @@ public class JSONPojoFieldSerializer extends JSONTypeSerializer {
             GenericParameterizedType genericParameterizedType = getterInfo.getGenericParameterizedType();
             if (classCategory == ReflectConsts.ClassCategory.CollectionCategory && genericParameterizedType != null) {
                 GenericParameterizedType valueType = genericParameterizedType.getValueType();
-                Class<?> valueClass = valueType.getActualType();
-                if (Modifier.isFinal(valueClass.getModifiers())) {
-                    return JSONTypeSerializer.createCollectionSerializer(valueClass);
+                if(valueType != null) {
+                    Class<?> valueClass = valueType.getActualType();
+                    if (Modifier.isFinal(valueClass.getModifiers())) {
+                        return JSONTypeSerializer.createCollectionSerializer(valueClass);
+                    }
                 }
             }
             return JSONTypeSerializer.getFieldTypeSerializer(classCategory, returnType, jsonProperty);
@@ -121,15 +123,16 @@ public class JSONPojoFieldSerializer extends JSONTypeSerializer {
         }
     }
 
-    public GetterInfo getGetterInfo() {
-        return getterInfo;
-    }
+//    Object invoke(Object pojo) {
+//        // return getterInfo.invoke(pojo);
+//        return JSON_SECURE_TRUSTED_ACCESS.get(getterInfo, pojo);
+//    }
+//
+//    <T> T invoke(Object pojo, Class<T> tClass) {
+//        return (T) JSON_SECURE_TRUSTED_ACCESS.get(getterInfo, pojo);
+//    }
 
-    public Object invoke(Object pojo) {
-        return getterInfo.invoke(pojo);
-    }
-
-    void writeJSONFieldName(JSONWriter writer) throws IOException {
+    void writeFieldNameAndColonTo(JSONWriter writer) throws IOException {
         if (fieldNameCharLongs != null) {
             writer.writeMemory(fieldNameCharLongs, fieldNameByteLongs, fieldNameTokenOffset);
         } else {

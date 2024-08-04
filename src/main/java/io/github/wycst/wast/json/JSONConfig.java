@@ -13,7 +13,7 @@ public final class JSONConfig {
     private static boolean defaultFormatIndentUseSpace;
     private static int defaultFormatIndentSpaceNum = 4;
     private static boolean defaultWriteEnumAsOrdinal;
-    private boolean disableHotspotCache;
+//    private boolean disableHotspotCache;
 
     public static void setDefaultFullProperty(boolean defaultFullProperty) {
         JSONConfig.defaultFullProperty = defaultFullProperty;
@@ -38,57 +38,57 @@ public final class JSONConfig {
     /**
      * 格式化输出
      */
-    private boolean formatOut;
+    public boolean formatOut;
 
     /**
      * 格式化输出
      */
-    private boolean formatOutColonSpace;
+    public boolean formatOutColonSpace;
 
     /**
      * 格式化缩进使用空格模式
      */
-    private boolean formatIndentUseSpace = defaultFormatIndentUseSpace;
+    public boolean formatIndentUseSpace = defaultFormatIndentUseSpace;
 
     /**
      * 缩进空格数量,默认4个空格
      */
-    private int formatIndentSpaceNum = Math.max(defaultFormatIndentSpaceNum, 1);
+    public int formatIndentSpaceNum = Math.max(defaultFormatIndentSpaceNum, 1);
 
     /**
      * 输出全属性
      */
-    private boolean fullProperty = defaultFullProperty;
+    boolean fullProperty = defaultFullProperty;
 
     /**
      * 以yyyy-MM-dd HH:mm:ss 格式化日期对象
      */
-    private boolean dateFormat;
+    boolean dateFormat;
 
     /**
      * 是否序列化日期为时间戳
      */
-    private boolean writeDateAsTime;
+    boolean writeDateAsTime;
 
     /**
      * 是否序列化日期为时间戳
      */
-    private boolean writeEnumAsOrdinal = defaultWriteEnumAsOrdinal;
+    boolean writeEnumAsOrdinal = defaultWriteEnumAsOrdinal;
 
     /**
      * 是否将数字类序列化位字符串
      */
-    private boolean writeNumberAsString;
+    boolean writeNumberAsString;
 
     /**
      * 是否使用toString序列化浮点数
      */
-    private boolean writeDecimalUseToString;
+    boolean writeDecimalUseToString;
 
     /**
      * 跳过循环序列化
      */
-    private boolean skipCircularReference;
+    boolean skipCircularReference;
 
     /**
      * 日期格式默认： yyyy-MM-dd HH:mm:ss
@@ -99,52 +99,52 @@ public final class JSONConfig {
      * 是否将byte[]数组按数组序列化
      * Serialize byte [] array to Base64
      */
-    private boolean bytesArrayToNative;
+    boolean bytesArrayToNative;
 
     /**
      * 是否将byte[]数组序列化为16进制字符串
      */
-    private boolean bytesArrayToHex;
+    boolean bytesArrayToHex;
 
     /**
      * 忽略转义检查
      */
-    private boolean ignoreEscapeCheck;
+    boolean ignoreEscapeCheck;
 
     /**
      * 跳过没有属性Field的getter方法序列化
      */
-    private boolean skipGetterOfNoneField;
+    boolean skipGetterOfNoneField;
 
     /**
      * 自动关闭流
      */
-    private boolean autoCloseStream = true;
+    boolean autoCloseStream = true;
 
     /**
      * 允许map的key根据实际类型序列化而不是双引号包围
      */
-    private boolean allowUnquotedMapKey;
+    boolean allowUnquotedMapKey;
 
     /**
      * 使用字段序列化
      */
-    private boolean useFields;
+    boolean useFields;
 
     /**
      * 是否驼峰转下划线
      */
-    private boolean camelCaseToUnderline;
+    boolean camelCaseToUnderline;
 
     /**
      * 是否序列化类型
      */
-    private boolean writeClassName;
+    boolean writeClassName;
 
     /**
      * 指定时区
      */
-    private TimeZone timezone;
+    TimeZone timezone;
 
     private Map<Integer, Integer> identityHashCodes;
 
@@ -327,7 +327,7 @@ public final class JSONConfig {
         this.writeClassName = writeClassName;
     }
 
-    public void setStatus(int hashcode, int status) {
+    void setStatus(int hashcode, int status) {
         if (skipCircularReference) {
             Map<Integer, Integer> hashCodeStatus = getOrSetIdentityHashCodes();
             hashCodeStatus.put(hashcode, status);
@@ -341,7 +341,7 @@ public final class JSONConfig {
         return identityHashCodes;
     }
 
-    public int getStatus(int hashcode) {
+    int getStatus(int hashcode) {
         Map<Integer, Integer> hashCodeStatus = getOrSetIdentityHashCodes();
         if (hashCodeStatus.containsKey(hashcode)) {
             return hashCodeStatus.get(hashcode);

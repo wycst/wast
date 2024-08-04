@@ -1,6 +1,6 @@
 package io.github.wycst.wast.json;
 
-import io.github.wycst.wast.common.reflect.UnsafeHelper;
+import io.github.wycst.wast.common.utils.Base64Utils;
 import io.github.wycst.wast.common.utils.EnvUtils;
 import io.github.wycst.wast.json.options.WriteOption;
 
@@ -14,9 +14,8 @@ import java.util.Arrays;
 import java.util.UUID;
 
 /**
- * <p> JSON CharArray writer
+ * <p> JSON ByteArray writer
  * <p> Optimization of single character out of bounds check
- * <p> only used for JSON.toJsonBytes api </p>
  *
  * @Author: wangy
  * @Date: 2023/12/22 21:48
@@ -36,17 +35,17 @@ class JSONByteArrayWriter extends JSONWriter {
 
     // EMPTY buf
     static final byte[] EMPTY_BUF = new byte[0];
-    final static ByteBufCache[] BYTE_BUF_CACHES = new ByteBufCache[CACHE_COUNT];
+    final static BufCache[] BYTE_BUF_CACHES = new BufCache[CACHE_COUNT];
 
     static {
         // init caches
         for (int i = 0; i < CACHE_COUNT; ++i) {
-            ByteBufCache byteBufCache = new ByteBufCache();
-            byteBufCache.index = i;
+            BufCache bufCache = new BufCache();
+            bufCache.index = i;
             if (i < AVAILABLE_PROCESSORS) {
-                byteBufCache.cacheBytes = new byte[CACHE_BUFFER_SIZE];
+                bufCache.cacheBytes = new byte[CACHE_BUFFER_SIZE];
             }
-            BYTE_BUF_CACHES[i] = byteBufCache;
+            BYTE_BUF_CACHES[i] = bufCache;
         }
     }
 
@@ -54,18 +53,18 @@ class JSONByteArrayWriter extends JSONWriter {
         this.charset = charset;
         utf8 = charset == EnvUtils.CHARSET_UTF_8;
         // use pool
-        ByteBufCache byteBufCache = getByteBufCache(); // getOrReturnCache(null);
-        if (byteBufCache != null) {
-            buf = byteBufCache.cacheBytes;
-            this.byteBufCache = byteBufCache;
+        BufCache bufCache = getByteBufCache(); // getOrReturnCache(null);
+        if (bufCache != null) {
+            buf = bufCache.cacheBytes;
+            this.bufCache = bufCache;
         } else {
             buf = new byte[512];
         }
     }
 
-    private static ByteBufCache getByteBufCache() {
+    private static BufCache getByteBufCache() {
         int cacheIndex = THREAD_CACHE_INDEX.get();
-        ByteBufCache cache = BYTE_BUF_CACHES[cacheIndex];
+        BufCache cache = BYTE_BUF_CACHES[cacheIndex];
         synchronized (cache) {
             if (cache.inUse) return null;
             cache.inUse = true;
@@ -79,9 +78,9 @@ class JSONByteArrayWriter extends JSONWriter {
     /**
      * The current instance uses a cached instance
      */
-    private ByteBufCache byteBufCache;
+    private BufCache bufCache;
 
-    private static class ByteBufCache {
+    private static class BufCache {
         byte[] cacheBytes;
         boolean inUse;
         int index;
@@ -142,7 +141,7 @@ class JSONByteArrayWriter extends JSONWriter {
     @Override
     public void write(String str, int off, int len) {
         if (len == 0) return;
-        Object value = UnsafeHelper.getStringValue(str);
+        Object value = JSONUnsafe.getStringValue(str.toString());
         if (EnvUtils.JDK_9_PLUS) {
             byte[] bytes = (byte[]) value;
             if (bytes.length == str.length()) {
@@ -205,11 +204,11 @@ class JSONByteArrayWriter extends JSONWriter {
     }
 
     @Override
-    public void flush() throws IOException {
+    public final void flush() throws IOException {
     }
 
     @Override
-    public void close() throws IOException {
+    public final void close() throws IOException {
     }
 
     protected StringBuffer toStringBuffer() {
@@ -313,14 +312,7 @@ class JSONByteArrayWriter extends JSONWriter {
             int i = 0;
             do {
                 if (len >= 8) { // i <= len - 8
-                    if (isNoEscape(bytes[i] & 0xFF)
-                            && isNoEscape(bytes[i + 1] & 0xFF)
-                            && isNoEscape(bytes[i + 2] & 0xFF)
-                            && isNoEscape(bytes[i + 3] & 0xFF)
-                            && isNoEscape(bytes[i + 4] & 0xFF)
-                            && isNoEscape(bytes[i + 5] & 0xFF)
-                            && isNoEscape(bytes[i + 6] & 0xFF)
-                            && isNoEscape(bytes[i + 7] & 0xFF)) {
+                    if (JSONGeneral.isNoEscape64Bits(bytes, i)) {
                         JSONUnsafe.putLong(buf, count, JSONUnsafe.getLong(bytes, i));
                         count += 8;
                         i += 8;
@@ -330,14 +322,7 @@ class JSONByteArrayWriter extends JSONWriter {
                     }
 
                     if (i <= len - 8) { // i <= len - 8
-                        if (isNoEscape(bytes[i] & 0xFF)
-                                && isNoEscape(bytes[i + 1] & 0xFF)
-                                && isNoEscape(bytes[i + 2] & 0xFF)
-                                && isNoEscape(bytes[i + 3] & 0xFF)
-                                && isNoEscape(bytes[i + 4] & 0xFF)
-                                && isNoEscape(bytes[i + 5] & 0xFF)
-                                && isNoEscape(bytes[i + 6] & 0xFF)
-                                && isNoEscape(bytes[i + 7] & 0xFF)) {
+                        if (JSONGeneral.isNoEscape64Bits(bytes, i)) {
                             JSONUnsafe.putLong(buf, count, JSONUnsafe.getLong(bytes, i));
                             count += 8;
                             i += 8;
@@ -348,10 +333,7 @@ class JSONByteArrayWriter extends JSONWriter {
                     }
                 }
                 if (i <= len - 4) {
-                    if (isNoEscape(bytes[i] & 0xFF)
-                            && isNoEscape(bytes[i + 1] & 0xFF)
-                            && isNoEscape(bytes[i + 2] & 0xFF)
-                            && isNoEscape(bytes[i + 3] & 0xFF)) {
+                    if (JSONGeneral.isNoEscape32Bits(bytes, i)) {
                         JSONUnsafe.putInt(buf, count, JSONUnsafe.getInt(bytes, i));
                         count += 4;
                         i += 4;
@@ -361,8 +343,8 @@ class JSONByteArrayWriter extends JSONWriter {
                     }
                 }
                 if (i <= len - 2) {
-                    if (isNoEscape(bytes[i] & 0xFF)
-                            && isNoEscape(bytes[i + 1] & 0xFF)) {
+                    if (JSONGeneral.NO_ESCAPE_FLAGS[bytes[i] & 0xFF]
+                            && JSONGeneral.NO_ESCAPE_FLAGS[bytes[i + 1] & 0xFF]) {
                         JSONUnsafe.putShort(buf, count, JSONUnsafe.getShort(bytes, i));
                         count += 2;
                         i += 2;
@@ -374,7 +356,7 @@ class JSONByteArrayWriter extends JSONWriter {
                 if (i < len) { // i <= len - 1
                     byte b;
                     int index;
-                    if (isNoEscape(index = (b = bytes[i]) & 0xFF)) {
+                    if (JSONGeneral.NO_ESCAPE_FLAGS[index = (b = bytes[i]) & 0xFF]) {
                         buf[count++] = b;
                     } else {
                         String escapeStr = JSONGeneral.ESCAPE_VALUES[index];
@@ -547,19 +529,19 @@ class JSONByteArrayWriter extends JSONWriter {
 
     int writeNano(int nano, int off) {
         buf[off++] = '.';
-        int top8 = nano / 10;
+        int top8 = (int) EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(nano, 0x199999999999999aL); // nano / 10;
         int remDigit = nano - top8 * 10;
         if (remDigit > 0) {
             // 8 + 1
-            int top4 = top8 / 10000;
+            int top4 = (int) EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(top8, 0x68db8bac710ccL); // top8 / 10000;
             int rem4 = top8 - top4 * 10000;
             off += JSONUnsafe.putLong(buf, off, mergeInt64(top4, rem4));
             buf[off++] = (byte) (remDigit + 48);
         } else {
             // 4 + 2 + 3
-            int div1 = nano / 1000;
+            int div1 = (int) EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(nano, 0x4189374bc6a7f0L); // nano / 1000;
             int seg3 = nano - div1 * 1000;
-            int seg1 = div1 / 100;
+            int seg1 = (int) EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(div1, 0x28f5c28f5c28f5dL); // div1 / 100;
             int seg2 = div1 - 100 * seg1;
             off += JSONUnsafe.putInt(buf, off, FOUR_DIGITS_32_BITS[seg1]);
             if (seg3 > 0) {
@@ -651,8 +633,7 @@ class JSONByteArrayWriter extends JSONWriter {
     @Override
     public void writeEmptyArray() throws IOException {
         ensureCapacity(2 + SECURITY_UNCHECK_SPACE);
-        JSONUnsafe.putShort(buf, count, EMPTY_ARRAY_SHORT);
-        count += 2;
+        count += JSONUnsafe.putShort(buf, count, EMPTY_ARRAY_SHORT);
     }
 
     @Override
@@ -679,20 +660,47 @@ class JSONByteArrayWriter extends JSONWriter {
         this.count += totalCount;
     }
 
+    @Override
+    void writeMemory2(int int32, short int16, char[] source, int off) throws IOException {
+        count += JSONUnsafe.putShort(buf, count, int16);
+    }
+
     public void writeBytes(byte[] bytes, int offset, int len) {
         ensureCapacity(len);
         System.arraycopy(bytes, offset, buf, count, len);
         count += len;
     }
 
+    @Override
+    public void writeAsBase64String(byte[] src) throws IOException {
+        ensureCapacity((src.length << 1) + SECURITY_UNCHECK_SPACE);
+        int count = this.count;
+        buf[count++] = '"';
+        count += Base64Utils.encode(src, buf, count);
+        buf[count++] = '"';
+        this.count = count;
+    }
+
+    @Override
+    public void writeAsHexString(byte[] src) throws IOException {
+        ensureCapacity((src.length << 1) + SECURITY_UNCHECK_SPACE);
+        int count = this.count;
+        buf[count++] = '"';
+        for (byte b : src) {
+            count += JSONUnsafe.putShort(buf, count, (short) HEX_DIGITS_INT16[b & 0xff]);
+        }
+        buf[count++] = '"';
+        this.count = count;
+    }
+
     void clearCache() {
-        if (byteBufCache != null) {
+        if (bufCache != null) {
             if (buf.length <= MAX_CACHE_BUFFER_SIZE) {
-                byteBufCache.cacheBytes = buf;
+                bufCache.cacheBytes = buf;
             }
-            byteBufCache.inUse = false;
+            bufCache.inUse = false;
             // getOrReturnCache(byteBufCache);
-            byteBufCache = null;
+            bufCache = null;
         }
     }
 }

@@ -16,10 +16,10 @@
  */
 package io.github.wycst.wast.json;
 
+import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.SetterInfo;
-import io.github.wycst.wast.common.reflect.UnsafeHelper;
-import io.github.wycst.wast.common.tools.Base64;
+import io.github.wycst.wast.common.utils.Base64Utils;
 import io.github.wycst.wast.common.utils.EnvUtils;
 import io.github.wycst.wast.common.utils.ObjectUtils;
 import io.github.wycst.wast.json.exceptions.JSONException;
@@ -348,37 +348,37 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
         return new RootContext(beginIndex, endIndex, type, leafValue);
     }
 
-    static class JSONNodeCharsImpl extends JSONNode {
+    static class CharsImpl extends JSONNode {
 
         CharSource charSource;
         // source
         char[] buf;
 
-        JSONNodeCharsImpl(CharSource charSource, char[] buf, int beginIndex, int endIndex, JSONNodeContext parseContext) {
+        CharsImpl(CharSource charSource, char[] buf, int beginIndex, int endIndex, JSONNodeContext parseContext) {
             super(buildRootContext(buf, beginIndex, endIndex), parseContext);
             this.charSource = charSource;
             this.buf = buf;
         }
 
-        JSONNodeCharsImpl(CharSource charSource, List<JSONNode> elementValues, char[] buf, int beginIndex, int endIndex, JSONNodeContext parseContext) {
+        CharsImpl(CharSource charSource, List<JSONNode> elementValues, char[] buf, int beginIndex, int endIndex, JSONNodeContext parseContext) {
             super(elementValues, beginIndex, endIndex, parseContext);
             this.charSource = charSource;
             this.buf = buf;
         }
 
-        JSONNodeCharsImpl(CharSource charSource, Map<Serializable, JSONNode> fieldValues, char[] buf, int beginIndex, int endIndex, JSONNodeContext parseContext) {
+        CharsImpl(CharSource charSource, Map<Serializable, JSONNode> fieldValues, char[] buf, int beginIndex, int endIndex, JSONNodeContext parseContext) {
             super(fieldValues, beginIndex, endIndex, parseContext);
             this.charSource = charSource;
             this.buf = buf;
         }
 
-        JSONNodeCharsImpl(CharSource charSource, Serializable leafValue, char[] buf, int beginIndex, int endIndex, int type, JSONNodeContext parseContext, JSONNode rootNode) {
+        CharsImpl(CharSource charSource, Serializable leafValue, char[] buf, int beginIndex, int endIndex, int type, JSONNodeContext parseContext, JSONNode rootNode) {
             super(leafValue, beginIndex, endIndex, type, parseContext, rootNode);
             this.charSource = charSource;
             this.buf = buf;
         }
 
-        public JSONNodeCharsImpl(CharSource charSource, char[] buf, int beginIndex, int endIndex, int type, JSONNodeContext parseContext, JSONNode rootNode) {
+        public CharsImpl(CharSource charSource, char[] buf, int beginIndex, int endIndex, int type, JSONNodeContext parseContext, JSONNode rootNode) {
             super(beginIndex, endIndex, type, parseContext, rootNode);
             this.charSource = charSource;
             this.buf = buf;
@@ -533,13 +533,13 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
                 case '{': {
                     JSONTypeDeserializer.ANY.skip(charSource, buf, beginIndex, endIndex, '}', parseContext);
                     int eIndex = parseContext.endIndex;
-                    value = new JSONNodeCharsImpl(charSource, buf, beginIndex, eIndex, OBJECT, parseContext, root);
+                    value = new CharsImpl(charSource, buf, beginIndex, eIndex, OBJECT, parseContext, root);
                     break;
                 }
                 case '[': {
                     JSONTypeDeserializer.ANY.skip(charSource, buf, beginIndex, endIndex, ']', parseContext);
                     int eIndex = parseContext.endIndex;
-                    value = new JSONNodeCharsImpl(charSource, buf, beginIndex, eIndex, ARRAY, parseContext, root);
+                    value = new CharsImpl(charSource, buf, beginIndex, eIndex, ARRAY, parseContext, root);
                     break;
                 }
                 case '"': {
@@ -632,37 +632,37 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
         }
     }
 
-    static class JSONNodeBytesImpl extends JSONNode {
+    static class BytesImpl extends JSONNode {
 
         CharSource charSource;
         // source
         byte[] buf;
 
-        JSONNodeBytesImpl(CharSource charSource, byte[] buf, int beginIndex, int endIndex, JSONNodeContext parseContext) {
+        BytesImpl(CharSource charSource, byte[] buf, int beginIndex, int endIndex, JSONNodeContext parseContext) {
             super(buildRootContext(buf, beginIndex, endIndex), parseContext);
             this.charSource = charSource;
             this.buf = buf;
         }
 
-        JSONNodeBytesImpl(CharSource charSource, List<JSONNode> elementValues, byte[] buf, int beginIndex, int endIndex, JSONNodeContext parseContext) {
+        BytesImpl(CharSource charSource, List<JSONNode> elementValues, byte[] buf, int beginIndex, int endIndex, JSONNodeContext parseContext) {
             super(elementValues, beginIndex, endIndex, parseContext);
             this.charSource = charSource;
             this.buf = buf;
         }
 
-        JSONNodeBytesImpl(CharSource charSource, Map<Serializable, JSONNode> fieldValues, byte[] buf, int beginIndex, int endIndex, JSONNodeContext parseContext) {
+        BytesImpl(CharSource charSource, Map<Serializable, JSONNode> fieldValues, byte[] buf, int beginIndex, int endIndex, JSONNodeContext parseContext) {
             super(fieldValues, beginIndex, endIndex, parseContext);
             this.charSource = charSource;
             this.buf = buf;
         }
 
-        JSONNodeBytesImpl(CharSource charSource, Serializable leafValue, byte[] buf, int beginIndex, int endIndex, int type, JSONNodeContext parseContext, JSONNode rootNode) {
+        BytesImpl(CharSource charSource, Serializable leafValue, byte[] buf, int beginIndex, int endIndex, int type, JSONNodeContext parseContext, JSONNode rootNode) {
             super(leafValue, beginIndex, endIndex, type, parseContext, rootNode);
             this.charSource = charSource;
             this.buf = buf;
         }
 
-        public JSONNodeBytesImpl(CharSource charSource, byte[] buf, int beginIndex, int endIndex, int type, JSONNodeContext parseContext, JSONNode rootNode) {
+        public BytesImpl(CharSource charSource, byte[] buf, int beginIndex, int endIndex, int type, JSONNodeContext parseContext, JSONNode rootNode) {
             super(beginIndex, endIndex, type, parseContext, rootNode);
             this.charSource = charSource;
             this.buf = buf;
@@ -816,12 +816,12 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
             switch (ch) {
                 case '{': {
                     JSONTypeDeserializer.ANY.skip(charSource, buf, beginIndex, endIndex, (byte) '}', parseContext);
-                    value = new JSONNodeBytesImpl(charSource, buf, beginIndex, parseContext.endIndex, OBJECT, parseContext, root);
+                    value = new BytesImpl(charSource, buf, beginIndex, parseContext.endIndex, OBJECT, parseContext, root);
                     break;
                 }
                 case '[': {
                     JSONTypeDeserializer.ANY.skip(charSource, buf, beginIndex, endIndex, (byte) ']', parseContext);
-                    value = new JSONNodeBytesImpl(charSource, buf, beginIndex, parseContext.endIndex, ARRAY, parseContext, root);
+                    value = new BytesImpl(charSource, buf, beginIndex, parseContext.endIndex, ARRAY, parseContext, root);
                     break;
                 }
                 case '"': {
@@ -923,7 +923,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
      * @return
      */
     public static JSONNode parse(String source, ReadOption... readOptions) {
-        return parse(source, null, false, readOptions);
+        return parseInternal(source, null, false, readOptions);
     }
 
 //    /**
@@ -947,10 +947,10 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
      * @return
      */
     public static JSONNode parse(String source, String path, ReadOption... readOptions) {
-        return parse(source, path, false, readOptions);
+        return parseInternal(source, path, false, readOptions);
     }
 
-    private static JSONNode parse(String source, String path, boolean reverseParseNode, ReadOption... readOptions) {
+    private static JSONNode parseInternal(String source, String path, boolean reverseParseNode, ReadOption... readOptions) {
         if (source == null)
             return null;
         source = source.trim();
@@ -960,16 +960,16 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
             parseContext.reverseParseNode = reverseParseNode;
             JSONNode root;
             if (EnvUtils.JDK_9_PLUS) {
-                byte[] bytes = (byte[]) UnsafeHelper.getStringValue(source);
+                byte[] bytes = (byte[]) JSONUnsafe.getStringValue(source);
                 if (bytes.length == source.length()) {
-                    root = new JSONNodeBytesImpl(AsciiStringSource.of(source, bytes), bytes, 0, bytes.length, parseContext);
+                    root = new BytesImpl(AsciiStringSource.of(source, bytes), bytes, 0, bytes.length, parseContext);
                 } else {
                     char[] chars = source.toCharArray();
-                    root = new JSONNodeCharsImpl(UTF16ByteArraySource.of(source), chars, 0, chars.length, parseContext);
+                    root = new CharsImpl(UTF16ByteArraySource.of(source), chars, 0, chars.length, parseContext);
                 }
             } else {
-                char[] chars = getChars(source);
-                root = new JSONNodeCharsImpl(null, chars, 0, chars.length, parseContext);
+                char[] chars = (char[]) JSONUnsafe.getStringValue(source);
+                root = new CharsImpl(null, chars, 0, chars.length, parseContext);
             }
             if (path == null) {
                 return root;
@@ -1007,15 +1007,15 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
      */
     public static JSONNode from(String source, String path, boolean lazy, ReadOption... readOptions) {
         if (EnvUtils.JDK_9_PLUS) {
-            byte[] bytes = (byte[]) UnsafeHelper.getStringValue(source);
+            byte[] bytes = (byte[]) JSONUnsafe.getStringValue(source.toString());
             if (bytes.length == source.length()) {
-                return from(AsciiStringSource.of(source, bytes), bytes, path, lazy, readOptions);
+                return parseInternal(AsciiStringSource.of(source, bytes), bytes, path, lazy, readOptions);
             } else {
                 char[] chars = source.toCharArray();
-                return from(UTF16ByteArraySource.of(source), chars, path, lazy, readOptions);
+                return parseInternal(UTF16ByteArraySource.of(source), chars, path, lazy, readOptions);
             }
         } else {
-            return from(null, getChars(source), path, lazy, readOptions);
+            return parseInternal(null, (char[]) JSONUnsafe.getStringValue(source.toString()), path, lazy, readOptions);
         }
     }
 
@@ -1028,7 +1028,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
      * @return
      */
     public static JSONNode from(char[] buf, String path, ReadOption... readOptions) {
-        return from(null, buf, path, false, readOptions);
+        return parseInternal(null, buf, path, false, readOptions);
     }
 
     /***
@@ -1041,13 +1041,13 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
      * @param readOptions
      * @return
      */
-    static JSONNode from(CharSource charSource, char[] buf, String path, boolean lazy, ReadOption... readOptions) {
+    static JSONNode parseInternal(CharSource charSource, char[] buf, String path, boolean lazy, ReadOption... readOptions) {
         JSONNodeContext parseContext = new JSONNodeContext();
         JSONOptions.readOptions(readOptions, parseContext);
         parseContext.lazy = lazy;
         int toIndex = buf.length;
         if (path == null || (path = path.trim()).length() == 0) {
-            return new JSONNodeCharsImpl(charSource, buf, 0, toIndex, parseContext);
+            return new CharsImpl(charSource, buf, 0, toIndex, parseContext);
         }
         if (!path.startsWith("/")) {
             path = "/" + path;
@@ -1055,13 +1055,13 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
         return parseNode(charSource, buf, path, false, parseContext);
     }
 
-    static JSONNode from(CharSource charSource, byte[] buf, String path, boolean lazy, ReadOption... readOptions) {
+    static JSONNode parseInternal(CharSource charSource, byte[] buf, String path, boolean lazy, ReadOption... readOptions) {
         JSONNodeContext parseContext = new JSONNodeContext();
         JSONOptions.readOptions(readOptions, parseContext);
         parseContext.lazy = lazy;
         int toIndex = buf.length;
         if (path == null || (path = path.trim()).length() == 0) {
-            return new JSONNodeBytesImpl(charSource, buf, 0, toIndex, parseContext);
+            return new BytesImpl(charSource, buf, 0, toIndex, parseContext);
         }
         if (!path.startsWith("/")) {
             path = "/" + path;
@@ -1079,16 +1079,16 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
      */
     public static List extract(String json, String path, ReadOption... readOptions) {
         if (EnvUtils.JDK_9_PLUS) {
-            byte[] bytes = (byte[]) UnsafeHelper.getStringValue(json);
+            byte[] bytes = (byte[]) JSONUnsafe.getStringValue(json.toString());
             if (bytes.length == json.length()) {
-                return extract(AsciiStringSource.of(json, bytes), bytes, path, readOptions);
+                return extractInternal(AsciiStringSource.of(json, bytes), bytes, path, readOptions);
             } else {
                 // utf16
                 char[] chars = json.toCharArray();
-                return extract(UTF16ByteArraySource.of(json), chars, path, readOptions);
+                return extractInternal(UTF16ByteArraySource.of(json), chars, path, readOptions);
             }
         } else {
-            return extract(getChars(json), path, readOptions);
+            return extractInternal(null, (char[]) JSONUnsafe.getStringValue(json.toString()), path, readOptions);
         }
     }
 
@@ -1101,10 +1101,10 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
      * @return
      */
     public static List extract(char[] buf, String path, ReadOption... readOptions) {
-        return extract(null, buf, path, readOptions);
+        return extractInternal(null, buf, path, readOptions);
     }
 
-    static List extract(CharSource charSource, char[] buf, String path, ReadOption... readOptions) {
+    static List extractInternal(CharSource charSource, char[] buf, String path, ReadOption... readOptions) {
         JSONNodeContext parseContext = new JSONNodeContext();
         JSONOptions.readOptions(readOptions, parseContext);
         parseContext.extract = true;
@@ -1112,10 +1112,10 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
             path = "/" + path;
         }
         parseNode(charSource, buf, path, false, parseContext);
-        return parseContext.getExtractValues();
+        return parseContext.extractValues;
     }
 
-    static List extract(CharSource charSource, byte[] buf, String path, ReadOption... readOptions) {
+    static List extractInternal(CharSource charSource, byte[] buf, String path, ReadOption... readOptions) {
         JSONNodeContext parseContext = new JSONNodeContext();
         JSONOptions.readOptions(readOptions, parseContext);
         parseContext.extract = true;
@@ -1123,7 +1123,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
             path = "/" + path;
         }
         parseNode(charSource, buf, path, false, parseContext);
-        return parseContext.getExtractValues();
+        return parseContext.extractValues;
     }
 
     private static JSONNode parseNode(CharSource charSource, char[] buf, String path, boolean skipValue, JSONNodeContext parseContext) {
@@ -1325,7 +1325,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
                         }
                         value = parseObjectPathNode(charSource, buf, i, toIndex, path, nextPathIndex, isSkipValue, returnIfMatched, jsonParseContext);
                         if (lazy) {
-                            value = new JSONNodeCharsImpl(null, buf, i, jsonParseContext.endIndex + 1, jsonParseContext);
+                            value = new CharsImpl(null, buf, i, jsonParseContext.endIndex + 1, jsonParseContext);
                         }
                         i = jsonParseContext.endIndex;
                         break;
@@ -1337,7 +1337,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
                         // 2 [ array
                         value = parseArrayPathNode(charSource, buf, i, toIndex, path, nextPathIndex, isSkipValue, returnIfMatched, jsonParseContext);
                         if (lazy) {
-                            value = new JSONNodeCharsImpl(null, buf, i, jsonParseContext.endIndex + 1, jsonParseContext);
+                            value = new CharsImpl(null, buf, i, jsonParseContext.endIndex + 1, jsonParseContext);
                         }
                         i = jsonParseContext.endIndex;
                         break;
@@ -1403,7 +1403,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
                     if (isClosingSymbol) {
                         jsonParseContext.endIndex = i;
                         if (isLastPathLevel) {
-                            return new JSONNodeCharsImpl(null, fieldValues, buf, fromIndex, i + 1, jsonParseContext);
+                            return new CharsImpl(null, fieldValues, buf, fromIndex, i + 1, jsonParseContext);
                         }
                         return null;
                     }
@@ -1512,7 +1512,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
                         }
                         value = parseObjectPathNode(charSource, buf, i, toIndex, path, nextPathIndex, isSkipValue, returnIfMatched, jsonParseContext);
                         if (lazy) {
-                            value = new JSONNodeBytesImpl(charSource, buf, i, jsonParseContext.endIndex + 1, jsonParseContext);
+                            value = new BytesImpl(charSource, buf, i, jsonParseContext.endIndex + 1, jsonParseContext);
                         }
                         i = jsonParseContext.endIndex;
                         break;
@@ -1524,7 +1524,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
                         // 2 [ array
                         value = parseArrayPathNode(charSource, buf, i, toIndex, path, nextPathIndex, isSkipValue, returnIfMatched, jsonParseContext);
                         if (lazy) {
-                            value = new JSONNodeBytesImpl(charSource, buf, i, jsonParseContext.endIndex + 1, jsonParseContext);
+                            value = new BytesImpl(charSource, buf, i, jsonParseContext.endIndex + 1, jsonParseContext);
                         }
                         i = jsonParseContext.endIndex;
                         break;
@@ -1590,7 +1590,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
                     if (isClosingSymbol) {
                         jsonParseContext.endIndex = i;
                         if (isLastPathLevel) {
-                            return new JSONNodeBytesImpl(null, fieldValues, buf, fromIndex, i + 1, jsonParseContext);
+                            return new BytesImpl(null, fieldValues, buf, fromIndex, i + 1, jsonParseContext);
                         }
                         return null;
                     }
@@ -1783,7 +1783,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
                 }
                 if (returnListIfMathched) {
                     if (isLastPathLevel) {
-                        return new JSONNodeCharsImpl(null, elementValues, buf, fromIndex, i + 1, jsonParseContext);
+                        return new CharsImpl(null, elementValues, buf, fromIndex, i + 1, jsonParseContext);
                     } else {
                         return null;
                     }
@@ -1794,7 +1794,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
                 if (isEnd) {
                     jsonParseContext.endIndex = i;
                     if (isLastPathLevel) {
-                        return new JSONNodeCharsImpl(null, elementValues, buf, fromIndex, i + 1, jsonParseContext);
+                        return new CharsImpl(null, elementValues, buf, fromIndex, i + 1, jsonParseContext);
                     }
                     return null;
                 }
@@ -1969,7 +1969,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
                 }
                 if (returnListIfMathched) {
                     if (isLastPathLevel) {
-                        return new JSONNodeBytesImpl(null, elementValues, buf, fromIndex, i + 1, jsonParseContext);
+                        return new BytesImpl(null, elementValues, buf, fromIndex, i + 1, jsonParseContext);
                     } else {
                         return null;
                     }
@@ -1980,7 +1980,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
                 if (isEnd) {
                     jsonParseContext.endIndex = i;
                     if (isLastPathLevel) {
-                        return new JSONNodeBytesImpl(null, elementValues, buf, fromIndex, i + 1, jsonParseContext);
+                        return new BytesImpl(null, elementValues, buf, fromIndex, i + 1, jsonParseContext);
                     }
                     return null;
                 }
@@ -1998,7 +1998,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
         }
         String value = (String) JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(charSource, buf, fromIndex, toIndex, '"', GenericParameterizedType.StringType, jsonParseContext);
         int endIndex = jsonParseContext.endIndex;
-        return new JSONNodeCharsImpl(charSource, value, buf, fromIndex, endIndex + 1, STRING, jsonParseContext, rootNode);
+        return new CharsImpl(charSource, value, buf, fromIndex, endIndex + 1, STRING, jsonParseContext, rootNode);
     }
 
     private static JSONNode parseStringPathNode(CharSource charSource, byte[] buf, int fromIndex, int toIndex, boolean skipValue, JSONNodeContext jsonParseContext, JSONNode rootNode) throws Exception {
@@ -2008,55 +2008,55 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
         }
         String value = (String) JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(charSource, buf, fromIndex, toIndex, '"', GenericParameterizedType.StringType, jsonParseContext);
         int endIndex = jsonParseContext.endIndex;
-        return new JSONNodeBytesImpl(charSource, value, buf, fromIndex, endIndex + 1, STRING, jsonParseContext, rootNode);
+        return new BytesImpl(charSource, value, buf, fromIndex, endIndex + 1, STRING, jsonParseContext, rootNode);
     }
 
     private static JSONNode parseNullPathNode(CharSource charSource, char[] buf, int fromIndex, int toIndex, JSONNodeContext jsonParseContext, JSONNode rootNode) throws Exception {
         JSONTypeDeserializer.NULL.deserialize(charSource, buf, fromIndex, toIndex, null, null, jsonParseContext);
         int endIndex = jsonParseContext.endIndex;
-        return new JSONNodeCharsImpl(charSource, null, buf, fromIndex, endIndex + 1, NULL, jsonParseContext, rootNode);
+        return new CharsImpl(charSource, null, buf, fromIndex, endIndex + 1, NULL, jsonParseContext, rootNode);
     }
 
     private static JSONNode parseNullPathNode(CharSource charSource, byte[] buf, int fromIndex, int toIndex, JSONNodeContext jsonParseContext, JSONNode rootNode) throws Exception {
         JSONTypeDeserializer.NULL.deserialize(charSource, buf, fromIndex, toIndex, null, null, jsonParseContext);
         int endIndex = jsonParseContext.endIndex;
-        return new JSONNodeBytesImpl(charSource, null, buf, fromIndex, endIndex + 1, NULL, jsonParseContext, rootNode);
+        return new BytesImpl(charSource, null, buf, fromIndex, endIndex + 1, NULL, jsonParseContext, rootNode);
     }
 
     private static JSONNode parseBoolTruePathNode(CharSource charSource, char[] buf, int fromIndex, int toIndex, JSONNodeContext jsonParseContext, JSONNode rootNode) throws Exception {
-        JSONTypeDeserializer.BOOLEAN.deserializeTrue(buf, fromIndex, toIndex, null, jsonParseContext);
+        JSONTypeDeserializer.parseTrue(buf, fromIndex, toIndex, jsonParseContext);
         int endIndex = jsonParseContext.endIndex;
-        return new JSONNodeCharsImpl(charSource, true, buf, fromIndex, endIndex + 1, BOOLEAN, jsonParseContext, rootNode);
+        return new CharsImpl(charSource, true, buf, fromIndex, endIndex + 1, BOOLEAN, jsonParseContext, rootNode);
     }
 
     private static JSONNode parseBoolTruePathNode(CharSource charSource, byte[] buf, int fromIndex, int toIndex, JSONNodeContext jsonParseContext, JSONNode rootNode) throws Exception {
         JSONTypeDeserializer.parseTrue(buf, fromIndex, toIndex, jsonParseContext);
         int endIndex = jsonParseContext.endIndex;
-        return new JSONNodeBytesImpl(charSource, true, buf, fromIndex, endIndex + 1, BOOLEAN, jsonParseContext, rootNode);
+        return new BytesImpl(charSource, true, buf, fromIndex, endIndex + 1, BOOLEAN, jsonParseContext, rootNode);
     }
 
     private static JSONNode parseBoolFalsePathNode(CharSource charSource, char[] buf, int fromIndex, int toIndex, JSONNodeContext jsonParseContext, JSONNode rootNode) throws Exception {
-        JSONTypeDeserializer.BOOLEAN.deserializeFalse(buf, fromIndex, toIndex, null, jsonParseContext);
+        JSONTypeDeserializer.parseFalse(buf, fromIndex, toIndex, jsonParseContext);
         int endIndex = jsonParseContext.endIndex;
-        return new JSONNodeCharsImpl(charSource, false, buf, fromIndex, endIndex + 1, BOOLEAN, jsonParseContext, rootNode);
+        return new CharsImpl(charSource, false, buf, fromIndex, endIndex + 1, BOOLEAN, jsonParseContext, rootNode);
     }
 
     private static JSONNode parseBoolFalsePathNode(CharSource charSource, byte[] buf, int fromIndex, int toIndex, JSONNodeContext jsonParseContext, JSONNode rootNode) throws Exception {
         JSONTypeDeserializer.parseFalse(buf, fromIndex, toIndex, jsonParseContext);
         int endIndex = jsonParseContext.endIndex;
-        return new JSONNodeBytesImpl(charSource, false, buf, fromIndex, endIndex + 1, BOOLEAN, jsonParseContext, rootNode);
+        return new BytesImpl(charSource, false, buf, fromIndex, endIndex + 1, BOOLEAN, jsonParseContext, rootNode);
     }
 
     private static JSONNode parseNumberPathNode(CharSource charSource, char[] buf, int fromIndex, int toIndex, char endToken, JSONNodeContext jsonParseContext, JSONNode rootNode) throws Exception {
         Number value = (Number) JSONTypeDeserializer.NUMBER.deserialize(charSource, buf, fromIndex, toIndex, GenericParameterizedType.AnyType, null, endToken, jsonParseContext);
         int endIndex = jsonParseContext.endIndex;
-        return new JSONNodeCharsImpl(charSource, value, buf, fromIndex, endIndex + 1, NUMBER, jsonParseContext, rootNode);
+        return new CharsImpl(charSource, value, buf, fromIndex, endIndex + 1, NUMBER, jsonParseContext, rootNode);
     }
 
     private static JSONNode parseNumberPathNode(CharSource charSource, byte[] buf, int fromIndex, int toIndex, byte endToken, JSONNodeContext jsonParseContext, JSONNode rootNode) throws Exception {
         Number value = (Number) JSONTypeDeserializer.NUMBER.deserialize(charSource, buf, fromIndex, toIndex, GenericParameterizedType.AnyType, null, endToken, jsonParseContext);
         int endIndex = jsonParseContext.endIndex;
-        return new JSONNodeBytesImpl(charSource, value, buf, fromIndex, endIndex + 1, NUMBER, jsonParseContext, rootNode);
+        return new BytesImpl(charSource, value, buf, fromIndex, endIndex + 1, NUMBER, jsonParseContext, rootNode);
     }
 
     /**
@@ -2321,7 +2321,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
                 if (parseContext.byteArrayFromHexString) {
                     return (E) hexString2Bytes();
                 } else {
-                    return (E) Base64.getDecoder().decode(text);
+                    return (E) Base64Utils.decode(text);
                 }
             }
             if (Enum.class.isAssignableFrom(eClass)) {
@@ -2375,16 +2375,16 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
         }
         Object instance;
         boolean isMapInstance;
-        JSONPojoStructure pojoStructure = null;
+        ClassStructureWrapper structureWrapper = null;
         if (eClass == null || eClass == Map.class || eClass == LinkedHashMap.class) {
             instance = new LinkedHashMap();
             isMapInstance = true;
         } else {
-            pojoStructure = JSONPojoStructure.get(eClass);
-            isMapInstance = pojoStructure.isAssignableFromMap();
+            structureWrapper = ClassStructureWrapper.get(eClass);
+            isMapInstance = structureWrapper.isAssignableFromMap();
             try {
                 if (!isMapInstance) {
-                    instance = pojoStructure.newInstance();
+                    instance = structureWrapper.newInstance();
                 } else {
                     instance = eClass.newInstance();
                 }
@@ -2408,8 +2408,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
                 map.put(key, value);
             } else {
                 String fieldName = key.toString();
-                JSONPojoFieldDeserializer fieldDeserializer = pojoStructure.fieldDeserializerMatcher.getValue(fieldName);
-                SetterInfo setterInfo = fieldDeserializer == null ? null : fieldDeserializer.setterInfo;
+                SetterInfo setterInfo = structureWrapper.getSetterInfo(fieldName);
                 if (setterInfo != null) {
                     Class<?> parameterType = setterInfo.getParameterType();
                     GenericParameterizedType parameterizedType = setterInfo.getGenericParameterizedType();
@@ -2419,7 +2418,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
                     } else {
                         value = childNode.getValue(parameterType);
                     }
-                    setterInfo.invoke(instance, value);
+                    JSON_SECURE_TRUSTED_ACCESS.set(setterInfo, instance, value); // setterInfo.invoke(instance, value);
                 }
             }
         }
@@ -2444,7 +2443,7 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
         boolean isArrayCls = collectionCls.isArray(), primitive = entityClass.isPrimitive();
         Object arrayObj = null;
         if (isArrayCls) {
-            arrayObj = primitive ? Array.newInstance(entityClass, elementSize) : new Object[elementSize];
+            arrayObj = Array.newInstance(entityClass, elementSize); // primitive ? Array.newInstance(entityClass, elementSize) : new Object[elementSize];
         } else {
             collection = createCollectionInstance(collectionCls);
         }
@@ -2497,18 +2496,14 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
     public final int compareTo(JSONNode o) {
         Serializable value = leafValue;
         Serializable o1 = o.leafValue;
-
         if (value instanceof Number && o1 instanceof Number) {
             Double v1 = ((Number) value).doubleValue();
             Double v2 = ((Number) o1).doubleValue();
             return v1.compareTo(v2);
         }
-
         if (value instanceof String && o1 instanceof String) {
             return ((String) value).compareTo((String) o1);
         }
-
-        /** 同类型比较 */
         if (value instanceof Comparable && o1 instanceof Comparable) {
             if (value.getClass() == o1.getClass()) {
                 return ((Comparable) value).compareTo(o1);
@@ -2517,7 +2512,6 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
             String v2 = o1.toString();
             return v1.compareTo(v2);
         }
-
         return 0;
     }
 
@@ -2695,7 +2689,6 @@ public abstract class JSONNode extends JSONGeneral implements Comparable<JSONNod
         if (!this.changed) {
             return this.source();
         }
-        // 开始重新序列化
         StringBuilder stringBuilder = new StringBuilder();
         writeTo(stringBuilder);
         return stringBuilder.toString();

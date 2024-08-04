@@ -6,6 +6,7 @@ import io.github.wycst.wast.common.reflect.SetterInfo;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 实体bean相关工具类
@@ -14,7 +15,7 @@ import java.util.Map;
  * @Date: 2019/12/7 11:48
  * @Description:
  */
-public final class BeanUtils {
+public final class BeanUtils extends InvokeUtils {
 
     /**
      * 拷贝对象（指针拷贝）
@@ -29,51 +30,69 @@ public final class BeanUtils {
     /**
      * 拷贝对象（指针拷贝）
      *
-     * @param srcBean       源对象
-     * @param targetBean    目标对象
+     * @param src           源对象
+     * @param target        目标对象
      * @param excludeFields 忽略拷贝的属性
      */
-    public static void copyProperties(Object srcBean, Object targetBean, String[] excludeFields) {
-
-        if (srcBean == null || targetBean == null)
+    public static void copyProperties(Object src, Object target, String[] excludeFields) {
+        if (src == null || target == null)
             return;
-
-        // List不支持元素拷贝
         Map targetMap = null;
         ClassStructureWrapper targetClassStructureWrapper = null;
-        boolean isSameBeanType = srcBean.getClass() == targetBean.getClass();
-
-        if (targetBean instanceof Map) {
-            targetMap = (Map) targetBean;
+        Class<?> targetClass = target.getClass();
+        boolean isSameBeanType = src.getClass() == targetClass;
+        if (target instanceof Map) {
+            targetMap = (Map) target;
         } else {
-            targetClassStructureWrapper = ClassStructureWrapper.get(targetBean.getClass());
+            targetClassStructureWrapper = ClassStructureWrapper.get(targetClass);
         }
-
-        if (srcBean instanceof Map) {
-            Map sourceMap = (Map) srcBean;
+        if (src instanceof Map) {
+            Map sourceMap = (Map) src;
             if (targetMap != null) {
-                targetMap.putAll(sourceMap);
+                if (excludeFields == null || excludeFields.length == 0) {
+                    targetMap.putAll(sourceMap);
+                } else {
+                    Set<Map.Entry> entrySet = sourceMap.entrySet();
+                    for (Map.Entry entry : entrySet) {
+                        Object key = entry.getKey();
+                        Object value = entry.getValue();
+                        if (CollectionUtils.indexOf(excludeFields, value) > -1) {
+                            continue;
+                        }
+                        sourceMap.put(key, value);
+                    }
+                }
             } else {
-                for (Object key : sourceMap.keySet()) {
-                    Object value = sourceMap.get(key);
+                Set<Map.Entry> entrySet = sourceMap.entrySet();
+                for (Map.Entry entry : entrySet) {
+                    Object key = entry.getKey();
+                    if (key == null) continue;
+                    if (CollectionUtils.indexOf(excludeFields, key) > -1) {
+                        continue;
+                    }
+                    Object value = entry.getValue();
                     SetterInfo setterInfo = targetClassStructureWrapper.getSetterInfo(key.toString());
                     if (setterInfo != null) {
-                        setterInfo.invoke(targetBean, value);
+                        value = ObjectUtils.toType(value, setterInfo.getParameterType());
+                        invokeSet(setterInfo, target, value);
                     }
                 }
             }
         } else {
-            ClassStructureWrapper sourceClassStructureWrapper = isSameBeanType ? targetClassStructureWrapper : ClassStructureWrapper.get(srcBean.getClass());
+            ClassStructureWrapper sourceClassStructureWrapper = isSameBeanType ? targetClassStructureWrapper : ClassStructureWrapper.get(src.getClass());
             List<GetterInfo> sourceGetterInfos = sourceClassStructureWrapper.getGetterInfos();
-
             for (GetterInfo getterInfo : sourceGetterInfos) {
                 String fieldName = getterInfo.getName();
+                if (CollectionUtils.indexOf(excludeFields, fieldName) > -1) {
+                    continue;
+                }
+                Object value = invokeGet(getterInfo, src);
                 if (targetMap != null) {
-                    targetMap.put(fieldName, getterInfo.invoke(srcBean));
+                    targetMap.put(fieldName, value);
                 } else {
                     SetterInfo setterInfo = targetClassStructureWrapper.getSetterInfo(fieldName);
                     if (setterInfo != null) {
-                        setterInfo.invoke(targetBean, getterInfo.invoke(srcBean));
+                        invokeSet(setterInfo, target, ObjectUtils.toType(value, setterInfo.getParameterType()));
                     }
                 }
             }
@@ -83,59 +102,50 @@ public final class BeanUtils {
     /**
      * 合并属性（将srcBean中非空的属性拷贝到targetBean中）
      *
-     * @param srcBean    源对象
-     * @param targetBean 目标对象
+     * @param src    源对象
+     * @param target 目标对象
      */
-    public static void mergeProperties(Object srcBean, Object targetBean) {
-
-        if (srcBean == null || targetBean == null)
+    public static void mergeProperties(Object src, Object target) {
+        if (src == null || target == null)
             return;
-
-        // List不支持元素拷贝
+        Class<?> targetClass = target.getClass();
         Map targetMap = null;
         ClassStructureWrapper targetClassStructureWrapper = null;
-
-        boolean isSameBeanType = srcBean.getClass() == targetBean.getClass();
-
-        if (targetBean instanceof Map) {
-            targetMap = (Map) targetBean;
+        boolean isSameBeanType = src.getClass() == targetClass;
+        if (target instanceof Map) {
+            targetMap = (Map) target;
         } else {
-            targetClassStructureWrapper = ClassStructureWrapper.get(targetBean.getClass());
+            targetClassStructureWrapper = ClassStructureWrapper.get(targetClass);
         }
-
-        if (srcBean instanceof Map) {
-            Map sourceMap = (Map) srcBean;
+        if (src instanceof Map) {
+            Map sourceMap = (Map) src;
             if (targetMap != null) {
-                // 如果是map中往map拷贝直接覆盖不考虑非空
                 targetMap.putAll(sourceMap);
             } else {
-                for (Object key : sourceMap.keySet()) {
-                    Object value = sourceMap.get(key);
-                    // 如果是map中往对象拷贝直接覆盖不考虑非空
-                    if (targetClassStructureWrapper.containsSetterKey(String.valueOf(key))) {
-                        SetterInfo setterInfo = targetClassStructureWrapper.getSetterInfo(String.valueOf(key));
-                        setterInfo.invoke(targetBean, value);
+                Set<Map.Entry> entrySet = sourceMap.entrySet();
+                for (Map.Entry entry : entrySet) {
+                    Object key = entry.getKey();
+                    SetterInfo setterInfo = targetClassStructureWrapper.getSetterInfo(String.valueOf(key));
+                    if (setterInfo != null) {
+                        invokeSet(setterInfo, target, ObjectUtils.toType(entry.getValue(), setterInfo.getParameterType()));
                     }
                 }
             }
         } else {
-            ClassStructureWrapper sourceClassStructureWrapper = isSameBeanType ? targetClassStructureWrapper : ClassStructureWrapper.get(srcBean.getClass());
-            List<GetterInfo> sourceGetterInfos = sourceClassStructureWrapper.getGetterInfos();
-
-            for (GetterInfo getterInfo : sourceGetterInfos) {
+            ClassStructureWrapper sourceClassStructureWrapper = isSameBeanType ? targetClassStructureWrapper : ClassStructureWrapper.get(src.getClass());
+            List<GetterInfo> getterInfos = sourceClassStructureWrapper.getGetterInfos();
+            for (GetterInfo getterInfo : getterInfos) {
                 String fieldName = getterInfo.getName();
-                Object val = getterInfo.invoke(srcBean);
+                Object value = invokeGet(getterInfo, src);
                 if (targetMap != null) {
-                    targetMap.put(fieldName, val);
+                    targetMap.put(fieldName, value);
                 } else {
-                    // 只有非空的属性进行合并操作
-                    if (val != null && !"".equals(val) && targetClassStructureWrapper.containsSetterKey(fieldName)) {
-                        SetterInfo setterInfo = targetClassStructureWrapper.getSetterInfo(fieldName);
-                        setterInfo.invoke(targetBean, val);
+                    SetterInfo setterInfo;
+                    if (value != null && !"".equals(value) && (setterInfo = targetClassStructureWrapper.getSetterInfo(fieldName)) != null) {
+                        invokeSet(setterInfo, target, ObjectUtils.toType(value, setterInfo.getParameterType()));
                     }
                 }
             }
         }
     }
-
 }

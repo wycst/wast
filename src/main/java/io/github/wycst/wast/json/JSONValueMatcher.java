@@ -10,10 +10,10 @@ import java.util.Map;
  */
 class JSONValueMatcher<T> {
 
-    protected final FixedNameValueMap<T> valueMapForChars;
-    protected final FixedNameValueMap<T> valueMapForBytes;
+    protected final JSONKeyValueMap<T> valueMapForChars;
+    protected final JSONKeyValueMap<T> valueMapForBytes;
 
-    JSONValueMatcher(FixedNameValueMap valueMapForChars, FixedNameValueMap valueMapForBytes) {
+    JSONValueMatcher(JSONKeyValueMap valueMapForChars, JSONKeyValueMap valueMapForBytes) {
         this.valueMapForChars = valueMapForChars;
         this.valueMapForBytes = valueMapForBytes;
     }
@@ -87,13 +87,8 @@ class JSONValueMatcher<T> {
         return valueMapForChars.getValue(fieldName);
     }
 
-    /**
-     * plus hash inline optimization
-     *
-     * @param <T>
-     */
-    static class JSONPlusHashValueQuickMatcher<T> extends JSONValueMatcher<T> {
-        public <T> JSONPlusHashValueQuickMatcher(FixedNameValueMap<T> valueMapForChars) {
+    final static class PlhvImpl<T> extends JSONValueMatcher<T> {
+        public <T> PlhvImpl(JSONKeyValueMap<T> valueMapForChars) {
             super(valueMapForChars, valueMapForChars);
         }
 
@@ -148,17 +143,12 @@ class JSONValueMatcher<T> {
         }
     }
 
-    /**
-     * bit hash inline optimization
-     *
-     * @param <T>
-     */
-    static class JSONBitHashValueQuickMatcher<T> extends JSONValueMatcher<T> {
+    final static class BihvImpl<T> extends JSONValueMatcher<T> {
 
         private final int bits;
         private final int bitsTwice;
 
-        public <T> JSONBitHashValueQuickMatcher(FixedNameValueMap<T> valueMap, int bits) {
+        public <T> BihvImpl(JSONKeyValueMap<T> valueMap, int bits) {
             super(valueMap, valueMap);
             this.bits = bits;
             this.bitsTwice = bits << 1;
@@ -215,17 +205,12 @@ class JSONValueMatcher<T> {
         }
     }
 
-    /**
-     * prime hash inline optimization
-     *
-     * @param <T>
-     */
-    static class JSONPrimeHashValueQuickMatcher<T> extends JSONValueMatcher<T> {
+    final static class PrhvImpl<T> extends JSONValueMatcher<T> {
 
         private final int primeValue;
         private final int primeSquare;
 
-        public <T> JSONPrimeHashValueQuickMatcher(FixedNameValueMap<T> valueMap, int primeValue) {
+        public <T> PrhvImpl(JSONKeyValueMap<T> valueMap, int primeValue) {
             super(valueMap, valueMap);
             this.primeValue = primeValue;
             this.primeSquare = primeValue * primeValue;
@@ -412,14 +397,14 @@ class JSONValueMatcher<T> {
 //        }
 //    }
 
-    static <T> JSONValueMatcher<T> build(FixedNameValueMap valueMapForChars, FixedNameValueMap valueMapForBytes) {
+    static <T> JSONValueMatcher<T> build(JSONKeyValueMap valueMapForChars, JSONKeyValueMap valueMapForBytes) {
         return new JSONValueMatcher(valueMapForChars, valueMapForBytes);
     }
 
     public static <T> JSONValueMatcher<T> build(Map<String, T> originalMap) {
         int valueSize = originalMap.size();
         String[] names = originalMap.keySet().toArray(new String[valueSize]);
-        FixedNameValueMap<T> valueMapForChars = FixedNameValueMap.build(originalMap);
+        JSONKeyValueMap<T> valueMapForChars = JSONKeyValueMap.build(originalMap);
         boolean isAsciiKeys = checkAsciiKeys(names);
         if (isAsciiKeys) {
             // Single key model
@@ -436,17 +421,17 @@ class JSONValueMatcher<T> {
 
             // inline optimization
             if (valueMapForChars.isPlusHash()) {
-                return new JSONPlusHashValueQuickMatcher(valueMapForChars);
+                return new PlhvImpl(valueMapForChars);
             }
             if (valueMapForChars.isBitHash()) {
-                return new JSONBitHashValueQuickMatcher(valueMapForChars, valueMapForChars.getBits());
+                return new BihvImpl(valueMapForChars, valueMapForChars.getBits());
             }
             if (!valueMapForChars.isCollision()) {
-                return new JSONPrimeHashValueQuickMatcher(valueMapForChars, valueMapForChars.getPrimeValue());
+                return new PrhvImpl(valueMapForChars, valueMapForChars.getPrimeValue());
             }
         }
 
-        FixedNameValueMap<T> valueMapForBytes = isAsciiKeys ? valueMapForChars : FixedNameValueMap.build(originalMap, true);
+        JSONKeyValueMap<T> valueMapForBytes = isAsciiKeys ? valueMapForChars : JSONKeyValueMap.build(originalMap, true);
 
 
 //        Set<Map.Entry<String, T>> entries = originalMap.entrySet();

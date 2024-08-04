@@ -24,6 +24,29 @@ import java.util.regex.Pattern;
 public final class StringUtils {
 
     /**
+     * join arr
+     *
+     * @param delimiter
+     * @param arr
+     * @return
+     */
+    public static String join(String delimiter, Object... arr) {
+        if (arr == null) return null;
+        if (delimiter == null) delimiter = ",";
+        StringBuilder builder = new StringBuilder();
+        boolean appendDelimiterFlag = false;
+        for (Object val : arr) {
+            if (appendDelimiterFlag) {
+                builder.append(delimiter);
+            } else {
+                appendDelimiterFlag = true;
+            }
+            builder.append(val);
+        }
+        return builder.toString();
+    }
+
+    /**
      * 带有下划线的数据库字段转成驼峰命名
      *
      * @param columnName

@@ -36,8 +36,6 @@ public class SetterInfo {
 
     // 是否存在默认值
     private Boolean existDefault;
-
-    // invoke时禁用field
     private boolean fieldDisabled;
 
     public static SetterInfo fromField(Field field) {
@@ -47,14 +45,24 @@ public class SetterInfo {
         return setterInfo;
     }
 
-    /**
-     * 反射动作
-     */
-    public void invoke(Object target, Object value) {
-        UnsafeHelper.putObjectValue(target, fieldOffset, value);
+    public final boolean isInstance(Object target) {
+        return field.getDeclaringClass().isInstance(target);
     }
 
-    public String getName() {
+    public void invoke(Object target, Object value) {
+        target.getClass();
+        if ((parameterType.isInstance(value) || value == null) && isInstance(target)) {
+            UnsafeHelper.UNSAFE.putObject(target, fieldOffset, value);
+        } else {
+            throw new SecurityException("invoke error: parameter mismatch");
+        }
+    }
+
+    void invokeInternal(Object target, Object value) {
+        UnsafeHelper.UNSAFE.putObject(target, fieldOffset, value); // UnsafeHelper.putObjectValue(target, fieldOffset, value);
+    }
+
+    public final String getName() {
         return name;
     }
 
@@ -62,7 +70,7 @@ public class SetterInfo {
         this.name = name;
     }
 
-    public Class<?> getParameterType() {
+    public final Class<?> getParameterType() {
         return parameterType;
     }
 
@@ -70,7 +78,7 @@ public class SetterInfo {
         this.parameterType = parameterType;
     }
 
-    public Class<?> getActualTypeArgument() {
+    public final Class<?> getActualTypeArgument() {
         return actualTypeArgument;
     }
 
@@ -78,7 +86,7 @@ public class SetterInfo {
         this.actualTypeArgument = actualTypeArgument;
     }
 
-    public boolean isNonInstanceType() {
+    public final boolean isNonInstanceType() {
         return nonInstanceType;
     }
 
@@ -86,9 +94,9 @@ public class SetterInfo {
         this.nonInstanceType = nonInstanceType;
     }
 
-    Map<Class<? extends Annotation>, Annotation> getAnnotations() {
-        return annotations;
-    }
+//    Map<Class<? extends Annotation>, Annotation> getAnnotations() {
+//        return annotations;
+//    }
 
     void setAnnotations(Map<Class<? extends Annotation>, Annotation> annotations) {
         this.annotations = annotations;
@@ -103,7 +111,7 @@ public class SetterInfo {
         }
     }
 
-    public GenericParameterizedType getGenericParameterizedType() {
+    public final GenericParameterizedType getGenericParameterizedType() {
         return genericParameterizedType;
     }
 
@@ -111,10 +119,7 @@ public class SetterInfo {
         this.genericParameterizedType = genericParameterizedType;
     }
 
-    /**
-     * 获取默认值
-     */
-    public Object getDefaultFieldValue(Object instance) {
+    Object getDefaultFieldValue(Object instance) {
         try {
             if (existDefault == Boolean.FALSE) {
                 return null;
@@ -134,7 +139,7 @@ public class SetterInfo {
         return UnsafeHelper.getObjectValue(instance, fieldOffset);
     }
 
-    public Annotation getAnnotation(Class<? extends Annotation> annotationType) {
+    public final Annotation getAnnotation(Class<? extends Annotation> annotationType) {
         return annotations.get(annotationType);
     }
 
@@ -146,7 +151,7 @@ public class SetterInfo {
         return Modifier.isPrivate(field.getModifiers());
     }
 
-    public int getIndex() {
+    public final int getIndex() {
         return index;
     }
 
@@ -165,9 +170,17 @@ public class SetterInfo {
     static final class PrimitiveSetterInfo extends SetterInfo {
         private ReflectConsts.PrimitiveType primitiveType;
 
-        @Override
         public void invoke(Object target, Object value) {
-            primitiveType.put(target, fieldOffset, value);
+            if(isInstance(target)) {
+                primitiveType.put(target, fieldOffset, value);
+            } else {
+                throw new SecurityException("invoke error: parameter mismatch");
+            }
+        }
+
+        @Override
+        void invokeInternal(Object target, Object value) {
+            primitiveType.putValue(target, fieldOffset, value);
         }
 
         Object getFieldValue(Object instance) {

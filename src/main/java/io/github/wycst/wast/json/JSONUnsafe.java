@@ -9,7 +9,10 @@ import java.lang.reflect.Field;
 final class JSONUnsafe {
 
     static final Unsafe UNSAFE;
-
+    static final long BYTE_ARRAY_OFFSET = UnsafeHelper.BYTE_ARRAY_OFFSET;
+    static final long CHAR_ARRAY_OFFSET = UnsafeHelper.CHAR_ARRAY_OFFSET;
+    static final long STRING_VALUE_OFFSET = UnsafeHelper.STRING_VALUE_OFFSET;
+    
     static {
         Field theUnsafeField;
         try {
@@ -29,7 +32,7 @@ final class JSONUnsafe {
         UNSAFE = instance;
     }
 
-    static abstract class MemoryOptimizer {
+    static abstract class Optimizer {
 
         public String[] copy(String[] buf, int offset, int len) {
             String[] result = new String[len];
@@ -68,7 +71,7 @@ final class JSONUnsafe {
         }
     }
 
-    final static MemoryOptimizer[] SIZE_INSTANCES = new MemoryOptimizer[]{
+    final static Optimizer[] SIZE_INSTANCES = new Optimizer[]{
             s0(),
             s1(),
             s2(),
@@ -92,10 +95,10 @@ final class JSONUnsafe {
             s20(),
     };
     final static int SIZE_LEN = SIZE_INSTANCES.length;
-    final static MemoryOptimizer SIZE_INSTANCE_8 = SIZE_INSTANCES[8];
+    final static Optimizer SIZE_INSTANCE_8 = SIZE_INSTANCES[8];
 
-    static MemoryOptimizer s0() {
-        return new MemoryOptimizer() {
+    static Optimizer s0() {
+        return new Optimizer() {
             @Override
             public char[] copyChars(char[] buf, int offset, int len) {
                 return new char[]{};
@@ -123,8 +126,8 @@ final class JSONUnsafe {
         };
     }
 
-    static MemoryOptimizer s1() {
-        return new MemoryOptimizer() {
+    static Optimizer s1() {
+        return new Optimizer() {
             @Override
             public char[] copyChars(char[] buf, int offset, int len) {
                 return new char[]{buf[offset]};
@@ -160,8 +163,8 @@ final class JSONUnsafe {
         };
     }
 
-    static MemoryOptimizer s2() {
-        return new MemoryOptimizer() {
+    static Optimizer s2() {
+        return new Optimizer() {
 
             @Override
             public char[] copyChars(char[] buf, int offset, int len) {
@@ -198,13 +201,13 @@ final class JSONUnsafe {
             }
 
             void copyMemory(byte[] source, int sourceOff, byte[] target, int targetOff) {
-                UNSAFE.putShort(target, UnsafeHelper.BYTE_ARRAY_OFFSET + targetOff, UNSAFE.getShort(source, UnsafeHelper.BYTE_ARRAY_OFFSET + sourceOff));
+                UNSAFE.putShort(target, BYTE_ARRAY_OFFSET + targetOff, UNSAFE.getShort(source, BYTE_ARRAY_OFFSET + sourceOff));
             }
         };
     }
 
-    static MemoryOptimizer s3() {
-        return new MemoryOptimizer() {
+    static Optimizer s3() {
+        return new Optimizer() {
 
             @Override
             public char[] copyChars(char[] buf, int offset, int len) {
@@ -244,14 +247,14 @@ final class JSONUnsafe {
             }
 
             void copyMemory(byte[] source, int sourceOff, byte[] target, int targetOff) {
-                UNSAFE.putShort(target, UnsafeHelper.BYTE_ARRAY_OFFSET + targetOff, UNSAFE.getShort(source, UnsafeHelper.BYTE_ARRAY_OFFSET + sourceOff));
+                UNSAFE.putShort(target, BYTE_ARRAY_OFFSET + targetOff, UNSAFE.getShort(source, BYTE_ARRAY_OFFSET + sourceOff));
                 target[targetOff + 2] = source[sourceOff + 2];
             }
         };
     }
 
-    static MemoryOptimizer s4() {
-        return new MemoryOptimizer() {
+    static Optimizer s4() {
+        return new Optimizer() {
 
             @Override
             public char[] copyChars(char[] buf, int offset, int len) {
@@ -290,13 +293,13 @@ final class JSONUnsafe {
             }
 
             void copyMemory(byte[] source, int sourceOff, byte[] target, int targetOff) {
-                UNSAFE.putInt(target, UnsafeHelper.BYTE_ARRAY_OFFSET + targetOff, UNSAFE.getInt(source, UnsafeHelper.BYTE_ARRAY_OFFSET + sourceOff));
+                UNSAFE.putInt(target, BYTE_ARRAY_OFFSET + targetOff, UNSAFE.getInt(source, BYTE_ARRAY_OFFSET + sourceOff));
             }
         };
     }
 
-    static MemoryOptimizer s5() {
-        return new MemoryOptimizer() {
+    static Optimizer s5() {
+        return new Optimizer() {
 
             @Override
             public char[] copyChars(char[] buf, int offset, int len) {
@@ -338,14 +341,14 @@ final class JSONUnsafe {
             }
 
             void copyMemory(byte[] source, int sourceOff, byte[] target, int targetOff) {
-                UNSAFE.putInt(target, UnsafeHelper.BYTE_ARRAY_OFFSET + targetOff, UNSAFE.getInt(source, UnsafeHelper.BYTE_ARRAY_OFFSET + sourceOff));
+                UNSAFE.putInt(target, BYTE_ARRAY_OFFSET + targetOff, UNSAFE.getInt(source, BYTE_ARRAY_OFFSET + sourceOff));
                 target[targetOff + 4] = source[sourceOff + 4];
             }
         };
     }
 
-    static MemoryOptimizer s6() {
-        return new MemoryOptimizer() {
+    static Optimizer s6() {
+        return new Optimizer() {
 
             @Override
             public char[] copyChars(char[] buf, int offset, int len) {
@@ -388,14 +391,14 @@ final class JSONUnsafe {
             }
 
             void copyMemory(byte[] source, int sourceOff, byte[] target, int targetOff) {
-                UNSAFE.putInt(target, UnsafeHelper.BYTE_ARRAY_OFFSET + targetOff, UNSAFE.getInt(source, UnsafeHelper.BYTE_ARRAY_OFFSET + sourceOff));
-                UNSAFE.putShort(target, UnsafeHelper.BYTE_ARRAY_OFFSET + targetOff + 4, UNSAFE.getShort(source, UnsafeHelper.BYTE_ARRAY_OFFSET + sourceOff + 4));
+                UNSAFE.putInt(target, BYTE_ARRAY_OFFSET + targetOff, UNSAFE.getInt(source, BYTE_ARRAY_OFFSET + sourceOff));
+                UNSAFE.putShort(target, BYTE_ARRAY_OFFSET + targetOff + 4, UNSAFE.getShort(source, BYTE_ARRAY_OFFSET + sourceOff + 4));
             }
         };
     }
 
-    static MemoryOptimizer s7() {
-        return new MemoryOptimizer() {
+    static Optimizer s7() {
+        return new Optimizer() {
             @Override
             public char[] copyChars(char[] buf, int offset, int len) {
                 char[] chars = new char[7];
@@ -438,15 +441,15 @@ final class JSONUnsafe {
             }
 
             void copyMemory(byte[] source, int sourceOff, byte[] target, int targetOff) {
-                UNSAFE.putInt(target, UnsafeHelper.BYTE_ARRAY_OFFSET + targetOff, UNSAFE.getInt(source, UnsafeHelper.BYTE_ARRAY_OFFSET + sourceOff));
-                UNSAFE.putShort(target, UnsafeHelper.BYTE_ARRAY_OFFSET + targetOff + 4, UNSAFE.getShort(source, UnsafeHelper.BYTE_ARRAY_OFFSET + sourceOff + 4));
+                UNSAFE.putInt(target, BYTE_ARRAY_OFFSET + targetOff, UNSAFE.getInt(source, BYTE_ARRAY_OFFSET + sourceOff));
+                UNSAFE.putShort(target, BYTE_ARRAY_OFFSET + targetOff + 4, UNSAFE.getShort(source, BYTE_ARRAY_OFFSET + sourceOff + 4));
                 target[targetOff + 6] = source[sourceOff + 6];
             }
         };
     }
 
-    static MemoryOptimizer s8() {
-        return new MemoryOptimizer() {
+    static Optimizer s8() {
+        return new Optimizer() {
 
             @Override
             public char[] copyChars(char[] buf, int offset, int len) {
@@ -490,13 +493,13 @@ final class JSONUnsafe {
             }
 
             void copyMemory(byte[] source, int sourceOff, byte[] target, int targetOff) {
-                UNSAFE.putLong(target, UnsafeHelper.BYTE_ARRAY_OFFSET + targetOff, UNSAFE.getLong(source, UnsafeHelper.BYTE_ARRAY_OFFSET + sourceOff));
+                UNSAFE.putLong(target, BYTE_ARRAY_OFFSET + targetOff, UNSAFE.getLong(source, BYTE_ARRAY_OFFSET + sourceOff));
             }
         };
     }
 
-    static MemoryOptimizer s9() {
-        return new MemoryOptimizer() {
+    static Optimizer s9() {
+        return new Optimizer() {
             @Override
             public char[] copyChars(char[] buf, int offset, int len) {
                 char[] chars = new char[9];
@@ -531,8 +534,8 @@ final class JSONUnsafe {
         };
     }
 
-    static MemoryOptimizer s10() {
-        return new MemoryOptimizer() {
+    static Optimizer s10() {
+        return new Optimizer() {
             @Override
             public char[] copyChars(char[] buf, int offset, int len) {
                 char[] chars = new char[10];
@@ -567,8 +570,8 @@ final class JSONUnsafe {
         };
     }
 
-    static MemoryOptimizer s11() {
-        return new MemoryOptimizer() {
+    static Optimizer s11() {
+        return new Optimizer() {
             @Override
             public char[] copyChars(char[] buf, int offset, int len) {
                 char[] chars = new char[11];
@@ -603,8 +606,8 @@ final class JSONUnsafe {
         };
     }
 
-    static MemoryOptimizer s12() {
-        return new MemoryOptimizer() {
+    static Optimizer s12() {
+        return new Optimizer() {
             @Override
             public char[] copyChars(char[] buf, int offset, int len) {
                 char[] chars = new char[12];
@@ -639,8 +642,8 @@ final class JSONUnsafe {
         };
     }
 
-    static MemoryOptimizer s13() {
-        return new MemoryOptimizer() {
+    static Optimizer s13() {
+        return new Optimizer() {
             @Override
             public char[] copyChars(char[] buf, int offset, int len) {
                 char[] chars = new char[13];
@@ -676,8 +679,8 @@ final class JSONUnsafe {
         };
     }
 
-    static MemoryOptimizer s14() {
-        return new MemoryOptimizer() {
+    static Optimizer s14() {
+        return new Optimizer() {
             @Override
             public char[] copyChars(char[] buf, int offset, int len) {
                 char[] chars = new char[14];
@@ -713,8 +716,8 @@ final class JSONUnsafe {
         };
     }
 
-    static MemoryOptimizer s15() {
-        return new MemoryOptimizer() {
+    static Optimizer s15() {
+        return new Optimizer() {
             @Override
             public char[] copyChars(char[] buf, int offset, int len) {
                 char[] chars = new char[15];
@@ -750,8 +753,8 @@ final class JSONUnsafe {
         };
     }
 
-    static MemoryOptimizer s16() {
-        return new MemoryOptimizer() {
+    static Optimizer s16() {
+        return new Optimizer() {
             @Override
             public char[] copyChars(char[] buf, int offset, int len) {
                 char[] chars = new char[16];
@@ -787,8 +790,8 @@ final class JSONUnsafe {
         };
     }
 
-    static MemoryOptimizer s17() {
-        return new MemoryOptimizer() {
+    static Optimizer s17() {
+        return new Optimizer() {
             @Override
             public byte[] copyBytes(byte[] buf, int offset, int len) {
                 byte[] bytes = new byte[17];
@@ -815,8 +818,8 @@ final class JSONUnsafe {
         };
     }
 
-    static MemoryOptimizer s18() {
-        return new MemoryOptimizer() {
+    static Optimizer s18() {
+        return new Optimizer() {
             @Override
             public byte[] copyBytes(byte[] buf, int offset, int len) {
                 byte[] bytes = new byte[18];
@@ -843,8 +846,8 @@ final class JSONUnsafe {
         };
     }
 
-    static MemoryOptimizer s19() {
-        return new MemoryOptimizer() {
+    static Optimizer s19() {
+        return new Optimizer() {
             @Override
             public byte[] copyBytes(byte[] buf, int offset, int len) {
                 byte[] bytes = new byte[19];
@@ -871,8 +874,8 @@ final class JSONUnsafe {
         };
     }
 
-    static MemoryOptimizer s20() {
-        return new MemoryOptimizer() {
+    static Optimizer s20() {
+        return new Optimizer() {
             @Override
             public byte[] copyBytes(byte[] buf, int offset, int len) {
                 byte[] bytes = new byte[20];
@@ -900,48 +903,58 @@ final class JSONUnsafe {
     }
 
     static long getLong(byte[] buf, int offset) {
-        return UNSAFE.getLong(buf, UnsafeHelper.BYTE_ARRAY_OFFSET + offset);
+        return UNSAFE.getLong(buf, BYTE_ARRAY_OFFSET + offset);
     }
 
     static long getLong(char[] buf, int offset) {
-        return UNSAFE.getLong(buf, UnsafeHelper.CHAR_ARRAY_OFFSET + (offset << 1));
+        return UNSAFE.getLong(buf, CHAR_ARRAY_OFFSET + (offset << 1));
     }
 
     static int getInt(byte[] buf, int offset) {
-        return UNSAFE.getInt(buf, UnsafeHelper.BYTE_ARRAY_OFFSET + offset);
+        return UNSAFE.getInt(buf, BYTE_ARRAY_OFFSET + offset);
     }
 
     static int getInt(char[] buf, int offset) {
-        return UNSAFE.getInt(buf, UnsafeHelper.CHAR_ARRAY_OFFSET + (offset << 1));
+        return UNSAFE.getInt(buf, CHAR_ARRAY_OFFSET + (offset << 1));
     }
 
     static short getShort(byte[] buf, int offset) {
-        return UNSAFE.getShort(buf, UnsafeHelper.BYTE_ARRAY_OFFSET + offset);
+        return UNSAFE.getShort(buf, BYTE_ARRAY_OFFSET + offset);
     }
 
     static int putInt(char[] buf, int offset, int value) {
-        UNSAFE.putInt(buf, UnsafeHelper.CHAR_ARRAY_OFFSET + (offset << 1), value);
+        UNSAFE.putInt(buf, CHAR_ARRAY_OFFSET + (offset << 1), value);
         return 2;
     }
 
     static int putLong(char[] buf, int offset, long value) {
-        UNSAFE.putLong(buf, UnsafeHelper.CHAR_ARRAY_OFFSET + (offset << 1), value);
+        UNSAFE.putLong(buf, CHAR_ARRAY_OFFSET + (offset << 1), value);
         return 4;
     }
 
     static int putLong(byte[] buf, int offset, long value) {
-        UNSAFE.putLong(buf, UnsafeHelper.BYTE_ARRAY_OFFSET + offset, value);
+        UNSAFE.putLong(buf, BYTE_ARRAY_OFFSET + offset, value);
         return 8;
     }
 
     static int putInt(byte[] buf, int offset, int value) {
-        UNSAFE.putInt(buf, UnsafeHelper.BYTE_ARRAY_OFFSET + offset, value);
+        UNSAFE.putInt(buf, BYTE_ARRAY_OFFSET + offset, value);
         return 4;
     }
 
     static int putShort(byte[] buf, int offset, short value) {
-        UNSAFE.putShort(buf, UnsafeHelper.BYTE_ARRAY_OFFSET + offset, value);
+        UNSAFE.putShort(buf, BYTE_ARRAY_OFFSET + offset, value);
         return 2;
+    }
+
+    public static Object getStringValue(String value) {
+        return UNSAFE.getObject(value, STRING_VALUE_OFFSET);
+    }
+
+    public static String createString(char[] buf, int beginIndex, int len) {
+        String target = new String();
+        UNSAFE.putObject(target, STRING_VALUE_OFFSET, copyChars(buf, beginIndex, len));
+        return target;
     }
 
     public static char[] copyChars(char[] buf, int offset, int len) {
@@ -962,8 +975,8 @@ final class JSONUnsafe {
             if(len < 72) {
                 int rem = len & 7;
                 int t = len >> 3;
-                long sourceOff = UnsafeHelper.BYTE_ARRAY_OFFSET + offset;
-                SIZE_INSTANCES[t].multipleCopyMemory(buf, sourceOff, bytes, UnsafeHelper.BYTE_ARRAY_OFFSET);
+                long sourceOff = BYTE_ARRAY_OFFSET + offset;
+                SIZE_INSTANCES[t].multipleCopyMemory(buf, sourceOff, bytes, BYTE_ARRAY_OFFSET);
                 if (rem > 0) {
                     int remOffset = t << 3;
                     putLong(bytes, remOffset - 8 + rem, getLong(buf, offset + remOffset - 8 + rem));
@@ -1018,7 +1031,7 @@ final class JSONUnsafe {
         try {
             byte[] asciiBytes = copyBytes(bytes, offset, len);
             String result = (String) UNSAFE.allocateInstance(String.class);
-            UNSAFE.putObject(result, UnsafeHelper.STRING_VALUE_OFFSET, asciiBytes);
+            UNSAFE.putObject(result, STRING_VALUE_OFFSET, asciiBytes);
             return result;
         } catch (InstantiationException e) {
             throw new RuntimeException(e);
@@ -1113,12 +1126,5 @@ final class JSONUnsafe {
             default:
                 return a[aOffset++] == b[bOffset] && getInt(a, aOffset) == remValueForChars;
         }
-    }
-
-    public static void main(String[] args) {
-        char[] chars = "hellohelulollqwewewe".toCharArray();
-        char[] results = copyChars(chars, 0, chars.length);
-        System.out.println(new String(chars));
-        System.out.println(new String(results));
     }
 }

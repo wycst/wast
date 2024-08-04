@@ -18,7 +18,7 @@ public class JDKCompiler {
     private static final JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
     private static final StandardJavaFileManager fileManager = compiler.getStandardFileManager(null, null, null);
 
-    public static Class<?> compileJavaSource(JavaSourceObject sourceObject) {
+    public synchronized static Class<?> compileJavaSource(JavaSourceObject sourceObject) {
         MemoryJavaFileManager javaFileManager = new MemoryJavaFileManager(fileManager);
         try {
             List<String> options = null;

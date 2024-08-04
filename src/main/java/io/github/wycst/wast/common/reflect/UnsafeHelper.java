@@ -8,7 +8,6 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.TimeZone;
 
 /**
@@ -128,23 +127,23 @@ public final class UnsafeHelper {
         OVERRIDE_OFFSET = overrideOffset;
     }
 
-    /**
-     * 获取静态属性的值
-     *
-     * @param targetClass
-     * @param fieldName
-     * @return
-     */
-    public static Object getStaticFieldValue(String targetClass, String fieldName) {
-        try {
-            Class target = Class.forName(targetClass);
-            Field field = target.getDeclaredField(fieldName);
-            long offset = UNSAFE.staticFieldOffset(field);
-            return UNSAFE.getObject(target, offset);
-        } catch (Exception e) {
-            return null;
-        }
-    }
+//    /**
+//     * 获取静态属性的值
+//     *
+//     * @param targetClass
+//     * @param fieldName
+//     * @return
+//     */
+//    public static Object getStaticFieldValue(String targetClass, String fieldName) {
+//        try {
+//            Class target = Class.forName(targetClass);
+//            Field field = target.getDeclaredField(fieldName);
+//            long offset = UNSAFE.staticFieldOffset(field);
+//            return UNSAFE.getObject(target, offset);
+//        } catch (Exception e) {
+//            return null;
+//        }
+//    }
 
     /***
      * jdk version 9+ use toCharArray
@@ -328,41 +327,6 @@ public final class UnsafeHelper {
     }
 
     /**
-     * 集合转化为指定组件的数组
-     *
-     * @param collection
-     * @param componentType
-     * @return
-     */
-    public static Object toArray(Collection collection, Class<?> componentType) {
-        collection.getClass();
-        componentType.getClass();
-        Object array = Array.newInstance(componentType, collection.size());
-        int base, scale, k = 0;
-        if (UNSAFE != null) {
-            ReflectConsts.PrimitiveType primitiveType = ReflectConsts.PrimitiveType.typeOf(componentType);
-            if (primitiveType != null) {
-                base = primitiveType.arrayBaseOffset;
-                scale = primitiveType.arrayIndexScale;
-                for (Object obj : collection) {
-                    long valueOffset = base + scale * k++;
-                    primitiveType.put(array, valueOffset, obj);
-                }
-            } else {
-                Object[] objects = (Object[]) array;
-                for (Object obj : collection) {
-                    objects[k++] = obj;
-                }
-            }
-        } else {
-            for (Object obj : collection) {
-                Array.set(array, k++, obj);
-            }
-        }
-        return array;
-    }
-
-    /**
      * 获取数组指定下标的元素
      *
      * @param arr
@@ -378,13 +342,8 @@ public final class UnsafeHelper {
             }
             Class<?> componentType = arrCls.getComponentType();
             ReflectConsts.PrimitiveType primitiveType = ReflectConsts.PrimitiveType.typeOf(componentType);
-
             if (primitiveType != null) {
-                int base, scale;
-                base = primitiveType.arrayBaseOffset;
-                scale = primitiveType.arrayIndexScale;
-                long valueOffset = base + scale * index;
-                return primitiveType.get(arr, valueOffset);
+                return primitiveType.elementAt(arr, index);
             } else {
                 Object[] objects = (Object[]) arr;
                 return objects[index];

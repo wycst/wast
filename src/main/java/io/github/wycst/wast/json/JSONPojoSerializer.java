@@ -1,21 +1,13 @@
 package io.github.wycst.wast.json;
 
-import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.common.compiler.JavaSourceObject;
 import io.github.wycst.wast.common.reflect.GetterInfo;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
-import io.github.wycst.wast.common.reflect.UnsafeHelper;
-import io.github.wycst.wast.common.utils.EnvUtils;
 
 import java.io.IOException;
-import java.lang.reflect.Modifier;
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.Collection;
 
 /**
- * Still under testing
  *
  * @Date 2024/3/15 8:59
  * @Created by wangyc
@@ -28,16 +20,16 @@ public class JSONPojoSerializer<T> extends JSONTypeSerializer {
     protected JSONPojoSerializer(Class<T> pojoClass) {
         this.pojoClass = pojoClass;
         pojoStructure = JSONPojoStructure.get(pojoClass);
-        init();
     }
 
     protected JSONPojoSerializer(JSONPojoStructure pojoStructure) {
         this.pojoStructure = pojoStructure;
         this.pojoClass = pojoStructure.getSourceClass();
-        init();
     }
 
-    public void init() {
+    @Override
+    final void initialize() {
+        pojoStructure.ensureInitializedFieldSerializers();
     }
 
     public void serializePojoCompact(T entity, JSONWriter writer, JSONConfig jsonConfig, int indentLevel) throws Exception {
@@ -50,11 +42,11 @@ public class JSONPojoSerializer<T> extends JSONTypeSerializer {
         boolean skipGetterOfNoExistField = jsonConfig.isSkipGetterOfNoneField();
         boolean unCamelCaseToUnderline = !jsonConfig.isCamelCaseToUnderline();
         for (JSONPojoFieldSerializer fieldSerializer : fieldSerializers) {
-            GetterInfo getterInfo = fieldSerializer.getGetterInfo();
+            GetterInfo getterInfo = fieldSerializer.getterInfo;
             if (!getterInfo.existField() && skipGetterOfNoExistField) {
                 continue;
             }
-            Object value = getterInfo.invoke(entity);
+            Object value = JSON_SECURE_TRUSTED_ACCESS.get(getterInfo, entity); // getterInfo.invoke(entity);
             if (value == null && !writeFullProperty)
                 continue;
             if (isEmptyFlag) {
@@ -64,12 +56,11 @@ public class JSONPojoSerializer<T> extends JSONTypeSerializer {
             }
             if (value != null) {
                 if (unCamelCaseToUnderline) {
-                    fieldSerializer.writeJSONFieldName(writer);
+                    fieldSerializer.writeFieldNameAndColonTo(writer);
                 } else {
                     writer.append('"').append(getterInfo.getUnderlineName()).append("\":");
                 }
-                JSONTypeSerializer serializer = fieldSerializer.getSerializer();
-                serializer.serialize(value, writer, jsonConfig, -1);
+                fieldSerializer.serializer.serialize(value, writer, jsonConfig, -1);
             } else {
                 if (unCamelCaseToUnderline) {
                     fieldSerializer.writeJSONFieldNameWithNull(writer);
@@ -95,7 +86,7 @@ public class JSONPojoSerializer<T> extends JSONTypeSerializer {
             if (!getterInfo.existField() && skipGetterOfNoExistField) {
                 continue;
             }
-            Object value = getterInfo.invoke(entity);
+            Object value = JSON_SECURE_TRUSTED_ACCESS.get(getterInfo, entity); // getterInfo.invoke(entity);
             if (value == null && !writeFullProperty)
                 continue;
             if (isEmptyFlag) {
@@ -106,19 +97,18 @@ public class JSONPojoSerializer<T> extends JSONTypeSerializer {
             writeFormatOutSymbols(writer, indentPlus, true, jsonConfig);
             if (value != null) {
                 if (unCamelCaseToUnderline) {
-                    fieldSerializer.writeJSONFieldName(writer);
+                    fieldSerializer.writeFieldNameAndColonTo(writer);
                 } else {
                     writer.append('"').append(getterInfo.getUnderlineName()).append("\":");
                 }
-                if(formatOutColonSpace) {
+                if (formatOutColonSpace) {
                     writer.writeJSONToken(' ');
                 }
-                JSONTypeSerializer serializer = fieldSerializer.getSerializer();
-                serializer.serialize(value, writer, jsonConfig, indentPlus);
+                fieldSerializer.serializer.serialize(value, writer, jsonConfig, indentPlus);
             } else {
                 if (unCamelCaseToUnderline) {
                     if (formatOutColonSpace) {
-                        fieldSerializer.writeJSONFieldName(writer);
+                        fieldSerializer.writeFieldNameAndColonTo(writer);
                         writer.write(" null");
                     } else {
                         fieldSerializer.writeJSONFieldNameWithNull(writer);
@@ -145,1071 +135,166 @@ public class JSONPojoSerializer<T> extends JSONTypeSerializer {
         Class<?> entityClass = obj.getClass();
         if (entityClass == pojoClass) {
             int hashcode = -1;
-            if (jsonConfig.isSkipCircularReference()) {
+            if (jsonConfig.skipCircularReference) {
                 if (jsonConfig.getStatus(hashcode = System.identityHashCode(obj)) == 0) {
                     writer.writeNull();
                     return;
                 }
                 jsonConfig.setStatus(hashcode, 0);
             }
-            pojoStructure.ensureInitialized();
             writer.writeJSONToken('{');
-            boolean formatOut = jsonConfig.isFormatOut();
+            boolean formatOut = jsonConfig.formatOut;
             T entity = (T) obj;
             if (formatOut) {
                 serializePojoFormatOut(entity, writer, jsonConfig, indentLevel);
             } else {
                 serializePojoCompact(entity, writer, jsonConfig, indentLevel);
             }
-            writeEndPojo(writer);
-            jsonConfig.setStatus(hashcode, -1);
+            writer.write('}');
+            if (jsonConfig.skipCircularReference) {
+                jsonConfig.setStatus(hashcode, -1);
+            }
         } else {
             JSONTypeSerializer serializer = getTypeSerializer(entityClass);
             serializer.serialize(obj, writer, jsonConfig, indentLevel);
         }
     }
 
-    protected void writeEndPojo(JSONWriter writer) throws IOException {
-        writer.write('}');
-    }
-
-    protected final void doSerialize(JSONTypeSerializer serializer, Object fieldValue, JSONWriter writer, JSONConfig jsonConfig, int indentLevel) throws Exception {
+    protected final static void doSerialize(JSONTypeSerializer serializer, Object fieldValue, JSONWriter writer, JSONConfig jsonConfig, int indentLevel) throws Exception {
         serializer.serialize(fieldValue, writer, jsonConfig, indentLevel);
     }
 
-    protected final void writeMemory(JSONWriter jsonWriter, long fourChars1, long fourChars2, long fourBytes, int len) throws IOException {
+    protected final static Object invokeValue(JSONPojoFieldSerializer fieldSerializer, Object pojo) throws Exception {
+        return JSON_SECURE_TRUSTED_ACCESS.get(fieldSerializer.getterInfo, pojo);
+    }
+
+    protected final static <T> T invokeValue(JSONPojoFieldSerializer fieldSerializer, Object pojo, Class<T> tClass) throws Exception {
+        return (T) JSON_SECURE_TRUSTED_ACCESS.get(fieldSerializer.getterInfo, pojo);
+    }
+
+    protected final static void writeMemory(JSONWriter jsonWriter, long fourChars1, long fourChars2, long fourBytes, int len) throws IOException {
         jsonWriter.writeMemory(fourChars1, fourChars2, fourBytes, len);
     }
 
-    protected final void writeMemory(JSONWriter jsonWriter, long fourChars, int fourBytes, int len) throws IOException {
+    protected final static void writeMemory(JSONWriter jsonWriter, long fourChars, int fourBytes, int len) throws IOException {
         jsonWriter.writeMemory(fourChars, fourBytes, len);
     }
 
-    final static String IMPORT_CODE_TEXT =
-            "import io.github.wycst.wast.json.JSONConfig;\n" +
-                    "import io.github.wycst.wast.json.JSONPojoFieldSerializer;\n" +
-                    "import io.github.wycst.wast.json.JSONPojoStructure;\n\n" +
-                    "import io.github.wycst.wast.json.JSONWriter;\n\n";
-
-    final static AtomicLong SEQ = new AtomicLong(1);
-
-
-    static JavaSourceObject generateRuntimeJavaCodeSource(JSONPojoStructure jsonPojoStructure) {
-        return generateJavaCodeSource(jsonPojoStructure, false, true);
+    protected final static void writeStringArrayFormatOut(JSONWriter jsonWriter, String[] values, JSONConfig jsonConfig, int level) throws IOException {
+        final int levelPlus = level + 1;
+        int len = values.length;
+        if (len > 0) {
+            jsonWriter.writeJSONToken('[');
+            writeFormatOutSymbols(jsonWriter, levelPlus, jsonConfig);
+            int i = 1;
+            jsonWriter.writeStringCompatibleNull(values[0]);
+            if ((len & 1) == 0) {
+                jsonWriter.writeJSONToken(',');
+                writeFormatOutSymbols(jsonWriter, levelPlus, jsonConfig);
+                jsonWriter.writeStringCompatibleNull(values[1]);
+                ++i;
+            }
+            for (; i < len; i = i + 2) {
+                jsonWriter.writeJSONToken(',');
+                writeFormatOutSymbols(jsonWriter, levelPlus, jsonConfig);
+                jsonWriter.writeStringCompatibleNull(values[i]);
+                jsonWriter.writeJSONToken(',');
+                writeFormatOutSymbols(jsonWriter, levelPlus, jsonConfig);
+                jsonWriter.writeStringCompatibleNull(values[i + 1]);
+            }
+            writeFormatOutSymbols(jsonWriter, level, true, jsonConfig);
+            jsonWriter.writeJSONToken(']');
+        } else {
+            jsonWriter.writeEmptyArray();
+        }
     }
 
-    static JavaSourceObject generateJavaCodeSource(JSONPojoStructure jsonPojoStructure, boolean printSource, boolean runtime) {
-        Class<?> pojoClass = jsonPojoStructure.getSourceClass();
-        String simpleName = pojoClass.getSimpleName();
-        String canonicalName = pojoClass.getCanonicalName();
-        String genClassName = "__JPS_" + simpleName + "_" + SEQ.getAndIncrement();
-        String packageName = pojoClass.getPackage().getName();
-        StringBuilder codeBuilder = new StringBuilder(2048);
-        codeBuilder.append("package ").append(packageName).append(";\n\n");
-        codeBuilder.append(IMPORT_CODE_TEXT);
-        if(!runtime) {
-            codeBuilder.append("/**\n");
-            codeBuilder.append(" * pojo serializer \n");
-            codeBuilder.append(" * @Date " + new GregorianDate() + "\n");
-            codeBuilder.append(" * @Created by code generator\n");
-            codeBuilder.append(" */\n");
-        }
-        codeBuilder.append("public final class ").append(genClassName).append(" extends io.github.wycst.wast.json.JSONPojoSerializer<").append(canonicalName).append("> {\n\n");
-        // fieldset
-        StringBuilder fieldsDefinitionBuilder = new StringBuilder(64);
-        StringBuilder fieldSetBuilder = new StringBuilder(64);
-
-        StringBuilder serializePojoCompactHeaderBuilder = new StringBuilder(1024);
-        if(!jsonPojoStructure.isForceUseFields()) {
-            serializePojoCompactHeaderBuilder.append("\t\tif(jsonConfig.isUseFields()) {\n");
-            serializePojoCompactHeaderBuilder.append("\t\t\tsuper.serializePojoCompact(entity, writer, jsonConfig, indentLevel);\n");
-            serializePojoCompactHeaderBuilder.append("\t\t\treturn;\n");
-            serializePojoCompactHeaderBuilder.append("\t\t}\n");
-        }
-        serializePojoCompactHeaderBuilder.append("\t\tboolean isEmptyFlag = !checkWriteClassName(jsonConfig.isWriteClassName(), writer, pojoClass, false, indentLevel, jsonConfig);\n");
-        StringBuilder serializePojoCompactBodyBuilder = new StringBuilder(1024);
-
-//        StringBuilder serializePojoFormatOutHeaderBuilder = new StringBuilder(1024);
-//        StringBuilder serializePojoFormatOutBodyBuilder = new StringBuilder(1024);
-        JSONPojoFieldSerializer[] fieldSerializerUseMethods = jsonPojoStructure.getFieldSerializers(false);
-        fieldsDefinitionBuilder.append("\n");
-
-        StringBuilder fieldNameTempBuilder = new StringBuilder();
-
-        boolean appendFieldSerializersFlag = false;
-        boolean appendUnCamelCaseToUnderlineFlag = false;
-        if (fieldSerializerUseMethods.length > 0) {
-            int fieldIndex = 0;
-            boolean ensureNotEmptyFlag = false;
-            for (JSONPojoFieldSerializer fieldSerializer : fieldSerializerUseMethods) {
-                boolean firstFlag = fieldIndex == 0;
-                GetterInfo getterInfo = fieldSerializer.getGetterInfo();
-                String name = getterInfo.getName();
-                String underlineName = getterInfo.getUnderlineName();
-                boolean nameEqualUnderlineName = name.equals(underlineName);
-                if(!nameEqualUnderlineName) {
-                    appendUnCamelCaseToUnderlineFlag = true;
-                }
-                boolean primitive = getterInfo.isPrimitive();
-                Class<?> returnType = getterInfo.getReturnType();
-                String returnTypeName = returnType.getName().intern();
-                boolean accessFlag = getterInfo.isAccess() && Modifier.isPublic(returnType.getModifiers());
-                boolean isBoolean = returnType == boolean.class;
-
-                String fieldSerializerName = name + "UseMethodSerializer";
-                String valueVar = fieldSerializer.getName();
-                byte[] bytes = valueVar.getBytes();
-                boolean isFieldNameAscii = bytes.length == valueVar.length();
-                long[] longs = null, longsWithComma = null, longsWithCommaBoolFalse = null;
-                int[] ints = null, intsWithComma = null, intsWithCommaBoolFalse = null;
-                int fieldNameTokenLength = 0, fieldNameTokenBoolFalseLength = 0;
-                boolean useUnsafe = runtime && isFieldNameAscii /*&& bytes.length <= 16*/;
-                if (useUnsafe) {
-                    fieldNameTempBuilder.setLength(0);
-                    fieldNameTempBuilder.append(",\"").append(valueVar).append("\":");
-                    if(isBoolean) {
-                        fieldNameTempBuilder.append("true");
-                    }
-                    fieldNameTokenLength = fieldNameTempBuilder.length();
-                    fieldNameTokenBoolFalseLength = fieldNameTokenLength + 1;
-                    longs = UnsafeHelper.getCharLongs(fieldNameTempBuilder.substring(1));
-                    longsWithComma = UnsafeHelper.getCharLongs(fieldNameTempBuilder.toString());
-                    ints = UnsafeHelper.getByteInts(fieldNameTempBuilder.substring(1));
-                    intsWithComma = UnsafeHelper.getByteInts(fieldNameTempBuilder.toString());
-
-                    if(isBoolean) {
-                        fieldNameTempBuilder.setLength(fieldNameTempBuilder.length() - 4);
-                        fieldNameTempBuilder.append("false");
-                        longsWithCommaBoolFalse = UnsafeHelper.getCharLongs(fieldNameTempBuilder.toString());
-                        intsWithCommaBoolFalse = UnsafeHelper.getByteInts(fieldNameTempBuilder.toString());
-                    }
-                }
-
-                if (accessFlag) {
-                    serializePojoCompactBodyBuilder.append("\t\t" + returnType.getCanonicalName() + " " + valueVar + " = entity." + getterInfo.generateCode() + ";\n");
-                    if (primitive) {
-                        if (firstFlag) {
-                            if (isBoolean) {
-                                // bool
-                                serializePojoCompactBodyBuilder.append("\t\tif(" + valueVar + ") {\n");
-                                if (nameEqualUnderlineName) {
-                                    serializePojoCompactBodyBuilder.append("\t\t\twriter.write(\"\\\"" + valueVar + "\\\":true\");\n");
-                                } else {
-                                    serializePojoCompactBodyBuilder.append("\t\t\tif (unCamelCaseToUnderline) {\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":true\");\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t\t} else {\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + underlineName + "\\\":true\");\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t\t}\n");
-                                }
-                                serializePojoCompactBodyBuilder.append("\t\t} else {\n");
-                                if (nameEqualUnderlineName) {
-                                    serializePojoCompactBodyBuilder.append("\t\t\twriter.write(\"\\\"" + valueVar + "\\\":false\");\n");
-                                } else {
-                                    serializePojoCompactBodyBuilder.append("\t\t\tif (unCamelCaseToUnderline) {\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":false\");\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t\t} else {\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + underlineName + "\\\":false\");\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t\t}\n");
-                                }
-                                serializePojoCompactBodyBuilder.append("\t\t}\n");
-                            } else {
-                                // double/float/long/int/short/byte/char
-                                if (nameEqualUnderlineName) {
-                                    int total = fieldNameTokenLength - 1;
-                                    if (useUnsafe /*&& (total & 3) != 1*/) {
-                                        int arrLength = longs.length;
-                                        boolean remOne = (total & 3) == 1;
-                                        if(remOne) {
-                                            --arrLength;
-                                        }
-                                        for (int i = 0; i < arrLength; ++i) {
-                                            if(i + 1 < arrLength) {
-                                                int len = total > 8 ? 8 : total;
-                                                long l1 = longs[i], l2 = longs[i + 1];
-                                                int i1 = ints[i], i2 = ints[i + 1];
-                                                long l3 = EnvUtils.BIG_ENDIAN ? ((long) i1) << 32 | i2 : ((long) i2) << 32 | i1;
-                                                serializePojoCompactBodyBuilder.append("\t\twriteMemory(writer, " + l1 + "L, " + l2 + "L, " + l3 + "L, " + len + ");\n");
-                                                total -= 8;
-                                                ++i;
-                                            } else {
-                                                int len = total > 4 ? 4 : total;
-                                                serializePojoCompactBodyBuilder.append("\t\twriteMemory(writer, " + longs[i] + "L, " + ints[i] + ", " + len + ");\n");
-                                                total -= 4;
-                                            }
-                                        }
-                                        if(remOne) {
-                                            serializePojoCompactBodyBuilder.append("\t\twriter.writeJSONToken(':');\n");
-                                        }
-                                    } else {
-                                        serializePojoCompactBodyBuilder.append("\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
-                                    }
-                                } else {
-                                    serializePojoCompactBodyBuilder.append("\t\tif (unCamelCaseToUnderline) {\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t} else {\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t\twriter.write(\"\\\"" + underlineName + "\\\":\");\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t}\n");
-                                }
-                                if (returnType == double.class) {
-                                    serializePojoCompactBodyBuilder.append("\t\twriter.writeDouble(" + valueVar + ");\n");
-                                } else if (returnType == float.class) {
-                                    serializePojoCompactBodyBuilder.append("\t\twriter.writeFloat(" + valueVar + ");\n");
-                                } else if (returnType == long.class || returnType == int.class || returnType == short.class || returnType == byte.class) {
-                                    serializePojoCompactBodyBuilder.append("\t\twriter.writeLong(" + valueVar + ");\n");
-                                } else {
-                                    // char
-                                    serializePojoCompactBodyBuilder.append("\t\twriter.writeJSONToken('\"');\n");
-                                    serializePojoCompactBodyBuilder.append("\t\twriter.write(" + valueVar + ");\n");
-                                    serializePojoCompactBodyBuilder.append("\t\twriter.writeJSONToken('\"');\n");
-                                }
-                            }
-                        } else {
-                            if (isBoolean) {
-                                if (ensureNotEmptyFlag) {
-                                    serializePojoCompactBodyBuilder.append("\t\tif(" + valueVar + ") {\n");
-                                    if (nameEqualUnderlineName) {
-                                        int total = fieldNameTokenLength;
-                                        if (useUnsafe /*&& (total & 3) != 1*/) {
-                                            int arrLength = longsWithComma.length;
-                                            boolean remOne = (total & 3) == 1;
-                                            if(remOne) {
-                                                --arrLength;
-                                            }
-                                            for (int i = 0; i < arrLength; ++i) {
-                                                if(i + 1 < arrLength) {
-                                                    int len = total > 8 ? 8 : total;
-                                                    long l1 = longsWithComma[i], l2 = longsWithComma[i + 1];
-                                                    int i1 = intsWithComma[i], i2 = intsWithComma[i + 1];
-                                                    long l3 = EnvUtils.BIG_ENDIAN ? ((long) i1) << 32 | i2 : ((long) i2) << 32 | i1;
-                                                    serializePojoCompactBodyBuilder.append("\t\t\twriteMemory(writer, " + l1 + "L, " + l2 + "L, " + l3 + "L, " + len + ");\n");
-                                                    total -= 8;
-                                                    ++i;
-                                                } else {
-                                                    int len = total > 4 ? 4 : total;
-                                                    serializePojoCompactBodyBuilder.append("\t\t\twriteMemory(writer, " + longsWithComma[i] + "L, " + intsWithComma[i] + ", " + len + ");\n");
-                                                    total -= 4;
-                                                }
-                                            }
-                                            if(remOne) {
-                                                serializePojoCompactBodyBuilder.append("\t\t\twriter.writeJSONToken('e');\n");
-                                            }
-                                        } else {
-                                            serializePojoCompactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + valueVar + "\\\":true\");\n");
-                                        }
-                                    } else {
-                                        serializePojoCompactBodyBuilder.append("\t\t\tif (unCamelCaseToUnderline) {\n");
-                                        int total = fieldNameTokenLength;
-                                        if (useUnsafe /*&& (total & 3) != 1*/) {
-                                            int arrLength = longsWithComma.length;
-                                            boolean remOne = (total & 3) == 1;
-                                            if(remOne) {
-                                                --arrLength;
-                                            }
-                                            for (int i = 0; i < arrLength; ++i) {
-                                                if(i + 1 < arrLength) {
-                                                    int len = total > 8 ? 8 : total;
-                                                    long l1 = longsWithComma[i], l2 = longsWithComma[i + 1];
-                                                    int i1 = intsWithComma[i], i2 = intsWithComma[i + 1];
-                                                    long l3 = EnvUtils.BIG_ENDIAN ? ((long) i1) << 32 | i2 : ((long) i2) << 32 | i1;
-                                                    serializePojoCompactBodyBuilder.append("\t\t\t\twriteMemory(writer, " + l1 + "L, " + l2 + "L, " + l3 + "L, " + len + ");\n");
-                                                    total -= 8;
-                                                    ++i;
-                                                } else {
-                                                    int len = total > 4 ? 4 : total;
-                                                    serializePojoCompactBodyBuilder.append("\t\t\t\twriteMemory(writer, " + longsWithComma[i] + "L, " + intsWithComma[i] + ", " + len + ");\n");
-                                                    total -= 4;
-                                                }
-                                            }
-                                            if(remOne) {
-                                                serializePojoCompactBodyBuilder.append("\t\t\t\twriter.writeJSONToken('e');\n");
-                                            }
-                                        } else {
-                                            serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":true\");\n");
-                                        }
-                                        serializePojoCompactBodyBuilder.append("\t\t\t} else {\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + underlineName + "\\\":true\");\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t}\n");
-                                    }
-                                    serializePojoCompactBodyBuilder.append("\t\t} else {\n");
-                                    if (nameEqualUnderlineName) {
-                                        int total = fieldNameTokenBoolFalseLength;
-                                        if (useUnsafe /*&& (total & 3) != 1*/) {
-                                            int arrLength = longsWithCommaBoolFalse.length;
-                                            boolean remOne = (total & 3) == 1;
-                                            if(remOne) {
-                                                --arrLength;
-                                            }
-                                            for (int i = 0; i < arrLength; ++i) {
-                                                if(i + 1 < arrLength) {
-                                                    int len = total > 8 ? 8 : total;
-                                                    long l1 = longsWithCommaBoolFalse[i], l2 = longsWithCommaBoolFalse[i + 1];
-                                                    int i1 = intsWithCommaBoolFalse[i], i2 = intsWithCommaBoolFalse[i + 1];
-                                                    long l3 = EnvUtils.BIG_ENDIAN ? ((long) i1) << 32 | i2 : ((long) i2) << 32 | i1;
-                                                    serializePojoCompactBodyBuilder.append("\t\t\twriteMemory(writer, " + l1 + "L, " + l2 + "L, " + l3 + "L, " + len + ");\n");
-                                                    total -= 8;
-                                                    ++i;
-                                                } else {
-                                                    int len = total > 4 ? 4 : total;
-                                                    serializePojoCompactBodyBuilder.append("\t\t\twriteMemory(writer, " + longsWithCommaBoolFalse[i] + "L, " + intsWithCommaBoolFalse[i] + ", " + len + ");\n");
-                                                    total -= 4;
-                                                }
-                                            }
-                                            if(remOne) {
-                                                serializePojoCompactBodyBuilder.append("\t\t\twriter.writeJSONToken('e');\n");
-                                            }
-                                        } else {
-                                            serializePojoCompactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + valueVar + "\\\":false\");\n");
-                                        }
-                                    } else {
-                                        serializePojoCompactBodyBuilder.append("\t\t\tif (unCamelCaseToUnderline) {\n");
-                                        int total = fieldNameTokenBoolFalseLength;
-                                        if (useUnsafe /*&& (total & 3) != 1*/) {
-                                            int arrLength = longsWithCommaBoolFalse.length;
-                                            boolean remOne = (total & 3) == 1;
-                                            if(remOne) {
-                                                --arrLength;
-                                            }
-                                            for (int i = 0; i < arrLength; ++i) {
-                                                if(i + 1 < arrLength) {
-                                                    int len = total > 8 ? 8 : total;
-                                                    long l1 = longsWithCommaBoolFalse[i], l2 = longsWithCommaBoolFalse[i + 1];
-                                                    int i1 = intsWithCommaBoolFalse[i], i2 = intsWithCommaBoolFalse[i + 1];
-                                                    long l3 = EnvUtils.BIG_ENDIAN ? ((long) i1) << 32 | i2 : ((long) i2) << 32 | i1;
-                                                    serializePojoCompactBodyBuilder.append("\t\t\t\twriteMemory(writer, " + l1 + "L, " + l2 + "L, " + l3 + "L, " + len + ");\n");
-                                                    total -= 8;
-                                                    ++i;
-                                                } else {
-                                                    int len = total > 4 ? 4 : total;
-                                                    serializePojoCompactBodyBuilder.append("\t\t\t\twriteMemory(writer, " + longsWithCommaBoolFalse[i] + "L, " + intsWithCommaBoolFalse[i] + ", " + len + ");\n");
-                                                    total -= 4;
-                                                }
-                                            }
-                                            if(remOne) {
-                                                serializePojoCompactBodyBuilder.append("\t\t\t\twriter.writeJSONToken('e');\n");
-                                            }
-                                        } else {
-                                            serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":false\");\n");
-                                        }
-                                        serializePojoCompactBodyBuilder.append("\t\t\t} else {\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + underlineName + "\\\":false\");\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t}\n");
-                                    }
-                                    serializePojoCompactBodyBuilder.append("\t\t}\n");
-                                } else {
-                                    serializePojoCompactBodyBuilder.append("\t\tif(isEmptyFlag) {\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t\tif(" + valueVar + ") {\n");
-                                    if (nameEqualUnderlineName) {
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":true\");\n");
-                                    } else {
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\tif (unCamelCaseToUnderline) {\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":true\");\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\t} else {\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\t\twriter.write(\"\\\"" + underlineName + "\\\":true\");\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\t}\n");
-                                    }
-                                    serializePojoCompactBodyBuilder.append("\t\t\t} else {\n");
-                                    if (nameEqualUnderlineName) {
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":false\");\n");
-                                    } else {
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\tif (unCamelCaseToUnderline) {\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":false\");\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\t} else {\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\t\twriter.write(\"\\\"" + underlineName + "\\\":false\");\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\t}\n");
-                                    }
-                                    serializePojoCompactBodyBuilder.append("\t\t\t}\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t} else {\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t\tif(" + valueVar + ") {\n");
-                                    if (nameEqualUnderlineName) {
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":true\");\n");
-                                    } else {
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\tif (unCamelCaseToUnderline) {\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":true\");\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\t} else {\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\t\twriter.write(\",\\\"" + underlineName + "\\\":true\");\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\t}\n");
-                                    }
-                                    serializePojoCompactBodyBuilder.append("\t\t\t} else {\n");
-                                    if (nameEqualUnderlineName) {
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":false\");\n");
-                                    } else {
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\tif (unCamelCaseToUnderline) {\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":false\");\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\t} else {\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\t\twriter.write(\",\\\"" + underlineName + "\\\":false\");\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\t}\n");
-                                    }
-                                    serializePojoCompactBodyBuilder.append("\t\t\t}\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t}\n");
-                                }
-                            } else {
-                                if (ensureNotEmptyFlag) {
-                                    if (nameEqualUnderlineName) {
-                                        int total = fieldNameTokenLength;
-                                        if (useUnsafe /*&& (total & 3) != 1*/) {
-                                            int arrLength = longsWithComma.length;
-                                            boolean remOne = (total & 3) == 1;
-                                            if(remOne) {
-                                                --arrLength;
-                                            }
-                                            for (int i = 0; i < arrLength; ++i) {
-                                                if(i + 1 < arrLength) {
-                                                    int len = total > 8 ? 8 : total;
-                                                    long l1 = longsWithComma[i], l2 = longsWithComma[i + 1];
-                                                    int i1 = intsWithComma[i], i2 = intsWithComma[i + 1];
-                                                    long l3 = EnvUtils.BIG_ENDIAN ? ((long) i1) << 32 | i2 : ((long) i2) << 32 | i1;
-                                                    serializePojoCompactBodyBuilder.append("\t\twriteMemory(writer, " + l1 + "L, " + l2 + "L, " + l3 + "L, " + len + ");\n");
-                                                    total -= 8;
-                                                    ++i;
-                                                } else {
-                                                    int len = total > 4 ? 4 : total;
-                                                    serializePojoCompactBodyBuilder.append("\t\twriteMemory(writer, " + longsWithComma[i] + "L, " + intsWithComma[i] + ", " + len + ");\n");
-                                                    total -= 4;
-                                                }
-                                            }
-                                            if(remOne) {
-                                                serializePojoCompactBodyBuilder.append("\t\twriter.writeJSONToken(':');\n");
-                                            }
-                                        } else {
-                                            serializePojoCompactBodyBuilder.append("\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
-                                        }
-                                    } else {
-                                        serializePojoCompactBodyBuilder.append("\t\tif (unCamelCaseToUnderline) {\n");
-                                        int total = fieldNameTokenLength;
-                                        if (useUnsafe /*&& (total & 3) != 1*/) {
-                                            int arrLength = longsWithComma.length;
-                                            boolean remOne = (total & 3) == 1;
-                                            if(remOne) {
-                                                --arrLength;
-                                            }
-                                            for (int i = 0; i < arrLength; ++i) {
-                                                if(i + 1 < arrLength) {
-                                                    int len = total > 8 ? 8 : total;
-                                                    long l1 = longsWithComma[i], l2 = longsWithComma[i + 1];
-                                                    int i1 = intsWithComma[i], i2 = intsWithComma[i + 1];
-                                                    long l3 = EnvUtils.BIG_ENDIAN ? ((long) i1) << 32 | i2 : ((long) i2) << 32 | i1;
-                                                    serializePojoCompactBodyBuilder.append("\t\t\twriteMemory(writer, " + l1 + "L, " + l2 + "L, " + l3 + "L, " + len + ");\n");
-                                                    total -= 8;
-                                                    ++i;
-                                                } else {
-                                                    int len = total > 4 ? 4 : total;
-                                                    serializePojoCompactBodyBuilder.append("\t\t\twriteMemory(writer, " + longsWithComma[i] + "L, " + intsWithComma[i] + ", " + len + ");\n");
-                                                    total -= 4;
-                                                }
-                                            }
-                                            if(remOne) {
-                                                serializePojoCompactBodyBuilder.append("\t\t\twriter.writeJSONToken(':');\n");
-                                            }
-                                        } else {
-                                            serializePojoCompactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
-                                        }
-                                        serializePojoCompactBodyBuilder.append("\t\t} else {\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + underlineName + "\\\":\");\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t}\n");
-                                    }
-                                } else {
-                                    serializePojoCompactBodyBuilder.append("\t\tif(isEmptyFlag) {\n");
-                                    if (nameEqualUnderlineName) {
-                                        int total = fieldNameTokenLength - 1;
-                                        if (useUnsafe /*&& (total & 3) != 1*/) {
-                                            int arrLength = longs.length;
-                                            boolean remOne = (total & 3) == 1;
-                                            if(remOne) {
-                                                --arrLength;
-                                            }
-                                            for (int i = 0; i < arrLength; ++i) {
-                                                if(i + 1 < arrLength) {
-                                                    int len = total > 8 ? 8 : total;
-                                                    long l1 = longs[i], l2 = longs[i + 1];
-                                                    int i1 = ints[i], i2 = ints[i + 1];
-                                                    long l3 = EnvUtils.BIG_ENDIAN ? ((long) i1) << 32 | i2 : ((long) i2) << 32 | i1;
-                                                    serializePojoCompactBodyBuilder.append("\t\t\twriteMemory(writer, " + l1 + "L, " + l2 + "L, " + l3 + "L, " + len + ");\n");
-                                                    total -= 8;
-                                                    ++i;
-                                                } else {
-                                                    int len = total > 4 ? 4 : total;
-                                                    serializePojoCompactBodyBuilder.append("\t\t\twriteMemory(writer, " + longs[i] + "L, " + ints[i] + ", " + len + ");\n");
-                                                    total -= 4;
-                                                }
-                                            }
-                                            if(remOne) {
-                                                serializePojoCompactBodyBuilder.append("\t\t\twriter.writeJSONToken(':');\n");
-                                            }
-                                        } else {
-                                            serializePojoCompactBodyBuilder.append("\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
-                                        }
-                                    } else {
-                                        serializePojoCompactBodyBuilder.append("\t\t\tif (unCamelCaseToUnderline) {\n");
-                                        int total = fieldNameTokenLength - 1;
-                                        if (useUnsafe /*&& (total & 3) != 1*/) {
-                                            int arrLength = longs.length;
-                                            boolean remOne = (total & 3) == 1;
-                                            if(remOne) {
-                                                --arrLength;
-                                            }
-                                            for (int i = 0; i < arrLength; ++i) {
-                                                if(i + 1 < arrLength) {
-                                                    int len = total > 8 ? 8 : total;
-                                                    long l1 = longs[i], l2 = longs[i + 1];
-                                                    int i1 = ints[i], i2 = ints[i + 1];
-                                                    long l3 = EnvUtils.BIG_ENDIAN ? ((long) i1) << 32 | i2 : ((long) i2) << 32 | i1;
-                                                    serializePojoCompactBodyBuilder.append("\t\t\t\twriteMemory(writer, " + l1 + "L, " + l2 + "L, " + l3 + "L, " + len + ");\n");
-                                                    total -= 8;
-                                                    ++i;
-                                                } else {
-                                                    int len = total > 4 ? 4 : total;
-                                                    serializePojoCompactBodyBuilder.append("\t\t\t\twriteMemory(writer, " + longs[i] + "L, " + ints[i] + ", " + len + ");\n");
-                                                    total -= 4;
-                                                }
-                                            }
-                                            if(remOne) {
-                                                serializePojoCompactBodyBuilder.append("\t\t\t\twriter.writeJSONToken(':');\n");
-                                            }
-                                        } else {
-                                            serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
-                                        }
-                                        serializePojoCompactBodyBuilder.append("\t\t\t} else {\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + underlineName + "\\\":\");\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t}\n");
-                                    }
-                                    serializePojoCompactBodyBuilder.append("\t\t} else {\n");
-                                    if (nameEqualUnderlineName) {
-                                        int total = fieldNameTokenLength;
-                                        if (useUnsafe /*&& (total & 3) != 1*/) {
-                                            int arrLength = longsWithComma.length;
-                                            boolean remOne = (total & 3) == 1;
-                                            if(remOne) {
-                                                --arrLength;
-                                            }
-                                            for (int i = 0; i < arrLength; ++i) {
-                                                if(i + 1 < arrLength) {
-                                                    int len = total > 8 ? 8 : total;
-                                                    long l1 = longsWithComma[i], l2 = longsWithComma[i + 1];
-                                                    int i1 = intsWithComma[i], i2 = intsWithComma[i + 1];
-                                                    long l3 = EnvUtils.BIG_ENDIAN ? ((long) i1) << 32 | i2 : ((long) i2) << 32 | i1;
-                                                    serializePojoCompactBodyBuilder.append("\t\t\twriteMemory(writer, " + l1 + "L, " + l2 + "L, " + l3 + "L, " + len + ");\n");
-                                                    total -= 8;
-                                                    ++i;
-                                                } else {
-                                                    int len = total > 4 ? 4 : total;
-                                                    serializePojoCompactBodyBuilder.append("\t\t\twriteMemory(writer, " + longsWithComma[i] + "L, " + intsWithComma[i] + ", " + len + ");\n");
-                                                    total -= 4;
-                                                }
-                                            }
-                                            if(remOne) {
-                                                serializePojoCompactBodyBuilder.append("\t\t\twriter.writeJSONToken(':');\n");
-                                            }
-                                        } else {
-                                            serializePojoCompactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
-                                        }
-                                    } else {
-                                        serializePojoCompactBodyBuilder.append("\t\t\tif (unCamelCaseToUnderline) {\n");
-                                        int total = fieldNameTokenLength;
-                                        if (useUnsafe /*&& (total & 3) != 1*/) {
-                                            int arrLength = longsWithComma.length;
-                                            boolean remOne = (total & 3) == 1;
-                                            if(remOne) {
-                                                --arrLength;
-                                            }
-                                            for (int i = 0; i < arrLength; ++i) {
-                                                if(i + 1 < arrLength) {
-                                                    int len = total > 8 ? 8 : total;
-                                                    long l1 = longsWithComma[i], l2 = longsWithComma[i + 1];
-                                                    int i1 = intsWithComma[i], i2 = intsWithComma[i + 1];
-                                                    long l3 = EnvUtils.BIG_ENDIAN ? ((long) i1) << 32 | i2 : ((long) i2) << 32 | i1;
-                                                    serializePojoCompactBodyBuilder.append("\t\t\t\twriteMemory(writer, " + l1 + "L, " + l2 + "L, " + l3 + "L, " + len + ");\n");
-                                                    total -= 8;
-                                                    ++i;
-                                                } else {
-                                                    int len = total > 4 ? 4 : total;
-                                                    serializePojoCompactBodyBuilder.append("\t\t\t\twriteMemory(writer, " + longsWithComma[i] + "L, " + intsWithComma[i] + ", " + len + ");\n");
-                                                    total -= 4;
-                                                }
-                                            }
-                                            if(remOne) {
-                                                serializePojoCompactBodyBuilder.append("\t\t\t\twriter.writeJSONToken(':');\n");
-                                            }
-                                        } else {
-                                            serializePojoCompactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
-                                        }
-                                        serializePojoCompactBodyBuilder.append("\t\t\t} else {\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + underlineName + "\\\":\");\n");
-                                        serializePojoCompactBodyBuilder.append("\t\t\t}\n");
-                                    }
-                                    serializePojoCompactBodyBuilder.append("\t\t}\n");
-                                }
-                                if (returnType == double.class) {
-                                    serializePojoCompactBodyBuilder.append("\t\twriter.writeDouble(" + valueVar + ");\n");
-                                } else if (returnType == float.class) {
-                                    serializePojoCompactBodyBuilder.append("\t\twriter.writeFloat(" + valueVar + ");\n");
-                                } else if (returnType == long.class || returnType == int.class || returnType == short.class || returnType == byte.class) {
-                                    serializePojoCompactBodyBuilder.append("\t\twriter.writeLong(" + valueVar + ");\n");
-                                } else {
-                                    serializePojoCompactBodyBuilder.append("\t\twriter.writeJSONToken('\"');\n");
-                                    serializePojoCompactBodyBuilder.append("\t\twriter.write(" + valueVar + ");\n");
-                                    serializePojoCompactBodyBuilder.append("\t\twriter.writeJSONToken('\"');\n");
-                                }
-                            }
-                        }
-                        ensureNotEmptyFlag = true;
-                    } else {
-                        serializePojoCompactBodyBuilder.append("\t\tif(" + valueVar + " != null) {\n");
-                        // field name
-                        if (firstFlag) {
-                            if (nameEqualUnderlineName) {
-                                int total = fieldNameTokenLength - 1;
-                                if (useUnsafe /*&& (total & 3) != 1*/) {
-                                    int arrLength = longs.length;
-                                    boolean remOne = (total & 3) == 1;
-                                    if(remOne) {
-                                        --arrLength;
-                                    }
-                                    for (int i = 0; i < arrLength; ++i) {
-                                        if(i + 1 < arrLength) {
-                                            int len = total > 8 ? 8 : total;
-                                            long l1 = longs[i], l2 = longs[i + 1];
-                                            int i1 = ints[i], i2 = ints[i + 1];
-                                            long l3 = EnvUtils.BIG_ENDIAN ? ((long) i1) << 32 | i2 : ((long) i2) << 32 | i1;
-                                            serializePojoCompactBodyBuilder.append("\t\t\twriteMemory(writer, " + l1 + "L, " + l2 + "L, " + l3 + "L, " + len + ");\n");
-                                            total -= 8;
-                                            ++i;
-                                        } else {
-                                            int len = total > 4 ? 4 : total;
-                                            serializePojoCompactBodyBuilder.append("\t\t\twriteMemory(writer, " + longs[i] + "L, " + ints[i] + ", " + len + ");\n");
-                                            total -= 4;
-                                        }
-                                    }
-                                    if(remOne) {
-                                        serializePojoCompactBodyBuilder.append("\t\t\twriter.writeJSONToken(':');\n");
-                                    }
-                                } else {
-                                    serializePojoCompactBodyBuilder.append("\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
-                                }
-                            } else {
-                                serializePojoCompactBodyBuilder.append("\t\t\tif (unCamelCaseToUnderline) {\n");
-                                int total = fieldNameTokenLength - 1;
-                                if (useUnsafe /*&& (total & 3) != 1*/) {
-                                    int arrLength = longs.length;
-                                    boolean remOne = (total & 3) == 1;
-                                    if(remOne) {
-                                        --arrLength;
-                                    }
-                                    for (int i = 0; i < arrLength; ++i) {
-                                        if(i + 1 < arrLength) {
-                                            int len = total > 8 ? 8 : total;
-                                            long l1 = longs[i], l2 = longs[i + 1];
-                                            int i1 = ints[i], i2 = ints[i + 1];
-                                            long l3 = EnvUtils.BIG_ENDIAN ? ((long) i1) << 32 | i2 : ((long) i2) << 32 | i1;
-                                            serializePojoCompactBodyBuilder.append("\t\t\t\twriteMemory(writer, " + l1 + "L, " + l2 + "L, " + l3 + "L, " + len + ");\n");
-                                            total -= 8;
-                                            ++i;
-                                        } else {
-                                            int len = total > 4 ? 4 : total;
-                                            serializePojoCompactBodyBuilder.append("\t\t\t\twriteMemory(writer, " + longs[i] + "L, " + ints[i] + ", " + len + ");\n");
-                                            total -= 4;
-                                        }
-                                    }
-                                    if(remOne) {
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\twriter.writeJSONToken(':');\n");
-                                    }
-                                } else {
-                                    serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
-                                }
-                                serializePojoCompactBodyBuilder.append("\t\t\t} else {\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + underlineName + "\\\":\");\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t}\n");
-                            }
-                            serializePojoCompactBodyBuilder.append("\t\t\tisEmptyFlag = false;\n");
-                        } else {
-                            if (ensureNotEmptyFlag) {
-                                if (nameEqualUnderlineName) {
-                                    int total = fieldNameTokenLength;
-                                    if (useUnsafe /*&& (total & 3) != 1*/) {
-                                        int arrLength = longsWithComma.length;
-                                        boolean remOne = (total & 3) == 1;
-                                        if(remOne) {
-                                            --arrLength;
-                                        }
-                                        for (int i = 0; i < arrLength; ++i) {
-                                            if(i + 1 < arrLength) {
-                                                int len = total > 8 ? 8 : total;
-                                                long l1 = longsWithComma[i], l2 = longsWithComma[i + 1];
-                                                int i1 = intsWithComma[i], i2 = intsWithComma[i + 1];
-                                                long l3 = EnvUtils.BIG_ENDIAN ? ((long) i1) << 32 | i2 : ((long) i2) << 32 | i1;
-                                                serializePojoCompactBodyBuilder.append("\t\t\twriteMemory(writer, " + l1 + "L, " + l2 + "L, " + l3 + "L, " + len + ");\n");
-                                                total -= 8;
-                                                ++i;
-                                            } else {
-                                                int len = total > 4 ? 4 : total;
-                                                serializePojoCompactBodyBuilder.append("\t\t\twriteMemory(writer, " + longsWithComma[i] + "L, " + intsWithComma[i] + ", " + len + ");\n");
-                                                total -= 4;
-                                            }
-                                        }
-                                        if(remOne) {
-                                            serializePojoCompactBodyBuilder.append("\t\t\twriter.writeJSONToken(':');\n");
-                                        }
-                                    } else {
-                                        serializePojoCompactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
-                                    }
-                                } else {
-                                    serializePojoCompactBodyBuilder.append("\t\t\tif (unCamelCaseToUnderline) {\n");
-                                    int total = fieldNameTokenLength;
-                                    if (useUnsafe /*&& (total & 3) != 1*/) {
-                                        int arrLength = longsWithComma.length;
-                                        boolean remOne = (total & 3) == 1;
-                                        if(remOne) {
-                                            --arrLength;
-                                        }
-                                        for (int i = 0; i < arrLength; ++i) {
-                                            if(i + 1 < arrLength) {
-                                                int len = total > 8 ? 8 : total;
-                                                long l1 = longsWithComma[i], l2 = longsWithComma[i + 1];
-                                                int i1 = intsWithComma[i], i2 = intsWithComma[i + 1];
-                                                long l3 = EnvUtils.BIG_ENDIAN ? ((long) i1) << 32 | i2 : ((long) i2) << 32 | i1;
-                                                serializePojoCompactBodyBuilder.append("\t\t\t\twriteMemory(writer, " + l1 + "L, " + l2 + "L, " + l3 + "L, " + len + ");\n");
-                                                total -= 8;
-                                                ++i;
-                                            } else {
-                                                int len = total > 4 ? 4 : total;
-                                                serializePojoCompactBodyBuilder.append("\t\t\t\twriteMemory(writer, " + longsWithComma[i] + "L, " + intsWithComma[i] + ", " + len + ");\n");
-                                                total -= 4;
-                                            }
-                                        }
-                                        if(remOne) {
-                                            serializePojoCompactBodyBuilder.append("\t\t\t\twriter.writeJSONToken(':');\n");
-                                        }
-                                    } else {
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
-                                    }
-                                    serializePojoCompactBodyBuilder.append("\t\t\t} else {\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + underlineName + "\\\":\");\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t\t}\n");
-                                }
-                            } else {
-                                serializePojoCompactBodyBuilder.append("\t\t\tif(isEmptyFlag) {\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t\tisEmptyFlag = false;\n");
-                                if (nameEqualUnderlineName) {
-                                    int total = fieldNameTokenLength - 1;
-                                    if (useUnsafe /*&& (total & 3) != 1*/) {
-                                        int arrLength = longs.length;
-                                        boolean remOne = (total & 3) == 1;
-                                        if(remOne) {
-                                            --arrLength;
-                                        }
-                                        for (int i = 0; i < arrLength; ++i) {
-                                            if(i + 1 < arrLength) {
-                                                int len = total > 8 ? 8 : total;
-                                                long l1 = longs[i], l2 = longs[i + 1];
-                                                int i1 = ints[i], i2 = ints[i + 1];
-                                                long l3 = EnvUtils.BIG_ENDIAN ? ((long) i1) << 32 | i2 : ((long) i2) << 32 | i1;
-                                                serializePojoCompactBodyBuilder.append("\t\t\t\twriteMemory(writer, " + l1 + "L, " + l2 + "L, " + l3 + "L, " + len + ");\n");
-                                                total -= 8;
-                                                ++i;
-                                            } else {
-                                                int len = total > 4 ? 4 : total;
-                                                serializePojoCompactBodyBuilder.append("\t\t\t\twriteMemory(writer, " + longs[i] + "L, " + ints[i] + ", " + len + ");\n");
-                                                total -= 4;
-                                            }
-                                        }
-                                        if(remOne) {
-                                            serializePojoCompactBodyBuilder.append("\t\t\t\twriter.writeJSONToken(':');\n");
-                                        }
-                                    } else {
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
-                                    }
-                                } else {
-                                    serializePojoCompactBodyBuilder.append("\t\t\t\tif (unCamelCaseToUnderline) {\n");
-                                    int total = fieldNameTokenLength - 1;
-                                    if (useUnsafe /*&& (total & 3) != 1*/) {
-                                        int arrLength = longs.length;
-                                        boolean remOne = (total & 3) == 1;
-                                        if(remOne) {
-                                            --arrLength;
-                                        }
-                                        for (int i = 0; i < arrLength; ++i) {
-                                            if(i + 1 < arrLength) {
-                                                int len = total > 8 ? 8 : total;
-                                                long l1 = longs[i], l2 = longs[i + 1];
-                                                int i1 = ints[i], i2 = ints[i + 1];
-                                                long l3 = EnvUtils.BIG_ENDIAN ? ((long) i1) << 32 | i2 : ((long) i2) << 32 | i1;
-                                                serializePojoCompactBodyBuilder.append("\t\t\t\t\twriteMemory(writer, " + l1 + "L, " + l2 + "L, " + l3 + "L, " + len + ");\n");
-                                                total -= 8;
-                                                ++i;
-                                            } else {
-                                                int len = total > 4 ? 4 : total;
-                                                serializePojoCompactBodyBuilder.append("\t\t\t\t\twriteMemory(writer, " + longs[i] + "L, " + ints[i] + ", " + len + ");\n");
-                                                total -= 4;
-                                            }
-                                        }
-                                        if(remOne) {
-                                            serializePojoCompactBodyBuilder.append("\t\t\t\t\twriter.writeJSONToken(':');\n");
-                                        }
-                                    } else {
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
-                                    }
-                                    serializePojoCompactBodyBuilder.append("\t\t\t\t} else {\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t\t\t\twriter.write(\"\\\"" + underlineName + "\\\":\");\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t\t\t}\n");
-                                }
-                                serializePojoCompactBodyBuilder.append("\t\t\t} else {\n");
-                                if (nameEqualUnderlineName) {
-                                    int total = fieldNameTokenLength;
-                                    if (useUnsafe /*&& (total & 3) != 1*/) {
-                                        int arrLength = longsWithComma.length;
-                                        boolean remOne = (total & 3) == 1;
-                                        if(remOne) {
-                                            --arrLength;
-                                        }
-                                        for (int i = 0; i < arrLength; ++i) {
-                                            if(i + 1 < arrLength) {
-                                                int len = total > 8 ? 8 : total;
-                                                long l1 = longsWithComma[i], l2 = longsWithComma[i + 1];
-                                                int i1 = intsWithComma[i], i2 = intsWithComma[i + 1];
-                                                long l3 = EnvUtils.BIG_ENDIAN ? ((long) i1) << 32 | i2 : ((long) i2) << 32 | i1;
-                                                serializePojoCompactBodyBuilder.append("\t\t\t\twriteMemory(writer, " + l1 + "L, " + l2 + "L, " + l3 + "L, " + len + ");\n");
-                                                total -= 8;
-                                                ++i;
-                                            } else {
-                                                int len = total > 4 ? 4 : total;
-                                                serializePojoCompactBodyBuilder.append("\t\t\t\twriteMemory(writer, " + longsWithComma[i] + "L, " + intsWithComma[i] + ", " + len + ");\n");
-                                                total -= 4;
-                                            }
-                                        }
-                                        if(remOne) {
-                                            serializePojoCompactBodyBuilder.append("\t\t\t\twriter.writeJSONToken(':');\n");
-                                        }
-                                    } else {
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
-                                    }
-                                } else {
-                                    serializePojoCompactBodyBuilder.append("\t\t\t\tif (unCamelCaseToUnderline) {\n");
-                                    int total = fieldNameTokenLength;
-                                    if (useUnsafe /*&& (total & 3) != 1*/) {
-                                        int arrLength = longsWithComma.length;
-                                        boolean remOne = (total & 3) == 1;
-                                        if(remOne) {
-                                            --arrLength;
-                                        }
-                                        for (int i = 0; i < arrLength; ++i) {
-                                            if(i + 1 < arrLength) {
-                                                int len = total > 8 ? 8 : total;
-                                                long l1 = longsWithComma[i], l2 = longsWithComma[i + 1];
-                                                int i1 = intsWithComma[i], i2 = intsWithComma[i + 1];
-                                                long l3 = EnvUtils.BIG_ENDIAN ? ((long) i1) << 32 | i2 : ((long) i2) << 32 | i1;
-                                                serializePojoCompactBodyBuilder.append("\t\t\t\t\twriteMemory(writer, " + l1 + "L, " + l2 + "L, " + l3 + "L, " + len + ");\n");
-                                                total -= 8;
-                                                ++i;
-                                            } else {
-                                                int len = total > 4 ? 4 : total;
-                                                serializePojoCompactBodyBuilder.append("\t\t\t\t\twriteMemory(writer, " + longsWithComma[i] + "L, " + intsWithComma[i] + ", " + len + ");\n");
-                                                total -= 4;
-                                            }
-                                        }
-                                        if(remOne) {
-                                            serializePojoCompactBodyBuilder.append("\t\t\t\t\twriter.writeJSONToken(':');\n");
-                                        }
-                                    } else {
-                                        serializePojoCompactBodyBuilder.append("\t\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
-                                    }
-                                    serializePojoCompactBodyBuilder.append("\t\t\t\t} else {\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t\t\t\twriter.write(\",\\\"" + underlineName + "\\\":\");\n");
-                                    serializePojoCompactBodyBuilder.append("\t\t\t\t}\n");
-                                }
-                                serializePojoCompactBodyBuilder.append("\t\t\t}\n");
-                            }
-                        }
-                        boolean useSerializerInvokeFlag = false;
-                        // field value
-                        if (returnType == String.class) {
-                            if (runtime) {
-                                if (EnvUtils.JDK_9_PLUS) {
-                                    serializePojoCompactBodyBuilder.append("\t\t\twriter.writeJSONStringBytes(" + valueVar + ", (byte[]) getStringValue(" + valueVar + "));\n");
-                                } else {
-                                    serializePojoCompactBodyBuilder.append("\t\t\twriter.writeJSONChars(getChars(" + valueVar + "));\n");
-                                }
-                            } else {
-                                serializePojoCompactBodyBuilder.append("\t\t\twriter.writeJSONString(" + valueVar + ");\n");
-                            }
-                        } else if (returnType == Double.class) {
-                            serializePojoCompactBodyBuilder.append("\t\t\twriter.writeDouble(" + valueVar + ");\n");
-                        } else if (returnType == Float.class) {
-                            serializePojoCompactBodyBuilder.append("\t\t\twriter.writeFloat(" + valueVar + ");\n");
-                        } else if (returnType == Character.class) {
-                            serializePojoCompactBodyBuilder.append("\t\t\twriter.writeJSONToken('\"');\n");
-                            serializePojoCompactBodyBuilder.append("\t\t\twriter.writeJSONToken(" + valueVar + ");\n");
-                            serializePojoCompactBodyBuilder.append("\t\t\twriter.writeJSONToken('\"');\n");
-                        } else if (returnType == Long.class || returnType == Integer.class || returnType == Short.class || returnType == Byte.class) {
-                            serializePojoCompactBodyBuilder.append("\t\t\twriter.writeLong(" + valueVar + ");\n");
-                        } else if (returnType == BigDecimal.class) {
-                            serializePojoCompactBodyBuilder.append("\t\t\twriter.write(" + valueVar + ".toString());\n");
-                        } else if (returnType == BigInteger.class) {
-                            serializePojoCompactBodyBuilder.append("\t\t\twriter.writeBigInteger(" + valueVar + ");\n");
-                        } else if (returnType == String[].class) {
-                            serializePojoCompactBodyBuilder.append("\t\t\twriter.writeStringArray(" + valueVar + ");\n");
-                        } else if (returnType == double[].class) {
-                            serializePojoCompactBodyBuilder.append("\t\t\twriter.writeDoubleArray(" + valueVar + ");\n");
-                        } else if (returnType == long[].class) {
-                            serializePojoCompactBodyBuilder.append("\t\t\twriter.writeLongArray(" + valueVar + ");\n");
-                        } else if(fieldSerializer.isStringCollection()) {
-                            serializePojoCompactBodyBuilder.append("\t\t\twriter.writeStringCollection(" + valueVar + ");\n");
-                        } else if (returnType == UUID.class) {
-                            serializePojoCompactBodyBuilder.append("\t\t\twriter.writeUUID(" + valueVar + ");\n");
-                        } else if (returnTypeName == "java.time.Instant") {
-                            if (fieldSerializer.getJsonProperty() == null || fieldSerializer.getJsonProperty().pattern().length() == 0) {
-                                // use default pattern
-                                serializePojoCompactBodyBuilder.append("\t\t\twriter.writeJSONInstant(" + valueVar + ".getEpochSecond(), " + valueVar + ".getNano());\n");
-                            } else {
-                                useSerializerInvokeFlag = true;
-                            }
-                        } else if(returnTypeName == "java.time.LocalTime") {
-                            if (fieldSerializer.getJsonProperty() == null || fieldSerializer.getJsonProperty().pattern().length() == 0) {
-                                serializePojoCompactBodyBuilder.append("\t\t\twriter.writeJSONTimeWithNano(" + valueVar + ".getHour(), " + valueVar + ".getMinute(), " + valueVar + ".getSecond(), " + valueVar + ".getNano());\n");
-                            } else {
-                                useSerializerInvokeFlag = true;
-                            }
-                        } else if (returnTypeName == "java.time.LocalDate") {
-                            if (fieldSerializer.getJsonProperty() == null || fieldSerializer.getJsonProperty().pattern().length() == 0) {
-                                serializePojoCompactBodyBuilder.append("\t\t\twriter.writeJSONLocalDate(" + valueVar + ".getYear(), " + valueVar + ".getMonthValue(), " + valueVar + ".getDayOfMonth());\n");
-                            } else {
-                                useSerializerInvokeFlag = true;
-                            }
-                        } else if (returnTypeName == "java.time.LocalDateTime") {
-                            if (fieldSerializer.getJsonProperty() == null || fieldSerializer.getJsonProperty().pattern().length() == 0) {
-                                serializePojoCompactBodyBuilder.append("\t\t\twriter.writeJSONLocalDateTime(" + valueVar + ".getYear(), " + valueVar + ".getMonthValue(), " + valueVar + ".getDayOfMonth(), " + valueVar + ".getHour(), " + valueVar + ".getMinute(), " + valueVar + ".getSecond(), " + valueVar + ".getNano(), null);\n");
-                            } else {
-                                useSerializerInvokeFlag = true;
-                            }
-                        } else if (returnTypeName == "java.time.ZonedDateTime" || returnTypeName == "java.time.OffsetDateTime") {
-                            if (fieldSerializer.getJsonProperty() == null || fieldSerializer.getJsonProperty().pattern().length() == 0) {
-                                if(returnTypeName == "java.time.ZonedDateTime") {
-                                    serializePojoCompactBodyBuilder.append("\t\t\twriter.writeJSONLocalDateTime(" + valueVar + ".getYear(), " + valueVar + ".getMonthValue(), " + valueVar + ".getDayOfMonth(), " + valueVar + ".getHour(), " + valueVar + ".getMinute(), " + valueVar + ".getSecond(), " + valueVar + ".getNano(), " + valueVar + ".getZone().getId());\n");
-                                } else {
-                                    serializePojoCompactBodyBuilder.append("\t\t\twriter.writeJSONLocalDateTime(" + valueVar + ".getYear(), " + valueVar + ".getMonthValue(), " + valueVar + ".getDayOfMonth(), " + valueVar + ".getHour(), " + valueVar + ".getMinute(), " + valueVar + ".getSecond(), " + valueVar + ".getNano(), " + valueVar + ".getOffset().getId());\n");
-                                }
-                            } else {
-                                useSerializerInvokeFlag = true;
-                            }
-                        } else {
-                            useSerializerInvokeFlag = true;
-                        }
-                        if(useSerializerInvokeFlag) {
-                            if (!appendFieldSerializersFlag) {
-                                appendFieldSerializersFlag = true;
-                                fieldSetBuilder.append("\t\tJSONPojoFieldSerializer[] fieldSerializerUseMethods = pojoStructure.getFieldSerializers(false);\n");
-                            }
-                            // use unsafe & field offset
-                            fieldsDefinitionBuilder.append("\tfinal JSONPojoFieldSerializer ").append(fieldSerializerName).append(";\n");
-                            fieldSetBuilder.append("\t\tthis.").append(fieldSerializerName).append(" = ").append("fieldSerializerUseMethods[").append(fieldIndex).append("];\n");
-
-                            serializePojoCompactBodyBuilder.append("\t\t\tdoSerialize(" + fieldSerializerName + ".getSerializer(), " + valueVar + ", writer, jsonConfig, -1);\n");
-                        }
-                        serializePojoCompactBodyBuilder.append("\t\t}\n");
-                    }
+    protected final static void writeStringCollectionFormatOut(JSONWriter jsonWriter, Collection values, JSONConfig jsonConfig, int level) throws IOException {
+        int size = values.size();
+        final int levelPlus = level + 1;
+        if (size > 0) {
+            jsonWriter.writeJSONToken('[');
+            boolean hasAddFlag = false;
+            for (Object value : values) {
+                if (hasAddFlag) {
+                    jsonWriter.writeJSONToken(',');
                 } else {
-                    if (!appendFieldSerializersFlag) {
-                        appendFieldSerializersFlag = true;
-                        fieldSetBuilder.append("\t\tJSONPojoFieldSerializer[] fieldSerializerUseMethods = pojoStructure.getFieldSerializers(false);\n");
-                    }
-                    // use unsafe & field offset
-                    fieldsDefinitionBuilder.append("\tfinal JSONPojoFieldSerializer ").append(fieldSerializerName).append(";\n");
-                    fieldSetBuilder.append("\t\tthis.").append(fieldSerializerName).append(" = ").append("fieldSerializerUseMethods[").append(fieldIndex).append("];\n");
-
-                    serializePojoCompactBodyBuilder.append("\t\tObject " + valueVar + " = " + fieldSerializerName + ".invoke(entity);\n");
-                    serializePojoCompactBodyBuilder.append("\t\tif(" + valueVar + " != null) {\n");
-                    if (firstFlag) {
-                        if (nameEqualUnderlineName) {
-                            serializePojoCompactBodyBuilder.append("\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
-                        } else {
-                            serializePojoCompactBodyBuilder.append("\t\t\tif (unCamelCaseToUnderline) {\n");
-                            serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
-                            serializePojoCompactBodyBuilder.append("\t\t\t} else {\n");
-                            serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + underlineName + "\\\":\");\n");
-                            serializePojoCompactBodyBuilder.append("\t\t\t}\n");
-                        }
-                        serializePojoCompactBodyBuilder.append("\t\t\tisEmptyFlag = false;\n");
-                    } else {
-                        if (ensureNotEmptyFlag) {
-                            if (nameEqualUnderlineName) {
-                                serializePojoCompactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
-                            } else {
-                                serializePojoCompactBodyBuilder.append("\t\t\tif (unCamelCaseToUnderline) {\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t} else {\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + underlineName + "\\\":\");\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t}\n");
-                            }
-                        } else {
-                            if (nameEqualUnderlineName) {
-                                serializePojoCompactBodyBuilder.append("\t\t\tif(isEmptyFlag) {\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t\tisEmptyFlag = false;\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t} else {\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t}\n");
-                            } else {
-                                serializePojoCompactBodyBuilder.append("\t\t\tif(isEmptyFlag) {\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t\tisEmptyFlag = false;\n");
-
-                                serializePojoCompactBodyBuilder.append("\t\t\t\tif (unCamelCaseToUnderline) {\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t\t} else {\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t\t\twriter.write(\"\\\"" + underlineName + "\\\":\");\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t\t}\n");
-
-                                serializePojoCompactBodyBuilder.append("\t\t\t} else {\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t\tif (unCamelCaseToUnderline) {\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t\t} else {\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t\t\twriter.write(\",\\\"" + underlineName + "\\\":\");\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t\t}\n");
-                                serializePojoCompactBodyBuilder.append("\t\t\t}\n");
-                            }
-                        }
-                    }
-                    serializePojoCompactBodyBuilder.append("\t\t\tdoSerialize(" + fieldSerializerName + ".getSerializer(), " + valueVar + ", writer, jsonConfig, -1);\n");
-                    serializePojoCompactBodyBuilder.append("\t\t}\n");
+                    hasAddFlag = true;
                 }
-
-                serializePojoCompactBodyBuilder.append("\n");
-                fieldIndex++;
+                writeFormatOutSymbols(jsonWriter, levelPlus, jsonConfig);
+                jsonWriter.writeStringCompatibleNull((String) value);
             }
-        }
-
-        if(appendUnCamelCaseToUnderlineFlag) {
-            serializePojoCompactHeaderBuilder.append("\t\tboolean unCamelCaseToUnderline = !jsonConfig.isCamelCaseToUnderline();\n\n");
+            writeFormatOutSymbols(jsonWriter, level, true, jsonConfig);
+            jsonWriter.writeJSONToken(']');
         } else {
-            serializePojoCompactHeaderBuilder.append("\n");
+            jsonWriter.writeEmptyArray();
         }
-        if(!runtime) {
-            codeBuilder.append("\tpublic ").append(genClassName).append("() {\n");
-            codeBuilder.append("\t\tthis(JSONPojoStructure.get(" + canonicalName + ".class));\n");
-            codeBuilder.append("\t}\n\n");
+    }
+
+    protected final static void writeLongArrayFormatOut(JSONWriter jsonWriter, long[] values, JSONConfig jsonConfig, int level) throws IOException {
+        final int levelPlus = level + 1;
+        int len = values.length;
+        if (len > 0) {
+            jsonWriter.writeJSONToken('[');
+            int i = 1;
+            writeFormatOutSymbols(jsonWriter, levelPlus, jsonConfig);
+            jsonWriter.writeLong(values[0]);
+            if ((len & 1) == 0) {
+                jsonWriter.writeJSONToken(',');
+                writeFormatOutSymbols(jsonWriter, levelPlus, jsonConfig);
+                jsonWriter.writeLong(values[1]);
+                ++i;
+            }
+            for (; i < len; i = i + 2) {
+                jsonWriter.writeJSONToken(',');
+                writeFormatOutSymbols(jsonWriter, levelPlus, jsonConfig);
+                jsonWriter.writeLong(values[i]);
+                jsonWriter.writeJSONToken(',');
+                writeFormatOutSymbols(jsonWriter, levelPlus, jsonConfig);
+                jsonWriter.writeLong(values[i + 1]);
+            }
+            writeFormatOutSymbols(jsonWriter, level, jsonConfig);
+            jsonWriter.writeJSONToken(']');
+        } else {
+            jsonWriter.writeEmptyArray();
         }
+    }
 
-        // create fun
-        codeBuilder.append("\tprotected ").append(genClassName).append("(JSONPojoStructure pojoStructure) {\n");
-        codeBuilder.append("\t\tsuper(pojoStructure);\n");
-        codeBuilder.append(fieldSetBuilder);
-        codeBuilder.append("\t}\n");
-        codeBuilder.append(fieldsDefinitionBuilder).append("\n");
-
-        codeBuilder.append("\tpublic void serializePojoCompact(").append(canonicalName).append(" entity, JSONWriter writer, JSONConfig jsonConfig, int indentLevel) throws Exception {\n\n");
-        codeBuilder.append(serializePojoCompactHeaderBuilder);
-        codeBuilder.append(serializePojoCompactBodyBuilder);
-        codeBuilder.append("\t}\n");
-        codeBuilder.append("}\n");
-        codeBuilder.append("\n");
-
-        String code = codeBuilder.toString();
-        if (printSource) {
-            System.out.println(code);
+    protected final static void writeDoubleArrayFormatOut(JSONWriter jsonWriter, double[] values, JSONConfig jsonConfig, int level) throws IOException {
+        final int levelPlus = level + 1;
+        int len = values.length;
+        if (len > 0) {
+            jsonWriter.writeJSONToken('[');
+            int i = 1;
+            writeFormatOutSymbols(jsonWriter, levelPlus, jsonConfig);
+            jsonWriter.writeDouble(values[0]);
+            if ((len & 1) == 0) {
+                jsonWriter.writeJSONToken(',');
+                writeFormatOutSymbols(jsonWriter, levelPlus, jsonConfig);
+                jsonWriter.writeDouble(values[1]);
+                ++i;
+            }
+            for (; i < len; i = i + 2) {
+                jsonWriter.writeJSONToken(',');
+                writeFormatOutSymbols(jsonWriter, levelPlus, jsonConfig);
+                jsonWriter.writeDouble(values[i]);
+                jsonWriter.writeJSONToken(',');
+                writeFormatOutSymbols(jsonWriter, levelPlus, jsonConfig);
+                jsonWriter.writeDouble(values[i + 1]);
+            }
+            writeFormatOutSymbols(jsonWriter, level, jsonConfig);
+            jsonWriter.writeJSONToken(']');
+        } else {
+            jsonWriter.writeEmptyArray();
         }
+    }
 
-        return new JavaSourceObject(packageName, genClassName, code);
+    static JavaSourceObject generateRuntimeJavaCodeSource(JSONPojoStructure jsonPojoStructure) {
+        return JSONPojoSerializerCodeGen.generateJavaCodeSource(jsonPojoStructure, false, true);
     }
 
     static JavaSourceObject generateJavaCodeSource(JSONPojoStructure jsonPojoStructure, boolean printJavaSource) {
-        return generateJavaCodeSource(jsonPojoStructure, printJavaSource, false);
+        return JSONPojoSerializerCodeGen.generateJavaCodeSource(jsonPojoStructure, printJavaSource, false);
     }
 
     /**
@@ -1233,7 +318,7 @@ public class JSONPojoSerializer<T> extends JSONTypeSerializer {
      * @param runtime
      * @return
      */
-    static JavaSourceObject generateJavaCodeSource(Class<?> pojoClass, boolean printJavaSource, boolean runtime) {
+    public static JavaSourceObject generateJavaCodeSource(Class<?> pojoClass, boolean printJavaSource, boolean runtime) {
         ReflectConsts.ClassCategory classCategory = ReflectConsts.getClassCategory(pojoClass);
         if (classCategory != ReflectConsts.ClassCategory.ObjectCategory) {
             throw new UnsupportedOperationException(pojoClass + " is not a pojo class");
@@ -1242,7 +327,7 @@ public class JSONPojoSerializer<T> extends JSONTypeSerializer {
         if (!jsonPojoStructure.isSupportedJavaBeanConvention()) {
             throw new UnsupportedOperationException(pojoClass + " is not supported for code generator");
         }
-        return generateJavaCodeSource(jsonPojoStructure, printJavaSource, runtime);
+        return JSONPojoSerializerCodeGen.generateJavaCodeSource(jsonPojoStructure, printJavaSource, runtime);
     }
 
     /**

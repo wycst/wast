@@ -20,6 +20,7 @@ import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.SetterInfo;
+import io.github.wycst.wast.common.utils.CollectionUtils;
 import io.github.wycst.wast.common.utils.NumberUtils;
 import io.github.wycst.wast.common.utils.ObjectUtils;
 import io.github.wycst.wast.json.annotations.JsonProperty;
@@ -956,7 +957,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
                 mapInstane.put(key, value);
             } else {
                 if (setterInfo != null) {
-                    setterInfo.invoke(instance, value);
+                    JSON_SECURE_TRUSTED_ACCESS.set(setterInfo, instance, value); // setterInfo.invoke(instance, value);
                 }
             }
         } else {
@@ -1022,7 +1023,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
                 if (elementIndex > 0) {
                     throw new JSONException("Syntax error, not allowed ',' followed by ']', pos " + pos);
                 }
-                return isArrayCls ? collectionToArray(arrInstance, actualType == null ? Object.class : actualType) : arrInstance;
+                return isArrayCls ? CollectionUtils.toArray(arrInstance, actualType == null ? Object.class : actualType) : arrInstance;
             }
 
             boolean toBreakOrContinue = false;
@@ -1073,14 +1074,14 @@ abstract class JSONAbstractReader extends JSONGeneral {
 
             // if aborted
             if (isAborted()) {
-                return isArrayCls ? collectionToArray(arrInstance, actualType == null ? Object.class : actualType) : arrInstance;
+                return isArrayCls ? CollectionUtils.toArray(arrInstance, actualType == null ? Object.class : actualType) : arrInstance;
             }
 
             // supported abort
             if (callback != null) {
                 if (callback.isAbored()) {
                     abortRead();
-                    return isArrayCls ? collectionToArray(arrInstance, actualType == null ? Object.class : actualType) : arrInstance;
+                    return isArrayCls ? CollectionUtils.toArray(arrInstance, actualType == null ? Object.class : actualType) : arrInstance;
                 }
             }
 
@@ -1104,7 +1105,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
             throwUnexpectedException();
         }
 
-        return isArrayCls ? collectionToArray(arrInstance, actualType == null ? Object.class : actualType) : arrInstance;
+        return isArrayCls ? CollectionUtils.toArray(arrInstance, actualType == null ? Object.class : actualType) : arrInstance;
     }
 
     /**
