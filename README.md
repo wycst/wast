@@ -129,16 +129,13 @@ System.out.println(map);
 ```
     JSON.registerTypeMapper(java.time.ZoneId.class, new JSONTypeMapper<ZoneId>() {
         @Override
-        public ZoneId read(Object any) {
+        public ZoneId readOf(Object any) {
             return any == null ? null : ZoneId.of((String) any);
         }
 
         @Override
-        public void write(JSONWriter writer, ZoneId zoneId, JSONConfig jsonConfig, int indent) {
-            try {
-                writer.writeJSONString(zoneId == null ? "null" : zoneId.getId());
-            } catch (IOException e) {
-            }
+        public JSONValue<?> writeAs(ZoneId zoneId, JSONConfig jsonConfig) throws Exception {
+            return zoneId == null ? null : JSONValue.of(zoneId.getId());
         }
     });
 ```
