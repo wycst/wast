@@ -68,7 +68,7 @@
 
 ## JSON
 
-### . 常用对象json序列化
+### 常用对象json序列化
 
 ```
 Map map = new HashMap();
@@ -76,7 +76,7 @@ map.put("msg", "hello, wastjson !");
 String result = JSON.toJsonString(map);
 ```
 
-### . 对象序列化到文件
+### 对象序列化到文件
 
 ```
 Map map = new HashMap();
@@ -84,7 +84,7 @@ map.put("msg", "hello, wastjson !");
 JSON.writeJsonTo(map, new File("/tmp/test.json"));
 ```
 
-### . 格式序列化
+### 格式序列化
 
 ```
 Map map = new HashMap();
@@ -99,7 +99,7 @@ output:
 }
 ```
 
-### . 反序列化
+### 反序列化
 
 ```
 String json = "{\"msg\":\"hello, wastjson !\",\"name\":\"zhangsan\"}";
@@ -109,7 +109,7 @@ System.out.println(map);
 {msg=hello, wastjson !, name=zhangsan}
 ```
 
-### . 指定类型反序列化
+### 指定类型反序列化
 
 ```
     String json = "{\"msg\":\"hello, wastjson !\",\"name\":\"zhangsan\"}";
@@ -119,7 +119,7 @@ System.out.println(map);
     {msg=hello, wastjson !, name=zhangsan}
 ```
 
-### .个性化支持
+### 个性化支持
 
 1.针对实体bean的属性可以添加注解@JsonSerialize和@JsonDeserialize来实现定制化(使用见test模块custom目录例子)。 
 </br>
@@ -140,7 +140,7 @@ System.out.println(map);
     });
 ```
 
-### . 基于输入流的读取解析
+### 基于输入流的读取解析
 
 ```
     Map result = null;
@@ -156,7 +156,7 @@ System.out.println(map);
     result = JSON.read(new File("/tmp/smaple.json"), Map.class);
 ```
 
-### . 基于输入流的按需解析
+### 基于输入流的按需解析
 
 提供JSONReader类可按需解析一个输入流，自定义解析，可随时终止(不用将整个文件流读完)。
 
@@ -174,7 +174,7 @@ System.out.println(map);
         }, true);
 ```
 
-### . 强大的JSONNode功能
+### 强大的JSONNode功能
 
 > 1、支持对大文本json的懒加载解析功能，即访问时解析，当需要读取一个大文本json中一个或多个属性值时非常有用。<br>
 > 2、支持按需解析；<br>
@@ -275,7 +275,7 @@ System.out.println(map);
   
 ```
 
-### . SpringBoot(Spring MVC) 集成
+### SpringBoot(Spring MVC) 集成
 
 supports/json-springmvc/JSONHttpMessageConverter.java
 
@@ -294,7 +294,7 @@ supports/json-springmvc/JSONHttpMessageConverter.java
   }
 ```
 
-### 10 序列化和反序列化支持配置
+### 序列化和反序列化支持配置
 
 序列化配置枚举类：WriteOption
 
