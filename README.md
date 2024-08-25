@@ -442,7 +442,7 @@ System.out.println("==== eval result " + compiler.evaluate(var));
 
 内置函数： max/min/sum/avg/abs/sqrt/lower/upper/size/ifNull <br>
 源码见： BuiltInFunction <br>
-自定义函数可以是全局函数不需要类名作为命名空间，使用@max直接调用，全局函数可以通过两种方式注册：<br>
+自定义函数可以是全局函数不需要类名作为命名空间，使用@max(@可省略)直接调用，全局函数可以通过两种方式注册：<br>
 
 ```
  // mode 1
@@ -458,7 +458,7 @@ System.out.println("==== eval result " + compiler.evaluate(var));
 ```
 
 也可以是命名空间函数，使用时需要添加类名简称（命名空间）如@Math.max(a,b)
-函数使用@标记+函数名称
+函数使用@标记+函数名称，此时@不可省略
 
 ```
         Map context = new HashMap();
@@ -480,13 +480,13 @@ System.out.println("==== eval result " + compiler.evaluate(var));
         evaluateEnvironment.registerFunction("min", new ExprFunction<Object, Number>() {
             @Override
             public Number call(Object... params) {
-                Arrays.sort(params);
+                // Arrays.sort(params);
                 return (Number) params[params.length - 1];
             }
         });
 
-        System.out.println( Expression.eval("@min(@sum(a,b,c), 50, 125, 2, -11)", evaluateEnvironment));
-        System.out.println( Expression.eval("@max(@sum(a,b,c), 50, 125, 55, 152)", evaluateEnvironment));
+        System.out.println( Expression.eval("min(sum(a,b,c), 50, 125, 2, -11)", evaluateEnvironment));
+        System.out.println( Expression.eval("max(sum(a,b,c), 50, 125, 55, 152)", evaluateEnvironment));
 ```
 ## JDBC
 
