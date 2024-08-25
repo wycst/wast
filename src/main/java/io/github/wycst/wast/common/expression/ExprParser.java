@@ -48,11 +48,9 @@ public class ExprParser extends Expression {
     public static final int RESET_TOKEN = 1;
     public static final int OPS_TOKEN = 2;
 
-    public static final int NEGATE_TOKEN = 6;
-    public static final int NOT_TOKEN = 7;
-    public static final int BRACKET_TOKEN = 8;
-    public static final int BRACKET_END_TOKEN = 9;
-
+    public static final int NEGATE_TOKEN = 5;
+    public static final int NOT_TOKEN = 6;
+    public static final int BRACKET_TOKEN = 9;
     public static final int NUM_TOKEN = 10;
     // 字符串
     public static final int STR_TOKEN = 11;
@@ -60,7 +58,7 @@ public class ExprParser extends Expression {
     public static final int ARR_TOKEN = 13;
     // 函数(method)token,以@开始并且紧跟java标识符（@fun(...arg0)或者bean.fun(...arg0)）
     public static final int FUN_TOKEN = 14;
-
+    public static final int BRACKET_END_TOKEN = 20;
     // 最大超过token数量时开启优化
     static final int MAX_OPTIMIZE_COUNT = (ExprEvaluator.OPTIMIZE_DEPTH_VALUE << 1) + 1;
 
