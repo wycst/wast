@@ -1,11 +1,14 @@
 package io.github.wycst.wast.common.expression;
 
 import io.github.wycst.wast.common.expression.functions.BuiltInFunction;
-import io.github.wycst.wast.common.expression.invoker.Invoker;
+import io.github.wycst.wast.common.reflect.UnsafeHelper;
+import io.github.wycst.wast.common.utils.CollectionUtils;
+import io.github.wycst.wast.common.utils.ObjectUtils;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.net.URLClassLoader;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -22,12 +25,11 @@ public class EvaluateEnvironment {
 
     // 注册变量函数
     private Map<String, ExprFunction> functionMap = new HashMap<String, ExprFunction>();
-    private Object context;
+    Object context;
     private Map<String, Object> variables = new HashMap<String, Object>();
     boolean useVariables;
-    private boolean safely;
     private boolean mapContext;
-
+    private boolean allowVariableNull;
     /**
      * 字符串+默认情况下进行拼接，且不支持除+以外其他运算，开启后自动将字符串变量转化为double类型（字符串常量逻辑不变）
      */
@@ -38,28 +40,32 @@ public class EvaluateEnvironment {
     private Set<Class> staticClassSet = new HashSet<Class>();
 
     private static Map<String, Method> builtInStaticMethods = new HashMap<String, Method>();
+    private static final Set<Class> BLACKLIST_LIST = CollectionUtils.setOf(
+            System.class,
+            Runtime.class,
+            URLClassLoader.class
+    );
 
     static {
         registerStaticMethods(true, BuiltInFunction.class, builtInStaticMethods);
     }
 
-    // 通用执行环境
-    static final EvaluateEnvironment DefaultEnvironment = new EvaluateEnvironment();
+    static final EvaluateEnvironment DEFAULT = new EvaluateEnvironment();
 
     public void setAutoParseStringAsDouble(boolean autoParseStringAsDouble) {
         this.autoParseStringAsDouble = autoParseStringAsDouble;
     }
 
-    public boolean isAutoParseStringAsDouble() {
+    public final boolean isAutoParseStringAsDouble() {
         return autoParseStringAsDouble;
     }
 
-    public void setSafely(boolean safely) {
-        this.safely = safely;
+    public void setAllowVariableNull(boolean allowVariableNull) {
+        this.allowVariableNull = allowVariableNull;
     }
 
-    public boolean isSafely() {
-        return safely;
+    public final boolean isAllowVariableNull() {
+        return allowVariableNull;
     }
 
     // 临时缓存
@@ -72,7 +78,7 @@ public class EvaluateEnvironment {
         // 静态方法如果存在重载情况，将追加后缀
         for (Method method : methods) {
             if (Modifier.isStatic(method.getModifiers()) && Modifier.isPublic(method.getModifiers())) {
-                method.setAccessible(true);
+                UnsafeHelper.setAccessible(method);
                 String methodName = method.getName();
                 staticMethods.put(global ? methodName : className + "." + methodName, method);
             }
@@ -109,7 +115,6 @@ public class EvaluateEnvironment {
     public static EvaluateEnvironment create() {
         EvaluateEnvironment environment = new EvaluateEnvironment();
         environment.useVariables = true;
-        environment.safely = true;
         environment.context = environment.variables;
         environment.mapContext = true;
         return environment;
@@ -127,7 +132,6 @@ public class EvaluateEnvironment {
         }
         EvaluateEnvironment environment = new EvaluateEnvironment();
         environment.context = context;
-        environment.safely = true;
         environment.mapContext = context instanceof Map;
         return environment;
     }
@@ -173,6 +177,7 @@ public class EvaluateEnvironment {
      */
     public EvaluateEnvironment registerStaticMethods(boolean global, Class<?>... classList) {
         for (Class<?> clazz : classList) {
+            if(BLACKLIST_LIST.contains(clazz)) continue;
             if (staticClassSet.add(clazz)) {
                 registerStaticMethods(global, clazz, staticMethods);
             }
@@ -250,37 +255,6 @@ public class EvaluateEnvironment {
         return useVariables ? variables.isEmpty() : context == null;
     }
 
-    EvaluatorContext createEvaluateContext(Object context, Invoker chainInvoker) {
-        EvaluatorContext evaluatorContext = new EvaluatorContext();
-        evaluatorContext.setContextVariables(chainInvoker, context);
-        return evaluatorContext;
-    }
-
-    EvaluatorContext createEvaluateContext(Map context, Invoker chainInvoker) {
-        EvaluatorContext evaluatorContext = new EvaluatorContext();
-        evaluatorContext.setContextVariables(chainInvoker, context);
-        return evaluatorContext;
-    }
-
-    EvaluatorContext createEvaluateContext(Invoker chainInvoker, int count) {
-        if (safely) {
-            EvaluatorContext.StatefulEvaluatorContext evaluatorContext = new EvaluatorContext.StatefulEvaluatorContext();
-            if (isMapContext()) {
-                evaluatorContext.setContextVariables(chainInvoker, (Map) this.context, count);
-            } else {
-                evaluatorContext.setContextVariables(chainInvoker, this.context, count);
-            }
-            return evaluatorContext;
-        }
-        EvaluatorContext evaluatorContext = new EvaluatorContext();
-        if (isMapContext()) {
-            evaluatorContext.setContextVariables(chainInvoker, (Map) this.context);
-        } else {
-            evaluatorContext.setContextVariables(chainInvoker, this.context);
-        }
-        return evaluatorContext;
-    }
-
     /**
      * 内置运行静态method的函数
      */
@@ -300,17 +274,20 @@ public class EvaluateEnvironment {
         @Override
         public Object call(Object... params) {
             try {
-                Object[] vars;
-                // 处理method可变数组问题
                 if (parameterLength == 1 && parameterTypes[0].isArray()) {
                     Class<?> componentType = parameterTypes[0].getComponentType();
                     Object arrParam = Array.newInstance(componentType, params.length);
                     int i = 0;
                     for (Object param : params) {
-                        Array.set(arrParam, i++, param);
+                        Array.set(arrParam, i++, componentType.isInstance(param) ? param : ObjectUtils.toType(param, componentType));
                     }
                     return method.invoke(null, new Object[]{arrParam});
                 } else {
+                    for (int i = 0; i < parameterTypes.length; ++i) {
+                        Object val = params[i];
+                        Class<?> parameterType = parameterTypes[i];
+                        params[i] = parameterType.isInstance(val) ? val : ObjectUtils.toType(val, parameterType);
+                    }
                     return method.invoke(null, params);
                 }
             } catch (Throwable e) {

@@ -1,9 +1,9 @@
 package io.github.wycst.wast.common.expression.compile;
 
+import io.github.wycst.wast.common.expression.ElVariableInvoker;
 import io.github.wycst.wast.common.expression.EvaluateEnvironment;
 import io.github.wycst.wast.common.expression.ExprFunction;
 import io.github.wycst.wast.common.expression.Expression;
-import io.github.wycst.wast.common.expression.invoker.VariableInvoker;
 
 import java.util.Map;
 
@@ -24,15 +24,8 @@ public abstract class CompilerExpression extends Expression {
     }
 
     public enum Coder {
-
-        /**
-         * java内置编译器
-         */
+        // JDK
         Native,
-
-        /**
-         * 表达式解析存在问题
-         */
         Javassist,
 //        Asm
     }
@@ -140,11 +133,21 @@ public abstract class CompilerExpression extends Expression {
         return evaluate(evaluateEnvironment.getContext());
     }
 
+    @Override
+    public final Object evaluate(Map context, EvaluateEnvironment evaluateEnvironment) {
+        return evaluate(context);
+    }
+
+    @Override
+    public final Object evaluate(Object context, EvaluateEnvironment evaluateEnvironment) {
+        return evaluate(context);
+    }
+
     protected final <T> T getValue(Object value, Class<T> tClass) {
         return (T) value;
     }
 
-    protected VariableInvoker getInvokerAt(int index) {
+    protected ElVariableInvoker getInvokerAt(int index) {
         return environment.getTypeNameInvokers().get(index).variableInvoker;
     }
 

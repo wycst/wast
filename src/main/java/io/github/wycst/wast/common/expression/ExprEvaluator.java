@@ -16,7 +16,6 @@
  */
 package io.github.wycst.wast.common.expression;
 
-import io.github.wycst.wast.common.expression.invoker.VariableInvoker;
 import io.github.wycst.wast.common.utils.ObjectUtils;
 import io.github.wycst.wast.common.utils.ReflectUtils;
 
@@ -27,83 +26,43 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 常量、变量、操作执行器
- * <p> 按java语法的操作符号优先级仅供参考，值越小优先级越高
- * <p> 支持科学计数法e+n，16进制0x，8进制0n
- *
- * <p>
- * 符号   优先级
- * ()      1
- * **      9 (指数运算，平方（根），立方（根）)
- * /*%     10
- * +-      100
- * << >>   200
- * &|^     300+ &(300) < ^(301) < |(302)
- * ><==    500
- * && ||   600
- * ? :     700( ? 701, : 700)  三目运算符优先级放最低,其中:优先级高于?
- * <p>
- * 操作关键字： in , out , matches
  *
  * @Author wangyunchao
  * @Date 2022/10/20 12:37
  */
 public class ExprEvaluator {
 
-    // 执行类型
+    protected final static int EVAL_TYPE_OPERATOR = 1;
+    protected final static int EVAL_TYPE_VARIABLE = 2;
+    protected final static int EVAL_TYPE_FUN = 3;
+    protected final static int EVAL_TYPE_BRACKET = 4;
+
     protected int evalType;
-    // 操作类型和优先级level组合使用 + - * / % **
-    protected int opsType;
+    protected ElOperator operator = ElOperator.NONE;
 
-    // 表达式左边
     ExprEvaluator left;
-    // 表达式右边
     ExprEvaluator right;
-    // 优先级，参考类上注释
-    int level = -1;
 
-    // 是否负数
     boolean negate;
-
-    // 逻辑非运算
     boolean logicalNot;
-
-    // 是否常量
-    boolean isStatic;
-
-    // 执行结果
+    boolean constant;
     Object result;
-
-    /**
-     * 优化深度
-     */
     static final int OPTIMIZE_DEPTH_VALUE = 1 << 10;
 
-//    // 字符串拼接
-//    private static ThreadLocal<StringBuilder> localBuilder = new ThreadLocal<StringBuilder>() {
-//        @Override
-//        protected StringBuilder initialValue() {
-//            return new StringBuilder();
-//        }
-//    };
-
-//    protected static StringBuilder getLocalBuilder() {
-//        return localBuilder.get();
-//    }
-
     // use by code()
-    public boolean isStaticExpr() {
+    public boolean isConstantExpr() {
         // if ':' retutn false
-        if (opsType == 70) return false;
+        if (operator == ElOperator.COLON) return false;
         if (left == null && right == null) {
-            return this.isStatic;
+            return this.constant;
         }
         if (left == null) {
-            return right.isStaticExpr();
+            return right.isConstantExpr();
         }
         if (right == null) {
-            return left.isStaticExpr();
+            return left.isConstantExpr();
         }
-        return left.isStaticExpr() && right.isStaticExpr();
+        return left.isConstantExpr() && right.isConstantExpr();
     }
 
     public int getEvalType() {
@@ -114,9 +73,8 @@ public class ExprEvaluator {
         this.evalType = evalType;
     }
 
-    public void setOperator(int opsType, int level) {
-        this.opsType = opsType;
-        this.level = level;
+    public void setOperator(ElOperator operator) {
+        this.operator = operator;
     }
 
     public ExprEvaluator getLeft() {
@@ -194,7 +152,7 @@ public class ExprEvaluator {
      * @param splitStr
      */
     public void setArrayValue(String splitStr) {
-        this.isStatic = true;
+        this.constant = true;
         splitStr = splitStr.trim();
 
         int length = splitStr.length();
@@ -254,6 +212,11 @@ public class ExprEvaluator {
         return logicalNot;
     }
 
+    public ExprEvaluator negate(boolean negate) {
+        this.negate = negate;
+        return this;
+    }
+
     public void setNegate(boolean negate) {
         this.negate = negate;
     }
@@ -263,30 +226,30 @@ public class ExprEvaluator {
     }
 
     public Object evaluate() {
-        return evaluate(null, EvaluateEnvironment.DefaultEnvironment);
+        return evaluate(null, EvaluateEnvironment.DEFAULT);
     }
 
     public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
-        if (this.isStatic) {
+        if (this.constant) {
             // 字符串，数字，常量数组等
             return this.result;
         }
         if (evalType == 0) {
             result = left.evaluate(context, evaluateEnvironment);
-            this.isStatic = left.isStatic;
+            this.constant = left.constant;
             return result;
-        } else if (evalType == 1) {
+        } else if (evalType == EVAL_TYPE_OPERATOR) {
             Object leftValue = left.evaluate(context, evaluateEnvironment);
             if (right == null) {
-                this.isStatic = left.isStatic;
+                this.constant = left.constant;
                 return result = leftValue;
             }
             Object rightValue = null;
-            if (opsType == 71) {
+            if (operator == ElOperator.QUESTION) {
                 // ?运算不计算right分支(根据left的值获取right子表达式的r-left和r-right)
-                Object result = right.evaluateTernary(context, evaluateEnvironment, (Boolean) leftValue, left.isStatic);
-                this.isStatic = left.isStatic && right.isStatic;
-                if (this.isStatic) {
+                Object result = right.evaluateTernary(context, evaluateEnvironment, (Boolean) leftValue, left.constant);
+                this.constant = left.constant && right.constant;
+                if (this.constant) {
                     this.result = result;
                 }
                 return result;
@@ -303,12 +266,12 @@ public class ExprEvaluator {
                 }
             }
 
-            this.isStatic = left.isStatic && right.isStatic;
+            this.constant = left.constant && right.constant;
             boolean isDouble = leftValue instanceof Double || rightValue instanceof Double;
-
-//                System.out.println(" lr " + leftValue + " " + opsType + " " + rightValue + " / " + level);
-            switch (opsType) {
-                case 1:
+            // use for debug
+            // System.out.println("leftValue: " + leftValue + " rightValue: " + rightValue + " opsType: " + opsType);
+            switch (operator) {
+                case MULTI:
                     // *乘法
                     if (isDouble) {
                         result = ((Number) leftValue).doubleValue() * ((Number) rightValue).doubleValue();
@@ -316,7 +279,7 @@ public class ExprEvaluator {
                         result = ((Number) leftValue).longValue() * ((Number) rightValue).longValue();
                     }
                     return result;
-                case 2:
+                case DIVISION:
                     // /除法
                     if (isDouble) {
                         result = ((Number) leftValue).doubleValue() / ((Number) rightValue).doubleValue();
@@ -324,7 +287,7 @@ public class ExprEvaluator {
                         result = ((Number) leftValue).longValue() / ((Number) rightValue).longValue();
                     }
                     return result;
-                case 3:
+                case MOD:
                     // %取余数
                     if (isDouble) {
                         result = ((Number) leftValue).doubleValue() % ((Number) rightValue).doubleValue();
@@ -332,7 +295,7 @@ public class ExprEvaluator {
                         result = ((Number) leftValue).longValue() % ((Number) rightValue).longValue();
                     }
                     return result;
-                case 4:
+                case EXP:
                     // **指数，平方/根
                     if (isDouble) {
                         result = Math.pow(((Number) leftValue).doubleValue(), ((Number) rightValue).doubleValue());
@@ -340,7 +303,7 @@ public class ExprEvaluator {
                         result = Math.pow(((Number) leftValue).longValue(), ((Number) rightValue).longValue());
                     }
                     return result;
-                case 11:
+                case PLUS:
                     // +加法
                     if (leftValue instanceof Number && rightValue instanceof Number) {
                         // 数值加法
@@ -353,7 +316,7 @@ public class ExprEvaluator {
                     }
                     // 字符串加法
                     return leftValue + String.valueOf(rightValue);
-                case 12:
+                case MINUS:
                     // -减法（理论上代码不可达） 因为'-'统一转化为了'+'(负)
                     if (isDouble) {
                         result = ((Number) leftValue).doubleValue() - ((Number) rightValue).doubleValue();
@@ -361,31 +324,31 @@ public class ExprEvaluator {
                         result = ((Number) leftValue).longValue() - ((Number) rightValue).longValue();
                     }
                     return result;
-                case 21:
+                case BIT_RIGHT:
                     // >> 位运算右移
                     return result = ((Number) leftValue).longValue() >> ((Number) rightValue).longValue();
-                case 22:
+                case BIT_LEFT:
                     // << 位运算左移
                     return result = ((Number) leftValue).longValue() << ((Number) rightValue).longValue();
-                case 31:
+                case AND:
                     // &
                     return result = ((Number) leftValue).longValue() & ((Number) rightValue).longValue();
-                case 32:
+                case XOR:
                     // ^
                     return result = ((Number) leftValue).longValue() ^ ((Number) rightValue).longValue();
-                case 33:
+                case OR:
                     // |
                     return result = ((Number) leftValue).longValue() | ((Number) rightValue).longValue();
 //                    case 43:
 //                        // 代码不可达 !
 //                        return result = !(rightValue == Boolean.TRUE) ;
-                case 51:
+                case GT:
                     // >
                     return result = ((Number) leftValue).doubleValue() > ((Number) rightValue).doubleValue();
-                case 52:
+                case LT:
                     // <
                     return result = ((Number) leftValue).doubleValue() < ((Number) rightValue).doubleValue();
-                case 53:
+                case EQ:
                     // ==
                     if (leftValue instanceof Number && rightValue instanceof Number) {
                         return result = ((Number) leftValue).doubleValue() == ((Number) rightValue).doubleValue();
@@ -394,13 +357,13 @@ public class ExprEvaluator {
                         return result = true;
                     }
                     return result = leftValue != null && leftValue.equals(rightValue);
-                case 54:
+                case GE:
                     // >=
                     return result = ((Number) leftValue).doubleValue() >= ((Number) rightValue).doubleValue();
-                case 55:
+                case LE:
                     // <=
                     return result = ((Number) leftValue).doubleValue() <= ((Number) rightValue).doubleValue();
-                case 56:
+                case NE:
                     // !=
                     if (leftValue instanceof Number && rightValue instanceof Number) {
                         // 基础类型double直接比较值
@@ -410,57 +373,41 @@ public class ExprEvaluator {
                         return result = false;
                     }
                     return result = leftValue == null || !leftValue.equals(rightValue);
-                case 61:
+                case LOGICAL_AND:
                     // &&
                     return result = (Boolean) leftValue && (Boolean) rightValue;
-                case 62:
+                case LOGICAL_OR:
                     // ||
                     return result = (Boolean) leftValue || (Boolean) rightValue;
-                case 63:
+                case IN:
                     /// in
                     return result = this.evaluateIn(leftValue, rightValue);
-                case 64:
+                case OUT:
                     /// out
                     return result = !this.evaluateIn(leftValue, rightValue);
-                case 70:
+                case COLON:
                     // : 三目运算结果, 不支持单独运算
                     throw new ExpressionException(" 不支持单独使用冒号运算符: ':'");
-                case 71:
+                case QUESTION:
                     // ? 三目运算条件
-                    return right.evaluateTernary(context, evaluateEnvironment, (Boolean) leftValue, left.isStatic);
+                    return right.evaluateTernary(context, evaluateEnvironment, (Boolean) leftValue, left.constant);
             }
             // 默认返回null
-        } else if (evalType == 5) {
-            // 括号运算
+        } else if (evalType == EVAL_TYPE_BRACKET) {
+            // Brackets operation calculates right
             Object bracketValue = right.evaluate(context, evaluateEnvironment);
-            this.isStatic = right.isStatic;
+            this.constant = right.constant;
             if (negate) {
-//                if (bracketValue instanceof Double) {
-//                    return result = -(Double) bracketValue;
-//                } else if (bracketValue instanceof Long) {
-//                    return result = -(Long) bracketValue;
-//                } else {
-//                    return result = -((Number) bracketValue).doubleValue();
-//                }
                 return result = ExprUtils.getNegateNumber(bracketValue);
             }
             if (logicalNot) {
                 return result = bracketValue == Boolean.FALSE || bracketValue == null;
             }
             return result = bracketValue;
-        } else if (evalType == 6) {
-            // 不可达
-            throw new UnsupportedOperationException();
-        } else if (evalType == 7) {
-            // 不可达
-            throw new UnsupportedOperationException();
-        } else if (evalType == 9) {
-            // 不可达
-            throw new UnsupportedOperationException();
         } else {
-            // 其他统一返回left
+            // Other unified returns to left
             result = left.evaluate(context, evaluateEnvironment);
-            this.isStatic = left.isStatic;
+            this.constant = left.constant;
             return result;
         }
         return null;
@@ -514,24 +461,24 @@ public class ExprEvaluator {
      * 运行三目运算符号
      */
     Object evaluateTernary(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment, Boolean bool, boolean isStatic) {
-        if (this.isStatic) {
+        if (this.constant) {
             return this.result;
         }
         Object result = null;
         if (bool == null || bool == Boolean.FALSE) {
-            this.isStatic = isStatic && right.isStatic;
+            this.constant = isStatic && right.constant;
             result = right.evaluate(context, evaluateEnvironment);
         } else {
-            this.isStatic = isStatic && left.isStatic;
+            this.constant = isStatic && left.constant;
             result = left.evaluate(context, evaluateEnvironment);
         }
-        if (this.isStatic) {
+        if (this.constant) {
             this.result = result;
         }
         return result;
     }
 
-    ExprEvaluator update(ExprEvaluator left, ExprEvaluator right) {
+    final ExprEvaluator update(ExprEvaluator left, ExprEvaluator right) {
         this.left = left;
         this.right = right;
         return this;
@@ -540,44 +487,51 @@ public class ExprEvaluator {
     /**
      * 变量执行器
      */
-    static class ExprEvaluatorVariableImpl extends ExprEvaluator {
+    static class VariableImpl extends ExprEvaluator {
 
         // 变量访问模型
-        VariableInvoker variableInvoke;
+        ElVariableInvoker variableInvoker;
+
+        public VariableImpl() {
+            this.evalType = EVAL_TYPE_VARIABLE;
+        }
 
         /***
          * 设置变量值？
          *
-         * @param variableInvoke
+         * @param variableInvoker
          */
-        public void setVariableInvoker(VariableInvoker variableInvoke) {
-            this.variableInvoke = variableInvoke;
+        public void setVariableInvoker(ElVariableInvoker variableInvoker) {
+            this.variableInvoker = variableInvoker;
         }
 
-        // 内联key
-        ExprEvaluator internKey() {
-            variableInvoke.internKey();
-            return this;
+        public VariableImpl normal() {
+            return new NormalVariableImpl(variableInvoker);
         }
 
-        @Override
-        public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
+        public final Object getVariableValue(EvaluatorContext evaluatorContext, EvaluateEnvironment evaluateEnvironment) {
             Object obj = null;
             try {
-                obj = context.getContextValue(variableInvoke); // evaluateEnvironment.getContextValue(this.variableInvoke, context);
-                if (obj == null && !variableInvoke.existKey(context)) {
-                    throw new ExpressionException("Unresolved property or variable:'" + variableInvoke + "' by context");
+                obj = evaluatorContext.getContextValue(variableInvoker); // context.variableValues[variableInvoke.index];
+                if (obj == null && !evaluateEnvironment.isAllowVariableNull()) {
+                    throw new ExpressionException("Unresolved property or variable:'" + variableInvoker + "' by context");
                 }
                 if (evaluateEnvironment.isAutoParseStringAsDouble() && obj instanceof String) {
                     obj = Double.parseDouble((String) obj);
                 }
             } catch (RuntimeException e) {
-                if (obj == null && context == null) {
-                    throw new ExpressionException("Unresolved property or variable:'" + variableInvoke + "' by context");
+                if (obj == null && evaluatorContext == null) {
+                    throw new ExpressionException("Unresolved property or variable:'" + variableInvoker + "' by context");
                 } else {
                     throw e;
                 }
             }
+            return obj;
+        }
+
+        @Override
+        public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
+            Object obj = getVariableValue(context, evaluateEnvironment);
             if (negate) {
                 Number number = (Number) obj;
                 if (number instanceof Double || number instanceof Float) {
@@ -597,18 +551,50 @@ public class ExprEvaluator {
         @Override
         public String code() {
             StringBuilder builder = new StringBuilder();
-            return builder.append("_$").append(variableInvoke.getIndex()).toString();
+            if(negate) {
+                builder.append('-');
+            }
+            if(logicalNot) {
+                builder.append("!(");
+            }
+            builder.append("_$").append(variableInvoker.getIndex());
+            if(logicalNot) {
+                builder.append(")");
+            }
+            return builder.toString();
+        }
+
+        // 内联key
+        ExprEvaluator internKey() {
+            variableInvoker.internKey();
+            return this;
+        }
+
+        @Override
+        public String toString() {
+            return "VariableImpl{" + variableInvoker + "}";
+        }
+
+        final static class NormalVariableImpl extends VariableImpl {
+            NormalVariableImpl(ElVariableInvoker variableInvoke) {
+                setVariableInvoker(variableInvoke);
+            }
+
+            @Override
+            public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
+                return getVariableValue(context, evaluateEnvironment);
+            }
         }
     }
 
     /**
      * 常量执行器(字符串,数字,布尔值,null)
      */
-    static class ExprEvaluatorConstantImpl extends ExprEvaluator {
+    final static class ConstantImpl extends ExprEvaluator {
 
-        ExprEvaluatorConstantImpl(Object result) {
+        ConstantImpl(Object result) {
             this.result = result;
-            this.isStatic = true;
+            this.constant = true;
         }
 
         @Override
@@ -638,12 +624,9 @@ public class ExprEvaluator {
     /**
      * 括号执行器
      */
-    static class ExprEvaluatorBracketImpl extends ExprEvaluator {
-        static String operator = "()";
-
-        static ExprEvaluatorBracketImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorBracketImpl exprEvaluatorImpl = new ExprEvaluatorBracketImpl();
-//            exprEvaluatorImpl.left = evaluator.left;
+    final static class BracketImpl extends ExprEvaluator {
+        static BracketImpl of(ExprEvaluator evaluator) {
+            BracketImpl exprEvaluatorImpl = new BracketImpl();
             exprEvaluatorImpl.right = evaluator.right;
             exprEvaluatorImpl.negate = evaluator.negate;
             exprEvaluatorImpl.logicalNot = evaluator.logicalNot;
@@ -652,7 +635,7 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorBracketImpl{()}";
+            return "BracketImpl{()}";
         }
 
         @Override
@@ -663,6 +646,8 @@ public class ExprEvaluator {
                     return -(Double) bracketValue;
                 } else if (bracketValue instanceof Long) {
                     return -(Long) bracketValue;
+                } else if (bracketValue instanceof Integer) {
+                    return -(Integer) bracketValue;
                 } else {
                     return -((Number) bracketValue).doubleValue();
                 }
@@ -677,11 +662,9 @@ public class ExprEvaluator {
     /**
      * 加法执行器
      */
-    static class ExprEvaluatorPlusImpl extends ExprEvaluator {
-        static String operator = "+";
-
-        static ExprEvaluatorPlusImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorPlusImpl evaluatorImpl = new ExprEvaluatorPlusImpl();
+    final static class PlusImpl extends ExprEvaluator {
+        static PlusImpl of(ExprEvaluator evaluator) {
+            PlusImpl evaluatorImpl = new PlusImpl();
             evaluatorImpl.left = evaluator.left;
             evaluatorImpl.right = evaluator.right;
             return evaluatorImpl;
@@ -689,48 +672,36 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorPlusImpl{+}";
+            return "PlusImpl{+}";
         }
 
         @Override
         public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
             Object leftValue = left.evaluate(context, evaluateEnvironment);
             Object rightValue = right.evaluate(context, evaluateEnvironment);
-            // +加法
+            // +plus
             if (leftValue instanceof Number && rightValue instanceof Number) {
                 boolean isDouble = leftValue instanceof Double || rightValue instanceof Double;
-                // 数值加法
                 if (isDouble) {
                     return ((Number) leftValue).doubleValue() + ((Number) rightValue).doubleValue();
                 } else {
                     return ((Number) leftValue).longValue() + ((Number) rightValue).longValue();
                 }
             }
+            if(String.class.isInstance(leftValue) || String.class.isInstance(rightValue)) {
+                StringBuilder builder = context.getStringBuilder();
+                builder.append(leftValue).append(rightValue);
+                return builder.toString();
+            }
 
-            String leftStrValue = String.valueOf(leftValue);
-            String rightStrValue = String.valueOf(rightValue);
-            char[] chars = new char[leftStrValue.length() + rightStrValue.length()];
-            leftStrValue.getChars(0, leftStrValue.length(), chars, 0);
-            rightStrValue.getChars(0, rightStrValue.length(), chars, leftStrValue.length());
-            return new String(chars);
-            // 字符串加法
-//            StringBuilder builder = getLocalBuilder();
-//            try {
-//                return builder.append(leftValue).append(rightValue).toString();
-//            } finally {
-//                builder.setLength(0);
-//            }
+            throw new ExpressionException("not supported operate '+'");
         }
     }
 
-    /**
-     * 减法执行器
-     */
-    static class ExprEvaluatorMinusImpl extends ExprEvaluator {
-        static String operator = "-";
+    final static class MinusImpl extends ExprEvaluator {
 
-        static ExprEvaluatorMinusImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorMinusImpl evaluatorImpl = new ExprEvaluatorMinusImpl();
+        static MinusImpl of(ExprEvaluator evaluator) {
+            MinusImpl evaluatorImpl = new MinusImpl();
             evaluatorImpl.left = evaluator.left;
             evaluatorImpl.right = evaluator.right;
             return evaluatorImpl;
@@ -738,34 +709,26 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorMinusImpl{-}";
+            return "MinusImpl{-}";
         }
 
         @Override
         public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
-            if (this.isStatic) return this.result;
             Object leftValue = left.evaluate(context, evaluateEnvironment);
             Object rightValue = right.evaluate(context, evaluateEnvironment);
-            isStatic = left.isStatic && right.isStatic;
             boolean isDouble = leftValue instanceof Double || rightValue instanceof Double;
             // -减法
             if (isDouble) {
-                result = ((Number) leftValue).doubleValue() - ((Number) rightValue).doubleValue();
+                return ((Number) leftValue).doubleValue() - ((Number) rightValue).doubleValue();
             } else {
-                result = ((Number) leftValue).longValue() - ((Number) rightValue).longValue();
+                return ((Number) leftValue).longValue() - ((Number) rightValue).longValue();
             }
-            return result;
         }
     }
 
-    /**
-     * 乘法执行器
-     */
-    static class ExprEvaluatorMultiplyImpl extends ExprEvaluator {
-        static String operator = "*";
-
-        static ExprEvaluatorMultiplyImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorMultiplyImpl evaluatorImpl = new ExprEvaluatorMultiplyImpl();
+    final static class MultiplyImpl extends ExprEvaluator {
+        static MultiplyImpl of(ExprEvaluator evaluator) {
+            MultiplyImpl evaluatorImpl = new MultiplyImpl();
             evaluatorImpl.left = evaluator.left;
             evaluatorImpl.right = evaluator.right;
             return evaluatorImpl;
@@ -773,34 +736,26 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorMultiplyImpl{*}";
+            return "MultiplyImpl{*}";
         }
 
         @Override
         public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
-            if (this.isStatic) return this.result;
             Object leftValue = left.evaluate(context, evaluateEnvironment);
             Object rightValue = right.evaluate(context, evaluateEnvironment);
-            isStatic = left.isStatic && right.isStatic;
             boolean isDouble = leftValue instanceof Double || rightValue instanceof Double;
             // *乘法
             if (isDouble) {
-                result = ((Number) leftValue).doubleValue() * ((Number) rightValue).doubleValue();
+                return ((Number) leftValue).doubleValue() * ((Number) rightValue).doubleValue();
             } else {
-                result = ((Number) leftValue).longValue() * ((Number) rightValue).longValue();
+                return ((Number) leftValue).longValue() * ((Number) rightValue).longValue();
             }
-            return result;
         }
     }
 
-    /**
-     * 指数执行器
-     */
-    static class ExprEvaluatorPowerImpl extends ExprEvaluator {
-        static String operator = "**";
-
-        static ExprEvaluatorPowerImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorPowerImpl evaluatorImpl = new ExprEvaluatorPowerImpl();
+    final static class PowerImpl extends ExprEvaluator {
+        static PowerImpl of(ExprEvaluator evaluator) {
+            PowerImpl evaluatorImpl = new PowerImpl();
             evaluatorImpl.left = evaluator.left;
             evaluatorImpl.right = evaluator.right;
             return evaluatorImpl;
@@ -808,34 +763,26 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorPowerImpl{**}";
+            return "PowerImpl{**}";
         }
 
         @Override
         public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
-            if (this.isStatic) return this.result;
             Object leftValue = left.evaluate(context, evaluateEnvironment);
             Object rightValue = right.evaluate(context, evaluateEnvironment);
-            isStatic = left.isStatic && right.isStatic;
-            // **指数，平方/根
             double powValue = Math.pow(((Number) leftValue).doubleValue(), ((Number) rightValue).doubleValue());
             long longVal = (long) powValue;
             if (longVal == powValue) {
-                return result = longVal;
+                return longVal;
             } else {
-                return result = powValue;
+                return powValue;
             }
         }
     }
 
-    /**
-     * 除法执行器
-     */
-    static class ExprEvaluatorDivisionImpl extends ExprEvaluator {
-        static String operator = "/";
-
-        static ExprEvaluatorDivisionImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorDivisionImpl evaluatorImpl = new ExprEvaluatorDivisionImpl();
+    final static class DivisionImpl extends ExprEvaluator {
+        static DivisionImpl of(ExprEvaluator evaluator) {
+            DivisionImpl evaluatorImpl = new DivisionImpl();
             evaluatorImpl.left = evaluator.left;
             evaluatorImpl.right = evaluator.right;
             return evaluatorImpl;
@@ -843,7 +790,7 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorDivisionImpl{/}";
+            return "DivisionImpl{/}";
         }
 
         @Override
@@ -851,7 +798,7 @@ public class ExprEvaluator {
             Object leftValue = left.evaluate(context, evaluateEnvironment);
             Object rightValue = right.evaluate(context, evaluateEnvironment);
             boolean isDouble = leftValue instanceof Double || rightValue instanceof Double;
-            // 除法(/)
+            // (/)
             if (isDouble) {
                 return ((Number) leftValue).doubleValue() / ((Number) rightValue).doubleValue();
             } else {
@@ -863,11 +810,9 @@ public class ExprEvaluator {
     /**
      * 取模（求余）执行器modulus
      */
-    static class ExprEvaluatorModulusImpl extends ExprEvaluator {
-        static String operator = "%";
-
-        static ExprEvaluatorModulusImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorModulusImpl evaluatorImpl = new ExprEvaluatorModulusImpl();
+    final static class ModulusImpl extends ExprEvaluator {
+        static ModulusImpl of(ExprEvaluator evaluator) {
+            ModulusImpl evaluatorImpl = new ModulusImpl();
             evaluatorImpl.left = evaluator.left;
             evaluatorImpl.right = evaluator.right;
             return evaluatorImpl;
@@ -875,7 +820,7 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorModulusImpl{%}";
+            return "ModulusImpl{%}";
         }
 
         @Override
@@ -883,7 +828,6 @@ public class ExprEvaluator {
             Object leftValue = left.evaluate(context, evaluateEnvironment);
             Object rightValue = right.evaluate(context, evaluateEnvironment);
             boolean isDouble = leftValue instanceof Double || rightValue instanceof Double;
-            // %取余数
             if (isDouble) {
                 return ((Number) leftValue).doubleValue() % ((Number) rightValue).doubleValue();
             } else {
@@ -892,14 +836,10 @@ public class ExprEvaluator {
         }
     }
 
-    /**
-     * 位运算(左)执行器
-     */
-    static class ExprEvaluatorBitLeftImpl extends ExprEvaluator {
-        static String operator = "<<";
-
-        static ExprEvaluatorBitLeftImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorBitLeftImpl evaluatorImpl = new ExprEvaluatorBitLeftImpl();
+    // bit left
+    final static class BitLeftImpl extends ExprEvaluator {
+        static BitLeftImpl of(ExprEvaluator evaluator) {
+            BitLeftImpl evaluatorImpl = new BitLeftImpl();
             evaluatorImpl.left = evaluator.left;
             evaluatorImpl.right = evaluator.right;
             return evaluatorImpl;
@@ -907,26 +847,20 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorBitLeftImpl{<<}";
+            return "BitLeftImpl{<<}";
         }
 
         @Override
         public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
             Object leftValue = left.evaluate(context, evaluateEnvironment);
             Object rightValue = right.evaluate(context, evaluateEnvironment);
-            // <<
             return ((Number) leftValue).longValue() << ((Number) rightValue).longValue();
         }
     }
 
-    /**
-     * 位运算(右)执行器
-     */
-    static class ExprEvaluatorBitRightImpl extends ExprEvaluator {
-        static String operator = ">>";
-
-        static ExprEvaluatorBitRightImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorBitRightImpl evaluatorImpl = new ExprEvaluatorBitRightImpl();
+    final static class BitRightImpl extends ExprEvaluator {
+        static BitRightImpl of(ExprEvaluator evaluator) {
+            BitRightImpl evaluatorImpl = new BitRightImpl();
             evaluatorImpl.left = evaluator.left;
             evaluatorImpl.right = evaluator.right;
             return evaluatorImpl;
@@ -934,26 +868,20 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorBitRightImpl{>>}";
+            return "BitRightImpl{>>}";
         }
 
         @Override
         public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
             Object leftValue = left.evaluate(context, evaluateEnvironment);
             Object rightValue = right.evaluate(context, evaluateEnvironment);
-            // >>
             return ((Number) leftValue).longValue() >> ((Number) rightValue).longValue();
         }
     }
 
-    /**
-     * 位运算(与)执行器
-     */
-    static class ExprEvaluatorBitAndImpl extends ExprEvaluator {
-        static String operator = "&";
-
-        static ExprEvaluatorBitAndImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorBitAndImpl evaluatorImpl = new ExprEvaluatorBitAndImpl();
+    final static class BitAndImpl extends ExprEvaluator {
+        static BitAndImpl of(ExprEvaluator evaluator) {
+            BitAndImpl evaluatorImpl = new BitAndImpl();
             evaluatorImpl.left = evaluator.left;
             evaluatorImpl.right = evaluator.right;
             return evaluatorImpl;
@@ -961,26 +889,20 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorBitAndImpl{&}";
+            return "BitAndImpl{&}";
         }
 
         @Override
         public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
             Object leftValue = left.evaluate(context, evaluateEnvironment);
             Object rightValue = right.evaluate(context, evaluateEnvironment);
-            // &位运算与
             return ((Number) leftValue).longValue() & ((Number) rightValue).longValue();
         }
     }
 
-    /**
-     * 位运算(或)执行器
-     */
-    static class ExprEvaluatorBitOrImpl extends ExprEvaluator {
-        static String operator = "|";
-
-        static ExprEvaluatorBitOrImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorBitOrImpl evaluatorImpl = new ExprEvaluatorBitOrImpl();
+    final static class BitOrImpl extends ExprEvaluator {
+        static BitOrImpl of(ExprEvaluator evaluator) {
+            BitOrImpl evaluatorImpl = new BitOrImpl();
             evaluatorImpl.left = evaluator.left;
             evaluatorImpl.right = evaluator.right;
             return evaluatorImpl;
@@ -988,26 +910,20 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorBitOrImpl{|}";
+            return "BitOrImpl{|}";
         }
 
         @Override
         public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
             Object leftValue = left.evaluate(context, evaluateEnvironment);
             Object rightValue = right.evaluate(context, evaluateEnvironment);
-            // |位运算或
             return ((Number) leftValue).longValue() | ((Number) rightValue).longValue();
         }
     }
 
-    /**
-     * 位运算(异或)执行器
-     */
-    static class ExprEvaluatorBitXorImpl extends ExprEvaluator {
-        static String operator = "^";
-
-        static ExprEvaluatorBitXorImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorBitXorImpl evaluatorImpl = new ExprEvaluatorBitXorImpl();
+    final static class BitXorImpl extends ExprEvaluator {
+        static BitXorImpl of(ExprEvaluator evaluator) {
+            BitXorImpl evaluatorImpl = new BitXorImpl();
             evaluatorImpl.left = evaluator.left;
             evaluatorImpl.right = evaluator.right;
             return evaluatorImpl;
@@ -1015,7 +931,7 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorBitOrImpl{^}";
+            return "BitOrImpl{^}";
         }
 
         @Override
@@ -1027,14 +943,9 @@ public class ExprEvaluator {
         }
     }
 
-    /**
-     * 等于执行器
-     */
-    static class ExprEvaluatorEqualImpl extends ExprEvaluator {
-        static String operator = "==";
-
-        static ExprEvaluatorEqualImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorEqualImpl evaluatorImpl = new ExprEvaluatorEqualImpl();
+    final static class EqualImpl extends ExprEvaluator {
+        static EqualImpl of(ExprEvaluator evaluator) {
+            EqualImpl evaluatorImpl = new EqualImpl();
             evaluatorImpl.left = evaluator.left;
             evaluatorImpl.right = evaluator.right;
             return evaluatorImpl;
@@ -1042,7 +953,7 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorEqualImpl{==}";
+            return "EqualImpl{==}";
         }
 
         @Override
@@ -1060,14 +971,9 @@ public class ExprEvaluator {
         }
     }
 
-    /**
-     * 大于执行器
-     */
-    static class ExprEvaluatorGtImpl extends ExprEvaluator {
-        static String operator = ">";
-
-        static ExprEvaluatorGtImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorGtImpl evaluatorImpl = new ExprEvaluatorGtImpl();
+    final static class GtImpl extends ExprEvaluator {
+        static GtImpl of(ExprEvaluator evaluator) {
+            GtImpl evaluatorImpl = new GtImpl();
             evaluatorImpl.left = evaluator.left;
             evaluatorImpl.right = evaluator.right;
             return evaluatorImpl;
@@ -1075,7 +981,7 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorGtImpl{>}";
+            return "GtImpl{>}";
         }
 
         @Override
@@ -1086,14 +992,9 @@ public class ExprEvaluator {
         }
     }
 
-    /**
-     * 小于执行器
-     */
-    static class ExprEvaluatorLtImpl extends ExprEvaluator {
-        static String operator = "<";
-
-        static ExprEvaluatorLtImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorLtImpl evaluatorImpl = new ExprEvaluatorLtImpl();
+    final static class LtImpl extends ExprEvaluator {
+        static LtImpl of(ExprEvaluator evaluator) {
+            LtImpl evaluatorImpl = new LtImpl();
             evaluatorImpl.left = evaluator.left;
             evaluatorImpl.right = evaluator.right;
             return evaluatorImpl;
@@ -1101,7 +1002,7 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorLtImpl{<}";
+            return "LtImpl{<}";
         }
 
         @Override
@@ -1112,14 +1013,9 @@ public class ExprEvaluator {
         }
     }
 
-    /**
-     * 大于等于执行器
-     */
-    static class ExprEvaluatorGEImpl extends ExprEvaluator {
-        static String operator = ">=";
-
-        static ExprEvaluatorGEImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorGEImpl evaluatorImpl = new ExprEvaluatorGEImpl();
+    final static class GEImpl extends ExprEvaluator {
+        static GEImpl of(ExprEvaluator evaluator) {
+            GEImpl evaluatorImpl = new GEImpl();
             evaluatorImpl.left = evaluator.left;
             evaluatorImpl.right = evaluator.right;
             return evaluatorImpl;
@@ -1127,7 +1023,7 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorGEImpl{>=}";
+            return "GEImpl{>=}";
         }
 
         @Override
@@ -1138,14 +1034,9 @@ public class ExprEvaluator {
         }
     }
 
-    /**
-     * 小于等于执行器
-     */
-    static class ExprEvaluatorLEImpl extends ExprEvaluator {
-        static String operator = "<=";
-
-        static ExprEvaluatorLEImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorLEImpl evaluatorImpl = new ExprEvaluatorLEImpl();
+    final static class LEImpl extends ExprEvaluator {
+        static LEImpl of(ExprEvaluator evaluator) {
+            LEImpl evaluatorImpl = new LEImpl();
             evaluatorImpl.left = evaluator.left;
             evaluatorImpl.right = evaluator.right;
             return evaluatorImpl;
@@ -1153,7 +1044,7 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorLEImpl{<=}";
+            return "LEImpl{<=}";
         }
 
         @Override
@@ -1164,14 +1055,9 @@ public class ExprEvaluator {
         }
     }
 
-    /**
-     * 不等于执行器
-     */
-    static class ExprEvaluatorNEImpl extends ExprEvaluator {
-        static String operator = "!=";
-
-        static ExprEvaluatorNEImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorNEImpl evaluatorImpl = new ExprEvaluatorNEImpl();
+    final static class NEImpl extends ExprEvaluator {
+        static NEImpl of(ExprEvaluator evaluator) {
+            NEImpl evaluatorImpl = new NEImpl();
             evaluatorImpl.left = evaluator.left;
             evaluatorImpl.right = evaluator.right;
             return evaluatorImpl;
@@ -1179,7 +1065,7 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorNEImpl{!=}";
+            return "NEImpl{!=}";
         }
 
         @Override
@@ -1187,7 +1073,6 @@ public class ExprEvaluator {
             Object leftValue = left.evaluate(context, evaluateEnvironment);
             Object rightValue = right.evaluate(context, evaluateEnvironment);
             if (leftValue instanceof Number && rightValue instanceof Number) {
-                // 基础类型double直接比较值
                 return ((Number) leftValue).doubleValue() != ((Number) rightValue).doubleValue();
             }
             if (leftValue == rightValue) {
@@ -1197,14 +1082,9 @@ public class ExprEvaluator {
         }
     }
 
-    /**
-     * 逻辑与执行器
-     */
-    static class ExprEvaluatorLogicalAndImpl extends ExprEvaluator {
-        static String operator = "&&";
-
-        static ExprEvaluatorLogicalAndImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorLogicalAndImpl evaluatorImpl = new ExprEvaluatorLogicalAndImpl();
+    final static class LogicalAndImpl extends ExprEvaluator {
+        static LogicalAndImpl of(ExprEvaluator evaluator) {
+            LogicalAndImpl evaluatorImpl = new LogicalAndImpl();
             evaluatorImpl.left = evaluator.left;
             evaluatorImpl.right = evaluator.right;
             return evaluatorImpl;
@@ -1212,7 +1092,7 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorLogicalAndImpl{&&}";
+            return "LogicalAndImpl{&&}";
         }
 
         @Override
@@ -1224,14 +1104,9 @@ public class ExprEvaluator {
         }
     }
 
-    /**
-     * 逻辑或执行器
-     */
-    static class ExprEvaluatorLogicalOrImpl extends ExprEvaluator {
-        static String operator = "||";
-
-        static ExprEvaluatorLogicalOrImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorLogicalOrImpl evaluatorImpl = new ExprEvaluatorLogicalOrImpl();
+    final static class LogicalOrImpl extends ExprEvaluator {
+        static LogicalOrImpl of(ExprEvaluator evaluator) {
+            LogicalOrImpl evaluatorImpl = new LogicalOrImpl();
             evaluatorImpl.left = evaluator.left;
             evaluatorImpl.right = evaluator.right;
             return evaluatorImpl;
@@ -1239,7 +1114,7 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorLogicalOrImpl{||}";
+            return "LogicalOrImpl{||}";
         }
 
         @Override
@@ -1251,18 +1126,13 @@ public class ExprEvaluator {
         }
     }
 
-    /**
-     * 三目运算执行器
-     */
-    static class ExprEvaluatorTernaryImpl extends ExprEvaluator {
-        static String operator = "?:";
-
+    final static class TernaryImpl extends ExprEvaluator {
         private ExprEvaluator condition;
         private ExprEvaluator question;
         private ExprEvaluator colon;
 
-        static ExprEvaluatorTernaryImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorTernaryImpl evaluatorImpl = new ExprEvaluatorTernaryImpl();
+        static TernaryImpl of(ExprEvaluator evaluator) {
+            TernaryImpl evaluatorImpl = new TernaryImpl();
             evaluatorImpl.condition = evaluator.left;
             evaluatorImpl.question = evaluator.right.left;
             evaluatorImpl.colon = evaluator.right.right;
@@ -1271,26 +1141,20 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorTernaryImpl{?:}";
+            return "TernaryImpl{?:}";
         }
 
         @Override
         public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
             Object leftValue = condition.evaluate(context, evaluateEnvironment);
             boolean conditionResult = leftValue == null ? false : (Boolean) leftValue;
-            Object result = conditionResult ? question.evaluate(context, evaluateEnvironment) : colon.evaluate(context, evaluateEnvironment);/*right.evaluateTernary(context, evaluateEnvironment, (Boolean) leftValue, left.isStatic)*/
-            return result;
+            return conditionResult ? question.evaluate(context, evaluateEnvironment) : colon.evaluate(context, evaluateEnvironment);/*right.evaluateTernary(context, evaluateEnvironment, (Boolean) leftValue, left.isStatic)*/
         }
     }
 
-    /**
-     * in运算执行器
-     */
-    static class ExprEvaluatorInImpl extends ExprEvaluator {
-        static String operator = "in";
-
-        static ExprEvaluatorInImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorInImpl evaluatorImpl = new ExprEvaluatorInImpl();
+    final static class InImpl extends ExprEvaluator {
+        static InImpl of(ExprEvaluator evaluator) {
+            InImpl evaluatorImpl = new InImpl();
             evaluatorImpl.left = evaluator.left;
             evaluatorImpl.right = evaluator.right;
             return evaluatorImpl;
@@ -1298,7 +1162,7 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorInImpl{in}";
+            return "InImpl{in}";
         }
 
         @Override
@@ -1310,14 +1174,9 @@ public class ExprEvaluator {
         }
     }
 
-    /**
-     * out运算执行器
-     */
-    static class ExprEvaluatorOutImpl extends ExprEvaluator {
-        static String operator = "out";
-
-        static ExprEvaluatorOutImpl of(ExprEvaluator evaluator) {
-            ExprEvaluatorOutImpl evaluatorImpl = new ExprEvaluatorOutImpl();
+    final static class OutImpl extends ExprEvaluator {
+        static OutImpl of(ExprEvaluator evaluator) {
+            OutImpl evaluatorImpl = new OutImpl();
             evaluatorImpl.left = evaluator.left;
             evaluatorImpl.right = evaluator.right;
             return evaluatorImpl;
@@ -1325,7 +1184,7 @@ public class ExprEvaluator {
 
         @Override
         public String toString() {
-            return "ExprEvaluatorOutImpl{out}";
+            return "OutImpl{out}";
         }
 
         @Override
@@ -1337,12 +1196,7 @@ public class ExprEvaluator {
         }
     }
 
-    /**
-     * 静态函数运算执行器
-     */
-    static class ExprEvaluatorFunctionImpl extends ExprEvaluator {
-        static String operator = "@function";
-
+    static class FunctionImpl extends ExprEvaluator {
         // 函数名称
         String functionName;
         // 参数表达式数组
@@ -1352,9 +1206,13 @@ public class ExprEvaluator {
         // 参数表达式数组
         ExprParser[] paramExprParsers;
 
+        public FunctionImpl() {
+            this.evalType = EVAL_TYPE_FUN;
+        }
+
         @Override
         public String toString() {
-            return "ExprEvaluatorFunctionImpl{@function}";
+            return "FunctionImpl{@function}";
         }
 
         @Override
@@ -1430,13 +1288,12 @@ public class ExprEvaluator {
     /**
      * java对象方法调用（解析模式下使用反射调用，编译模式和常规编码一致）
      */
-    static class ExprEvaluatorMethodImpl extends ExprEvaluatorFunctionImpl {
-        static String operator = "@method";
-        VariableInvoker variableInvoker;
+    final static class MethodImpl extends FunctionImpl {
+        ElVariableInvoker variableInvoker;
 
         @Override
         public String toString() {
-            return "ExprEvaluatorMethodImpl{@method}";
+            return "MethodImpl{@method}";
         }
 
         @Override
@@ -1459,12 +1316,11 @@ public class ExprEvaluator {
         }
 
         // 以@作为标记
-        public void setMethod(VariableInvoker variableInvoker, String methodName, String params, ExprParser global) {
+        public void setMethod(ElVariableInvoker variableInvoker, String methodName, String params, ExprParser global) {
             this.variableInvoker = variableInvoker;
             setFunction(methodName, params, global);
         }
 
-        // 执行函数表达式
         Object evaluateMethod(EvaluatorContext evaluatorContext, EvaluateEnvironment evaluateEnvironment) {
             // 获取方法调用者
             Object invokeObj = null;
@@ -1504,18 +1360,16 @@ public class ExprEvaluator {
         }
     }
 
-    // value暂存对象
-    private static ThreadLocal<Object> valueHolder = new ThreadLocal<Object>();
-
     /**
-     * 栈拆分优化器，解决栈深度溢出问题;
-     * 一般派不上用场，当原生编译器都解决不了表达式时，可启用表达式的拆分优化；
+     * Stack splitting optimizer to solve the problem of stack depth overflow;
+     * It is generally not useful. When the native compiler cannot solve the expression, expression splitting optimization can be enabled;
+     *
      * default depth = 2 << 12 - 1
      */
-    static class ExprEvaluatorStackSplitImpl extends ExprEvaluator {
+    static class StackSplitImpl extends ExprEvaluator {
         ExprEvaluator front;
 
-        ExprEvaluatorStackSplitImpl(ExprEvaluator front, ExprEvaluator left) {
+        StackSplitImpl(ExprEvaluator front, ExprEvaluator left) {
             this.front = front;
             this.left = left;
         }
@@ -1532,7 +1386,7 @@ public class ExprEvaluator {
         }
     }
 
-    static class ExprEvaluatorContextValueHolderImpl extends ExprEvaluator {
+    static class ContextValueHolderImpl extends ExprEvaluator {
         @Override
         public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
             return context.value;
@@ -1578,11 +1432,11 @@ public class ExprEvaluator {
      * @return
      */
     ExprEvaluator optimizeDepth(ExprEvaluator target, int depth) {
-        if(left == null) return target;
+        if (left == null) return target;
         // 每1024优化一次left
-        if(++depth > OPTIMIZE_DEPTH_VALUE) {
-            ExprEvaluatorStackSplitImpl stackSplit = new ExprEvaluatorStackSplitImpl(target, left);
-            ExprEvaluatorContextValueHolderImpl valueHolder = new ExprEvaluatorContextValueHolderImpl();
+        if (++depth > OPTIMIZE_DEPTH_VALUE) {
+            StackSplitImpl stackSplit = new StackSplitImpl(target, left);
+            ContextValueHolderImpl valueHolder = new ContextValueHolderImpl();
             // update target left
             left = valueHolder;
             return stackSplit;

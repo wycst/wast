@@ -3,6 +3,7 @@ package io.github.wycst.wast.common.reflect;
 import io.github.wycst.wast.common.annotation.MethodInvokePriority;
 import io.github.wycst.wast.common.exceptions.InvokeReflectException;
 import io.github.wycst.wast.common.tools.FNV;
+import io.github.wycst.wast.common.utils.ObjectUtils;
 import io.github.wycst.wast.common.utils.StringUtils;
 
 import java.lang.annotation.Annotation;
@@ -221,53 +222,60 @@ public final class ClassStructureWrapper {
         if (sourceClass == null) {
             throw new IllegalArgumentException("sourceClass is null");
         }
-
         ClassStructureWrapper wrapper = classStructureWarppers.get(sourceClass);
         if (wrapper != null) {
             return wrapper;
         }
-
         if (sourceClass.isInterface() || sourceClass.isEnum() || sourceClass.isArray() || sourceClass.isPrimitive()) {
             return null;
         }
-
         if (wrapper == null) {
             synchronized (sourceClass) {
                 if (classStructureWarppers.containsKey(sourceClass)) {
                     return classStructureWarppers.get(sourceClass);
                 }
-
-                wrapper = new ClassStructureWrapper(sourceClass);
-                wrapper.checkClassStructure();
-
-                // parse genericClass
-                Type genericSuperclass = sourceClass.getGenericSuperclass();
-                Map<String, Class<?>> superGenericClassMap = new HashMap<String, Class<?>>();
-                if (genericSuperclass instanceof ParameterizedType) {
-                    ParameterizedType parameterizedType = (ParameterizedType) genericSuperclass;
-                    Type[] types = parameterizedType.getActualTypeArguments();
-                    Class<?> superclass = (Class<?>) parameterizedType.getRawType();
-                    TypeVariable[] typeParameters = superclass.getTypeParameters();
-                    int i = 0;
-                    for (TypeVariable typeVariable : typeParameters) {
-                        String name = typeVariable.getName();
-                        Type actualTypeArgument = types[i++];
-                        if (actualTypeArgument instanceof Class) {
-                            superGenericClassMap.put(name, (Class<?>) actualTypeArgument);
-                        }
-                    }
-                }
-
-                if (wrapper.record) {
-                    // Initialize the wrapper by constructing information
-                    wrapperWithRecordConstructor(wrapper, superGenericClassMap);
-                } else {
-                    // Initialize the wrapper through the specifications (conventions) of pojo or Javabeans, namely method or field
-                    wrapperWithMethodAndField(wrapper, superGenericClassMap);
-                }
-
+                wrapper = createBy(sourceClass);
                 classStructureWarppers.put(sourceClass, wrapper);
             }
+        }
+        return wrapper;
+    }
+
+    public static ClassStructureWrapper ofEnumClass(Class<? extends Enum> enumClass) {
+        if(!enumClass.isEnum()) {
+            throw new UnsupportedOperationException("not enum class " + enumClass);
+        }
+        ClassStructureWrapper wrapper = createBy(enumClass);
+        wrapper.forceUseFields = true;
+        return wrapper;
+    }
+
+    private static ClassStructureWrapper createBy(Class<?> sourceClass) {
+        ClassStructureWrapper wrapper = new ClassStructureWrapper(sourceClass);
+        wrapper.checkClassStructure();
+        // parse genericClass
+        Type genericSuperclass = sourceClass.getGenericSuperclass();
+        Map<String, Class<?>> superGenericClassMap = new HashMap<String, Class<?>>();
+        if (genericSuperclass instanceof ParameterizedType) {
+            ParameterizedType parameterizedType = (ParameterizedType) genericSuperclass;
+            Type[] types = parameterizedType.getActualTypeArguments();
+            Class<?> superclass = (Class<?>) parameterizedType.getRawType();
+            TypeVariable[] typeParameters = superclass.getTypeParameters();
+            int i = 0;
+            for (TypeVariable typeVariable : typeParameters) {
+                String name = typeVariable.getName();
+                Type actualTypeArgument = types[i++];
+                if (actualTypeArgument instanceof Class) {
+                    superGenericClassMap.put(name, (Class<?>) actualTypeArgument);
+                }
+            }
+        }
+        if (wrapper.record) {
+            // Initialize the wrapper by constructing information
+            wrapperWithRecordConstructor(wrapper, superGenericClassMap);
+        } else {
+            // Initialize the wrapper through the specifications (conventions) of pojo or Javabeans, namely method or field
+            wrapperWithMethodAndField(wrapper, superGenericClassMap);
         }
         return wrapper;
     }
@@ -906,6 +914,22 @@ public final class ClassStructureWrapper {
         }
         try {
             if (nameMethods.size() == 1) {
+                Method method = nameMethods.get(0);
+                Class[] parameterTypes = method.getParameterTypes();
+                if(parameterTypes.length != params.length) {
+                    throw new IllegalArgumentException("argument mismatch");
+                }
+                for (int i = 0, n = params.length; i < n; ++i) {
+                    Object value = params[i];
+                    Class parameterType = parameterTypes[i];
+                    if(!parameterType.isInstance(value)) {
+                        try {
+                            params[i] = ObjectUtils.toType(value, parameterType);
+                        } catch (Throwable throwable) {
+                            throw new IllegalArgumentException("argument mismatch: " + parameterType + " ");
+                        }
+                    }
+                }
                 return nameMethods.get(0).invoke(invoker, params);
             }
             for (Method method : nameMethods) {

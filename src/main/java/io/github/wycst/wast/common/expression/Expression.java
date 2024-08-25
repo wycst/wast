@@ -20,6 +20,7 @@ import io.github.wycst.wast.common.expression.compile.CompilerEnvironment;
 import io.github.wycst.wast.common.expression.compile.CompilerExpression;
 import io.github.wycst.wast.common.expression.functions.BuiltInFunction;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
+import io.github.wycst.wast.common.utils.ObjectUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -300,6 +301,24 @@ public abstract class Expression {
     public abstract Object evaluate(EvaluateEnvironment evaluateEnvironment);
 
     /**
+     * 执行变量表达式
+     *
+     * @param context             参数上下文
+     * @param evaluateEnvironment 执行环境
+     * @return
+     */
+    public abstract Object evaluate(Map context, EvaluateEnvironment evaluateEnvironment);
+
+    /**
+     * 执行变量表达式
+     *
+     * @param context             参数上下文
+     * @param evaluateEnvironment 执行环境
+     * @return
+     */
+    public abstract Object evaluate(Object context, EvaluateEnvironment evaluateEnvironment);
+
+    /**
      * 执行常量运算表达式
      *
      * @param targetClass 目标类型
@@ -325,38 +344,11 @@ public abstract class Expression {
         if (result == null) {
             return null;
         }
-
         // force
         if (targetClass.isInstance(result)) {
             return (T) result;
         }
-
-        // number转化
-        if (result instanceof Number) {
-            if (targetClass == Double.class || targetClass == double.class) {
-                result = ((Number) result).doubleValue();
-                return (T) result;
-            } else if (targetClass == Long.class || targetClass == long.class) {
-                result = ((Number) result).longValue();
-                return (T) result;
-            } else if (targetClass == Integer.class || targetClass == int.class) {
-                result = ((Number) result).intValue();
-                return (T) result;
-            } else if (targetClass == Float.class || targetClass == float.class) {
-                result = ((Number) result).floatValue();
-                return (T) result;
-            }
-        }
-
-        if (targetClass == String.class) {
-            return (T) String.valueOf(result);
-        }
-
-        if (!targetClass.isPrimitive()) {
-            throw new ClassCastException(String.format("%s cannot be cast to %s", result.getClass().toString(), targetClass.toString()));
-        }
-
-        return (T) result;
+        return ObjectUtils.toType(result, targetClass);
     }
 
     /**
@@ -424,5 +416,9 @@ public abstract class Expression {
     // get chars
     protected final static char[] getChars(String value) {
         return UnsafeHelper.getChars(value);
+    }
+
+    public List<String> getVariables() {
+        throw new UnsupportedOperationException();
     }
 }

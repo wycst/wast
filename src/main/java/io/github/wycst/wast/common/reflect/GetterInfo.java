@@ -19,6 +19,7 @@ public class GetterInfo {
     private Map<Class<? extends Annotation>, Annotation> annotations;
     private ReflectConsts.ClassCategory classCategory;
     private boolean record;
+
     public ReflectConsts.ClassCategory getClassCategory() {
         if (classCategory != null) {
             return classCategory;
@@ -32,7 +33,7 @@ public class GetterInfo {
 
     public final Object invoke(Object target) {
         if (fieldOffset > -1) {
-            if(isInstance(target)) {
+            if (isInstance(target)) {
                 if (fieldPrimitive) {
                     return primitiveType.get(target, fieldOffset);
                 } else {
@@ -143,6 +144,18 @@ public class GetterInfo {
         return null;
     }
 
+    public final boolean isSupportedUnsafe() {
+        return fieldOffset > -1;
+    }
+
+    public final ReflectConsts.PrimitiveType getPrimitiveType() {
+        return primitiveType;
+    }
+
+    public final long getFieldOffset() {
+        return fieldOffset;
+    }
+
     public String generateCode() {
         if (record) {
             // use by Record access
@@ -154,4 +167,6 @@ public class GetterInfo {
     void setRecord(boolean record) {
         this.record = record;
     }
+
+
 }

@@ -1,12 +1,7 @@
 package io.github.wycst.wast.common.expression.compile;
 
-import io.github.wycst.wast.common.expression.EvaluateEnvironment;
-import io.github.wycst.wast.common.expression.ExprFunction;
+import io.github.wycst.wast.common.expression.*;
 import io.github.wycst.wast.common.expression.functions.JavassistExprFunction;
-import io.github.wycst.wast.common.expression.invoker.ChainVariableInvoker;
-import io.github.wycst.wast.common.expression.invoker.Invoker;
-import io.github.wycst.wast.common.expression.invoker.VariableInvoker;
-import io.github.wycst.wast.common.expression.invoker.VariableUtils;
 
 import java.lang.reflect.Modifier;
 import java.util.*;
@@ -23,11 +18,8 @@ public class CompilerEnvironment extends EvaluateEnvironment {
     public CompilerEnvironment() {
     }
 
-    // 跳过解析，此模式下注意：
-    // 1 直接使用源代码运行，支持所有java代码；
-    // 2 如果没有return标记，会在解析所有固化参数后直接return + 表达式
-    // 3 变量信息未知，需要通过types
-    private boolean skipParse = true;
+    // 跳过解析直接使用源代码运行，支持所有java代码；
+    private boolean skipParse;
     // 默认禁用system类调用
     private boolean enableSystem;
     // 禁用安全检查
@@ -44,7 +36,7 @@ public class CompilerEnvironment extends EvaluateEnvironment {
         return typeNameInvokers;
     }
 
-    protected Map<String, Class> getVariableTypes(){
+    protected Map<String, Class> getVariableTypes() {
         return variableTypeMap;
     }
 
@@ -88,9 +80,9 @@ public class CompilerEnvironment extends EvaluateEnvironment {
         final String varName;
         final String defineJavaIdentifier;
         final Class type;
-        final VariableInvoker variableInvoker;
+        final ElVariableInvoker variableInvoker;
 
-        public TypeNameInvoker(String varName, String defineJavaIdentifier, Class type, VariableInvoker variableInvoker) {
+        public TypeNameInvoker(String varName, String defineJavaIdentifier, Class type, ElVariableInvoker variableInvoker) {
             this.varName = varName;
             this.defineJavaIdentifier = defineJavaIdentifier;
             this.type = type;
@@ -124,11 +116,11 @@ public class CompilerEnvironment extends EvaluateEnvironment {
         typeNameInvokers.clear();
         if (parser.getVariableCount() == 0) return;
 
-        Invoker variableValues = parser.getChainValues();
-        // collect variableValue if tail
-        variableValues.internKey();
-        List<VariableInvoker> tailInvokers = variableValues.tailInvokers();
-        for (VariableInvoker tailInvoker : tailInvokers) {
+//        Invoker variableValues = parser.getChainValues();
+////        // collect variableValue if tail
+//        variableValues.internKey();
+        Collection<ElVariableInvoker> tailInvokers = parser.getTailVariableInvokers(); // variableValues.tailInvokers();
+        for (ElVariableInvoker tailInvoker : tailInvokers) {
             String varName = "_$" + tailInvoker.getIndex();
             Class type = variableTypeMap.get(tailInvoker.toString());
             if (type == null) {
@@ -145,17 +137,17 @@ public class CompilerEnvironment extends EvaluateEnvironment {
         if (variableTypeMap.size() == 0) return;
 
         typeNameInvokers.clear();
-        HashMap<String, VariableInvoker> invokes = new HashMap<String, VariableInvoker>();
-        HashMap<String, VariableInvoker> tailInvokes = new HashMap<String, VariableInvoker>();
+        HashMap<String, ElVariableInvoker> invokes = new HashMap<String, ElVariableInvoker>();
+        HashMap<String, ElVariableInvoker> tailInvokes = new HashMap<String, ElVariableInvoker>();
 
         Set<Map.Entry<String, Class>> entrySet = variableTypeMap.entrySet();
         for (Map.Entry<String, Class> entry : entrySet) {
             String var = entry.getKey();
             Class type = entry.getValue();
-            typeNameInvokers.add(new TypeNameInvoker(var, var.replace('.', '_'), type, VariableUtils.build(var, invokes, tailInvokes)));
+            typeNameInvokers.add(new TypeNameInvoker(var, var.replace('.', '_'), type, ElVariableUtils.build(var, invokes, tailInvokes)));
         }
         Collections.sort(typeNameInvokers);
-        Invoker variableValues = ChainVariableInvoker.build(invokes, true);
+        ElInvoker variableValues = ElChainVariableInvoker.build(invokes, true);
         variableValues.internKey();
     }
 

@@ -4,7 +4,7 @@ package io.github.wycst.wast.common.expression;
  * @Author wangyunchao
  * @Date 2022/10/15 14:44
  */
-class ExprParserContext {
+final class ExprParserContext {
 
     // 当前执行器
     ExprEvaluator exprEvaluator;

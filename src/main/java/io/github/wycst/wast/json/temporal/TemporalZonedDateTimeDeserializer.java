@@ -131,7 +131,9 @@ public class TemporalZonedDateTimeDeserializer extends JSONTemporalDeserializer 
                 throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', year field error ");
             }
         }
-        ++i;
+        while (isDigit(c1 = buf[++i])) {
+            year = year * 10 + c1 - 48;
+        }
         if (isDigit(c1 = buf[++i])) {
             month = c1 - 48;
         } else {
@@ -256,7 +258,9 @@ public class TemporalZonedDateTimeDeserializer extends JSONTemporalDeserializer 
                 throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', year field error ");
             }
         }
-        ++i;
+        while (isDigit(b1 = buf[++i])) {
+            year = year * 10 + b1 - 48;
+        }
         if (isDigit(b1 = buf[++i])) {
             month = b1 - 48;
         } else {

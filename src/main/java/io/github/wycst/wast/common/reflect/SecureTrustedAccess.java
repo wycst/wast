@@ -2,11 +2,13 @@ package io.github.wycst.wast.common.reflect;
 
 import java.util.Arrays;
 import java.util.List;
+
 public abstract class SecureTrustedAccess {
 
     private final String implTrustedAccessName;
     final static List<String> TRUSTED_ACCESS_NAME_LIST = Arrays.asList(
             "io.github.wycst.wast.common.utils.UtilsSecureTrustedAccess",
+            "io.github.wycst.wast.common.expression.ElSecureTrustedAccess",
             "io.github.wycst.wast.json.JSONSecureTrustedAccess"
     );
 
@@ -26,7 +28,17 @@ public abstract class SecureTrustedAccess {
         return getterInfo.invokeInternal(target);
     }
 
+    public final Object getObjectValue(Object target, long fieldOffset) {
+        return UnsafeHelper.UNSAFE.getObject(target, fieldOffset);
+    }
+
+    public final Object getPrimitiveValue(ReflectConsts.PrimitiveType primitiveType, Object target, long fieldOffset) {
+        return primitiveType.getValue(target, fieldOffset);
+    }
+
     public final Object getSetterDefault(SetterInfo setterInfo, Object target) {
         return setterInfo.getDefaultFieldValue(target);
     }
+
+
 }

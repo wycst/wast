@@ -16,34 +16,13 @@
  */
 package io.github.wycst.wast.common.expression;
 
-import io.github.wycst.wast.common.expression.invoker.ChainVariableInvoker;
-import io.github.wycst.wast.common.expression.invoker.Invoker;
-import io.github.wycst.wast.common.expression.invoker.VariableInvoker;
-import io.github.wycst.wast.common.expression.invoker.VariableUtils;
 import io.github.wycst.wast.common.utils.NumberUtils;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 表达式解析器,生成执行模型
- *
- * <p>
- * 符号   优先级
- * ()      1
- * **      9 (指数运算,平方（根）,立方（根）)
- * /*%     10
- * +-      100
- * << >>   200
- * &|^     300+ &(300) < ^(301) < |(302)
- * ><==    500
- * && ||   600
- * ? :     700( ? 701, : 700)  三目运算符优先级放最低,其中:优先级高于?
- * <p>
- * 操作关键字： in , out , matches
  *
  * @author wangyunchao
  */
@@ -66,21 +45,21 @@ public class ExprParser extends Expression {
     public static final int GROUP_TOKEN_OPS = 1;
     public static final int GROUP_TOKEN_VALUE = 2;
 
-    public static final int RESET_TOKEN = 0;
-    public static final int OPS_TOKEN = 1;
-    public static final int IDENTIFIER_TOKEN = 2;
-    public static final int NUM_TOKEN = 3;
-    public static final int BRACKET_TOKEN = 4;
-    public static final int BRACKET_END_TOKEN = 6;
+    public static final int RESET_TOKEN = 1;
+    public static final int OPS_TOKEN = 2;
 
+    public static final int NEGATE_TOKEN = 6;
+    public static final int NOT_TOKEN = 7;
+    public static final int BRACKET_TOKEN = 8;
+    public static final int BRACKET_END_TOKEN = 9;
+
+    public static final int NUM_TOKEN = 10;
     // 字符串
-    public static final int STR_TOKEN = 7;
-    // 数组token
-    public static final int ARR_TOKEN = 8;
+    public static final int STR_TOKEN = 11;
+    public static final int IDENTIFIER_TOKEN = 12;
+    public static final int ARR_TOKEN = 13;
     // 函数(method)token,以@开始并且紧跟java标识符（@fun(...arg0)或者bean.fun(...arg0)）
-    public static final int FUN_TOKEN = 9;
-    public static final int NEGATE_TOKEN = 10;
-    public static final int NOT_TOKEN = 11;
+    public static final int FUN_TOKEN = 14;
 
     // 最大超过token数量时开启优化
     static final int MAX_OPTIMIZE_COUNT = (ExprEvaluator.OPTIMIZE_DEPTH_VALUE << 1) + 1;
@@ -93,24 +72,20 @@ public class ExprParser extends Expression {
     private int readIndex;
 
     private String errorMsg;
-    private Map<String, VariableInvoker> invokes;
-    private Map<String, VariableInvoker> tailInvokes;
+    private Map<String, ElVariableInvoker> invokes;
+    private Map<String, ElVariableInvoker> tailInvokes;
 
-    protected Invoker chainInvoker;
-    protected Invoker chainValues;
+    protected ElInvoker tailChainInvoker;
+    // protected Invoker chainValues;
     protected int variableCount;
-//    protected boolean cachedVariableValue;
+    protected EvaluatorContext evaluatorContext;
 
     // 标记类型
     private int prevTokenType;
-    private int tokenType;
+    private int tokenType = RESET_TOKEN;
 
-    // 操作符类型
-    private int opsType;
-    // 操作符优先级
-    private int opsLevel;
-
-    // 括号计数>0, 解析过程中如果小于0为异常,最终为0
+    // 操作类型
+    private ElOperator operator;
     private int bracketCount;
 
     // 数量
@@ -119,21 +94,21 @@ public class ExprParser extends Expression {
     // 表达式解析器
     private ExprEvaluator exprEvaluator = createExprEvaluator();
     // 上下文
-    private ExprParserContext exprParserContext = new ExprParserContext();
+    private ExprParserContext parserContext = new ExprParserContext();
 
     private final AtomicInteger cntForCompress = new AtomicInteger(0);
     private boolean compressed = false;
 
-    // 返回全局的parser
+    // global instance
     protected ExprParser global() {
         return this;
     }
 
-    protected Map<String, VariableInvoker> getInvokes() {
+    protected Map<String, ElVariableInvoker> getInvokes() {
         return invokes;
     }
 
-    protected Map<String, VariableInvoker> getTailInvokes() {
+    protected Map<String, ElVariableInvoker> getTailInvokes() {
         return tailInvokes;
     }
 
@@ -188,9 +163,9 @@ public class ExprParser extends Expression {
     }
 
     private void parseEvaluator() {
-        exprParserContext.setContext(exprEvaluator, false, false);
+        parserContext.setContext(exprEvaluator, false, false);
         do {
-            parseNext(exprParserContext);
+            parseNext(parserContext);
             ++evaluatorCount;
         } while (readable());
     }
@@ -203,7 +178,7 @@ public class ExprParser extends Expression {
         }
     }
 
-    private void mergeLast(ExprEvaluator root) {
+    final static void mergeLast(ExprEvaluator root) {
         ExprEvaluator rr = root.right;
         if (rr != null && rr.evalType == 0 && rr.left != null) {
             root.right = rr.left;
@@ -211,29 +186,28 @@ public class ExprParser extends Expression {
     }
 
     // 优先级置换
-    private void displacement(ExprEvaluator exprEvaluator) {
-        // 1次置换结构优先级
+    final void displacement(ExprEvaluator exprEvaluator) {
+        // 1
         displacementChain(exprEvaluator);
-
-        // 2次置换运算顺序
+        // 2
         displacementChain(exprEvaluator);
     }
 
     private void displacementChain(ExprEvaluator exprEvaluator) {
-        exprParserContext.exprEvaluator = exprEvaluator;
+        parserContext.exprEvaluator = exprEvaluator;
         do {
-            displacementSplit(exprParserContext);
-        } while (exprParserContext.exprEvaluator != null);
+            displacementSplit(parserContext);
+        } while (parserContext.exprEvaluator != null);
     }
 
-    private void displacementSplit(ExprParserContext exprParserContext) {
+    final void displacementSplit(ExprParserContext exprParserContext) {
         ExprEvaluator exprEvaluator = exprParserContext.exprEvaluator;
 
         if (exprEvaluator == null) {
             return;
         }
-        int opsType = exprEvaluator.opsType;
-        int level = exprEvaluator.level;
+        ElOperator exprOperator = exprEvaluator.operator;
+        int level = exprOperator.level;
 
         int evalType = exprEvaluator.getEvalType();
         ExprEvaluator left = exprEvaluator.getLeft();
@@ -245,13 +219,13 @@ public class ExprParser extends Expression {
         }
 
         // 三目运算冒号（：）特殊处理
-        if(level == 700) {
+        if (exprOperator == ElOperator.COLON) {
             displacement(right);
             exprParserContext.exprEvaluator = null;
             return;
         }
 
-        int rLevel = right.level;
+        int rLevel = right.operator.level;
         if (rLevel <= 0) {
             exprParserContext.exprEvaluator = null;
             return;
@@ -259,7 +233,7 @@ public class ExprParser extends Expression {
         if (level > rLevel) {
             // 发现了右侧的优先级更高,触发右侧合并
             mergeRight(right, level);
-            rLevel = right.level;
+            rLevel = right.operator.level;
         }
 
         int rEvalType = right.getEvalType();
@@ -270,13 +244,13 @@ public class ExprParser extends Expression {
             // 如果左侧的优先级级别高（level小）于右侧就开启轮换
             ExprEvaluator newLeft = createExprEvaluator();
             newLeft.setEvalType(evalType);
-            newLeft.setOperator(opsType, level);
+            newLeft.setOperator(exprOperator);
             newLeft.setNegate(exprEvaluator.negate);
             newLeft.setLogicalNot(exprEvaluator.logicalNot);
             newLeft.setLeft(left);
             newLeft.setRight(rLeft);
 
-            exprEvaluator.setOperator(right.opsType, rLevel);
+            exprEvaluator.setOperator(right.operator);
             exprEvaluator.setNegate(right.isNegate());
             exprEvaluator.setLogicalNot(right.logicalNot);
             exprEvaluator.setEvalType(rEvalType);
@@ -299,12 +273,12 @@ public class ExprParser extends Expression {
         }
     }
 
-    private void mergeRight(ExprEvaluator exprEvaluator, int targetLevel) {
+    final void mergeRight(ExprEvaluator exprEvaluator, int targetLevel) {
         if (exprEvaluator == null) {
             return;
         }
         int evalType = exprEvaluator.getEvalType();
-        int level = exprEvaluator.level;
+        int level = exprEvaluator.operator.level;
 
         if (level >= targetLevel) {
             // 停止合并
@@ -318,12 +292,12 @@ public class ExprParser extends Expression {
         }
 
         // 三目运算冒号（：）特殊处理
-        if(level == 700) {
+        if (exprEvaluator.operator == ElOperator.COLON) {
             displacement(right);
             return;
         }
 
-        int rLevel = right.level;
+        int rLevel = right.operator.level;
         if (rLevel <= 0) {
             return;
         }
@@ -337,13 +311,13 @@ public class ExprParser extends Expression {
             // 如果当前的优先级级别高（level越小）就开启轮换
             ExprEvaluator newLeft = createExprEvaluator();
             newLeft.setEvalType(evalType);
-            newLeft.setOperator(exprEvaluator.opsType, exprEvaluator.level);
+            newLeft.setOperator(exprEvaluator.operator);
             newLeft.setNegate(exprEvaluator.negate);
             newLeft.setLogicalNot(exprEvaluator.logicalNot);
             newLeft.setLeft(left);
             newLeft.setRight(rLeft);
 
-            exprEvaluator.setOperator(right.opsType, right.level);
+            exprEvaluator.setOperator(right.operator);
             exprEvaluator.setNegate(right.negate);
             exprEvaluator.setLogicalNot(right.logicalNot);
             exprEvaluator.setEvalType(rEvalType);
@@ -358,16 +332,59 @@ public class ExprParser extends Expression {
     protected void compressVariables() {
         // invokes
         if (tailInvokes != null) {
-            chainInvoker = ChainVariableInvoker.build(tailInvokes);
-            chainValues = ChainVariableInvoker.build(invokes, true);
+            // chainValues = ChainVariableInvoker.build(invokes, true);
             variableCount = invokes.size();
-//            cachedVariableValue = tailInvokes.size() != invokes.size();
+            int index = 0;
+            boolean sibbingMode = true;
+            ElVariableInvoker tailParent = null;
+            for (ElVariableInvoker variableInvoker : invokes.values()) {
+                variableInvoker.setIndex(index++);
+                if (variableInvoker.isTail()) {
+                    if (sibbingMode) {
+                        if (variableInvoker.parent == null) {
+                            sibbingMode = false;
+                        } else {
+                            if (tailParent == null) {
+                                tailParent = variableInvoker.parent;
+                            } else {
+                                if (tailParent != variableInvoker.parent) {
+                                    sibbingMode = false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (tailInvokes.size() == 1) {
+                // single value
+                tailChainInvoker = tailInvokes.values().iterator().next();
+                evaluatorContext = new EvaluatorContext.EvaluatorContextSingleVariableImpl();
+            } else {
+                tailChainInvoker = ElChainVariableInvoker.buildTailChainInvoker(tailInvokes);
+                if (sibbingMode) {
+                    if (tailChainInvoker.size() == 2) {
+                        ElChainVariableInvoker chainVariableInvoker = (ElChainVariableInvoker) tailChainInvoker;
+                        evaluatorContext = new EvaluatorContext.EvaluatorContextTwinsImpl(tailParent, chainVariableInvoker.variableInvoke, chainVariableInvoker.next.variableInvoke);
+                    } else {
+                        evaluatorContext = new EvaluatorContext.EvaluatorContextSibbingVariablesImpl(tailParent);
+                    }
+                } else {
+                    evaluatorContext = new EvaluatorContext();
+                }
+            }
+        }
+    }
 
-            tailInvokes.clear();
-            invokes.clear();
+    public final Collection<ElVariableInvoker> getTailVariableInvokers() {
+        return tailInvokes == null ? new ArrayList<ElVariableInvoker>() : new ArrayList<ElVariableInvoker>(tailInvokes.values());
+    }
 
-            tailInvokes = null;
-            invokes = null;
+    @Override
+    public final List<String> getVariables() {
+        if (variableCount > 0) {
+            return new ArrayList<String>(tailInvokes.keySet());
+        } else {
+            return new ArrayList<String>();
         }
     }
 
@@ -375,13 +392,13 @@ public class ExprParser extends Expression {
         ExprEvaluator evaluator = exprParserContext.exprEvaluator;
         boolean negate = exprParserContext.negate;
         boolean logicalNot = exprParserContext.logicalNot;
-        evaluator.setEvalType(1);
+        evaluator.setEvalType(ExprEvaluator.EVAL_TYPE_OPERATOR);
         ExprEvaluator right = createExprEvaluator();
-        if (this.opsType == 12) {
-            evaluator.setOperator(11, 100);
+        if (operator == ElOperator.MINUS) {
+            evaluator.setOperator(ElOperator.PLUS);
             negate = true;
         } else {
-            evaluator.setOperator(this.opsType, this.opsLevel);
+            evaluator.setOperator(operator);
         }
         evaluator.setRight(right);
         exprParserContext.setContext(right, negate, logicalNot);
@@ -391,12 +408,10 @@ public class ExprParser extends Expression {
         ExprEvaluator evaluator = exprParserContext.exprEvaluator;
         boolean negate = exprParserContext.negate;
         boolean logicalNot = exprParserContext.logicalNot;
-
         switch (startChar) {
             case 't': {
                 if ("true".equals(identifierValue)) {
-                    ExprEvaluator.ExprEvaluatorConstantImpl left = new ExprEvaluator.ExprEvaluatorConstantImpl(true && !logicalNot);
-                    left.setEvalType(-1);
+                    ExprEvaluator.ConstantImpl left = new ExprEvaluator.ConstantImpl(!logicalNot);
                     evaluator.setLeft(left);
                     exprParserContext.setContext(evaluator, false, false);
                     return;
@@ -405,8 +420,7 @@ public class ExprParser extends Expression {
             }
             case 'f': {
                 if ("false".equals(identifierValue)) {
-                    ExprEvaluator.ExprEvaluatorConstantImpl left = new ExprEvaluator.ExprEvaluatorConstantImpl(false || logicalNot);
-                    left.setEvalType(-1);
+                    ExprEvaluator.ConstantImpl left = new ExprEvaluator.ConstantImpl(logicalNot);
                     evaluator.setLeft(left);
                     exprParserContext.setContext(evaluator, false, false);
                     return;
@@ -415,8 +429,7 @@ public class ExprParser extends Expression {
             }
             case 'n': {
                 if ("null".equals(identifierValue)) {
-                    ExprEvaluator.ExprEvaluatorConstantImpl left = new ExprEvaluator.ExprEvaluatorConstantImpl(null);
-                    left.setEvalType(-1);
+                    ExprEvaluator.ConstantImpl left = new ExprEvaluator.ConstantImpl(null);
                     evaluator.setLeft(left);
                     exprParserContext.setContext(evaluator, false, false);
                     return;
@@ -427,12 +440,11 @@ public class ExprParser extends Expression {
         // 检查是否已初始化
         checkInitializedInvokes();
         // 变量
-        ExprEvaluator.ExprEvaluatorVariableImpl left = new ExprEvaluator.ExprEvaluatorVariableImpl();
-        left.setEvalType(6);
+        ExprEvaluator.VariableImpl left = new ExprEvaluator.VariableImpl();
         left.setNegate(negate);
         left.setLogicalNot(logicalNot);
 
-        left.setVariableInvoker(identifierValue == null ? VariableUtils.build(variableKeys, getInvokes(), getTailInvokes()) : VariableUtils.buildRoot(identifierValue, getInvokes(), getTailInvokes()));
+        left.setVariableInvoker(identifierValue == null ? ElVariableUtils.build(variableKeys, getInvokes(), getTailInvokes()) : ElVariableUtils.buildRoot(identifierValue, getInvokes(), getTailInvokes()));
         evaluator.setLeft(left);
         exprParserContext.setContext(evaluator, false, false);
     }
@@ -440,41 +452,29 @@ public class ExprParser extends Expression {
     // 检查是否已初始化Invokes，如果没有进行初始化
     void checkInitializedInvokes() {
         if (invokes == null) {
-            invokes = new HashMap<String, VariableInvoker>();
-            tailInvokes = new HashMap<String, VariableInvoker>();
+            invokes = new HashMap<String, ElVariableInvoker>();
+            tailInvokes = new HashMap<String, ElVariableInvoker>();
         }
     }
 
-    private void parseNumToken(ExprParserContext exprParserContext, Number numberValue) {
+    final static void parseNumToken(ExprParserContext exprParserContext, Number numberValue) {
         ExprEvaluator evaluator = exprParserContext.exprEvaluator;
-        ExprEvaluator.ExprEvaluatorConstantImpl left = new ExprEvaluator.ExprEvaluatorConstantImpl(numberValue);
-        // left.setEvalType(3);
-        // left.setLogicalNot(logicalNot);
-//        if(exprParserContext.logicalNot) {
-//            throw new ExpressionException("!"+numberValue+" not supported ");
-//        }
-
+        ExprEvaluator.ConstantImpl left = new ExprEvaluator.ConstantImpl(numberValue);
         evaluator.setLeft(left);
         exprParserContext.setContext(evaluator, false, false);
     }
 
-    private void parseBracketToken(ExprParserContext exprParserContext) {
+    final void parseBracketToken(ExprParserContext exprParserContext) {
         ExprEvaluator evaluator = exprParserContext.exprEvaluator;
         boolean negate = exprParserContext.negate;
         boolean logicalNot = exprParserContext.logicalNot;
 
-        // 构建子表达式作为当前表达式evaluator的right
-        // 遇到)（BRACKET_END_TOKEN）结束
-        evaluator.setOperator(this.opsType, this.opsLevel);
-        evaluator.setNegate(negate);
-        evaluator.setLogicalNot(logicalNot);
-
-        // 括号执行器
-        ExprEvaluator child = createExprEvaluator();
+        // 括号子执行器
+        ExprEvaluator bracketChild = createExprEvaluator();
 
         // 循环解析不适合处理括号嵌套问题
         // 使用递归解析
-        ExprParserContext bracketParserContext = new ExprParserContext(child, false, false);
+        ExprParserContext bracketParserContext = new ExprParserContext(bracketChild, false, false);
         do {
             parseNext(bracketParserContext);
         } while (readable() && !bracketParserContext.endFlag);
@@ -482,43 +482,49 @@ public class ExprParser extends Expression {
         // 解析类型如果没有结束括号说明表达式错误
         if (!bracketParserContext.endFlag) {
             String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-            throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ",Expression[... " + errorMessage + " ...], missing closing symbol')'");
+            throw new ExpressionException("syntax error, pos: " + this.readIndex + ",Expression[ " + errorMessage + " ], missing closing symbol')'");
         }
         //  置换子表达式优先级
         //  displacementSplit(child);
-        displacementChain(child);
-        mergeLast(child);
+        displacementChain(bracketChild);
+        mergeLast(bracketChild);
 
-        ExprEvaluator right = createExprEvaluator();
-        evaluator.setEvalType(5);
-        evaluator.setRight(right);
+//        ExprEvaluator right = createExprEvaluator();
+//        evaluator.setEvalType(ExprEvaluator.EVAL_TYPE_BRACKET);
+//        evaluator.setRight(right);
+//
+//        right.setLeft(bracketChild);
+//        exprParserContext.setContext(right, false, false);
 
-        right.setLeft(child);
-        exprParserContext.setContext(right, false, false);
+        ExprEvaluator bracketEvaluator = createExprEvaluator();
+        bracketEvaluator.negate(negate).setLogicalNot(logicalNot);
+        bracketEvaluator.setEvalType(ExprEvaluator.EVAL_TYPE_BRACKET);
+        bracketEvaluator.setOperator(ElOperator.BRACKET);
+        bracketEvaluator.setRight(bracketChild);
+        evaluator.setLeft(bracketEvaluator);
+        exprParserContext.setContext(evaluator, false, false);
     }
 
-    private void parseStrToken(ExprParserContext exprParserContext, String strValue) {
+    final static void parseStrToken(ExprParserContext exprParserContext, String strValue) {
         ExprEvaluator evaluator = exprParserContext.exprEvaluator;
         boolean negate = exprParserContext.negate;
         boolean logicalNot = exprParserContext.logicalNot;
 
         // 字符串常量
-        ExprEvaluator.ExprEvaluatorConstantImpl left = new ExprEvaluator.ExprEvaluatorConstantImpl(strValue);
-        left.setEvalType(7);
+        ExprEvaluator.ConstantImpl left = new ExprEvaluator.ConstantImpl(strValue);
         left.setNegate(negate);
         left.setLogicalNot(logicalNot);
         evaluator.setLeft(left);
         exprParserContext.setContext(evaluator, false, false);
     }
 
-    private void parseArrToken(ExprParserContext exprParserContext, String arrStr) {
+    final void parseArrToken(ExprParserContext exprParserContext, String arrStr) {
         ExprEvaluator evaluator = exprParserContext.exprEvaluator;
         boolean negate = exprParserContext.negate;
         boolean logicalNot = exprParserContext.logicalNot;
 
         // 静态数组
         ExprEvaluator left = createExprEvaluator();
-        left.setEvalType(8);
         left.setNegate(negate);
         left.setLogicalNot(logicalNot);
         left.setArrayValue(arrStr);
@@ -526,14 +532,12 @@ public class ExprParser extends Expression {
         exprParserContext.setContext(evaluator, false, false);
     }
 
-    private void parseFunToken(ExprParserContext exprParserContext, String functionName, String args) {
+    final void parseFunToken(ExprParserContext exprParserContext, String functionName, String args) {
         ExprEvaluator evaluator = exprParserContext.exprEvaluator;
         boolean negate = exprParserContext.negate;
         boolean logicalNot = exprParserContext.logicalNot;
 
-        // 函数token
-        ExprEvaluator.ExprEvaluatorFunctionImpl left = new ExprEvaluator.ExprEvaluatorFunctionImpl();
-        left.setEvalType(9);
+        ExprEvaluator.FunctionImpl left = new ExprEvaluator.FunctionImpl();
         left.setNegate(negate);
         left.setLogicalNot(logicalNot);
         left.setFunction(functionName, args, global());
@@ -541,48 +545,40 @@ public class ExprParser extends Expression {
         exprParserContext.setContext(evaluator, false, false);
     }
 
-    private void parseMethodToken(ExprParserContext exprParserContext, List<String> variableKeys, String methodName, String args) {
+    final void parseMethodToken(ExprParserContext exprParserContext, List<String> variableKeys, String methodName, String args) {
         ExprEvaluator evaluator = exprParserContext.exprEvaluator;
         boolean negate = exprParserContext.negate;
         boolean logicalNot = exprParserContext.logicalNot;
 
         checkInitializedInvokes();
-
-        // 函数token
-        ExprEvaluator.ExprEvaluatorMethodImpl left = new ExprEvaluator.ExprEvaluatorMethodImpl();
-        left.setEvalType(9);
+        ExprEvaluator.MethodImpl left = new ExprEvaluator.MethodImpl();
         left.setNegate(negate);
         left.setLogicalNot(logicalNot);
-        left.setMethod(VariableUtils.build(variableKeys, getInvokes(), getTailInvokes()), methodName, args, global());
+        left.setMethod(ElVariableUtils.build(variableKeys, getInvokes(), getTailInvokes()), methodName, args, global());
         evaluator.setLeft(left);
         exprParserContext.setContext(evaluator, false, false);
     }
 
-    private void parseNegateToken(ExprParserContext exprParserContext) {
+    final static void parseNegateToken(ExprParserContext exprParserContext) {
         // 负数标记,上一个token必为操作符
         // 只做桥接作用,基于负负得正与上一个negate值互斥
         boolean negate = exprParserContext.negate;
         exprParserContext.negate = !negate;
     }
 
-    private void parseNotToken(ExprParserContext exprParserContext) {
+    final static void parseNotToken(ExprParserContext exprParserContext) {
         // 取非标记,上一个token必为操作符
         // 只做桥接作用,基于`非非得是`与上一个logicalNot值互斥
         boolean logicalNot = exprParserContext.logicalNot;
         exprParserContext.logicalNot = !logicalNot;
     }
 
-    private static ThreadLocal<List<String>> localVariableKeys = new ThreadLocal<List<String>>() {
+    private final static ThreadLocal<List<String>> localVariableKeys = new ThreadLocal<List<String>>() {
         @Override
         protected List<String> initialValue() {
             return new ArrayList<String>();
         }
     };
-
-    private static List<String> getLocalVariableKeys() {
-        List<String> keys = localVariableKeys.get();
-        return keys;
-    }
 
     private void parseNext(ExprParserContext exprParserContext) {
 
@@ -600,13 +596,11 @@ public class ExprParser extends Expression {
 
         char currentChar = read();
 
-        // 预判规则
-        // 1 如果上一个token是运算符号,则当前一定不是运算符号
-        // 2 如果上一个token是数值,则当前一定不是数值
-        int opsSymbolIndex = -1;
-        // 是否减号操作符
+        // Based on prediction rules, it seems more efficient than switch
+        ElOperator elOperator;
+        // Is it a minus sign operator
         boolean isMinusSymbol = false;
-        if ((isDigit(currentChar) || (isMinusSymbol = currentChar == '-')) && getTokenTypeGroup(prevTokenType) != GROUP_TOKEN_VALUE) {
+        if ((isDigit(currentChar) || (isMinusSymbol = currentChar == '-')) && isNotGroupTokenValue(prevTokenType)) {
             int cnt = 0;
             int readIndex = ++this.readIndex;
             int numberRadix = 10;
@@ -623,7 +617,7 @@ public class ExprParser extends Expression {
                 }
             }
             // 10进制值
-            long decimalValPlain = 0;
+            long decimalVal = 0;
             boolean valInitSet = false;
             // 16进制或者8进制
             long hexOrOctVal = 0;
@@ -636,12 +630,12 @@ public class ExprParser extends Expression {
                     this.readIndex = readIndex;
                     ++cnt;
                     while (readable() && (val = digit(currentChar = read(), 16)) != -1) {
-                        hexOrOctVal = (hexOrOctVal << 4)  | val;
+                        hexOrOctVal = (hexOrOctVal << 4) | val;
                         ++this.readIndex;
                         ++cnt;
                     }
                     // only supported long suffix sush as 0x123L
-                    if(currentChar == 'l' || currentChar == 'L') {
+                    if (currentChar == 'l' || currentChar == 'L') {
                         ++this.readIndex;
                     }
                 } else {
@@ -651,7 +645,7 @@ public class ExprParser extends Expression {
                         hexOrOctVal = digit(secondeDigitChar, 8);
                         ++cnt;
                         while (readable() && (val = digit(currentChar = read(), 8)) != -1) {
-                            hexOrOctVal = (hexOrOctVal << 3)  | val;
+                            hexOrOctVal = (hexOrOctVal << 3) | val;
                             ++this.readIndex;
                             ++cnt;
                         }
@@ -665,7 +659,8 @@ public class ExprParser extends Expression {
                             case 'd':
                             case '.': {
                                 numberRadix = 10;
-                                decimalValPlain = Integer.parseInt(Long.toString(hexOrOctVal, 8));
+                                // decimalVal = Integer.parseInt(Long.toString(hexOrOctVal, 8));
+                                decimalVal = hexOrOctVal;
                                 valInitSet = true;
                                 break;
                             }
@@ -680,7 +675,7 @@ public class ExprParser extends Expression {
             }
 
             // use double
-            double value = 0;
+            double value;
             int mode = 0;
             // supported number suffix such as 123.456d/12.05f/123456L
             int specifySuffix = 0;
@@ -691,31 +686,31 @@ public class ExprParser extends Expression {
             // 小数位数
             int decimalCount = 0;
             // 默认10进制
-            if(numberRadix == 10) {
-                if(!isMinusSymbol && !valInitSet) {
+            if (numberRadix == 10) {
+                if (!isMinusSymbol && !valInitSet) {
                     ++cnt;
-                    decimalValPlain = currentChar - 48;
+                    decimalVal = currentChar - 48;
                 }
                 // 10进制
                 while (readable() && isDigit(currentChar = read())) {
-                    decimalValPlain = decimalValPlain * 10 + (currentChar - 48);
+                    decimalVal = decimalVal * 10 + (currentChar - 48);
                     ++this.readIndex;
                     ++cnt;
                 }
                 // 小数点
-                if(currentChar == '.') {
+                if (currentChar == '.') {
                     ++this.readIndex;
                     // 小数点模式
                     mode = 1;
                     // direct scan numbers
                     while (readable() && isDigit(currentChar = read())) {
-                        decimalValPlain = decimalValPlain * 10 + currentChar - 48;
+                        decimalVal = decimalVal * 10 + currentChar - 48;
                         ++decimalCount;
                         ++cnt;
                         ++this.readIndex;
                     }
                 }
-                if(currentChar == 'E' || currentChar == 'e') {
+                if (currentChar == 'E' || currentChar == 'e') {
                     mode = 2;
                     ++this.readIndex;
                     currentChar = read();
@@ -753,120 +748,13 @@ public class ExprParser extends Expression {
                     }
                 }
                 // end
-                value = decimalValPlain;
+                value = decimalVal;
             } else {
                 // 16进制或者8进制值
                 value = hexOrOctVal;
+                decimalVal = hexOrOctVal;
             }
             Number numberValue;
-//            while (readable() && isAvailableDigit(currentChar = read(), numberRadix)) {
-//                if (currentChar == '-' && prevChar != 'E' && prevChar != 'e') {
-//                    break;
-//                }
-//
-//                // parse number
-//                ++cnt;
-//                int digit = digit(currentChar, numberRadix);
-//                if (currentChar == '.') {
-//                    if (mode != 0) {
-//                        throwNumberFormatException(start);
-//                        return;
-//                    }
-//                    // 小数点模式
-//                    mode = 1;
-//                    ++this.readIndex;
-//                    if (readable()) {
-//                        currentChar = read();
-//                    } else {
-//                        break;
-//                    }
-//                    digit = digit(currentChar, numberRadix);
-//                } else if (currentChar == 'E' || currentChar == 'e') {
-//                    if (mode == 2) {
-//                        throwNumberFormatException(start);
-//                        return;
-//                    }
-//                    // 科学计数法
-//                    mode = 2;
-//                    ++this.readIndex;
-//                    if (readable()) {
-//                        currentChar = read();
-//                    } else {
-//                        break;
-//                    }
-//                    if (currentChar == '-') {
-//                        expNegative = true;
-//                        ++this.readIndex;
-//                        if (readable()) {
-//                            currentChar = read();
-//                        } else {
-//                            break;
-//                        }
-//                    }
-//                    digit = digit(currentChar, numberRadix);
-//                }
-//
-//                if (digit == -1) {
-//                    switch (currentChar) {
-//                        case 'l':
-//                        case 'L': {
-//                            if (specifySuffix == 0) {
-//                                specifySuffix = 1;
-//                                break;
-//                            }
-//                            throwNumberFormatException(start);
-//                            return;
-//                        }
-//                        case 'f':
-//                        case 'F': {
-//                            if (specifySuffix == 0) {
-//                                specifySuffix = 2;
-//                                break;
-//                            }
-//                            throwNumberFormatException(start);
-//                            return;
-//                        }
-//                        case 'd':
-//                        case 'D': {
-//                            if (specifySuffix == 0) {
-//                                specifySuffix = 2;
-//                                break;
-//                            }
-//                            throwNumberFormatException(start);
-//                            return;
-//                        }
-//                        default: {
-//                            if (currentChar <= ' ') {
-//                                break;
-//                            }
-//                            throwNumberFormatException(start);
-//                            return;
-//                        }
-//                    }
-//                }
-//                switch (mode) {
-//                    case 0:
-//                        value *= numberRadix;
-//                        value += digit;
-//                        break;
-//                    case 1:
-//                        value *= numberRadix;
-//                        value += digit;
-//                        decimalCount++;
-//                        break;
-//                    case 2:
-//                        // exp 模式只支持10进制
-//                        expValue = (expValue << 3) + (expValue << 1);
-//                        expValue += digit;
-//                        break;
-//                }
-//
-//                ++this.readIndex;
-//                prevChar = currentChar;
-//                if (this.readIndex >= length()) {
-//                    break;
-//                }
-//            }
             if (cnt == 0 && isMinusSymbol) {
                 // (子)表达式以'-'开始（RESET_TOKEN或者BRACKET_TOKEN）或者上一个是操作符号都识别为负数
                 switch (prevTokenType) {
@@ -883,9 +771,7 @@ public class ExprParser extends Expression {
                     default: {
                         // 操作符-
                         this.tokenType = OPS_TOKEN;
-                        this.opsType = 12;
-                        this.opsLevel = 100;
-
+                        this.operator = ElOperator.MINUS;
                         checkTokenSyntaxError();
                         parseOpsToken(exprParserContext);
                         return;
@@ -893,11 +779,10 @@ public class ExprParser extends Expression {
                 }
             } else {
                 this.tokenType = NUM_TOKEN;
-                // Two negatives make a positive
-                if (exprParserContext.negate ^ isMinusSymbol) {
-                    value = -value;
-                }
                 if (mode == 0) {
+                    if (exprParserContext.negate ^ isMinusSymbol) {
+                        value = -value;
+                    }
                     if (specifySuffix == 0) {
                         if (value >= Long.MIN_VALUE && value <= Long.MAX_VALUE) {
                             numberValue = (long) value;
@@ -913,12 +798,16 @@ public class ExprParser extends Expression {
                     }
                 } else {
                     expValue = expNegative ? -expValue - decimalCount : expValue - decimalCount;
-                    if (expValue > 0) {
-                        double powValue = NumberUtils.getDecimalPowerValue(expValue);
-                        value *= powValue;
-                    } else if (expValue < 0) {
-                        double powValue = NumberUtils.getDecimalPowerValue(-expValue);
-                        value /= powValue;
+//                    if (expValue > 0) {
+//                        double powValue = NumberUtils.getDecimalPowerValue(expValue);
+//                        value *= powValue;
+//                    } else if (expValue < 0) {
+//                        double powValue = NumberUtils.getDecimalPowerValue(-expValue);
+//                        value /= powValue;
+//                    }
+                    value = NumberUtils.scientificToIEEEDouble(decimalVal, -expValue);
+                    if (exprParserContext.negate ^ isMinusSymbol) {
+                        value = -value;
                     }
                     if (specifySuffix == 0) {
                         numberValue = value;
@@ -935,7 +824,7 @@ public class ExprParser extends Expression {
                 parseNumToken(exprParserContext, numberValue);
                 return;
             }
-        } else if (this.prevTokenType != OPS_TOKEN && (opsSymbolIndex = getOpsSymbolIndex(currentChar)) > -1) {
+        } else if (this.prevTokenType > OPS_TOKEN && (elOperator = getOperator(currentChar)) != null) {
             // 运算操作符号 +-*/% **
             // 位运算符 >> << &(位-与) |（位-或） ^（位-异或）  ~（去反）
             // 逻辑操作符号 > < >= <= == != ! &&（逻辑与） ||（逻辑或） !（逻辑非）
@@ -948,40 +837,36 @@ public class ExprParser extends Expression {
                 // 双操作符只支持:
                 // 运算操作符 ** << >>
                 // 逻辑操作符 >= <= == && ||
-                if (currentChar == '*' && opsSymbolIndex == 1) {
+                if (currentChar == '*' && elOperator == ElOperator.MULTI) {
                     // 指数运算调整类型和优先级
-                    this.opsType = 4;
-                    this.opsLevel = 9;
+                    this.operator = ElOperator.EXP;
                     ++this.readIndex;
-                } else if (opsSymbolIndex == 31) {
+                } else if (elOperator == ElOperator.AND) {
                     // &&
                     if (currentChar == '&') {
                         // 逻辑与： &&
                         ++this.readIndex;
-                        this.opsType = 61;
-                        this.opsLevel = 600;
+                        this.operator = ElOperator.LOGICAL_AND;
                     } else {
                         this.errorMsg = String.valueOf(firstMatchChar) + currentChar;
                         throwOperationNotSupported();
                     }
-                } else if (opsSymbolIndex == 33) {
+                } else if (elOperator == ElOperator.OR) {
                     // ||
                     if (currentChar == '|') {
                         // 逻辑或： ||
                         ++this.readIndex;
-                        this.opsType = 62;
-                        this.opsLevel = 600;
+                        this.operator = ElOperator.LOGICAL_OR;
                     } else {
                         this.errorMsg = String.valueOf(firstMatchChar) + currentChar;
                         throwOperationNotSupported();
                     }
-                } else if (opsSymbolIndex == 43) {
+                } else if (elOperator == ElOperator.NOT) {
                     // !搭配=使用
                     if (currentChar == '=') {
                         // 逻辑不等于 != 和 == >=优先级一致
                         ++this.readIndex;
-                        this.opsType = 56;
-                        this.opsLevel = 500;
+                        this.operator = ElOperator.NE;
                     } else if (currentChar == '!') {
                         // 或者紧跟非操作符号!
                         this.tokenType = NOT_TOKEN;
@@ -989,7 +874,7 @@ public class ExprParser extends Expression {
                         parseNotToken(exprParserContext);
                         return;
                     } else {
-                        if (getOpsSymbolIndex(currentChar) > -1) {
+                        if (getOperator(currentChar) != null) {
                             this.errorMsg = String.valueOf(firstMatchChar) + currentChar;
                             throwOperationNotSupported();
                         }
@@ -998,49 +883,44 @@ public class ExprParser extends Expression {
                         parseNotToken(exprParserContext);
                         return;
                     }
-                } else if (opsSymbolIndex == 51) {
+                } else if (elOperator == ElOperator.GT) {
                     // 只支持 >> >=
                     if (currentChar == '>') {
                         // 位移运算: >>
                         ++this.readIndex;
-                        this.opsType = 21;
-                        this.opsLevel = 200;
+                        this.operator = ElOperator.BIT_RIGHT;
                     } else if (currentChar == '=') {
                         // 逻辑运算符： >=
                         ++this.readIndex;
-                        this.opsType = 54;
-                        this.opsLevel = 500;
+                        this.operator = ElOperator.GE;
                     } else {
-                        if (getOpsSymbolIndex(currentChar) > -1) {
+                        if (getOperator(currentChar) != null) {
                             this.errorMsg = String.valueOf(firstMatchChar) + currentChar;
                             throwOperationNotSupported();
                         }
                     }
-                } else if (opsSymbolIndex == 52) {
+                } else if (elOperator == ElOperator.LT) {
                     // 只支持 << <=
                     if (currentChar == '<') {
                         // 位移运算: <<
                         ++this.readIndex;
-                        this.opsType = 22;
-                        this.opsLevel = 200;
+                        this.operator = ElOperator.BIT_LEFT;
                     } else if (currentChar == '=') {
                         // 逻辑运算符： <=
                         ++this.readIndex;
-                        this.opsType = 55;
-                        this.opsLevel = 500;
+                        this.operator = ElOperator.LE;
                     } else {
                         // fix a<b bug when no whitespace
-                        if (getOpsSymbolIndex(currentChar) > -1) {
+                        if (getOperator(currentChar) != null) {
                             this.errorMsg = String.valueOf(firstMatchChar) + currentChar;
                             throwOperationNotSupported();
                         }
                     }
-                } else if (opsSymbolIndex == 53) {
+                } else if (elOperator == ElOperator.EQ) {
                     if (currentChar == '=') {
                         // 逻辑==
                         ++this.readIndex;
-                        this.opsType = 53;
-                        this.opsLevel = 500;
+                        this.operator = ElOperator.EQ;
                     } else {
                         // 暂时不支持赋值表达式
                         this.errorMsg = String.valueOf(firstMatchChar) + currentChar;
@@ -1052,7 +932,7 @@ public class ExprParser extends Expression {
                 }
             } else {
                 // 2022-03-11 开始支持！运算
-                if (/*opsSymbolIndex == 43 ||*/ opsSymbolIndex == 53) {
+                if (/*opsSymbolIndex == 43 ||*/ elOperator == ElOperator.EQ) {
                     this.errorMsg = String.valueOf(firstMatchChar);
                     // 不支持=和！单独使用
                     // 后续实现！针对逻辑表达式的非运算
@@ -1063,8 +943,7 @@ public class ExprParser extends Expression {
             parseOpsToken(exprParserContext);
             return;
         } else if (isBracketSymbol(currentChar)) {
-            this.opsType = 5;
-            this.opsLevel = 1;
+            this.operator = ElOperator.BRACKET;
             // 括号
             ++this.readIndex;
             if (currentChar == '(') {
@@ -1072,7 +951,6 @@ public class ExprParser extends Expression {
                 bracketCount++;
                 checkBeforeBracketTokenSyntaxError();
                 parseBracketToken(exprParserContext);
-                return;
             } else {
                 bracketCount--;
                 this.tokenType = BRACKET_END_TOKEN;
@@ -1082,7 +960,6 @@ public class ExprParser extends Expression {
                 }
                 checkBeforeBracketEndTokenSyntaxError();
                 exprParserContext.endFlag = true;
-                return;
             }
         } else if (isIdentifierStart(currentChar)) {
             int start = this.readIndex;
@@ -1090,13 +967,13 @@ public class ExprParser extends Expression {
             ++this.readIndex;
 
             int localOffset = start;
-            List<String> variableKeys = getLocalVariableKeys();
+            List<String> variableKeys = getLocalVariableKeys(); // localVariableKeys.get();
             try {
                 while (readable() && (isVariableAppend(currentChar = read()))) {
                     if (currentChar == '.') {
                         if (readIndex == localOffset) {
                             String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-                            throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ...],token '\'' is duplicate or conflict with [] ");
+                            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[ " + errorMessage + " ],token '\'' is duplicate or conflict with [] ");
                         }
                         variableKeys.add(new String(sourceChars, localOffset + this.offset, readIndex - localOffset));
                         localOffset = ++this.readIndex;
@@ -1105,7 +982,7 @@ public class ExprParser extends Expression {
                     if (currentChar == '[') {
                         if (readIndex == localOffset) {
                             String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-                            throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ...],token '[' is duplicate or conflict with '.' ");
+                            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[ " + errorMessage + " ],token '[' is duplicate or conflict with '.' ");
                         }
                         // 内层循环直到遇到]结束
                         variableKeys.add(new String(sourceChars, localOffset + this.offset, readIndex - localOffset));
@@ -1146,12 +1023,10 @@ public class ExprParser extends Expression {
                         }
                         if (currentChar != ']') {
                             String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-                            throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ...],未找到与开始字符'['相匹配的结束字符 ']'");
+                            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[ " + errorMessage + " ],未找到与开始字符'['相匹配的结束字符 ']'");
                         }
                         if (stringKey) {
                             // 去除''
-//                            String valueWithQuotation = new String(sourceChars, localOffset + this.offset, readIndex - localOffset).trim();
-//                            variableKeys.add(valueWithQuotation.substring(1, valueWithQuotation.length() - 1));
                             int st = localOffset + this.offset;
                             int et = readIndex + this.offset;
                             while ((st < et) && (sourceChars[st] <= ' ')) {
@@ -1200,7 +1075,7 @@ public class ExprParser extends Expression {
                     }
                     if (currentChar != ')') {
                         String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-                        throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ",Expression[... " + errorMessage + " ...], end token ')' not found !");
+                        throw new ExpressionException("syntax error, pos: " + this.readIndex + ",Expression[ " + errorMessage + " ], end token ')' not found !");
                     }
                     String args = new String(sourceChars, localOffset + this.offset, this.readIndex - localOffset - 1);
                     if (oneLevelAccess) {
@@ -1215,7 +1090,7 @@ public class ExprParser extends Expression {
                         checkTokenSyntaxError();
                         parseMethodToken(exprParserContext, variableKeys, identifierValue, args);
                         // String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-                        // throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ...],non static function token() is not supported temporarily !");
+                        // throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[ " + errorMessage + " ],non static function token() is not supported temporarily !");
                     }
 
                 } else {
@@ -1239,7 +1114,7 @@ public class ExprParser extends Expression {
             parseNotToken(exprParserContext);
             return;
         } else if (currentChar == '\'') {
-            int start = ++this.readIndex;
+            int start = this.readIndex + 1;
             this.scanString();
             // 最后一个字符属于token范围内字符需要++
             // 标记为常量
@@ -1261,7 +1136,7 @@ public class ExprParser extends Expression {
             }
             if (currentChar != '}') {
                 String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-                throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ...],未找到与开始字符'{'相匹配的结束字符 '}'");
+                throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[ " + errorMessage + " ],未找到与开始字符'{'相匹配的结束字符 '}'");
             }
             this.tokenType = ARR_TOKEN;
             checkTokenSyntaxError();
@@ -1277,7 +1152,7 @@ public class ExprParser extends Expression {
                 // 以java标识符开头
                 if (!Character.isJavaIdentifierStart(currentChar = read())) {
                     String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-                    throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ...], unexpected function start char  : '" + currentChar + "'");
+                    throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[ " + errorMessage + " ], unexpected function start char  : '" + currentChar + "'");
                 }
             }
             // 查找'('前面的字符
@@ -1295,7 +1170,7 @@ public class ExprParser extends Expression {
             // 查找'('
             if (currentChar != '(') {
                 String readSource = new String(this.exprSource.substring(0, this.readIndex));
-                throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", source: '" + readSource + "' function start symbol '(' not found !");
+                throw new ExpressionException("syntax error, pos: " + this.readIndex + ", source: '" + readSource + "' function start symbol '(' not found !");
             }
             String functionName = new String(sourceChars, start + this.offset, this.readIndex - start);
             start = ++this.readIndex;
@@ -1326,10 +1201,19 @@ public class ExprParser extends Expression {
             parseFunToken(exprParserContext, functionName, args);
             return;
         } else {
+            if (prevTokenType == RESET_TOKEN && currentChar == '+') {
+                ++readIndex;
+                tokenType = OPS_TOKEN;
+                return;
+            }
             // 无法识别的字符
             String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-            throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ...], 表达式中未预期出现的token字符 '" + currentChar + "'");
+            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", unexpected token '" + currentChar + "', Expression[ " + errorMessage + " ]");
         }
+    }
+
+    protected List<String> getLocalVariableKeys() {
+        return localVariableKeys.get();
     }
 
     // 读取字符串最后一个"'"
@@ -1343,54 +1227,49 @@ public class ExprParser extends Expression {
         }
         if (currentChar != '\'' || prevCh == '\\') {
             String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-            throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ...],未找到与开始字符'\''相匹配的结束字符 '\''");
+            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[ " + errorMessage + " ],未找到与开始字符'\''相匹配的结束字符 '\''");
         }
     }
 
-    private boolean readable() {
+    final boolean readable() {
         return this.readIndex < count;
     }
 
-    /**
-     * 读取下一个字符
-     *
-     * @return
-     */
-    private char read() {
+    final char read() {
         return this.sourceChars[offset + this.readIndex];
     }
 
     /**
      * 读取指定位置字符
      */
-    private char read(int index) {
+    final char read(int index) {
         return this.sourceChars[offset + index];
     }
 
-    private void checkIfBuiltInKeywords(String varValue) {
-        if (varValue == null) return;
-        int length = varValue.length();
-        if (length == 2) {
-            char charFir = varValue.charAt(0);
-            char charSec = varValue.charAt(1);
-            if ((charFir == 'i' && charSec == 'n') || (charFir == 'I' && charSec == 'N')) {
-                // in(IN)语法归纳到操作符于&&,||, != 同级别
-                // 判断左边的对象是否为右边集合的中元素或者属性,或者map的key
-                this.opsType = 63;
-                this.opsLevel = 600;
-                this.tokenType = OPS_TOKEN;
-            }
-        } else if (length == 3) {
-            if (varValue.indexOf("out") == 0) {
-                // out指令 实际上是in操作取反
-                this.opsType = 64;
-                this.opsLevel = 600;
-                this.tokenType = OPS_TOKEN;
-            }
-        }
-    }
+//    private void checkIfBuiltInKeywords(String varValue) {
+//        if (varValue == null) return;
+//        int length = varValue.length();
+//        if (length == 2) {
+//            char charFir = varValue.charAt(0);
+//            char charSec = varValue.charAt(1);
+//            if ((charFir == 'i' && charSec == 'n') || (charFir == 'I' && charSec == 'N')) {
+//                // in(IN)语法归纳到操作符于&&,||, != 同级别
+//                // 判断左边的对象是否为右边集合的中元素或者属性,或者map的key
+//                this.opsType = 63;
+//                this.opsLevel = 600;
+//                this.tokenType = OPS_TOKEN;
+//            }
+//        } else if (length == 3) {
+//            if (varValue.indexOf("out") == 0) {
+//                // out指令 实际上是in操作取反
+//                this.opsType = 64;
+//                this.opsLevel = 600;
+//                this.tokenType = OPS_TOKEN;
+//            }
+//        }
+//    }
 
-    private int getTokenTypeGroup(int tokenType) {
+    final static int getTokenTypeGroup(int tokenType) {
         switch (tokenType) {
             case OPS_TOKEN:
                 return GROUP_TOKEN_OPS;
@@ -1398,10 +1277,25 @@ public class ExprParser extends Expression {
             case STR_TOKEN:
             case IDENTIFIER_TOKEN:
             case ARR_TOKEN:
+            case FUN_TOKEN:
                 return GROUP_TOKEN_VALUE;
             default:
                 return 0;
         }
+    }
+
+    final static boolean isNotGroupTokenValue(int tokenType) {
+//        switch (tokenType) {
+//            case NUM_TOKEN:
+//            case STR_TOKEN:
+//            case IDENTIFIER_TOKEN:
+//            case ARR_TOKEN:
+//            case FUN_TOKEN:
+//                return false;
+//            default:
+//                return true;
+//        }
+        return tokenType < NUM_TOKEN;
     }
 
     private void checkTokenSyntaxError() {
@@ -1411,21 +1305,21 @@ public class ExprParser extends Expression {
         if (preGroupValue == groupValue) {
             if (preGroupValue == GROUP_TOKEN_OPS) {
                 String readSource = createErrorContextText(sourceChars, this.readIndex);
-                throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", duplicate operation type: '" + this.errorMsg + "', Expression[" + readSource + "]");
+                throw new ExpressionException("syntax error, pos: " + this.readIndex + ", duplicate token operation, Expression[" + readSource + "]");
             } else if (preGroupValue == GROUP_TOKEN_VALUE) {
                 String readSource = createErrorContextText(sourceChars, this.readIndex);
-                throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", missing operation symbol: '" + this.errorMsg + "', Expression[" + readSource + "]");
+                throw new ExpressionException("syntax error, pos: " + this.readIndex + ", missing operation symbol between values, Expression[" + readSource + "]");
             }
         } else {
             // value token before is )
             if (groupValue == GROUP_TOKEN_VALUE && this.prevTokenType == BRACKET_END_TOKEN) {
                 String readSource = createErrorContextText(sourceChars, this.readIndex);
-                throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", unexpected symbol : '" + this.errorMsg + "', Expression[" + readSource + "]");
+                throw new ExpressionException("syntax error, pos: " + this.readIndex + ", value cannot appear after the closing bracket, Expression[" + readSource + "]");
             }
             // // ops token before is (
             if (groupValue == GROUP_TOKEN_OPS && this.prevTokenType == BRACKET_TOKEN) {
                 String readSource = createErrorContextText(sourceChars, this.readIndex);
-                throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", unexpected symbol : '" + this.errorMsg + "', Expression[" + readSource + "]");
+                throw new ExpressionException("syntax error, pos: " + this.readIndex + ", unsupported operation symbols follow '(' , Expression[" + readSource + "]");
             }
         }
     }
@@ -1436,7 +1330,7 @@ public class ExprParser extends Expression {
         int preGroupValue = getTokenTypeGroup(this.prevTokenType);
         if (this.prevTokenType == BRACKET_TOKEN || preGroupValue == GROUP_TOKEN_OPS) {
             String readSource = createErrorContextText(sourceChars, this.readIndex);
-            throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ",unexpected symbol : '" + this.errorMsg + "', Expression[" + readSource + "]");
+            throw new ExpressionException("syntax error, pos: " + this.readIndex + ",unexpected symbol : '" + this.errorMsg + "', Expression[" + readSource + "]");
         }
     }
 
@@ -1446,43 +1340,37 @@ public class ExprParser extends Expression {
         int preGroupValue = getTokenTypeGroup(this.prevTokenType);
         if (this.prevTokenType == BRACKET_END_TOKEN && preGroupValue == GROUP_TOKEN_VALUE) {
             String readSource = createErrorContextText(sourceChars, this.readIndex);
-            throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ",unexpected symbol : '" + this.errorMsg + "', Expression[" + readSource + "]");
+            throw new ExpressionException("syntax error, pos: " + this.readIndex + ",unexpected symbol : '" + this.errorMsg + "', Expression[" + readSource + "]");
         }
     }
 
     private void throwOperationNotSupported() {
         String readSource = createErrorContextText(sourceChars, this.readIndex);
-        throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", unexpected symbol '" + this.errorMsg + "', Expression[" + readSource + "]");
+        throw new ExpressionException("syntax error, pos: " + this.readIndex + ", unexpected symbol '" + this.errorMsg + "', Expression[" + readSource + "]");
     }
 
-    private void throwNumberFormatException(int start) {
-        String numberSource = new String(sourceChars, this.offset + start, this.readIndex - start);
-        String readSource = createErrorContextText(sourceChars, this.readIndex);
-        throw new ExpressionException("Expression syntax error, pos: " + this.readIndex + ", invalid number text '" + numberSource + "', Expression[" + readSource + "]");
-    }
-
-    private boolean isWhitespace(char c) {
+    final static boolean isWhitespace(char c) {
         return c <= ' ';
     }
 
     // 解析模式除了数字和.开头
-    protected boolean isIdentifierStart(char c) {
+    final static boolean isIdentifierStart(char c) {
         return c == '_' || c == '$' /*|| c == '#'*/ || Character.isLetter(c);
     }
 
     // 解析模式下支持 _ $ . 字母,数字等
-    protected boolean isIdentifierAppend(char c) {
+    final static boolean isIdentifierAppend(char c) {
         return c == '_' || c == '$' || c == '.' /*|| c == '#'*/ || Character.isLetter(c) || isDigit(c);
     }
 
     // 是否变量表达式字符
-    protected boolean isVariableAppend(char c) {
+    final static boolean isVariableAppend(char c) {
         if (Character.isLetter(c)) return true;
         if (c <= ' ') return false;
         return c == '.' || c == '_' || c == '$' || isDigit(c) || c == '[' /*|| c == '('*/;
     }
 
-    private static int digit(char c, int numberRadix) {
+    final static int digit(char c, int numberRadix) {
         switch (c) {
             case '0':
             case '1':
@@ -1515,7 +1403,7 @@ public class ExprParser extends Expression {
      * @param c
      * @return
      */
-    private boolean isDigit(char c) {
+    final static boolean isDigit(char c) {
         switch (c) {
             case '0':
             case '1':
@@ -1533,120 +1421,50 @@ public class ExprParser extends Expression {
         }
     }
 
-    /**
-     * 判断是否为{numberRadix}进制有效的字符 0-9 . E/e
-     */
-    private boolean isAvailableDigit(char c, int numberRadix) {
-        if (numberRadix == 10) {
-            switch (c) {
-                case '0':
-                case '1':
-                case '2':
-                case '3':
-                case '4':
-                case '5':
-                case '6':
-                case '7':
-                case '8':
-                case '9':
-                case '.':
-                case '-':
-                case 'E':
-                case 'e':
-                case 'D':
-                case 'd':
-                case 'F':
-                case 'f':
-                case 'L':
-                case 'l':
-                    return true;
-                default:
-                    return false;
-            }
-//            return (c >= 48 && c <= 57) || c == '.' || c == 'E' || c == 'e' || c == '-' || c == 'D' || c == 'd';
-        } else if (numberRadix == 16) {
-            // 16进制数字： 0-9 a-f A-F
-            return (c >= 48 && c <= 57) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
-        } else {
-            // 8进制 0-7
-            return c >= 48 && c <= 55;
-        }
-    }
-
     private void resetToken() {
         // 重置记录上一个token类型
         this.prevTokenType = this.tokenType;
         this.tokenType = RESET_TOKEN;
-        this.opsType = 0;
-        this.opsLevel = 0;
+        this.operator = ElOperator.NONE;
     }
 
     /**
      * 判断是否为操作符号
      * +-/*%**（加(+)减(-)乘(*)除(/)余(%)及指数(**)）
      */
-    private int getOpsSymbolIndex(char c) {
-        switch (c) {
+    private ElOperator getOperator(char symbol) {
+        switch (symbol) {
             case '*':
-                this.opsType = 1;
-                this.opsLevel = 10;
-                return this.opsType;
+                return this.operator = ElOperator.MULTI;
             case '/':
-                this.opsType = 2;
-                this.opsLevel = 10;
-                return this.opsType;
+                return this.operator = ElOperator.DIVISION;
             case '%':
-                this.opsType = 3;
-                this.opsLevel = 10;
-                return this.opsType;
+                return this.operator = ElOperator.MOD;
             case '+':
-                this.opsType = 11;
-                this.opsLevel = 100;
-                return this.opsType;
+                return this.operator = ElOperator.PLUS;
             case '-':
-                this.opsType = 12;
-                this.opsLevel = 100;
-                return this.opsType;
+                return this.operator = ElOperator.MINUS;
             case '&':
-                this.opsType = 31;
-                this.opsLevel = 300;
-                return this.opsType;
+                return this.operator = ElOperator.AND;
             case '^':
-                this.opsType = 32;
-                this.opsLevel = 301;
-                return this.opsType;
+                return this.operator = ElOperator.XOR;
             case '|':
-                this.opsType = 33;
-                this.opsLevel = 302;
-                return this.opsType;
+                return this.operator = ElOperator.OR;
             case '!':
                 // &&(41) ||(42)  !=(43)
-                this.opsType = 43;
-                // 非运算暂时级别定位5仅仅次于括号运算（1）
-//                this.opsLevel = 5;
-                return this.opsType;
+                return this.operator = ElOperator.NOT;
             case '>':
-                this.opsType = 51;
-                this.opsLevel = 500;
-                return this.opsType;
+                return this.operator = ElOperator.GT;
             case '<':
-                this.opsType = 52;
-                this.opsLevel = 500;
-                return this.opsType;
+                return this.operator = ElOperator.LT;
             case '=':
-                this.opsType = 53;
-                this.opsLevel = 500;
-                return this.opsType;
+                return this.operator = ElOperator.EQ;
             case ':':
-                this.opsType = 70;
-                this.opsLevel = 700;
-                return this.opsType;
+                return this.operator = ElOperator.COLON;
             case '?':
-                this.opsType = 71;
-                this.opsLevel = 701;
-                return this.opsType;
+                return this.operator = ElOperator.QUESTION;
             default:
-                return -1;
+                return this.operator = null;
         }
     }
 
@@ -1656,12 +1474,12 @@ public class ExprParser extends Expression {
      * @param c
      * @return
      */
-    private boolean isBracketSymbol(char c) {
+    final boolean isBracketSymbol(char c) {
         return c == '(' || c == ')';
     }
 
     public Object evaluate() {
-        return exprEvaluator.evaluate(EvaluatorContext.Empty, EvaluateEnvironment.DefaultEnvironment);
+        return exprEvaluator.evaluate(EvaluatorContext.EMPTY, EvaluateEnvironment.DEFAULT);
     }
 
     public Object evaluate(Object context) {
@@ -1672,71 +1490,68 @@ public class ExprParser extends Expression {
             return evaluate((Map) context);
         }
         // from pojo entity
-        return evaluate(context, EvaluateEnvironment.DefaultEnvironment);
+        return doEvaluate(variableCount == 0 ? EvaluatorContext.EMPTY : evaluatorContext.cloneContext().invokeVariables(tailChainInvoker, context, variableCount), EvaluateEnvironment.DEFAULT); // evaluate(context, EvaluateEnvironment.DEFAULT);
     }
 
-    public Object evaluate(Map context) {
-        EvaluateEnvironment defaultEnvironment = EvaluateEnvironment.DefaultEnvironment;
-        EvaluatorContext evaluatorContext = defaultEnvironment.createEvaluateContext(context, chainInvoker);
-        return doEvaluate(evaluatorContext, defaultEnvironment);
+
+    public final Object evaluate(Map context) {
+        return doEvaluate(variableCount == 0 ? EvaluatorContext.EMPTY : evaluatorContext.cloneContext().invokeVariables(tailChainInvoker, context, variableCount), EvaluateEnvironment.DEFAULT);
     }
 
     @Override
-    public Object evaluate(EvaluateEnvironment evaluateEnvironment) {
-        if (evaluateEnvironment == null) {
-            return exprEvaluator.evaluate(EvaluatorContext.Empty, EvaluateEnvironment.DefaultEnvironment);
+    public Object evaluate(Map context, EvaluateEnvironment evaluateEnvironment) {
+        return doEvaluate(variableCount == 0 ? EvaluatorContext.EMPTY : evaluatorContext.cloneContext().invokeVariables(tailChainInvoker, context, variableCount), evaluateEnvironment);
+    }
+
+    @Override
+    public Object evaluate(Object context, EvaluateEnvironment evaluateEnvironment) {
+        return doEvaluate(variableCount == 0 ? EvaluatorContext.EMPTY : evaluatorContext.cloneContext().invokeVariables(tailChainInvoker, context, variableCount), evaluateEnvironment);
+    }
+
+    @Override
+    public final Object evaluate(EvaluateEnvironment evaluateEnvironment) {
+        if (variableCount == 0 || evaluateEnvironment == null) {
+            return exprEvaluator.evaluate(EvaluatorContext.EMPTY, evaluateEnvironment);
+        }
+        if (evaluateEnvironment.isMapContext()) {
+            return doEvaluate(evaluatorContext.cloneContext().invokeVariables(tailChainInvoker, (Map) evaluateEnvironment.getContext(), variableCount), evaluateEnvironment);
         } else {
-            EvaluatorContext evaluatorContext = evaluateEnvironment.createEvaluateContext(chainInvoker, variableCount);
-            return doEvaluate(evaluatorContext, evaluateEnvironment);
+            return doEvaluate(evaluatorContext.cloneContext().invokeVariables(tailChainInvoker, evaluateEnvironment.getContext(), variableCount), evaluateEnvironment);
         }
     }
 
     // evaluate entrance
-    Object evaluate(Object context, EvaluateEnvironment evaluateEnvironment) {
-        EvaluatorContext evaluatorContext = evaluateEnvironment.createEvaluateContext(context, chainInvoker);
-        return doEvaluate(evaluatorContext, evaluateEnvironment);
-    }
-
-    // evaluate entrance
-    Object doEvaluate(EvaluatorContext evaluatorContext, EvaluateEnvironment evaluateEnvironment) {
-        try {
-            Object result = exprEvaluator.evaluate(evaluatorContext, evaluateEnvironment);
-            if (!compressed) {
-                if (cntForCompress.getAndIncrement() == 1) {
-                    compressEvaluator();
-                }
+    final Object doEvaluate(EvaluatorContext evaluatorContext, EvaluateEnvironment evaluateEnvironment) {
+        Object result = exprEvaluator.evaluate(evaluatorContext, evaluateEnvironment);
+        if (!compressed) {
+            if (cntForCompress.getAndIncrement() == 1) {
+                compressEvaluator();
             }
-            return result;
-        } finally {
-            clearContextVariables(evaluatorContext);
         }
+        return result;
     }
 
-    void clearContextVariables(EvaluatorContext evaluatorContext) {
-        evaluatorContext.clearContextVariables(chainValues);
-    }
-
-    protected void compressEvaluator() {
+    protected final void compressEvaluator() {
         this.exprEvaluator = compressEvaluator(exprEvaluator);
         this.compressed = true;
     }
 
-    private ExprEvaluator compressEvaluator(ExprEvaluator exprEvaluator) {
-        if (exprEvaluator.isStatic) {
-            if (exprEvaluator instanceof ExprEvaluator.ExprEvaluatorConstantImpl) {
+    private static ExprEvaluator compressEvaluator(ExprEvaluator exprEvaluator) {
+        if (exprEvaluator.constant) {
+            if (exprEvaluator instanceof ExprEvaluator.ConstantImpl) {
                 return exprEvaluator;
             }
-            return new ExprEvaluator.ExprEvaluatorConstantImpl(exprEvaluator.result);
+            return new ExprEvaluator.ConstantImpl(exprEvaluator.result);
         }
 
-        if (exprEvaluator instanceof ExprEvaluator.ExprEvaluatorStackSplitImpl) {
-            ExprEvaluator.ExprEvaluatorStackSplitImpl stackSplit = (ExprEvaluator.ExprEvaluatorStackSplitImpl) exprEvaluator;
+        if (exprEvaluator instanceof ExprEvaluator.StackSplitImpl) {
+            ExprEvaluator.StackSplitImpl stackSplit = (ExprEvaluator.StackSplitImpl) exprEvaluator;
             stackSplit.front = compressEvaluator(stackSplit.front);
             stackSplit.left = compressEvaluator(stackSplit.left);
             return stackSplit;
         }
 
-        if (exprEvaluator instanceof ExprEvaluator.ExprEvaluatorContextValueHolderImpl) {
+        if (exprEvaluator instanceof ExprEvaluator.ContextValueHolderImpl) {
             return exprEvaluator;
         }
 
@@ -1745,94 +1560,106 @@ public class ExprParser extends Expression {
         int evalType = exprEvaluator.getEvalType();
         if (evalType == 0) {
             return compressEvaluator(left);
-        } else if (evalType == 1) {
+        } else if (evalType == ExprEvaluator.EVAL_TYPE_OPERATOR) {
             left = compressEvaluator(left);
             if (right == null) {
                 return left;
             }
             right = compressEvaluator(right);
-            int opsType = exprEvaluator.opsType;
-            if (opsType == 71) {
-                return ExprEvaluator.ExprEvaluatorTernaryImpl.of(exprEvaluator.update(left, right));
+            ElOperator eo = exprEvaluator.operator;
+            if (eo == ElOperator.QUESTION) {
+                return ExprEvaluator.TernaryImpl.of(exprEvaluator.update(left, right));
             }
-            switch (opsType) {
-                case 1:
+            switch (eo) {
+                case MULTI:
                     // *乘法
-                    return ExprEvaluator.ExprEvaluatorMultiplyImpl.of(exprEvaluator.update(left, right));
-                case 2:
+                    return ExprEvaluator.MultiplyImpl.of(exprEvaluator.update(left, right));
+                case DIVISION:
                     // /除法
-                    return ExprEvaluator.ExprEvaluatorDivisionImpl.of(exprEvaluator.update(left, right));
-                case 3:
+                    return ExprEvaluator.DivisionImpl.of(exprEvaluator.update(left, right));
+                case MOD:
                     // %取余数
-                    return ExprEvaluator.ExprEvaluatorModulusImpl.of(exprEvaluator.update(left, right));
-                case 4:
+                    return ExprEvaluator.ModulusImpl.of(exprEvaluator.update(left, right));
+                case EXP:
                     // **指数,平方/根
-                    return ExprEvaluator.ExprEvaluatorPowerImpl.of(exprEvaluator.update(left, right));
-                case 11:
-                    return ExprEvaluator.ExprEvaluatorPlusImpl.of(exprEvaluator.update(left, right));
-                case 12:
+                    return ExprEvaluator.PowerImpl.of(exprEvaluator.update(left, right));
+                case PLUS:
+                    if (right.negate) {
+                        right.setNegate(false);
+                        return ExprEvaluator.MinusImpl.of(exprEvaluator.update(left, right));
+                    }
+                    // 加法
+                    return ExprEvaluator.PlusImpl.of(exprEvaluator.update(left, right));
+                case MINUS:
                     // -减法（理论上代码不可达） 因为'-'统一转化为了'+'(负)
-                    return ExprEvaluator.ExprEvaluatorMinusImpl.of(exprEvaluator.update(left, right));
-                case 21:
+                    return ExprEvaluator.MinusImpl.of(exprEvaluator.update(left, right));
+                case BIT_RIGHT:
                     // >> 位运算右移
-                    return ExprEvaluator.ExprEvaluatorBitRightImpl.of(exprEvaluator.update(left, right));
-                case 22:
+                    return ExprEvaluator.BitRightImpl.of(exprEvaluator.update(left, right));
+                case BIT_LEFT:
                     // << 位运算左移
-                    return ExprEvaluator.ExprEvaluatorBitLeftImpl.of(exprEvaluator.update(left, right));
-                case 31:
+                    return ExprEvaluator.BitLeftImpl.of(exprEvaluator.update(left, right));
+                case AND:
                     // &
-                    return ExprEvaluator.ExprEvaluatorBitAndImpl.of(exprEvaluator.update(left, right));
-                case 32:
+                    return ExprEvaluator.BitAndImpl.of(exprEvaluator.update(left, right));
+                case XOR:
                     // ^
-                    return ExprEvaluator.ExprEvaluatorBitXorImpl.of(exprEvaluator.update(left, right));
-                case 33:
+                    return ExprEvaluator.BitXorImpl.of(exprEvaluator.update(left, right));
+                case OR:
                     // |
-                    return ExprEvaluator.ExprEvaluatorBitOrImpl.of(exprEvaluator.update(left, right));
-                case 51:
+                    return ExprEvaluator.BitOrImpl.of(exprEvaluator.update(left, right));
+                case GT:
                     // >
-                    return ExprEvaluator.ExprEvaluatorGtImpl.of(exprEvaluator.update(left, right));
-                case 52:
+                    return ExprEvaluator.GtImpl.of(exprEvaluator.update(left, right));
+                case LT:
                     // <
-                    return ExprEvaluator.ExprEvaluatorLtImpl.of(exprEvaluator.update(left, right));
-                case 53:
+                    return ExprEvaluator.LtImpl.of(exprEvaluator.update(left, right));
+                case EQ:
                     // ==
-                    return ExprEvaluator.ExprEvaluatorEqualImpl.of(exprEvaluator.update(left, right));
-                case 54:
+                    return ExprEvaluator.EqualImpl.of(exprEvaluator.update(left, right));
+                case GE:
                     // >=
-                    return ExprEvaluator.ExprEvaluatorGEImpl.of(exprEvaluator.update(left, right));
-                case 55:
+                    return ExprEvaluator.GEImpl.of(exprEvaluator.update(left, right));
+                case LE:
                     // <=
-                    return ExprEvaluator.ExprEvaluatorLEImpl.of(exprEvaluator.update(left, right));
-                case 56:
+                    return ExprEvaluator.LEImpl.of(exprEvaluator.update(left, right));
+                case NE:
                     // !=
-                    return ExprEvaluator.ExprEvaluatorNEImpl.of(exprEvaluator.update(left, right));
-                case 61:
+                    return ExprEvaluator.NEImpl.of(exprEvaluator.update(left, right));
+                case LOGICAL_AND:
                     // &&
-                    return ExprEvaluator.ExprEvaluatorLogicalAndImpl.of(exprEvaluator.update(left, right));
-                case 62:
+                    return ExprEvaluator.LogicalAndImpl.of(exprEvaluator.update(left, right));
+                case LOGICAL_OR:
                     // ||
-                    return ExprEvaluator.ExprEvaluatorLogicalOrImpl.of(exprEvaluator.update(left, right));
-                case 63:
+                    return ExprEvaluator.LogicalOrImpl.of(exprEvaluator.update(left, right));
+                case IN:
                     // in
-                    return ExprEvaluator.ExprEvaluatorInImpl.of(exprEvaluator.update(left, right));
-                case 64:
+                    return ExprEvaluator.InImpl.of(exprEvaluator.update(left, right));
+                case OUT:
                     // out
-                    return ExprEvaluator.ExprEvaluatorOutImpl.of(exprEvaluator.update(left, right));
-                case 70:
+                    return ExprEvaluator.OutImpl.of(exprEvaluator.update(left, right));
+                case COLON:
                     // : 三目运算结果, 不支持单独运算
-                case 71:
+                case QUESTION:
                 default:
                     // ? 三目运算条件
                     return exprEvaluator.update(left, right);
             }
             // 默认返回null
-        } else if (evalType == 5) {
+        } else if (evalType == ExprEvaluator.EVAL_TYPE_BRACKET) {
+            // optimize
+            if (!exprEvaluator.negate && !exprEvaluator.logicalNot) {
+                return compressEvaluator(right);
+            }
             // 括号运算
-            return ExprEvaluator.ExprEvaluatorBracketImpl.of(exprEvaluator.update(left, compressEvaluator(right)));
-        } else if (evalType == 6) {
+            return ExprEvaluator.BracketImpl.of(exprEvaluator.update(left, compressEvaluator(right)));
+        } else if (evalType == ExprEvaluator.EVAL_TYPE_VARIABLE) {
+            if (!exprEvaluator.negate && !exprEvaluator.logicalNot) {
+                return ((ExprEvaluator.VariableImpl) exprEvaluator).normal().internKey();
+            }
             // 变量运算
-            return ((ExprEvaluator.ExprEvaluatorVariableImpl) exprEvaluator).internKey();
-        } else if (evalType == 9) {
+            return ((ExprEvaluator.VariableImpl) exprEvaluator).internKey();
+        } else if (evalType == ExprEvaluator.EVAL_TYPE_FUN) {
             // 函数运算
             return exprEvaluator;
         } else {

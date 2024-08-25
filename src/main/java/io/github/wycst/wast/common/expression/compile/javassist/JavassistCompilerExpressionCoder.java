@@ -1,12 +1,12 @@
 package io.github.wycst.wast.common.expression.compile.javassist;
 
+import io.github.wycst.wast.common.expression.ElVariableInvoker;
 import io.github.wycst.wast.common.expression.ExprFunction;
 import io.github.wycst.wast.common.expression.ExpressionException;
 import io.github.wycst.wast.common.expression.compile.CompilerEnvironment;
 import io.github.wycst.wast.common.expression.compile.CompilerExpression;
 import io.github.wycst.wast.common.expression.compile.CompilerExpressionCoder;
 import io.github.wycst.wast.common.expression.functions.JavassistExprFunction;
-import io.github.wycst.wast.common.expression.invoker.VariableInvoker;
 import javassist.*;
 
 import java.util.List;
@@ -31,7 +31,7 @@ public class JavassistCompilerExpressionCoder extends CompilerExpressionCoder {
         try {
             ClassPool pool = ClassPool.getDefault();
             pool.importPackage(ValueHolder.class.getName());
-            pool.importPackage(VariableInvoker.class.getName());
+            pool.importPackage(ElVariableInvoker.class.getName());
             pool.importPackage(ExprFunction.class.getName());
             pool.importPackage(JavassistExprFunction.class.getName());
             CtClass ctClass = pool.makeClass(vars.get("className").toString(), pool.get(JavassistCompilerExpression.class.getName()));
@@ -54,7 +54,7 @@ public class JavassistCompilerExpressionCoder extends CompilerExpressionCoder {
 
             // functions
             List<String> functionSources = (List<String>) vars.get("functionSources");
-            if(functionSources != null) {
+            if (functionSources != null) {
                 for (String functionSource : functionSources) {
                     CtMethod functionMethod = CtMethod.make(functionSource, ctClass);
                     functionMethod.setModifiers(functionMethod.getModifiers() | Modifier.VARARGS);
@@ -77,6 +77,13 @@ public class JavassistCompilerExpressionCoder extends CompilerExpressionCoder {
             ctClass.detach();
             return (CompilerExpression) cls.getDeclaredConstructors()[0].newInstance(environment);
         } catch (Exception e) {
+            if (e.getClass().getName() == "java.lang.reflect.InaccessibleObjectException") {
+                String message = e.getMessage();
+                if (message != null && message.indexOf("\"opens java.lang\"") > -1) {
+                    throw new ExpressionException("Coder.Javassist compile on JDK16+, please add vm options: --add-opens java.base/java.lang=ALL-UNNAMED or switch mode Coder.Native", e);
+                }
+            }
+
             throw new ExpressionException("javassist compile fail", e);
         }
     }

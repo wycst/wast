@@ -1,6 +1,5 @@
-package io.github.wycst.wast.common.expression.invoker;
+package io.github.wycst.wast.common.expression;
 
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -8,13 +7,9 @@ import java.util.Map;
  * @Date: 2022/10/30 11:24
  * @Description:
  */
-public interface Invoker {
+public interface ElInvoker {
 
-    void reset();
-
-    Object invoke(Object context);
-
-    Object invoke(Map context);
+    ElSecureTrustedAccess SECURE_TRUSTED_ACCESS = new ElSecureTrustedAccess();
 
     /**
      * 直接invoke不缓存
@@ -36,9 +31,11 @@ public interface Invoker {
 
     Object invoke(Map mapContext, Object[] variableValues);
 
-    void internKey();
+    Object invokeCurrent(Map globalContext, Object parentContext, Object[] variableValues);
 
-    List<VariableInvoker> tailInvokers();
+    Object invokeCurrent(Object globalContext, Object parentContext, Object[] variableValues);
+
+    void internKey();
 
     int size();
 }

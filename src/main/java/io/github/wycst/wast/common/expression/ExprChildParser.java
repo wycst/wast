@@ -1,7 +1,7 @@
 package io.github.wycst.wast.common.expression;
 
-import io.github.wycst.wast.common.expression.invoker.VariableInvoker;
-
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -30,13 +30,13 @@ class ExprChildParser extends ExprParser {
 
     // note: Do not use super, not parent-child relationship
     @Override
-    protected Map<String, VariableInvoker> getInvokes() {
+    protected Map<String, ElVariableInvoker> getInvokes() {
         return global.getInvokes();
     }
 
     // note: Do not use super, not parent-child relationship
     @Override
-    protected Map<String, VariableInvoker> getTailInvokes() {
+    protected Map<String, ElVariableInvoker> getTailInvokes() {
         return global.getTailInvokes();
     }
 
@@ -51,8 +51,8 @@ class ExprChildParser extends ExprParser {
     protected void compressVariables() {
     }
 
-    // Override the default behavior and do nothing
     @Override
-    void clearContextVariables(EvaluatorContext evaluatorContext) {
+    protected List<String> getLocalVariableKeys() {
+        return new ArrayList<String>();
     }
 }

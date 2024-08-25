@@ -4,11 +4,11 @@ import io.github.wycst.wast.common.beans.KeyValuePair;
 import io.github.wycst.wast.common.compiler.JDKCompiler;
 import io.github.wycst.wast.common.compiler.JavaSourceObject;
 import io.github.wycst.wast.common.exceptions.ParserException;
+import io.github.wycst.wast.common.expression.ElVariableInvoker;
 import io.github.wycst.wast.common.expression.ExprFunction;
 import io.github.wycst.wast.common.expression.Expression;
 import io.github.wycst.wast.common.expression.ExpressionException;
 import io.github.wycst.wast.common.expression.functions.JavassistExprFunction;
-import io.github.wycst.wast.common.expression.invoker.VariableInvoker;
 import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.common.reflect.GetterInfo;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
@@ -25,15 +25,15 @@ import java.util.concurrent.atomic.AtomicLong;
  * @Author wangyunchao
  * @Date 2022/11/17 15:09
  */
-class CompilerCodeUtils {
+final class CompilerCodeUtils {
 
     private static final AtomicLong ATOMIC_LONG = new AtomicLong(0);
     private static final String PACKAGE_NAME = CompilerExpression.class.getPackage().getName();
 
-    private static final String NativeJavaCodeTemplate =
+    private static final String NATIVE_JAVA_CODE_TEMPLATE =
             "package io.github.wycst.wast.common.expression.compile;\r\n" +
                     "import io.github.wycst.wast.common.expression.ExprFunction;\r\n" +
-                    "import io.github.wycst.wast.common.expression.invoker.VariableInvoker;\r\n" +
+                    "import io.github.wycst.wast.common.expression.ElVariableInvoker;\r\n" +
                     "public class ${className} extends CompilerExpression {\r\n" +
                     "\r\n" +
                     "\tpublic ${className}(CompilerEnvironment environment){\r\n" +
@@ -56,7 +56,7 @@ class CompilerCodeUtils {
                     "\r\n" +
                     "}";
 
-    private static final Map<Class, KeyValuePair<String, String>> primitiveValueMethods = new ConcurrentHashMap<Class, KeyValuePair<String, String>>();
+    private static final Map<Class, KeyValuePair<String, String>> PRIMITIVE_VALUE_METHODS = new ConcurrentHashMap<Class, KeyValuePair<String, String>>();
 
     static {
         KeyValuePair<String, String> intType = new KeyValuePair<String, String>("int", "intValue");
@@ -67,20 +67,20 @@ class CompilerCodeUtils {
         KeyValuePair<String, String> byteType = new KeyValuePair<String, String>("byte", "byteValue");
         KeyValuePair<String, String> booleanType = new KeyValuePair<String, String>("boolean", "booleanValue");
         KeyValuePair<String, String> charType = new KeyValuePair<String, String>("char", "charValue");
-        primitiveValueMethods.put(int.class, intType);
-        primitiveValueMethods.put(long.class, longType);
-        primitiveValueMethods.put(double.class, doubleType);
-        primitiveValueMethods.put(float.class, floatType);
-        primitiveValueMethods.put(short.class, shortType);
-        primitiveValueMethods.put(byte.class, byteType);
-        primitiveValueMethods.put(boolean.class, booleanType);
-        primitiveValueMethods.put(char.class, charType);
-        primitiveValueMethods.put(Integer.class, intType);
-        primitiveValueMethods.put(Long.class, longType);
-        primitiveValueMethods.put(Double.class, doubleType);
-        primitiveValueMethods.put(Float.class, floatType);
-        primitiveValueMethods.put(Short.class, shortType);
-        primitiveValueMethods.put(Byte.class, byteType);
+        PRIMITIVE_VALUE_METHODS.put(int.class, intType);
+        PRIMITIVE_VALUE_METHODS.put(long.class, longType);
+        PRIMITIVE_VALUE_METHODS.put(double.class, doubleType);
+        PRIMITIVE_VALUE_METHODS.put(float.class, floatType);
+        PRIMITIVE_VALUE_METHODS.put(short.class, shortType);
+        PRIMITIVE_VALUE_METHODS.put(byte.class, byteType);
+        PRIMITIVE_VALUE_METHODS.put(boolean.class, booleanType);
+        PRIMITIVE_VALUE_METHODS.put(char.class, charType);
+        PRIMITIVE_VALUE_METHODS.put(Integer.class, intType);
+        PRIMITIVE_VALUE_METHODS.put(Long.class, longType);
+        PRIMITIVE_VALUE_METHODS.put(Double.class, doubleType);
+        PRIMITIVE_VALUE_METHODS.put(Float.class, floatType);
+        PRIMITIVE_VALUE_METHODS.put(Short.class, shortType);
+        PRIMITIVE_VALUE_METHODS.put(Byte.class, byteType);
     }
 
     static String generateJavaCode(String expr, CompilerEnvironment environment) {
@@ -175,26 +175,26 @@ class CompilerCodeUtils {
         int ofIndex = 0;
         for (CompilerEnvironment.TypeNameInvoker typeNameInvoker : typeNameInvokers) {
             String defineJavaIdentifier = typeNameInvoker.defineJavaIdentifier;
-            VariableInvoker invoker = typeNameInvoker.variableInvoker;
+            ElVariableInvoker invoker = typeNameInvoker.variableInvoker;
             int index = invoker.getIndex();
             // default type
             tailTypes.put(index, typeNameInvoker.type);
 
             if (defineIndexs.add(index)) {
                 constructorBodyBuilder.append("\t\t$0._invoke_").append(index).append(" = getInvokerAt(").append(ofIndex).append(");\r\n");
-                fieldSources.add("final VariableInvoker _invoke_" + index + ";\r\n");
+                fieldSources.add("final ElVariableInvoker _invoke_" + index + ";\r\n");
             }
 
             // define and init invoke fields
-            VariableInvoker parent = invoker.getParent();
+            ElVariableInvoker parent = invoker.getParent();
 
-            VariableInvoker _parentInvoker = parent;
+            ElVariableInvoker _parentInvoker = parent;
             int currentIndex = index;
             while (_parentInvoker != null) {
                 int parentIndex = _parentInvoker.getIndex();
                 if (defineIndexs.add(parentIndex)) {
                     constructorBodyBuilder.append("\t\t$0._invoke_").append(parentIndex).append(" = $0._invoke_").append(currentIndex).append(".getParent();\r\n");
-                    fieldSources.add("final VariableInvoker _invoke_" + parentIndex + ";\r\n");
+                    fieldSources.add("final ElVariableInvoker _invoke_" + parentIndex + ";\r\n");
                 }
                 _parentInvoker = _parentInvoker.getParent();
                 currentIndex = parentIndex;
@@ -314,7 +314,7 @@ class CompilerCodeUtils {
             throw new UnsupportedOperationException("Javassist toolkit dependencies not imported");
         }
 
-        return CompilerExpressionCoder.JavassistCoder.compile(vars, environment);
+        return CompilerExpressionCoder.JAVASSIST_CODER.compile(vars, environment);
     }
 
     // 检查安全代码
@@ -444,26 +444,26 @@ class CompilerCodeUtils {
         for (CompilerEnvironment.TypeNameInvoker typeNameInvoker : typeNameInvokers) {
             // String varName = typeNameInvoker.varName;
             String defineJavaIdentifier = typeNameInvoker.defineJavaIdentifier;
-            VariableInvoker invoker = typeNameInvoker.variableInvoker;
+            ElVariableInvoker invoker = typeNameInvoker.variableInvoker;
             int index = invoker.getIndex();
             // default type
             tailTypes.put(index, typeNameInvoker.type);
 
             if (defineIndexs.add(index)) {
                 initInvokesBuilder.append("\t\tthis._invoke_").append(index).append(" = getInvokerAt(").append(ofIndex).append(");\r\n");
-                declareInvokesBuilder.append("\tfinal VariableInvoker _invoke_").append(index).append(";\r\n");
+                declareInvokesBuilder.append("\tfinal ElVariableInvoker _invoke_").append(index).append(";\r\n");
             }
 
             // define and init invoke fields
-            VariableInvoker parent = invoker.getParent();
+            ElVariableInvoker parent = invoker.getParent();
 
-            VariableInvoker _parentInvoker = parent;
+            ElVariableInvoker _parentInvoker = parent;
             int currentIndex = index;
             while (_parentInvoker != null) {
                 int parentIndex = _parentInvoker.getIndex();
                 if (defineIndexs.add(parentIndex)) {
                     initInvokesBuilder.append("\t\tthis._invoke_").append(parentIndex).append(" = this._invoke_").append(currentIndex).append(".getParent();\r\n");
-                    declareInvokesBuilder.append("\tfinal VariableInvoker _invoke_").append(parentIndex).append(";\r\n");
+                    declareInvokesBuilder.append("\tfinal ElVariableInvoker _invoke_").append(parentIndex).append(";\r\n");
                 }
                 _parentInvoker = _parentInvoker.getParent();
                 currentIndex = parentIndex;
@@ -516,7 +516,7 @@ class CompilerCodeUtils {
         vars.put("assignmentMapVariables", assignmentMapVariablesBuilder);
         vars.put("registerFunctions", registerFunctionsBuilder);
 
-        return Expression.renderTemplate(NativeJavaCodeTemplate, vars);
+        return Expression.renderTemplate(NATIVE_JAVA_CODE_TEMPLATE, vars);
     }
 
     /**
@@ -531,9 +531,9 @@ class CompilerCodeUtils {
      * @param deductionTypes        通过自动推导动态添加的类型映射，初始化new
      * @param tailTypes
      */
-    private static void generateInvokerCodeTo(VariableInvoker variableInvoker, String defineJavaIdentifier, StringBuilder objVariablesBuilder, StringBuilder mapVariablesBuilder, Map<String, String> defineJavaIdentifiers, Map<String, Class> definedTypes, Map<String, Class> deductionTypes, Map<Integer, Class> tailTypes) {
+    private static void generateInvokerCodeTo(ElVariableInvoker variableInvoker, String defineJavaIdentifier, StringBuilder objVariablesBuilder, StringBuilder mapVariablesBuilder, Map<String, String> defineJavaIdentifiers, Map<String, Class> definedTypes, Map<String, Class> deductionTypes, Map<Integer, Class> tailTypes) {
         if (variableInvoker == null) return;
-        VariableInvoker parent = variableInvoker.getParent();
+        ElVariableInvoker parent = variableInvoker.getParent();
         // generate parent
         generateInvokerCodeTo(parent, null, objVariablesBuilder, mapVariablesBuilder, defineJavaIdentifiers, definedTypes, deductionTypes, tailTypes);
 
@@ -568,7 +568,7 @@ class CompilerCodeUtils {
                     mapVariablesBuilder.append(typeName).append(" ").append(defineJavaIdentifier).append(" = ");
                     if (defineType.isPrimitive()) {
                         // 基本类型不能强转（T）为Object类型的对象，使用类似intValue/doubleValue过渡
-                        String primitiveMethodValue = primitiveValueMethods.get(defineType).getValue();
+                        String primitiveMethodValue = PRIMITIVE_VALUE_METHODS.get(defineType).getValue();
                         objVariablesBuilder.append(primitiveMethodValue).append("(");
                         mapVariablesBuilder.append(primitiveMethodValue).append("(");
                         if (!childEl) {
@@ -661,7 +661,7 @@ class CompilerCodeUtils {
                     if (forceConversionType) {
                         if (forcePrimitiveType) {
                             // 基本类型不能强转（T）为Object类型的对象，使用类似intValue/doubleValue过渡
-                            String primitiveMethodValue = primitiveValueMethods.get(defineType).getValue();
+                            String primitiveMethodValue = PRIMITIVE_VALUE_METHODS.get(defineType).getValue();
                             objVariablesBuilder.append(primitiveMethodValue).append("(");
                             mapVariablesBuilder.append(primitiveMethodValue).append("(");
                         } else {
@@ -701,7 +701,7 @@ class CompilerCodeUtils {
                         mapVariablesBuilder.append(typeName).append(" ").append(defineJavaIdentifier).append(" = ");
                         if (defineType.isPrimitive()) {
                             // 基本类型不能强转（T）为Object类型的对象，使用intValue/doubleValue过渡
-                            String primitiveMethodValue = primitiveValueMethods.get(defineType).getValue();
+                            String primitiveMethodValue = PRIMITIVE_VALUE_METHODS.get(defineType).getValue();
                             objVariablesBuilder.append(primitiveMethodValue).append("(_invoke_").append(index).append(".invokeValue(").append(parentValueVar).append("));\r\n");
                             mapVariablesBuilder.append(primitiveMethodValue).append("(_invoke_").append(index).append(".invokeValue(").append(parentValueVar).append("));\r\n");
                         } else {

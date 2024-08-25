@@ -2,7 +2,6 @@ package io.github.wycst.wast.common.expression.compile;
 
 import io.github.wycst.wast.common.expression.ExprEvaluator;
 import io.github.wycst.wast.common.expression.ExprParser;
-import io.github.wycst.wast.common.expression.invoker.Invoker;
 
 /**
  * @Author: wangy
@@ -31,9 +30,5 @@ public final class CompilerExprParser extends ExprParser {
 
     int getVariableCount() {
         return variableCount;
-    }
-
-    Invoker getChainValues() {
-        return chainValues;
     }
 }

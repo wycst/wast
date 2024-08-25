@@ -11,13 +11,13 @@ import java.util.Map;
  */
 public abstract class CompilerExpressionCoder {
 
-    final static boolean AsmSupported;
-    final static boolean JavassistSupported;
+    final static boolean ASM_SUPPORTED;
+    final static boolean JAVASSIST_SUPPORTED;
 
-    final static CompilerExpressionCoder JavassistCoder;
+    final static CompilerExpressionCoder JAVASSIST_CODER;
 
     static {
-        AsmSupported = false;
+        ASM_SUPPORTED = false;
 
         CompilerExpressionCoder javaassitCoder = null;
         boolean javassistSupported = false;
@@ -30,12 +30,12 @@ public abstract class CompilerExpressionCoder {
         } catch (Throwable e) {
         }
 
-        JavassistSupported = javassistSupported;
-        JavassistCoder = javaassitCoder;
+        JAVASSIST_SUPPORTED = javassistSupported;
+        JAVASSIST_CODER = javaassitCoder;
     }
 
     static boolean isJavassistSupported() {
-        return JavassistSupported;
+        return JAVASSIST_SUPPORTED;
     }
 
     /**

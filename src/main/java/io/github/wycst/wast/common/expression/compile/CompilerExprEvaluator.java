@@ -17,9 +17,8 @@ public final class CompilerExprEvaluator extends ExprEvaluator {
      */
     public String code() {
         StringBuilder builder = new StringBuilder();
-        int opsType = this.opsType;
         // 如果当前为静态执行器进行解析压缩
-        if (isStaticExpr()) {
+        if (isConstantExpr()) {
             Object result = evaluate();
             if (result instanceof String) {
                 String strValue = (String) result;
@@ -39,86 +38,95 @@ public final class CompilerExprEvaluator extends ExprEvaluator {
         ExprEvaluator left = getLeft();
         ExprEvaluator right = getRight();
 
-        if (evalType == 1) {
+        if (evalType == EVAL_TYPE_OPERATOR) {
             String leftGenerateCode = left.code();
             if (right == null) {
                 return leftGenerateCode;
             }
             String rightGenerateCode = right.code();
-            switch (opsType) {
-                case 1:
-                    // *乘法 double
+            switch (operator) {
+                case MULTI:
+                    // *乘法
                     return builder.append(leftGenerateCode).append(" * ").append(rightGenerateCode).toString();
-                case 2:
-                    // /除法 double
+                case DIVISION:
+                    // /除法
                     return builder.append(leftGenerateCode).append(" / ").append(rightGenerateCode).toString();
-                case 3:
-                    // %取余数 double
+                case MOD:
+                    // %取余数
                     return builder.append(leftGenerateCode).append(" % ").append(rightGenerateCode).toString();
-                case 4:
-                    // **指数 double
+                case EXP:
+                    // **指数
                     return builder.append("Math.pow(").append(leftGenerateCode).append(", ").append(rightGenerateCode).append(")").toString();
-                case 11:
-                    // 加法 double
+                case PLUS:
+                    // 加法
+                    if(right.isNegate()) {
+                        try {
+                            return builder.append(leftGenerateCode).append(" - ").append(right.negate(false).code()).toString();
+                        } finally {
+                            // reduction
+                            right.negate(true);
+                        }
+                    } else if(right.isConstantExpr() && rightGenerateCode.startsWith("-")) {
+                        return builder.append(leftGenerateCode).append(" - ").append(rightGenerateCode.substring(1)).toString();
+                    }
                     return builder.append(leftGenerateCode).append(" + ").append(rightGenerateCode).toString();
-                case 12:
-                    // -减法（理论上代码不可达） 因为'-'统一转化为了'+'(负) double
+                case MINUS:
+                    // -减法（理论上代码不可达） 因为'-'统一转化为了'+'(负)
                     return builder.append(leftGenerateCode).append(" - ").append(rightGenerateCode).toString();
-                case 21:
+                case BIT_RIGHT:
                     // >> 位运算右移 long
                     return builder.append(leftGenerateCode).append(" >> ").append(rightGenerateCode).toString();
-                case 22:
+                case BIT_LEFT:
                     // << 位运算右移 long
                     return builder.append(leftGenerateCode).append(" << ").append(rightGenerateCode).toString();
-                case 31:
+                case AND:
                     // & long
                     return builder.append(leftGenerateCode).append(" & ").append(rightGenerateCode).toString();
-                case 32:
+                case XOR:
                     // ^ long
                     return builder.append(leftGenerateCode).append(" ^ ").append(rightGenerateCode).toString();
-                case 33:
+                case OR:
                     // | long
                     return builder.append(leftGenerateCode).append(" | ").append(rightGenerateCode).toString();
-                case 51:
-                    // > double
+                case GT:
+                    // >
                     return builder.append(leftGenerateCode).append(" > ").append(rightGenerateCode).toString();
-                case 52:
-                    // < double
+                case LT:
+                    // <
                     return builder.append(leftGenerateCode).append(" < ").append(rightGenerateCode).toString();
-                case 53:
+                case EQ:
                     // == Object
                     return builder.append(leftGenerateCode).append(" == ").append(rightGenerateCode).toString();
-                case 54:
-                    // >= double
+                case GE:
+                    // >=
                     return builder.append(leftGenerateCode).append(" >= ").append(rightGenerateCode).toString();
-                case 55:
-                    // <= double
+                case LE:
+                    // <=
                     return builder.append(leftGenerateCode).append(" <= ").append(rightGenerateCode).toString();
-                case 56:
+                case NE:
                     // != Object
                     return builder.append(leftGenerateCode).append(" != ").append(rightGenerateCode).toString();
-                case 61:
+                case LOGICAL_AND:
                     // && Boolean
                     return builder.append(leftGenerateCode).append(" && ").append(rightGenerateCode).toString();
-                case 62:
+                case LOGICAL_OR:
                     // || Boolean
                     return builder.append(leftGenerateCode).append(" || ").append(rightGenerateCode).toString();
-                case 63:
+                case IN:
                     // in 暂时不支持
                     throw new ExpressionException("暂时不支持'in'符号编译");
-                case 64:
+                case OUT:
                     // out 暂时不支持out
                     throw new ExpressionException("暂时不支持'out'符号编译");
-                case 70:
+                case COLON:
                     // : 三目运算条件
                     return builder.append(leftGenerateCode).append(" : ").append(rightGenerateCode).toString();
-                case 71:
+                case QUESTION:
                     // ? 三目运算结果
                     return builder.append(leftGenerateCode).append(" ? ").append(rightGenerateCode).toString();
             }
 
-        } else if (evalType == 5) {
-            // 括号运算
+        } else if (evalType == EVAL_TYPE_BRACKET) {
             if (negate) {
                 return builder.append("-(").append(right.code()).append(")").toString();
             }
@@ -126,9 +134,6 @@ public final class CompilerExprEvaluator extends ExprEvaluator {
                 return builder.append("!(").append(right.code()).append(")").toString();
             }
             return builder.append("(").append(right.code()).append(")").toString();
-        } else if (evalType == 6) {
-            // 不可达
-            throw new UnsupportedOperationException();
         } else {
             // 其他统一返回left
             return left.code();

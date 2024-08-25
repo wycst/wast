@@ -1,13 +1,11 @@
-package io.github.wycst.wast.common.expression.invoker;
+package io.github.wycst.wast.common.expression;
 
-import io.github.wycst.wast.common.expression.Expression;
 import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.common.reflect.GetterInfo;
+import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.utils.CollectionUtils;
 import io.github.wycst.wast.common.utils.ObjectUtils;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -22,25 +20,24 @@ import java.util.Map;
  * @Date: 2022/10/28 22:30
  * @Description:
  */
-public class VariableInvoker implements Invoker {
+public class ElVariableInvoker implements ElInvoker {
 
     String key;
     ValueInvokeHolder invokeHolder = ValueInvokeHolder.Empty;
-    // Context calculated value, each point is calculated only once
-    Object value;
     // index pos
     int index;
 
     // Parent or Up one level
-    VariableInvoker parent;
+    ElVariableInvoker parent;
     // is last or not ?
     boolean tail;
+    boolean hasChildren;
 
-    VariableInvoker(String key) {
+    ElVariableInvoker(String key) {
         this.key = key;
     }
 
-    VariableInvoker(String key, VariableInvoker parent) {
+    ElVariableInvoker(String key, ElVariableInvoker parent) {
         parent.getClass();
         this.key = key;
         this.parent = parent;
@@ -51,63 +48,12 @@ public class VariableInvoker implements Invoker {
         return parent.toString() + "." + key;
     }
 
-    public final void reset() {
-        this.value = null;
-    }
-
-    public final void resetAll() {
-        this.reset();
-        if (parent != null) {
-            parent.resetAll();
-        }
-    }
-
-    public Object getValue() {
-        return value;
-    }
-
-    public void setValue(Object value) {
-        this.value = value;
-    }
-
-    public VariableInvoker getParent() {
+    public ElVariableInvoker getParent() {
         return parent;
     }
 
     public String getKey() {
         return key;
-    }
-
-    /**
-     * <p> 获取节点的值,暂时支持pojo对象和map
-     * <p>
-     * Threads are not safe here
-     * Performance and safety are inseparable
-     *
-     * @param context
-     * @return
-     */
-    public Object invoke(Object context) {
-        if (value != null)
-            return value;
-        Object target = parent.invoke(context);
-        return value = invokeValue(target);
-    }
-
-    /**
-     * <p> 获取节点的值,参数map
-     * <p> 线程不安全 Threads are not safe here
-     * <p>
-     * Performance and safety are inseparable
-     *
-     * @param context
-     * @return
-     */
-    public Object invoke(Map context) {
-        if (value != null)
-            return value;
-        Object target = parent.invoke(context);
-        return value = invokeValue(target);
     }
 
     @Override
@@ -140,6 +86,24 @@ public class VariableInvoker implements Invoker {
         return variableValues[index] = invokeValue(target);
     }
 
+    @Override
+    public Object invokeCurrent(Map globalContext, Object parentContext, Object[] variableValues) {
+        return variableValues[index] = invokeValue(parentContext);
+    }
+
+    @Override
+    public Object invokeCurrent(Object globalContext, Object parentContext, Object[] variableValues) {
+        return variableValues[index] = invokeValue(parentContext);
+    }
+
+    public Object invokeCurrent(Object globalContext, Object context) {
+        return invokeValue(context);
+    }
+
+    public Object invokeCurrent(Map globalContext, Object context) {
+        return invokeValue(context);
+    }
+
     // invoke current
     public final Object invokeValue(Object context) {
         Object target;
@@ -150,14 +114,22 @@ public class VariableInvoker implements Invoker {
                 target = localHoder.valueInvoke.getValue(context);
             } else {
                 // create
-                ValueInvoke valueInvoke = null;
+                ValueInvoke valueInvoke;
                 if (context instanceof Map) {
                     valueInvoke = new MapValueInvoke(key);
                 } else {
                     GetterInfo getterInfo = null;
                     try {
                         getterInfo = ClassStructureWrapper.get(contextClass).getGetterInfo(key);
-                        valueInvoke = new ObjectPropertyInvoke(getterInfo);
+                        if (getterInfo.isSupportedUnsafe()) {
+                            if (getterInfo.isPrimitive()) {
+                                valueInvoke = new ObjectPrimitiveFieldInvoke(getterInfo);
+                            } else {
+                                valueInvoke = new ObjectFieldInvoke(getterInfo);
+                            }
+                        } else {
+                            valueInvoke = new ObjectGetterInvoke(getterInfo);
+                        }
                     } catch (RuntimeException runtimeException) {
                         if (getterInfo == null) {
                             throw new IllegalArgumentException(String.format("Unresolved field '%s' from %s", key, contextClass.toString()));
@@ -173,7 +145,7 @@ public class VariableInvoker implements Invoker {
             if (context == null) {
                 throw new IllegalArgumentException(String.format("Unresolved field '%s' for target obj is null or not exist in the context ", key));
             }
-            throw new IllegalArgumentException(String.format("Unresolved field '%s' from %s, resion: %s", key, context.getClass(), throwable.getMessage()));
+            throw new IllegalArgumentException(String.format("Unresolved field '%s' from %s, resion: %s", key, context.getClass(), throwable.getMessage()), throwable);
         }
     }
 
@@ -205,22 +177,6 @@ public class VariableInvoker implements Invoker {
 //        return target;
 //    }
 
-    public boolean existKey(Object context) {
-        if (context == null) return false;
-        Object target = parent == null ? context : parent.invoke(context);
-        if (target == null) return false;
-        if (context instanceof Map) {
-            return ((Map<?, ?>) context).containsKey(key);
-        } else {
-            Class<?> contextClass = context.getClass();
-            try {
-                return ClassStructureWrapper.get(contextClass).getGetterInfo(key) != null;
-            } catch (RuntimeException throwable) {
-                return false;
-            }
-        }
-    }
-
     public void setIndex(int index) {
         this.index = index;
     }
@@ -246,13 +202,6 @@ public class VariableInvoker implements Invoker {
     }
 
     @Override
-    public List<VariableInvoker> tailInvokers() {
-        List<VariableInvoker> tailInvokers = new ArrayList<VariableInvoker>();
-        tailInvokers.add(this);
-        return tailInvokers;
-    }
-
-    @Override
     public int size() {
         return 1;
     }
@@ -260,24 +209,10 @@ public class VariableInvoker implements Invoker {
     /**
      * Variable root node
      */
-    static class RootVariableInvoke extends VariableInvoker {
+    static class RootVariableInvoke extends ElVariableInvoker {
 
         public RootVariableInvoke(String key) {
             super(key);
-        }
-
-        @Override
-        public Object invoke(Object context) {
-            if (value != null)
-                return value;
-            return value = invokeValue(context);
-        }
-
-        @Override
-        public Object invoke(Map context) {
-            if (value != null)
-                return value;
-            return value = context.get(key);
         }
 
         @Override
@@ -315,7 +250,7 @@ public class VariableInvoker implements Invoker {
     /**
      * 子表达式变量
      */
-    static class ChildElVariableInvoke extends VariableInvoker {
+    static class ChildElVariableInvoke extends ElVariableInvoker {
 
         protected Expression el;
 
@@ -323,7 +258,7 @@ public class VariableInvoker implements Invoker {
             super(key);
         }
 
-        ChildElVariableInvoke(String key, VariableInvoker parent) {
+        ChildElVariableInvoke(String key, ElVariableInvoker parent) {
             super(key, parent);
             // lazy is required
             // this.expression = Expression.parse(key);
@@ -337,40 +272,6 @@ public class VariableInvoker implements Invoker {
                     }
                 }
             }
-        }
-
-        @Override
-        public Object invoke(Object context) {
-            if (value != null)
-                return value;
-            parseChildEl();
-            Object realKey = el.evaluate(context);
-            Object target = parent != null ? parent.invoke(context) : context;
-            if (realKey instanceof String) {
-                return value = ObjectUtils.getAttrValue(target, (String) realKey);
-            } else if (realKey instanceof Long) {
-                // 数组key
-                int indexValue = ((Long) realKey).intValue();
-                return value = CollectionUtils.getElement(target, indexValue);
-            }
-            throw new IllegalArgumentException(String.format("Unresolved child el: '%s', val: %s ", key, String.valueOf(realKey)));
-        }
-
-        @Override
-        public Object invoke(Map context) {
-            if (value != null)
-                return value;
-            parseChildEl();
-            Object realKey = el.evaluate(context);
-            Object target = parent != null ? parent.invoke(context) : context;
-            if (realKey instanceof String) {
-                return value = ObjectUtils.getAttrValue(target, (String) realKey);
-            } else if (realKey instanceof Long) {
-                // 数组key
-                int indexValue = ((Long) realKey).intValue();
-                return value = CollectionUtils.getElement(target, indexValue);
-            }
-            throw new IllegalArgumentException(String.format("Unresolved child el: '%s', val: %s ", key, String.valueOf(realKey)));
         }
 
         @Override
@@ -414,13 +315,13 @@ public class VariableInvoker implements Invoker {
                 return value;
             parseChildEl();
             Object realKey = el.evaluate(context);
-            Object target = parent != null ? parent.invoke(context, variableValues) : context;
+            Object parentContext = parent != null ? parent.invoke(context, variableValues) : context;
             if (realKey instanceof String) {
-                return variableValues[index] = ObjectUtils.getAttrValue(target, (String) realKey);
+                return variableValues[index] = ObjectUtils.getAttrValue(parentContext, (String) realKey);
             } else if (realKey instanceof Long) {
                 // 数组key
                 int indexValue = ((Long) realKey).intValue();
-                return variableValues[index] = CollectionUtils.getElement(target, indexValue);
+                return variableValues[index] = CollectionUtils.getElement(parentContext, indexValue);
             }
             throw new IllegalArgumentException(String.format("Unresolved child el: '%s', val: %s ", key, String.valueOf(realKey)));
         }
@@ -432,13 +333,69 @@ public class VariableInvoker implements Invoker {
                 return value;
             parseChildEl();
             Object realKey = el.evaluate(context);
-            Object target = parent != null ? parent.invoke(context, variableValues) : context;
+            Object parentContext = parent != null ? parent.invoke(context, variableValues) : context;
             if (realKey instanceof String) {
-                return variableValues[index] = ObjectUtils.getAttrValue(target, (String) realKey);
+                return variableValues[index] = ObjectUtils.getAttrValue(parentContext, (String) realKey);
             } else if (realKey instanceof Long) {
                 // 数组key
                 int indexValue = ((Long) realKey).intValue();
-                return variableValues[index] = CollectionUtils.getElement(target, indexValue);
+                return variableValues[index] = CollectionUtils.getElement(parentContext, indexValue);
+            }
+            throw new IllegalArgumentException(String.format("Unresolved child el: '%s', val: %s ", key, String.valueOf(realKey)));
+        }
+
+        @Override
+        public Object invokeCurrent(Map globalContext, Object parentContext, Object[] variableValues) {
+            parseChildEl();
+            Object realKey = el.evaluate(globalContext);
+            if (realKey instanceof String) {
+                return variableValues[index] = ObjectUtils.getAttrValue(parentContext, (String) realKey);
+            } else if (realKey instanceof Long) {
+                // 数组key
+                int indexValue = ((Long) realKey).intValue();
+                return variableValues[index] = CollectionUtils.getElement(parentContext, indexValue);
+            }
+            throw new IllegalArgumentException(String.format("Unresolved child el: '%s', val: %s ", key, String.valueOf(realKey)));
+        }
+
+        @Override
+        public Object invokeCurrent(Object globalContext, Object parentContext, Object[] variableValues) {
+            parseChildEl();
+            Object realKey = el.evaluate(globalContext);
+            if (realKey instanceof String) {
+                return variableValues[index] = ObjectUtils.getAttrValue(parentContext, (String) realKey);
+            } else if (realKey instanceof Long) {
+                // 数组key
+                int indexValue = ((Long) realKey).intValue();
+                return variableValues[index] = CollectionUtils.getElement(parentContext, indexValue);
+            }
+            throw new IllegalArgumentException(String.format("Unresolved child el: '%s', val: %s ", key, String.valueOf(realKey)));
+        }
+
+        @Override
+        public Object invokeCurrent(Object globalContext, Object parentContext) {
+            parseChildEl();
+            Object realKey = el.evaluate(globalContext);
+            if (realKey instanceof String) {
+                return ObjectUtils.getAttrValue(parentContext, (String) realKey);
+            } else if (realKey instanceof Long) {
+                // 数组key
+                int indexValue = ((Long) realKey).intValue();
+                return CollectionUtils.getElement(parentContext, indexValue);
+            }
+            throw new IllegalArgumentException(String.format("Unresolved child el: '%s', val: %s ", key, String.valueOf(realKey)));
+        }
+
+        @Override
+        public Object invokeCurrent(Map globalContext, Object parentContext) {
+            parseChildEl();
+            Object realKey = el.evaluate(globalContext);
+            if (realKey instanceof String) {
+                return ObjectUtils.getAttrValue(parentContext, (String) realKey);
+            } else if (realKey instanceof Long) {
+                // 数组key
+                int indexValue = ((Long) realKey).intValue();
+                return CollectionUtils.getElement(parentContext, indexValue);
             }
             throw new IllegalArgumentException(String.format("Unresolved child el: '%s', val: %s ", key, String.valueOf(realKey)));
         }
@@ -475,17 +432,49 @@ public class VariableInvoker implements Invoker {
         }
     }
 
-    static class ObjectPropertyInvoke implements ValueInvoke {
+    final static class ObjectGetterInvoke implements ValueInvoke {
         private final GetterInfo getterInfo;
 
-        ObjectPropertyInvoke(GetterInfo getterInfo) {
+        ObjectGetterInvoke(GetterInfo getterInfo) {
             getterInfo.getClass();
             this.getterInfo = getterInfo;
         }
 
         @Override
         public Object getValue(Object context) {
-            return getterInfo.invoke(context);
+            return SECURE_TRUSTED_ACCESS.get(getterInfo, context); // getterInfo.invoke(context);
+        }
+    }
+
+    final static class ObjectFieldInvoke implements ValueInvoke {
+        private final GetterInfo getterInfo;
+        private final long fieldOffset;
+
+        ObjectFieldInvoke(GetterInfo getterInfo) {
+            getterInfo.getClass();
+            this.getterInfo = getterInfo;
+            this.fieldOffset = getterInfo.getFieldOffset();
+        }
+
+        @Override
+        public Object getValue(Object context) {
+            return SECURE_TRUSTED_ACCESS.getObjectValue(context, fieldOffset);
+        }
+    }
+
+    final static class ObjectPrimitiveFieldInvoke implements ValueInvoke {
+        private final ReflectConsts.PrimitiveType primitiveType;
+        private final long fieldOffset;
+
+        ObjectPrimitiveFieldInvoke(GetterInfo getterInfo) {
+            getterInfo.getClass();
+            this.primitiveType = getterInfo.getPrimitiveType();
+            this.fieldOffset = getterInfo.getFieldOffset();
+        }
+
+        @Override
+        public Object getValue(Object context) {
+            return SECURE_TRUSTED_ACCESS.getPrimitiveValue(primitiveType, context, fieldOffset);
         }
     }
 

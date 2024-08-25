@@ -8,7 +8,7 @@
 2022-09-25 json性能测试数据 <br>
 [https://github.com/wycst/wast-jmh-test/blob/main/README_0925_json.md](https://github.com/wycst/wast-jmh-test/blob/main/README_0925_json.md)
 
-2022-12-14 表达式引擎测试数据<br>
+2022-12-14 表达式引擎<br>
 [https://github.com/wycst/wast-jmh-test/blob/main/README_1214_EL.md](https://github.com/wycst/wast-jmh-test/blob/main/README_1214_EL.md)
 
 此库不依赖任何第三方库，对JDK版本要求1.6及以上即可。
@@ -20,7 +20,7 @@
 <dependency>
     <groupId>io.github.wycst</groupId>
     <artifactId>wast</artifactId>
-    <version>0.0.15</version>
+    <version>0.0.16</version>
 </dependency>
 ```
 
@@ -121,10 +121,10 @@ System.out.println(map);
 
 ### 个性化支持
 
-1.针对实体bean的属性可以添加注解@JsonSerialize和@JsonDeserialize来实现定制化(使用见test模块custom目录例子)。 
+1.针对实体bean的属性可以添加注解@JsonSerialize和@JsonDeserialize来实现定制化(使用见test模块custom目录例子)。
 </br>
 
-2.通过JSON静态方法针对不同的类型来做个性化支持或者功能支持,非常方便; 
+2.通过JSON静态方法针对不同的类型来做个性化支持或者功能支持,非常方便;
 
 ```
     JSON.registerTypeMapper(java.time.ZoneId.class, new JSONTypeMapper<ZoneId>() {
@@ -490,7 +490,7 @@ System.out.println("==== eval result " + compiler.evaluate(var));
 ```
 ## JDBC
 
- ### 构建执行器
+### 构建执行器
 ```
  DefaultSqlExecuter sqlExecuter = new DefaultSqlExecuter();
 ```
@@ -628,7 +628,7 @@ List<Fact> factList = entityExecuter.queryBy(Fact.class, param)
 
 ```
 
-## HttpClient 
+## HttpClient
 
 ### 基本使用方法
 
