@@ -46,6 +46,8 @@ public class NacosServiceProvider extends CloudServiceProvider {
     public static final String CLOUD_NACOS_INSTANCE_SERVICE_PORT_KEY = "cloud.nacos.instance.servicePort";
     // 命名空间id
     public static final String CLOUD_NACOS_INSTANCE_NAMESPACE_ID_KEY = "cloud.nacos.instance.namespaceId";
+    // 自定义metadata
+    public static final String CLOUD_NACOS_INSTANCE_METADATA_KEY = "cloud.nacos.instance.metadata";
     // 通过注册代替发送心跳
     public static final String CLOUD_NACOS_INSTANCE_BEAT_METHOD_KEY = "cloud.nacos.instance.beat.method";
 
@@ -73,6 +75,7 @@ public class NacosServiceProvider extends CloudServiceProvider {
     private String instanceServiceName;
     private String instancePort;
     private String instanceNamespaceId;
+    private String metadata;
 
     private String nacosAuthUrl;
 
@@ -216,7 +219,7 @@ public class NacosServiceProvider extends CloudServiceProvider {
             requestConfig.addTextParameter("namespaceId", this.instanceNamespaceId);
             requestConfig.addTextParameter("healthy", "true");
             requestConfig.addTextParameter("weight", "1.0");
-            requestConfig.addTextParameter("metadata", "{}");
+            requestConfig.addTextParameter("metadata", metadata == null ? "{}" : metadata);
 
             String result = httpClient.post(nacosInstanceUrl, String.class, requestConfig);
             log.debug("result {}", result);
@@ -324,6 +327,10 @@ public class NacosServiceProvider extends CloudServiceProvider {
             this.instancePort = getProperty("server.port");
         }
         this.instanceNamespaceId = getProperty(CLOUD_NACOS_INSTANCE_NAMESPACE_ID_KEY);
+        this.metadata = getProperty(CLOUD_NACOS_INSTANCE_METADATA_KEY);
+        if(metadata == null || metadata.length() == 0) {
+            metadata = "{}";
+        }
         this.instanceBeatByRegister = getProperty(CLOUD_NACOS_INSTANCE_BEAT_METHOD_KEY) != null;
 
         String instanceCheckHealthyInterval = getProperty(CLOUD_NACOS_INSTANCE_CHECK_HEALTHY_INTERVAL_KEY);

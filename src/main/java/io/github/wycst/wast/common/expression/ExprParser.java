@@ -54,7 +54,7 @@ public class ExprParser extends Expression {
     public static final int NUM_TOKEN = 10;
     // 字符串
     public static final int STR_TOKEN = 11;
-    public static final int IDENTIFIER_TOKEN = 12;
+    public static final int VAR_TOKEN = 12;
     public static final int ARR_TOKEN = 13;
     // 函数(method)token,以@开始并且紧跟java标识符（@fun(...arg0)或者bean.fun(...arg0)）
     public static final int FUN_TOKEN = 14;
@@ -480,7 +480,7 @@ public class ExprParser extends Expression {
         // 解析类型如果没有结束括号说明表达式错误
         if (!bracketParserContext.endFlag) {
             String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-            throw new ExpressionException("syntax error, pos: " + this.readIndex + ",Expression[ " + errorMessage + " ], missing closing symbol')'");
+            throw new ExpressionException("syntax error, pos: " + this.readIndex + ",Expression[... " + errorMessage + " ], missing closing symbol')'");
         }
         //  置换子表达式优先级
         //  displacementSplit(child);
@@ -599,6 +599,7 @@ public class ExprParser extends Expression {
         // Is it a minus sign operator
         boolean isMinusSymbol = false;
         if ((isDigit(currentChar) || (isMinusSymbol = currentChar == '-')) && isNotGroupTokenValue(prevTokenType)) {
+            int begin = this.readIndex;
             int cnt = 0;
             int readIndex = ++this.readIndex;
             int numberRadix = 10;
@@ -777,8 +778,10 @@ public class ExprParser extends Expression {
                 }
             } else {
                 this.tokenType = NUM_TOKEN;
-                if (mode == 0) {
-                    if (exprParserContext.negate ^ isMinusSymbol) {
+                final boolean overflow = cnt > 19 || decimalVal < 0;
+                final boolean negate = exprParserContext.negate ^ isMinusSymbol;
+                if (mode == 0 && !overflow) {
+                    if (negate) {
                         value = -value;
                     }
                     if (specifySuffix == 0) {
@@ -795,16 +798,34 @@ public class ExprParser extends Expression {
                         numberValue = value;
                     }
                 } else {
+                    if(overflow) {
+                        decimalVal = 0;
+                        cnt = 0;
+                        int j = begin, decimalPointIndex = this.readIndex;
+                        char c;
+                        decimalCount = 0;
+                        for (; j < this.readIndex; ++j) {
+                            if (isDigit(c = sourceChars[offset + j])) {
+                                if(cnt++ < 18) {
+                                    decimalVal = decimalVal * 10 + c - 48;
+                                }
+                                if (j > decimalPointIndex) {
+                                    ++decimalCount;
+                                }
+                            } else {
+                                if (c == '.') {
+                                    decimalPointIndex = j;
+                                } else if(c == 'e' || c == 'E') {
+                                    break;
+                                }
+                            }
+                            if (cnt >= 18 && decimalCount > 0) break;
+                        }
+                        decimalCount -= cnt - 18;
+                    }
                     expValue = expNegative ? -expValue - decimalCount : expValue - decimalCount;
-//                    if (expValue > 0) {
-//                        double powValue = NumberUtils.getDecimalPowerValue(expValue);
-//                        value *= powValue;
-//                    } else if (expValue < 0) {
-//                        double powValue = NumberUtils.getDecimalPowerValue(-expValue);
-//                        value /= powValue;
-//                    }
                     value = NumberUtils.scientificToIEEEDouble(decimalVal, -expValue);
-                    if (exprParserContext.negate ^ isMinusSymbol) {
+                    if (negate) {
                         value = -value;
                     }
                     if (specifySuffix == 0) {
@@ -971,7 +992,7 @@ public class ExprParser extends Expression {
                     if (currentChar == '.') {
                         if (readIndex == localOffset) {
                             String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-                            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[ " + errorMessage + " ],token '\'' is duplicate or conflict with [] ");
+                            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ],token '\'' is duplicate or conflict with [] ");
                         }
                         variableKeys.add(new String(sourceChars, localOffset + this.offset, readIndex - localOffset));
                         localOffset = ++this.readIndex;
@@ -980,7 +1001,7 @@ public class ExprParser extends Expression {
                     if (currentChar == '[') {
                         if (readIndex == localOffset) {
                             String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-                            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[ " + errorMessage + " ],token '[' is duplicate or conflict with '.' ");
+                            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ],token '[' is duplicate or conflict with '.' ");
                         }
                         // 内层循环直到遇到]结束
                         variableKeys.add(new String(sourceChars, localOffset + this.offset, readIndex - localOffset));
@@ -1021,7 +1042,7 @@ public class ExprParser extends Expression {
                         }
                         if (currentChar != ']') {
                             String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-                            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[ " + errorMessage + " ],未找到与开始字符'['相匹配的结束字符 ']'");
+                            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ],未找到与开始字符'['相匹配的结束字符 ']'");
                         }
                         if (stringKey) {
                             // 去除''
@@ -1073,29 +1094,24 @@ public class ExprParser extends Expression {
                     }
                     if (currentChar != ')') {
                         String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-                        throw new ExpressionException("syntax error, pos: " + this.readIndex + ",Expression[ " + errorMessage + " ], end token ')' not found !");
+                        throw new ExpressionException("syntax error, pos: " + this.readIndex + ",Expression[... " + errorMessage + " ], end token ')' not found !");
                     }
                     String args = new String(sourceChars, localOffset + this.offset, this.readIndex - localOffset - 1);
+                    this.tokenType = FUN_TOKEN;
+                    checkTokenSyntaxError();
                     if (oneLevelAccess) {
                         // static Function
                         // @see @function
-                        this.tokenType = FUN_TOKEN;
-                        checkTokenSyntaxError();
                         parseFunToken(exprParserContext, identifierValue, args);
                     } else {
                         // reflect invoke : obj.method(...args)
-                        this.tokenType = FUN_TOKEN;
-                        checkTokenSyntaxError();
                         parseMethodToken(exprParserContext, variableKeys, identifierValue, args);
-                        // String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-                        // throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[ " + errorMessage + " ],non static function token() is not supported temporarily !");
                     }
-
                 } else {
                     if (localOffset > start && readIndex > localOffset) {
                         variableKeys.add(identifierValue);
                     }
-                    this.tokenType = IDENTIFIER_TOKEN; //设置标记类型为标识符token
+                    this.tokenType = VAR_TOKEN; //设置标记类型为标识符token
                     // todo 检查是否内置关键字（目前存在问题）
                     // this.checkIfBuiltInKeywords();
                     checkTokenSyntaxError();
@@ -1104,13 +1120,11 @@ public class ExprParser extends Expression {
             } finally {
                 variableKeys.clear();
             }
-            return;
         } else if (currentChar == '!') {
             ++this.readIndex;
             // 非运算与负数运算处理方式一致
             this.tokenType = NOT_TOKEN;
             parseNotToken(exprParserContext);
-            return;
         } else if (currentChar == '\'') {
             int start = this.readIndex + 1;
             this.scanString();
@@ -1120,10 +1134,9 @@ public class ExprParser extends Expression {
             checkTokenSyntaxError();
             parseStrToken(exprParserContext, new String(sourceChars, this.offset + start, readIndex - start));
             ++this.readIndex;
-            return;
         } else if (currentChar == '{') {
             // 静态数组（只支持number和字符串两种，不支持嵌套数组）
-            // java中静态数组使用{}而不是[]
+            // 表达式中静态数组使用{}而不是[]
             // 只能在解释模式下运行,编译模式java只支持声明时使用，运算不支持
             int start = ++this.readIndex;
             while (readable() && (currentChar = read()) != '}') {
@@ -1134,13 +1147,12 @@ public class ExprParser extends Expression {
             }
             if (currentChar != '}') {
                 String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-                throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[ " + errorMessage + " ],未找到与开始字符'{'相匹配的结束字符 '}'");
+                throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ],未找到与开始字符'{'相匹配的结束字符 '}'");
             }
             this.tokenType = ARR_TOKEN;
             checkTokenSyntaxError();
             parseArrToken(exprParserContext, new String(sourceChars, start + this.offset, this.readIndex - start));
             ++this.readIndex;
-            return;
         } else if (currentChar == '@') {
             // 函数token(解析函数内容)
             int start = ++this.readIndex;
@@ -1150,7 +1162,7 @@ public class ExprParser extends Expression {
                 // 以java标识符开头
                 if (!Character.isJavaIdentifierStart(currentChar = read())) {
                     String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-                    throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[ " + errorMessage + " ], unexpected function start char  : '" + currentChar + "'");
+                    throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ], unexpected function start char  : '" + currentChar + "'");
                 }
             }
             // 查找'('前面的字符
@@ -1197,16 +1209,17 @@ public class ExprParser extends Expression {
             this.tokenType = FUN_TOKEN;
             checkTokenSyntaxError();
             parseFunToken(exprParserContext, functionName, args);
-            return;
+        } else if(currentChar == '.' && prevTokenType == FUN_TOKEN) {
+            // todo
+            throw new UnsupportedOperationException("currently, it is not supported to access method return values as variables or method call handles");
+        } else if(currentChar == '+' && prevTokenType == RESET_TOKEN) {
+            // dealing with the first character '+' issue
+            ++readIndex;
+            tokenType = OPS_TOKEN;
         } else {
-            if (prevTokenType == RESET_TOKEN && currentChar == '+') {
-                ++readIndex;
-                tokenType = OPS_TOKEN;
-                return;
-            }
-            // 无法识别的字符
+            // unexpected character token
             String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", unexpected token '" + currentChar + "', Expression[ " + errorMessage + " ]");
+            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", unexpected token '" + currentChar + "', Expression[... " + errorMessage + " ]");
         }
     }
 
@@ -1225,7 +1238,7 @@ public class ExprParser extends Expression {
         }
         if (currentChar != '\'' || prevCh == '\\') {
             String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[ " + errorMessage + " ],未找到与开始字符'\''相匹配的结束字符 '\''");
+            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ],未找到与开始字符'\''相匹配的结束字符 '\''");
         }
     }
 
@@ -1273,7 +1286,7 @@ public class ExprParser extends Expression {
                 return GROUP_TOKEN_OPS;
             case NUM_TOKEN:
             case STR_TOKEN:
-            case IDENTIFIER_TOKEN:
+            case VAR_TOKEN:
             case ARR_TOKEN:
             case FUN_TOKEN:
                 return GROUP_TOKEN_VALUE;
@@ -1423,7 +1436,7 @@ public class ExprParser extends Expression {
         // 重置记录上一个token类型
         this.prevTokenType = this.tokenType;
         this.tokenType = RESET_TOKEN;
-        this.operator = ElOperator.NONE;
+        this.operator = ElOperator.ATOM;
     }
 
     /**
@@ -1462,7 +1475,7 @@ public class ExprParser extends Expression {
             case '?':
                 return this.operator = ElOperator.QUESTION;
             default:
-                return this.operator = null;
+                return /*this.operator = */null;
         }
     }
 
@@ -1669,12 +1682,12 @@ public class ExprParser extends Expression {
     protected static String createErrorContextText(char[] buf, int at) {
         try {
             int len = buf.length;
-            char[] text = new char[40];
+            char[] text = new char[100];
             int count;
-            int begin = Math.max(at - 18, 0);
+            int begin = Math.max(at - 49, 0);
             System.arraycopy(buf, begin, text, 0, count = at - begin);
             text[count++] = '^';
-            int end = Math.min(len, at + 18);
+            int end = Math.min(len, at + 49);
             System.arraycopy(buf, at, text, count, end - at);
             count += end - at;
             return new String(text, 0, count);

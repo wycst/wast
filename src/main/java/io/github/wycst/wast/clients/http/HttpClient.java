@@ -4,6 +4,9 @@ import io.github.wycst.wast.clients.http.consts.HttpHeaderValues;
 import io.github.wycst.wast.clients.http.definition.*;
 import io.github.wycst.wast.clients.http.impl.*;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.net.URLEncoder;
 import java.util.Map;
 
@@ -90,9 +93,11 @@ public class HttpClient extends AbstractHttpClient {
         StringBuilder builder = new StringBuilder();
         int length = params.size();
         int i = 0;
-        for (String key : params.keySet()) {
+        for (Map.Entry<String, Object> entry : params.entrySet()) {
+            String key = entry.getKey();
+            Object val = entry.getValue();
             // if npc exception ?
-            String value = params.get(key).toString();
+            String value = val == null ? "" : val.toString();
             try {
                 builder.append(URLEncoder.encode(key, "UTF-8")).append('=').append(URLEncoder.encode(value, "UTF-8"));
             } catch (Throwable throwable) {
@@ -141,6 +146,48 @@ public class HttpClient extends AbstractHttpClient {
         HttpClientRequest httpRequest = new HttpClientGet(url, requestConfig);
         HttpClientResponse httpResponse = executeRequest(httpRequest);
         return httpResponse.getEntity(rtnType);
+    }
+
+    /**
+     * 下载文件
+     *
+     * @param url
+     * @param file
+     * @return
+     */
+    public Throwable download(String url, File file) {
+        return download(url, null, file);
+    }
+
+    /**
+     * 下载文件
+     *
+     * @param url
+     * @param headers
+     * @param file
+     * @return
+     */
+    public Throwable download(String url, Map<String, String> headers, File file) {
+        FileOutputStream fos = null;
+        try {
+            byte[] bytes = download(url, headers);
+            if (bytes == null) {
+                return new IOException("empty data");
+            }
+            fos = new FileOutputStream(file);
+            fos.write(bytes);
+            fos.flush();
+            return null;
+        } catch (Throwable throwable) {
+            return throwable;
+        } finally {
+            if (fos != null) {
+                try {
+                    fos.close();
+                } catch (IOException e) {
+                }
+            }
+        }
     }
 
     public HttpClientResponse post(String url) {
@@ -426,5 +473,4 @@ public class HttpClient extends AbstractHttpClient {
         HttpClientResponse httpResponse = executeRequest(httpRequest);
         return httpResponse.getEntity(rtnType);
     }
-
 }

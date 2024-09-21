@@ -23,7 +23,7 @@ package io.github.wycst.wast.common.expression;
  */
 public enum ElOperator {
 
-    NONE("", 0, 0),
+    ATOM("", 0, 0),
     BRACKET("()", 1, 2),
     NOT("!", 5, 43),
     EXP("**", 9, 4),

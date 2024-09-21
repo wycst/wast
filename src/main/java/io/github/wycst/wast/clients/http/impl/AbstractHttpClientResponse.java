@@ -1,11 +1,10 @@
 package io.github.wycst.wast.clients.http.impl;
 
 import io.github.wycst.wast.clients.http.definition.HttpClientResponse;
+import io.github.wycst.wast.common.utils.IOUtils;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Arrays;
 
 /**
  * @Author: wangy
@@ -36,43 +35,45 @@ abstract class AbstractHttpClientResponse implements HttpClientResponse {
 
     private void writeStreamToContent(InputStream is) {
         if (is != null) {
+            boolean isClosed = false;
             try {
                 if (contentLength > 0) {
-                    // read max length(${contentLength})
                     byte[] buf = new byte[contentLength];
-                    int len = is.read(buf);
-                    if (len < contentLength) {
-                        content = Arrays.copyOf(buf, len);
-                    } else {
-                        content = buf;
+                    int offset = 0, len = buf.length, count;
+                    // Read until -1 or offset = contentLength
+                    while ((count = is.read(buf, offset, len)) != -1) {
+                        offset += count;
+                        if (count == len) break;
+                        len -= count;
                     }
+                    if(offset != contentLength) {
+                        // The actual length of the read content is less than the content length declared in the header
+                        // whether to throw an error
+                    }
+                    content = buf;
                 } else {
-                    // read full is
-                    ByteArrayOutputStream os = new ByteArrayOutputStream();
-                    byte[] buf = new byte[1024];
-                    int len;
-                    while ((len = is.read(buf)) > 0) {
-                        os.write(buf, 0, len);
-                    }
-                    this.content = os.toByteArray();
+                    this.content = IOUtils.readBytes(is);
+                    isClosed = true;
                 }
             } catch (IOException e) {
                 e.printStackTrace();
             } finally {
                 try {
-                    is.close();
+                    if (!isClosed) {
+                        is.close();
+                    }
                 } catch (IOException e) {
                 }
             }
         }
     }
 
-    private boolean checkIfRead(ByteArrayOutputStream os) {
-        if (this.contentLength == -1) {
-            return true;
-        }
-        return os.size() < this.contentLength;
-    }
+//    private boolean checkIfRead(ByteArrayOutputStream os) {
+//        if (this.contentLength == -1) {
+//            return true;
+//        }
+//        return os.size() < this.contentLength;
+//    }
 
     public int status() {
         return status;

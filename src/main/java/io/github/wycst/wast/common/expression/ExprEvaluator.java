@@ -38,7 +38,7 @@ public class ExprEvaluator {
     protected final static int EVAL_TYPE_BRACKET = 4;
 
     protected int evalType;
-    protected ElOperator operator = ElOperator.NONE;
+    protected ElOperator operator = ElOperator.ATOM;
 
     ExprEvaluator left;
     ExprEvaluator right;
@@ -398,7 +398,7 @@ public class ExprEvaluator {
             Object bracketValue = right.evaluate(context, evaluateEnvironment);
             this.constant = right.constant;
             if (negate) {
-                return result = ExprUtils.getNegateNumber(bracketValue);
+                return result = ExprUtils.negate(bracketValue);
             }
             if (logicalNot) {
                 return result = bracketValue == Boolean.FALSE || bracketValue == null;
@@ -1276,7 +1276,7 @@ public class ExprEvaluator {
             // 执行函数
             Object functionValue = this.evaluateFunction(evaluatorContext, evaluateEnvironment);
             if (negate) {
-                return ExprUtils.getNegateNumber(functionValue);
+                return ExprUtils.negate(functionValue);
             }
             if (logicalNot) {
                 return functionValue == Boolean.FALSE || functionValue == null;
@@ -1351,7 +1351,7 @@ public class ExprEvaluator {
             // 执行函数
             Object functionValue = this.evaluateMethod(evaluatorContext, evaluateEnvironment);
             if (negate) {
-                return ExprUtils.getNegateNumber(functionValue);
+                return ExprUtils.negate(functionValue);
             }
             if (logicalNot) {
                 return functionValue == Boolean.FALSE || functionValue == null;

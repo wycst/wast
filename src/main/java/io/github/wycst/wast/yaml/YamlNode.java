@@ -351,8 +351,9 @@ public class YamlNode extends YamlLine {
         }
 
         // 开始转换
-        for (Serializable key : fieldNodes.keySet()) {
-            YamlNode yamlNode = fieldNodes.get(key);
+        for (Map.Entry<String, YamlNode> entry : fieldNodes.entrySet()) {
+            Serializable key = entry.getKey();
+            YamlNode yamlNode = entry.getValue();
             if (isMapInstance) {
                 Map map = (Map) instance;
                 putNodeValueOfMap((String) key, yamlNode, map);

@@ -1134,4 +1134,25 @@ public final class NumberUtils {
     public static byte hexDigitAt(int c) {
         return HEX_DIGITS_REVERSE[c];
     }
+
+    public static boolean equals(long val, String text) {
+        if(text == null || text.isEmpty()) return false;
+        if(val == Long.MIN_VALUE) {
+            return text.equals("-9223372036854775808");
+        }
+        long result = 0, len = text.length();
+        int i = 0;
+        if(text.charAt(0) == '-') {
+            ++i;
+            val = -val;
+        }
+        for (; i < len; ++i) {
+            int d = digitDecimal(text.charAt(i));
+            if(d == -1) {
+                return false;
+            }
+            result = result * 10 + d;
+        }
+        return val == result;
+    }
 }

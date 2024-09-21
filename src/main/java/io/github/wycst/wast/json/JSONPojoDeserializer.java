@@ -118,41 +118,6 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                         }
                     }
                 }
-//                if((ch = buf[++i]) != '"') {
-//                    long hashValue = ch;
-//                    char ch1;
-//                    if ((ch = buf[++i]) != '"' && (ch1 = buf[++i]) != '"') {
-//                        hashValue = fieldDeserializerMatcher.hash(hashValue, ch, ch1);
-//                        if ((ch = buf[++i]) != '"' && (ch1 = buf[++i]) != '"') {
-//                            hashValue = fieldDeserializerMatcher.hash(hashValue, ch, ch1);
-//                            while ((ch = buf[++i]) != '"' && (ch1 = buf[++i]) != '"') {
-//                                hashValue = fieldDeserializerMatcher.hash(hashValue, ch, ch1);
-//                            }
-//                        }
-//                    }
-//                    if(ch != '"') {
-//                        hashValue = fieldDeserializerMatcher.hash(hashValue, ch);
-//                    }
-//                    fieldDeserializer = fieldDeserializerMatcher.getValue(buf, ++fieldKeyFrom, i, hashValue);
-//                    if(fieldDeserializer == null) {
-//                        char prev = buf[i - 1];
-//                        while (prev == '\\') {
-//                            boolean isPrevEscape = true;
-//                            int j = i - 1;
-//                            while (buf[--j] == '\\') {
-//                                isPrevEscape = !isPrevEscape;
-//                            }
-//                            if(isPrevEscape) {
-//                                // skip
-//                                while (buf[++i] != '"');
-//                                prev = buf[i - 1];
-//                            } else {
-//                                break;
-//                            }
-//                        }
-//                    }
-//                }
-
                 empty = false;
                 while ((ch = buf[++i]) <= ' ') ;
             } else {
@@ -229,7 +194,15 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                 if (isDeserialize) {
                     valueType = fieldDeserializer.genericParameterizedType;
                     deserializer = fieldDeserializer.deserializer;
-                    if (deserializer == null) {
+                    if (deserializer != null) {
+                        boolean camouflage = valueType.isCamouflage();
+                        if (camouflage) {
+                            valueType = getGenericValueType(parameterizedType, valueType);
+                            if (!fieldDeserializer.isCustomDeserialize()) {
+                                deserializer = getTypeDeserializer(valueType.getActualType());
+                            }
+                        }
+                    } else {
                         Class implClass;
                         if ((implClass = fieldDeserializer.getImplClass()) != null) {
                             valueType = valueType.copyAndReplaceActualType(implClass);
@@ -306,14 +279,6 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                                     String errorContextTextAt = createErrorContextText(buf, i);
                                     throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + ch + "', expected ',' or '}'");
                                 }
-                            }
-                        }
-                    } else {
-                        boolean camouflage = valueType.isCamouflage();
-                        if (camouflage) {
-                            valueType = getGenericValueType(parameterizedType, valueType);
-                            if (!fieldDeserializer.isCustomDeserialize()) {
-                                deserializer = getTypeDeserializer(valueType.getActualType());
                             }
                         }
                     }
@@ -445,7 +410,6 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                     b = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext)];
                 }
             }
-
             if (b == COLON_SIGN) {
                 // buf fieldKeyFrom fieldKeyTo
                 while ((buf[++i]) <= WHITE_SPACE) ;
@@ -463,7 +427,14 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                 if (isDeserialize) {
                     valueType = fieldDeserializer.genericParameterizedType;
                     deserializer = fieldDeserializer.deserializer;
-                    if (deserializer == null) {
+                    if (deserializer != null) {
+                        if (valueType.isCamouflage()) {
+                            valueType = getGenericValueType(parameterizedType, valueType);
+                            if (!fieldDeserializer.isCustomDeserialize()) {
+                                deserializer = getTypeDeserializer(valueType.getActualType());
+                            }
+                        }
+                    } else {
                         Class implClass;
                         if ((implClass = fieldDeserializer.getImplClass()) != null) {
                             valueType = valueType.copyAndReplaceActualType(implClass);
@@ -542,16 +513,8 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                                 }
                             }
                         }
-                    } else {
-                        if (valueType.isCamouflage()) {
-                            valueType = getGenericValueType(parameterizedType, valueType);
-                            if (!fieldDeserializer.isCustomDeserialize()) {
-                                deserializer = getTypeDeserializer(valueType.getActualType());
-                            }
-                        }
                     }
                 }
-
                 if (isDeserialize) {
                     Object value = deserializer.deserialize(charSource, buf, i, toIndex, valueType, defaultFieldValue, END_OBJECT, jsonParseContext);
                     setFieldValue((T) entity, fieldDeserializer, value);

@@ -105,8 +105,7 @@ public final class EnvUtils {
             }
         }
         if (apiAgent == null) {
-            apiAgent = new JdkApiAgent() {
-            };
+            apiAgent = new JdkApiAgent();
         }
         JDK_AGENT_INSTANCE = apiAgent;
     }

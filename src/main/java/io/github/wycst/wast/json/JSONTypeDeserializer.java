@@ -31,6 +31,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
     final static CharSequenceImpl CHAR_SEQUENCE = new CharSequenceImpl();
     protected final static CharSequenceImpl CHAR_SEQUENCE_STRING;
     protected final static NumberImpl NUMBER = new NumberImpl();
+    protected final static NumberImpl.Skipper NUMBER_SKIPPER = new NumberImpl.Skipper();
     protected final static NumberImpl NUMBER_LONG = new NumberImpl.LongImpl();
     protected final static NumberImpl NUMBER_INTEGER = new NumberImpl.IntegerImpl();
     protected final static NumberImpl NUMBER_SHORT = new NumberImpl.ShortImpl();
@@ -356,6 +357,20 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
 
     // 0、字符串序列化
     static class CharSequenceImpl extends JSONTypeDeserializer {
+
+        @Override
+        protected Object valueOf(String value, Class<?> actualType) throws Exception {
+            if (actualType == char[].class) {
+                return value.toCharArray();
+            }
+            if (actualType == StringBuilder.class) {
+                return new StringBuilder(value);
+            }
+            if (actualType == StringBuffer.class) {
+                return new StringBuffer(value);
+            }
+            return value;
+        }
 
         protected void skip(CharSource source, char[] buf, int fromIndex, char endCh, JSONParseContext jsonParseContext) throws Exception {
             if (source != null) {
@@ -929,6 +944,116 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             throw new JSONException("Syntax error, at pos " + fromIndex + ", unexpected character '" + beginByte + "' when parsing a number");
         }
 
+        final static void skipNumber(char[] buf, int fromIndex, int offset, char endToken, JSONParseContext jsonParseContext) throws Exception {
+            int i = offset;
+            char ch;
+            do {
+                while (isDigit((ch = buf[i]))) {
+                    ++i;
+                }
+                if (ch == '.') {
+                    while (isDigit((ch = buf[++i])));
+                }
+                if (ch <= ' ') {
+                    while ((ch = buf[++i]) <= ' ') ;
+                }
+                if (ch == ',' || ch == endToken) {
+                    break;
+                }
+                if (ch == 'E' || ch == 'e') {
+                    ch = buf[++i];
+                    if (ch == '-' || ch == '+') {
+                        ch = buf[++i];
+                    }
+                    if (isDigit(ch)) {
+                        while (isDigit(ch = buf[++i])) ;
+                    }
+                    if (ch <= ' ') {
+                        while ((ch = buf[++i]) <= ' ') ;
+                    }
+                    if (ch == ',' || ch == endToken) {
+                        break;
+                    }
+                }
+                switch (ch) {
+                    case 'l':
+                    case 'L':
+                    case 'f':
+                    case 'F':
+                    case 'd':
+                    case 'D': {
+                        while ((ch = buf[++i]) <= ' ') ;
+                        if (ch == ',' || ch == endToken) {
+                            break;
+                        }
+                        String contextErrorAt = createErrorContextText(buf, i);
+                        throw new JSONException("skip input string: \"" + new String(buf, fromIndex, i - fromIndex + 1) + "\", expected ',' or '" + endToken + "', but found '" + ch + "', context text by '" + contextErrorAt + "'");
+                    }
+                    default: {
+                        String contextErrorAt = createErrorContextText(buf, i);
+                        throw new JSONException("skip input string: \"" + new String(buf, fromIndex, i - fromIndex + 1) + "\", expected ',' or '" + endToken + "', but found '" + ch + "', context text by '" + contextErrorAt + "'");
+                    }
+                }
+                break;
+            } while (false);
+            jsonParseContext.endIndex = i - 1;
+        }
+
+        final static void skipNumber(byte[] buf, int fromIndex, int offset, byte endToken, JSONParseContext jsonParseContext) throws Exception {
+            int i = offset;
+            byte b;
+            do {
+                while (isDigit((b = buf[i]))) {
+                    ++i;
+                }
+                if (b == '.') {
+                    while (isDigit((b = buf[++i])));
+                }
+                if (b <= ' ') {
+                    while ((b = buf[++i]) <= ' ') ;
+                }
+                if (b == ',' || b == endToken) {
+                    break;
+                }
+                if (b == 'E' || b == 'e') {
+                    b = buf[++i];
+                    if (b == '-' || b == '+') {
+                        b = buf[++i];
+                    }
+                    if (isDigit(b)) {
+                        while (isDigit(b = buf[++i])) ;
+                    }
+                    if (b <= ' ') {
+                        while ((b = buf[++i]) <= ' ') ;
+                    }
+                    if (b == ',' || b == endToken) {
+                        break;
+                    }
+                }
+                switch (b) {
+                    case 'l':
+                    case 'L':
+                    case 'f':
+                    case 'F':
+                    case 'd':
+                    case 'D': {
+                        while ((b = buf[++i]) <= ' ') ;
+                        if (b == ',' || b == endToken) {
+                            break;
+                        }
+                        String contextErrorAt = createErrorContextText(buf, i);
+                        throw new JSONException("skip input string: \"" + new String(buf, fromIndex, i - fromIndex + 1) + "\", expected ',' or '" + endToken + "', but found '" + b + "', context text by '" + contextErrorAt + "'");
+                    }
+                    default: {
+                        String contextErrorAt = createErrorContextText(buf, i);
+                        throw new JSONException("skip input string: \"" + new String(buf, fromIndex, i - fromIndex + 1) + "\", expected ',' or '" + endToken + "', but found '" + b + "', context text by '" + contextErrorAt + "'");
+                    }
+                }
+                break;
+            } while (false);
+            jsonParseContext.endIndex = i - 1;
+        }
+
         final static Number parseNumber(char[] buf, int fromIndex, int toIndex, int offset, long val, int cnt, boolean negative, char endToken, int returnType, JSONParseContext jsonParseContext) throws Exception {
             long value = val;
             int decimalCount = 0;
@@ -1033,20 +1158,24 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     cnt = 0;
                     int j = fromIndex, decimalPointIndex = endIndex;
                     decimalCount = 0;
-                    for (; ; ++j) {
+                    for (; j < i; ++j) {
                         if (isDigit(ch = buf[j])) {
-                            value = value * 10 + ch - 48;
-                            ++cnt;
+                            if (cnt++ < 18) {
+                                value = value * 10 + ch - 48;
+                            }
                             if (j > decimalPointIndex) {
                                 ++decimalCount;
                             }
                         } else {
                             if (ch == '.') {
                                 decimalPointIndex = j;
+                            } else if (ch == 'e' || ch == 'E') {
+                                break;
                             }
                         }
-                        if (cnt == 18) break;
+                        if (cnt >= 18 && decimalCount > 0) break;
                     }
+                    decimalCount -= cnt - 18;
                 }
                 double dv = NumberUtils.scientificToIEEEDouble(value, expNegative ? expValue + decimalCount : decimalCount - expValue);
                 return negative ? -dv : dv;
@@ -1058,7 +1187,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                             while (buf[endIndex] <= ' ') {
                                 --endIndex;
                             }
-                            return new BigDecimal(new String(buf, fromIndex, endIndex - fromIndex + 1));
+                            return new BigDecimal(buf, fromIndex, endIndex - fromIndex + 1);
                         }
                         value = negative ? -value : value;
                         return new BigDecimal(BigInteger.valueOf(value), expNegative ? expValue + decimalCount : decimalCount - expValue);
@@ -1248,20 +1377,24 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     cnt = 0;
                     int j = fromIndex, decimalPointIndex = endIndex;
                     decimalCount = 0;
-                    for (; ; ++j) {
+                    for (; j < i; ++j) {
                         if (isDigit(b = buf[j])) {
-                            value = value * 10 + b - 48;
-                            ++cnt;
+                            if (cnt++ < 18) {
+                                value = value * 10 + b - 48;
+                            }
                             if (j > decimalPointIndex) {
                                 ++decimalCount;
                             }
                         } else {
                             if (b == '.') {
                                 decimalPointIndex = j;
+                            } else if (b == 'e' || b == 'E') {
+                                break;
                             }
                         }
-                        if (cnt == 18) break;
+                        if (cnt >= 18 && decimalCount > 0) break;
                     }
+                    decimalCount -= cnt - 18;
                 }
                 double dv = NumberUtils.scientificToIEEEDouble(value, expNegative ? expValue + decimalCount : decimalCount - expValue);
                 return negative ? -dv : dv;
@@ -1578,6 +1711,19 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             @Override
             protected Object valueOf(String value, Class<?> actualType) {
                 return new BigInteger(value);
+            }
+        }
+
+        final static class Skipper extends NumberImpl {
+
+            protected Number deserializeNumber(long initValue, boolean negative, int cnt, char[] buf, int fromIndex, int offset, int toIndex, GenericParameterizedType parameterizedType, char endToken, JSONParseContext jsonParseContext) throws Exception {
+                skipNumber(buf, fromIndex, offset, endToken, jsonParseContext);
+                return null;
+            }
+
+            protected Number deserializeNumber(long initValue, boolean negative, int cnt, byte[] buf, int fromIndex, int offset, int toIndex, GenericParameterizedType parameterizedType, byte endToken, JSONParseContext jsonParseContext) throws Exception {
+                skipNumber(buf, fromIndex, offset, endToken, jsonParseContext);
+                return null;
             }
         }
     }
@@ -2013,7 +2159,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
 
         @Override
         protected Object valueOf(String value, Class<?> actualType) {
-            return value.toCharArray();
+            return null;
         }
 
         Object deserializeArray(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object instance, JSONParseContext jsonParseContext) throws Exception {
@@ -3836,7 +3982,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     break;
                 }
                 default: {
-                    NUMBER.deserialize(charSource, buf, fromIndex, toIndex, GenericParameterizedType.AnyType, null, endToken, jsonParseContext);
+                    NUMBER_SKIPPER.deserialize(charSource, buf, fromIndex, toIndex, null, null, endToken, jsonParseContext);
                     break;
                 }
             }
@@ -3868,7 +4014,8 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     break;
                 }
                 default: {
-                    JSONTypeDeserializer.NUMBER.deserialize(null, buf, fromIndex, toIndex, GenericParameterizedType.AnyType, null, endToken, jsonParseContext);
+                    // NUMBER.deserialize(null, buf, fromIndex, toIndex, GenericParameterizedType.AnyType, null, endToken, jsonParseContext);
+                    NUMBER_SKIPPER.deserialize(charSource, buf, fromIndex, toIndex, null, null, endToken, jsonParseContext);
                     break;
                 }
             }
@@ -4336,9 +4483,9 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             jsonParseContext.endIndex = i;
             len = i - beginIndex;
             if (len <= 8) {
-                return getCacheEightBytesKey(bytes, beginIndex, len, hashValue);
+                return jsonParseContext.getCacheEightBytesKey(bytes, beginIndex, len, hashValue);
             }
-            return getCacheKey(bytes, beginIndex, len, hashValue);
+            return jsonParseContext.getCacheKey(bytes, beginIndex, len, hashValue);
         } else {
             boolean escape = false;
             for (; ; ) {
@@ -4366,9 +4513,9 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                         return writer.toString();
                     } else {
                         if (len <= 8) {
-                            return getCacheEightBytesKey(bytes, beginIndex, len, hashValue);
+                            return jsonParseContext.getCacheEightBytesKey(bytes, beginIndex, len, hashValue);
                         }
-                        return getCacheKey(bytes, beginIndex, len, hashValue);
+                        return jsonParseContext.getCacheKey(bytes, beginIndex, len, hashValue);
                     }
                 }
             }

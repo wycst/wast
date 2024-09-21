@@ -73,8 +73,8 @@ class JSONGeneral {
     final static int[] ESCAPE_CHARS = new int[160];
 
     // cache keys
-    private static final JSONKeyValueMap<String> KEY_32_TABLE = new JSONKeyValueMap<String>(4096);
-    private static final JSONKeyValueMap<String> KEY_EIGHT_BYTES_TABLE = new JSONKeyValueMap<String>(2048);
+    static final JSONKeyValueMap<String> KEY_32_TABLE = new JSONKeyValueMap<String>(4096);
+    static final JSONKeyValueMap<String> KEY_8_TABLE = new JSONKeyValueMap<String>(2048);
 
     static {
         for (int i = 0; i < 160; i++) {
@@ -203,45 +203,45 @@ class JSONGeneral {
         return DEFAULT_IMPL_INST_CREATOR_MAP.get(targetClass);
     }
 
-    final static String getCacheKey(char[] buf, int offset, int len, long hashCode) {
+    final static String getCacheKey(char[] buf, int offset, int len, long hashCode, JSONKeyValueMap<String> table) {
         if (len > 32) {
             return new String(buf, offset, len);
         }
         //  len > 0
-        String value = KEY_32_TABLE.getValue(buf, offset, offset + len, hashCode);
+        String value = table.getValue(buf, offset, offset + len, hashCode);
         if (value == null) {
             value = new String(buf, offset, len);
-            KEY_32_TABLE.putValue(value, hashCode, value);
+            table.putValue(value, hashCode, value);
         }
         return value;
     }
 
-    final static String getCacheKey(byte[] bytes, int offset, int len, long hashCode) {
+    final static String getCacheKey(byte[] bytes, int offset, int len, long hashCode, JSONKeyValueMap<String> table) {
         if (len > 32) {
             return new String(bytes, offset, len);
         }
-        String value = KEY_32_TABLE.getValue(bytes, offset, offset + len, hashCode);
+        String value = table.getValue(bytes, offset, offset + len, hashCode);
         if (value == null) {
             value = new String(bytes, offset, len);
-            KEY_32_TABLE.putValue(value, hashCode, value);
+            table.putValue(value, hashCode, value);
         }
         return value;
     }
 
-    final static String getCacheEightCharsKey(char[] buf, int offset, int len, long hashCode) {
-        String value = KEY_EIGHT_BYTES_TABLE.getValueByHash(hashCode);
+    final static String getCacheEightCharsKey(char[] buf, int offset, int len, long hashCode, JSONKeyValueMap<String> table) {
+        String value = table.getValueByHash(hashCode);
         if (value == null) {
             value = new String(buf, offset, len);
-            KEY_EIGHT_BYTES_TABLE.putExactHashValue(hashCode, value);
+            table.putExactHashValue(hashCode, value);
         }
         return value;
     }
 
-    final static String getCacheEightBytesKey(byte[] bytes, int offset, int len, long hashCode) {
-        String value = KEY_EIGHT_BYTES_TABLE.getValueByHash(hashCode);
+    final static String getCacheEightBytesKey(byte[] bytes, int offset, int len, long hashCode, JSONKeyValueMap<String> table) {
+        String value = table.getValueByHash(hashCode);
         if (value == null) {
             value = new String(bytes, offset, len);
-            KEY_EIGHT_BYTES_TABLE.putExactHashValue(hashCode, value);
+            table.putExactHashValue(hashCode, value);
         }
         return value;
     }
@@ -1472,9 +1472,13 @@ class JSONGeneral {
     }
 
     protected final static Collection createCollectionInstance(Class<?> collectionCls) {
+        return createCollectionInstance(collectionCls, 0);
+    }
+
+    protected final static Collection createCollectionInstance(Class<?> collectionCls, int capacityIfSupported) {
         if (collectionCls.isInterface()) {
             if (collectionCls == List.class || collectionCls == Collection.class) {
-                return new ArrayList<Object>();
+                return new ArrayList<Object>(capacityIfSupported);
             } else if (collectionCls == Set.class) {
                 return new HashSet<Object>();
             } else {
@@ -1486,7 +1490,7 @@ class JSONGeneral {
             } else if (collectionCls == Vector.class) {
                 return new Vector<Object>();
             } else if (collectionCls == ArrayList.class || collectionCls == Object.class) {
-                return new ArrayList<Object>();
+                return new ArrayList<Object>(capacityIfSupported);
             } else {
                 try {
                     return (Collection<Object>) collectionCls.newInstance();

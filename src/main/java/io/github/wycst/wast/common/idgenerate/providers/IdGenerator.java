@@ -145,5 +145,12 @@ public abstract class IdGenerator {
         return Long.toBinaryString(generateId());
     }
 
-
+    /**
+     * 设置默认实例id(多实例支持通过代码设置)
+     *
+     * @param instanceId
+     */
+    public static void setDefaultInstanceId(int instanceId) {
+        instance = new SnowflakeIdGeneratorProvider(ID_GENERATOR_SNOWFLAKE_BIT_TYPE, instanceId);
+    }
 }

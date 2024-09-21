@@ -60,10 +60,11 @@ public class YamlJSON extends YamlGeneral {
         builder.append("{");
         int size = obj.size();
         int i = 0;
-        for (Object key : obj.keySet()) {
+        for (Map.Entry entry : ((Map<?,?>) obj).entrySet()) {
+            Object key = entry.getKey();
+            Object value = entry.getValue();
             builder.append(key);
             builder.append(":");
-            Object value = obj.get(key);
             writeObjectTo(builder, value);
             if (++i < size) {
                 builder.append(",");

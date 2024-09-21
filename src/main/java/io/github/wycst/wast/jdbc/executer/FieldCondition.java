@@ -18,7 +18,7 @@ public class FieldCondition {
 
     public FieldCondition(String field, Operator ops, Serializable value) {
         this.field = field;
-        this.operator = ops == null ? Operator.Equal : ops;
+        this.operator = ops == null ? Operator.EQ : ops;
         this.value = value;
         this.like = operator.type == 1;
     }
@@ -71,28 +71,28 @@ public class FieldCondition {
 
     public enum Operator {
 
-        Gt(">", 0),
-        Lt("<", 0),
-        Equal("=", 0),
-        GtOrEqual(">=", 0),
-        LtOrEqual("<=", 0),
-        NotEqual("<>", 0),
-        NotEqual2("!=", 0),
-        Like("LIKE", 1),
-        LeftLike("LIKE", 1) {
+        GT(">", 0),
+        LT("<", 0),
+        EQ("=", 0),
+        GE(">=", 0),
+        LE("<=", 0),
+        NE("<>", 0),
+        NE2("!=", 0),
+        LIKE("LIKE", 1),
+        LEFT_LIKE("LIKE", 1) {
             @Override
             public String likeValueRight() {
                 return "'";
             }
         },
-        RightLike("LIKE", 1) {
+        RIGHT_LIKE("LIKE", 1) {
             @Override
             public String likeValueLeft() {
                 return "'";
             }
         },
         // 自定义模糊内容查询,解决LeftLike和RightLike满足的不了的查询问题
-        CustomLike("LIKE", 1) {
+        CUSTOM_LIKE("LIKE", 1) {
             @Override
             public String likeValueLeft() {
                 return "'";

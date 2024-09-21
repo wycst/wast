@@ -231,18 +231,21 @@ public class EntityManagementFactory {
         }
 
         // handle joinFields
-        for (Class<?> entityCls : entityJoinFields.keySet()) {
+        for (Map.Entry<Class<?>, Map<String, JoinField>> entityEntry : entityJoinFields.entrySet()) {
             // source from @JoinField
-            Map<String, JoinField> joinFields = entityJoinFields.get(entityCls);
+            Class<?> entityCls = entityEntry.getKey();
+            Map<String, JoinField> joinFields = entityEntry.getValue();
             EntitySqlMapping entitySqlMapping = entitySqlMappings.get(entityCls);
             // source from @Join
             Map<Class<?>, JoinEntityMapping> joinEntityMappings = entitySqlMapping.getJoinEntityMappings();
-            for (Class<?> joinClass : joinEntityMappings.keySet()) {
-                JoinEntityMapping joinEntityMapping = joinEntityMappings.get(joinClass);
+            for (Map.Entry<Class<?>, JoinEntityMapping> joinEntry : joinEntityMappings.entrySet()) {
+                Class<?> joinClass = joinEntry.getKey();
+                JoinEntityMapping joinEntityMapping = joinEntry.getValue();
                 Map<String, String> joinOnFieldKeys = joinEntityMapping.getJoinOnFieldKeys();
                 EntitySqlMapping targetEntitySqlMapping = entitySqlMappings.get(joinClass);
-                for (String fieldName : joinOnFieldKeys.keySet()) {
-                    String joinFieldName = joinOnFieldKeys.get(fieldName);
+                for (Map.Entry<String, String> joinFiledEntry : joinOnFieldKeys.entrySet()) {
+                    String fieldName = joinFiledEntry.getKey();
+                    String joinFieldName = joinFiledEntry.getValue();
                     String columnName = entitySqlMapping.getFieldColumnMapping().get(fieldName).getColumnName();
                     String joinColumnName = targetEntitySqlMapping.getFieldColumnMapping().get(joinFieldName).getColumnName();
                     joinEntityMapping.getJoinOnColumnKeys().put(columnName, joinColumnName);
@@ -250,8 +253,9 @@ public class EntityManagementFactory {
             }
 
             // 遍历同一个实体下面可能join多个字段来源多个关联的实体
-            for (String fieldName : joinFields.keySet()) {
-                JoinField joinField = joinFields.get(fieldName);
+            for (Map.Entry<String, JoinField> fieldEntry : joinFields.entrySet()) {
+                String fieldName = fieldEntry.getKey();
+                JoinField joinField = fieldEntry.getValue();
                 Class target = joinField.target();
                 if (!entityClsSet.contains(target)) {
                     throw new EntityException(" Entity Class '" + entityCls + "' , field '" + fieldName + "' annotation@JoinField target class '" + target + "' is not a Table Entity");

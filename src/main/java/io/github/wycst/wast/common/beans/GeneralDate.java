@@ -60,7 +60,7 @@ public class GeneralDate {
     public static final int YEAR = 1;
     public static final int MONTH = 2;
     public static final int DAY_OF_MONTH = 3;
-    public static final int HOURS = 4;
+    public static final int HOUR = 4;
     public static final int MINUTE = 5;
     public static final int SECOND = 6;
     public static final int MILLISECOND = 7;

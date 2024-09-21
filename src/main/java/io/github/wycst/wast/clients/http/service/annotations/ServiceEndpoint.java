@@ -41,4 +41,13 @@
 //     * @return
 //     */
 //    public long timeout() default 0;
+//
+//    /**
+//     * 自定义追加头信息
+//     *
+//     * @return
+//     */
+//    public String[] headers() default {};
+//
+//
 //}

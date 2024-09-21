@@ -4,7 +4,7 @@ package io.github.wycst.wast.common.utils;
  * @Date 2024/6/8 14:22
  * @Created by wangyc
  */
-public abstract class JdkApiAgent {
+public class JdkApiAgent {
 
     public long multiplyHigh(long x, long y) {
         long x1 = x >> 32;

@@ -271,9 +271,12 @@ public final class ObjectUtils extends InvokeUtils {
             return null;
         List<String> fields = new ArrayList<String>();
         if (target instanceof Map) {
-            Map<String, Object> map = (Map<String, Object>) target;
-            for (String field : map.keySet()) {
-                Object val = map.get(field);
+            Map<Object, Object> map = (Map<Object, Object>) target;
+            for (Map.Entry<Object, Object> entry : map.entrySet()) {
+                Object key = entry.getKey();
+                if(key == null) continue;
+                String field = key.toString();
+                Object val = entry.getValue();
                 if (val != null && !val.equals("")) {
                     fields.add(field);
                 }

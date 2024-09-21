@@ -141,7 +141,7 @@ public final class DateTemplate {
             fieldIndexs.add(new DateFieldIndex(GregorianDate.DAY_OF_MONTH, dayIndex, 2));
         }
         if (hourIndex > -1) {
-            fieldIndexs.add(new DateFieldIndex(GregorianDate.HOURS, hourIndex, 2));
+            fieldIndexs.add(new DateFieldIndex(GregorianDate.HOUR, hourIndex, 2));
         }
         if (minuteIndex > -1) {
             fieldIndexs.add(new DateFieldIndex(GregorianDate.MINUTE, minuteIndex, 2));
@@ -197,7 +197,7 @@ public final class DateTemplate {
                     }
                     continue;
                 }
-                case GregorianDate.HOURS: {
+                case GregorianDate.HOUR: {
                     int hourOffset = hourIndex + offset + factor;
                     hour = NumberUtils.parseInt1(buf, hourOffset++);
                     if (hourOffset < bufLength) {
@@ -308,7 +308,7 @@ public final class DateTemplate {
                     }
                     continue;
                 }
-                case GregorianDate.HOURS: {
+                case GregorianDate.HOUR: {
                     int hourOffset = hourIndex + offset + factor;
                     hour = NumberUtils.parseInt1(buf, hourOffset++);
                     if (hourOffset < bufLength) {

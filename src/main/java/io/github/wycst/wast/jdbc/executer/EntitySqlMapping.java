@@ -351,14 +351,14 @@ public class EntitySqlMapping {
 
     private void initInsertSql() {
         this.insertColumns.clear();
-        Collection<String> insertFields = fieldColumnMapping.keySet();
         String insertTemplate = "INSERT INTO %s(%s) VALUES(%s)";
         StringBuilder columnsNameBuilder = new StringBuilder();
         StringBuilder columnsValueBuilder = new StringBuilder();
         int deleteDotOfNameIndex = -1;
         int deleteDotOfValueIndex = -1;
-        for (String field : insertFields) {
-            FieldColumn fieldColumn = fieldColumnMapping.get(field);
+        for (Map.Entry<String, FieldColumn> entry : fieldColumnMapping.entrySet()) {
+            String field = entry.getKey();
+            FieldColumn fieldColumn = entry.getValue();
             if (fieldColumn.isPrimary()) {
                 Id id = fieldColumn.getId();
                 Id.GenerationType type = id.strategy();

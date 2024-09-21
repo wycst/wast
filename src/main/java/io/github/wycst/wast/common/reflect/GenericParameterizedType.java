@@ -18,9 +18,13 @@ public final class GenericParameterizedType<T> {
 
     private GenericParameterizedType() {
     }
-
     // cache
     private static final Map<Class, GenericParameterizedType> GENERIC_PARAMETERIZED_TYPE_MAP = new ConcurrentHashMap<Class, GenericParameterizedType>();
+
+    /**
+     * AnyType类型
+     */
+    public static GenericParameterizedType AnyType = GenericParameterizedType.actualType(Object.class);
 
     /**
      * 字符串类型
@@ -49,11 +53,6 @@ public final class GenericParameterizedType<T> {
      * BigDecimalType类型
      */
     public static final GenericParameterizedType<BigDecimal> BigDecimalType = GenericParameterizedType.actualType(BigDecimal.class);
-
-    /**
-     * AnyType类型
-     */
-    public static GenericParameterizedType AnyType = GenericParameterizedType.actualType(Object.class);
 
     /**
      * 是否数组类型，数组无对应的class
@@ -129,6 +128,9 @@ public final class GenericParameterizedType<T> {
      * @return
      */
     static <T> GenericParameterizedType<T> newActualType(Class<T> actualType) {
+        if(actualType == Object.class) {
+            return AnyType;
+        }
         GenericParameterizedType genericParameterizedType = new GenericParameterizedType();
         genericParameterizedType.setActualType(actualType);
         genericParameterizedType.actualClassCategory = ReflectConsts.getClassCategory(actualType);
@@ -173,6 +175,10 @@ public final class GenericParameterizedType<T> {
 //        }
 //        return null;
 //    }
+
+    public boolean isAnyType() {
+        return this == AnyType;
+    }
 
     private <T> void setActualType(Class<T> actualType) {
         this.actualType = actualType;

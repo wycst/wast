@@ -6,6 +6,9 @@ import io.github.wycst.wast.clients.http.executor.HttpClientExecutor;
 import io.github.wycst.wast.clients.http.provider.ServiceProvider;
 import io.github.wycst.wast.clients.http.url.UrlHttpClientExecutor;
 
+import java.io.InputStream;
+import java.util.Map;
+
 /**
  * @Author: wangy
  * @Date: 2020/8/23 20:35
@@ -69,6 +72,37 @@ class AbstractHttpClient {
      */
     public HttpClientResponse executeRequest(HttpClientRequest httpRequest) {
         return httpClientExecutor.executeRequest(httpRequest);
+    }
+
+    /**
+     * 下载字节内容
+     *
+     * @param url
+     * @return
+     */
+    public final byte[] download(String url) {
+        return httpClientExecutor.fastGetBody(url, null);
+    }
+
+    /**
+     * 下载
+     *
+     * @param url
+     * @return
+     */
+    public final byte[] download(String url, Map<String, String> headers) {
+        return httpClientExecutor.fastGetBody(url, headers);
+    }
+
+    /**
+     * 下载远程资源的输入流（GET请求）
+     *
+     * @param url
+     * @param headers
+     * @return
+     */
+    public final InputStream downloadInputStream(String url, Map<String, String> headers) {
+        return httpClientExecutor.fastGetInputStream(url, headers);
     }
 
 }

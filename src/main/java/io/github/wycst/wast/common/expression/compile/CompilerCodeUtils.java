@@ -13,6 +13,7 @@ import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
 import io.github.wycst.wast.common.reflect.GetterInfo;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
+import io.github.wycst.wast.common.utils.EnvUtils;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.ParameterizedType;
@@ -207,10 +208,21 @@ final class CompilerCodeUtils {
                     defineJavaIdentifiers,
                     definedTypes,
                     deductionTypes,
-                    tailTypes);
+                    tailTypes,
+                    environment);
             ++ofIndex;
         }
         constructorBodyBuilder.append("}");
+
+        // supported multi line script
+        if(environment.isSkipParse()) {
+            int returnStatementIndex = expr.lastIndexOf("return ");
+            if(returnStatementIndex > -1) {
+                invokeObjMethodBuilder.append("\r\n\t\t").append(expr, 0, returnStatementIndex).append("\r\n");
+                invokeMapMethodBuilder.append("\r\n\t\t").append(expr, 0, returnStatementIndex).append("\r\n");
+                expr = new String(expr.substring(returnStatementIndex + 8));
+            }
+        }
 
         if (expr.startsWith("return ")) {
             // delete return && ;
@@ -223,7 +235,7 @@ final class CompilerCodeUtils {
         } else {
             // delete ;
             int len = expr.length();
-            while (len > 7 && expr.charAt(len - 1) == ';') {
+            while (len > 0 && expr.charAt(len - 1) == ';') {
                 --len;
             }
             invokeObjMethodBuilder.append("\t\t$2.setValue(").append(expr, 0, len).append(");\n").append("}");
@@ -477,7 +489,8 @@ final class CompilerCodeUtils {
                     defineJavaIdentifiers,
                     definedTypes,
                     deductionTypes,
-                    tailTypes
+                    tailTypes,
+                    environment
             );
             ++ofIndex;
         }
@@ -508,8 +521,22 @@ final class CompilerCodeUtils {
             }
         }
 
+        String expressionCode = source;
+        if(environment.isSkipParse()) {
+            int returnStatementIndex = source.lastIndexOf(" return ");
+            if(returnStatementIndex > -1) {
+                assignmentObjectVariablesBuilder.append("\r\n\t\t").append(source, 0, returnStatementIndex).append("\r\n");
+                assignmentMapVariablesBuilder.append("\r\n\t\t").append(source, 0, returnStatementIndex).append("\r\n");
+                int len = source.length();
+                while (len > 0 && source.charAt(len - 1) == ';') {
+                    --len;
+                }
+                expressionCode = new String(source.substring(returnStatementIndex + 8, len));
+            }
+        }
+
         vars.put("className", expressionClassName);
-        vars.put("expressionCode", source);
+        vars.put("expressionCode", expressionCode);
         vars.put("initInvokes", initInvokesBuilder);
         vars.put("declareInvokes", declareInvokesBuilder);
         vars.put("assignmentObjectVariables", assignmentObjectVariablesBuilder);
@@ -530,12 +557,13 @@ final class CompilerCodeUtils {
      * @param definedTypes          通过编译环境预制设置的类型映射
      * @param deductionTypes        通过自动推导动态添加的类型映射，初始化new
      * @param tailTypes
+     * @param environment
      */
-    private static void generateInvokerCodeTo(ElVariableInvoker variableInvoker, String defineJavaIdentifier, StringBuilder objVariablesBuilder, StringBuilder mapVariablesBuilder, Map<String, String> defineJavaIdentifiers, Map<String, Class> definedTypes, Map<String, Class> deductionTypes, Map<Integer, Class> tailTypes) {
+    private static void generateInvokerCodeTo(ElVariableInvoker variableInvoker, String defineJavaIdentifier, StringBuilder objVariablesBuilder, StringBuilder mapVariablesBuilder, Map<String, String> defineJavaIdentifiers, Map<String, Class> definedTypes, Map<String, Class> deductionTypes, Map<Integer, Class> tailTypes, CompilerEnvironment environment) {
         if (variableInvoker == null) return;
         ElVariableInvoker parent = variableInvoker.getParent();
         // generate parent
-        generateInvokerCodeTo(parent, null, objVariablesBuilder, mapVariablesBuilder, defineJavaIdentifiers, definedTypes, deductionTypes, tailTypes);
+        generateInvokerCodeTo(parent, null, objVariablesBuilder, mapVariablesBuilder, defineJavaIdentifiers, definedTypes, deductionTypes, tailTypes, environment);
 
         int index = variableInvoker.getIndex();
         String key = variableInvoker.getKey();
@@ -593,7 +621,12 @@ final class CompilerCodeUtils {
                             // T v = (T) _invoke_2.invokeValue(context);
                             mapVariablesBuilder.append("_invoke_").append(index).append(".invokeValue(context);\r\n");
                         }
-                        objVariablesBuilder.append("_invoke_").append(index).append(".invokeValue(context);\r\n");
+                        if(environment.isSupportedContextRoot()) {
+                            objVariablesBuilder.append("(").append("context instanceof ").append(typeName).append(" ? context : ");
+                            objVariablesBuilder.append("_invoke_").append(index).append(".invokeValue(context));\r\n");
+                        } else {
+                            objVariablesBuilder.append("_invoke_").append(index).append(".invokeValue(context);\r\n");
+                        }
                         // 非基本类型添加到推导映射中
                         deductionTypes.put(invokeUniqueKey, defineType);
                     }
@@ -633,12 +666,19 @@ final class CompilerCodeUtils {
                         if (classCategory == ReflectConsts.ClassCategory.ObjectCategory) {
                             // pojo checks whether there is a get method declared by public, and deduces the return type
                             ClassStructureWrapper parentStructureWrapper = ClassStructureWrapper.get(parentType);
-                            getterInfo = getGetterInfo(parentStructureWrapper, key);
+                            getterInfo = parentStructureWrapper.matchGenerateGetterInfo(key); // getGetterInfo(parentStructureWrapper, key);
                             if (getterInfo != null) {
-                                if (getterInfo.getReturnType() == defineType) {
-                                    // No forced conversion required
-                                    forceConversionType = false;
-                                    forcePrimitiveType = false;
+                                if(!getterInfo.isPublic()) {
+                                    forceConversionType = true;
+                                    if(EnvUtils.JDK_7_BELOW && getterInfo.isPrimitive()) {
+                                        forcePrimitiveType = true;
+                                    }
+                                } else {
+                                    if (getterInfo.getReturnType() == defineType) {
+                                        // No forced conversion required
+                                        forceConversionType = false;
+                                        forcePrimitiveType = false;
+                                    }
                                 }
                             }
                         }
@@ -646,7 +686,6 @@ final class CompilerCodeUtils {
                             defineType = getterInfo == null ? null : getterInfo.getReturnType();
                         }
                     }
-
                     if (defineType == null) {
                         if (tail && tailTypes.containsKey(index)) {
                             defineType = tailTypes.get(index);
@@ -654,13 +693,12 @@ final class CompilerCodeUtils {
                             defineType = Object.class;
                         }
                     }
-
                     String typeName = getTypeName(defineType);
                     objVariablesBuilder.append(typeName).append(" ").append(defineJavaIdentifier).append(" = ");
                     mapVariablesBuilder.append(typeName).append(" ").append(defineJavaIdentifier).append(" = ");
                     if (forceConversionType) {
                         if (forcePrimitiveType) {
-                            // 基本类型不能强转（T）为Object类型的对象，使用类似intValue/doubleValue过渡
+                            // JDK6 基本类型不能强转（T）为Object类型的对象，使用类似intValue/doubleValue过渡
                             String primitiveMethodValue = PRIMITIVE_VALUE_METHODS.get(defineType).getValue();
                             objVariablesBuilder.append(primitiveMethodValue).append("(");
                             mapVariablesBuilder.append(primitiveMethodValue).append("(");
@@ -669,9 +707,9 @@ final class CompilerCodeUtils {
                             mapVariablesBuilder.append("(").append(typeName).append(") ");
                         }
                     }
-                    if (getterInfo != null) {
-                        objVariablesBuilder.append(parentValueVar).append(".").append(getterInfo.getMethodName()).append("()");
-                        mapVariablesBuilder.append(parentValueVar).append(".").append(getterInfo.getMethodName()).append("()");
+                    if (getterInfo != null && getterInfo.isPublic()) {
+                        objVariablesBuilder.append(parentValueVar).append(".").append(getterInfo.generateCode());
+                        mapVariablesBuilder.append(parentValueVar).append(".").append(getterInfo.generateCode());
                     } else if (isParentMapType && !childEl) {
                         objVariablesBuilder.append(parentValueVar).append(".get(\"").append(key).append("\")");
                         mapVariablesBuilder.append(parentValueVar).append(".get(\"").append(key).append("\")");
@@ -726,16 +764,6 @@ final class CompilerCodeUtils {
             // 缓存invoke的变量defineJavaIdentifier
             defineJavaIdentifiers.put(invokeUniqueKey, defineJavaIdentifier);
         }
-    }
-
-    private static GetterInfo getGetterInfo(ClassStructureWrapper parentStructureWrapper, String key) {
-        List<GetterInfo> getterInfos = parentStructureWrapper.getGetterInfos();
-        for (GetterInfo getterInfo : getterInfos) {
-            if (key.equals(getterInfo.getName()) || key.equals(getterInfo.getUnderlineName())) {
-                return getterInfo;
-            }
-        }
-        return null;
     }
 
     /**

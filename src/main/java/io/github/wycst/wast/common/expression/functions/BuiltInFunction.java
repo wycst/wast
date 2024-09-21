@@ -4,6 +4,8 @@ import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.common.expression.ExpressionException;
 
 import java.lang.reflect.Array;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
@@ -240,7 +242,7 @@ public final class BuiltInFunction {
     /**
      * 以当前时间为标准，计算偏移量offset（毫秒）, 将日期转化为指定模板的字符串
      *
-     * @param offset 偏移量（单位秒）
+     * @param offset   偏移量（单位秒）
      * @param template
      * @return
      * @see GregorianDate#format(String)
@@ -248,5 +250,29 @@ public final class BuiltInFunction {
     public static String date_format(long offset, String template) {
         long current = System.currentTimeMillis();
         return new GregorianDate(current + offset * 1000).format(template);
+    }
+
+    public static String toString(Object value) {
+        return (value == null) ? "null" : value.toString();
+    }
+
+    /**
+     * 提供仿构造函数构建BigDecimal实例
+     *
+     * @param text
+     * @return
+     */
+    public static BigDecimal BigDecimal(String text) {
+        return new BigDecimal(text);
+    }
+
+    /**
+     * 提供仿构造函数构建BigInteger实例
+     *
+     * @param text
+     * @return
+     */
+    public static BigInteger BigInteger(String text) {
+        return new BigInteger(text);
     }
 }

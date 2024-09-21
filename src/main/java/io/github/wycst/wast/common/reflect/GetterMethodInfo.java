@@ -40,6 +40,11 @@ final class GetterMethodInfo extends GetterInfo {
         return true;
     }
 
+    @Override
+    public boolean isPublic() {
+        return true;
+    }
+
     public Class<?> getReturnType() {
         return method.getReturnType();
     }

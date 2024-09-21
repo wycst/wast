@@ -120,7 +120,7 @@ public class OqlQuery {
      */
     public OqlQuery addConditions(String...fields) {
         for (String field: fields) {
-            addCondition(field, FieldCondition.Operator.Equal);
+            addCondition(field, FieldCondition.Operator.EQ);
         }
         return this;
     }
@@ -132,7 +132,7 @@ public class OqlQuery {
      */
     public OqlQuery addConditions(Collection<String> fields) {
         for (String field: fields) {
-            addCondition(field, FieldCondition.Operator.Equal);
+            addCondition(field, FieldCondition.Operator.EQ);
         }
         return this;
     }
@@ -210,7 +210,27 @@ public class OqlQuery {
     }
 
     public OqlQuery eq(String field, Serializable value) {
-        fieldConditions.add(new FieldCondition(field, FieldCondition.Operator.Equal, value));
+        fieldConditions.add(new FieldCondition(field, FieldCondition.Operator.EQ, value));
+        return this;
+    }
+
+    public OqlQuery gt(String field, Serializable value) {
+        fieldConditions.add(new FieldCondition(field, FieldCondition.Operator.GT, value));
+        return this;
+    }
+
+    public OqlQuery lt(String field, Serializable value) {
+        fieldConditions.add(new FieldCondition(field, FieldCondition.Operator.LT, value));
+        return this;
+    }
+
+    public OqlQuery ge(String field, Serializable value) {
+        fieldConditions.add(new FieldCondition(field, FieldCondition.Operator.GE, value));
+        return this;
+    }
+
+    public OqlQuery le(String field, Serializable value) {
+        fieldConditions.add(new FieldCondition(field, FieldCondition.Operator.LE, value));
         return this;
     }
 

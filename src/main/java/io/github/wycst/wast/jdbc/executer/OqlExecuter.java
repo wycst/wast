@@ -139,6 +139,15 @@ public interface OqlExecuter {
      */
     public <E> List<E> queryList(Class<E> cls, OqlQuery query, Object params);
 
+    /***
+     * 执行条件查询
+     *
+     * @param cls
+     * @param query
+     * @return
+     */
+    public <E> List<E> queryList(Class<E> cls, OqlQuery query);
+
     /**
      * 基于流式查询海里数据
      *

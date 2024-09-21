@@ -1,13 +1,15 @@
 package io.github.wycst.wast.common.expression;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+
 /**
- * 抽取静态公共方法
  *
  * @Author: wangy
  * @Date: 2022/10/22 13:58
  * @Description:
  */
-class ExprUtils {
+final class ExprUtils {
 
     /**
      * 获取value值的负数运算
@@ -15,7 +17,7 @@ class ExprUtils {
      * @param value
      * @return
      */
-    public static Object getNegateNumber(Object value) {
+    public static Object negate(Object value) {
         Number number = (Number) value;
         if (value instanceof Long) {
             return -(Long) value;
@@ -23,7 +25,12 @@ class ExprUtils {
         if (value instanceof Integer) {
             return -(Integer) value;
         }
+        if (value instanceof BigDecimal) {
+            return ((BigDecimal) value).negate();
+        }
+        if (value instanceof BigInteger) {
+            return ((BigInteger) value).negate();
+        }
         return -number.doubleValue();
     }
-
 }

@@ -33,6 +33,15 @@ public class FNV {
 //        return rv;
 //    }
 
+    public static long hash64(byte[] bytes) {
+        long rv = FNV_64_OFFSET_BASIS;
+        for (byte b : bytes) {
+            rv ^= b;
+            rv *= FNV_64_PRIME;
+        }
+        return rv;
+    }
+
     public static long hash64(String chars) {
         long rv = FNV_64_OFFSET_BASIS;
         int len = chars.length();

@@ -208,8 +208,8 @@ public final class JSONDefaultParser extends JSONGeneral {
                     break;
                 }
                 case '[': {
-                    // 2 [ array
-                    value = parseJSONArray(source, buf, i, toIndex, new ArrayList(10), jsonParseContext);
+                    // Multilayer collections are relatively rare and can easily cause waste of collection space. The specified initialization capacity is displayed as 2
+                    value = parseJSONArray(source, buf, i, toIndex, new ArrayList(2), jsonParseContext);
                     list.add(value);
                     i = jsonParseContext.endIndex;
                     break;
@@ -501,9 +501,9 @@ public final class JSONDefaultParser extends JSONGeneral {
                     return writer.toString();
                 } else {
                     if (ascii && len <= 8) {
-                        return getCacheEightCharsKey(buf, beginIndex, len, hashValue);
+                        return jsonParseContext.getCacheEightCharsKey(buf, beginIndex, len, hashValue);
                     }
-                    return getCacheKey(buf, beginIndex, len, hashValue);
+                    return jsonParseContext.getCacheKey(buf, beginIndex, len, hashValue);
                 }
             }
         }

@@ -413,7 +413,7 @@ public class JSONValidator extends JSONGeneral {
 
     private void validateNumber(int fromIndex, char endChar) throws Exception {
         try {
-            JSONTypeDeserializer.NUMBER.deserialize(null, buf, fromIndex, toIndex, GenericParameterizedType.AnyType, null, endChar, parseContext);
+            JSONTypeDeserializer.NUMBER_SKIPPER.deserialize(null, buf, fromIndex, toIndex, GenericParameterizedType.AnyType, null, endChar, parseContext);
             offset = parseContext.endIndex;
         } catch (Throwable throwable) {
             result = false;

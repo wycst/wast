@@ -131,4 +131,28 @@ public class JSONParseContext {
     final int getEscapeOffset() {
         return escapeOffset;
     }
+
+    protected JSONKeyValueMap<String> getTable32() {
+        return JSONGeneral.KEY_32_TABLE;
+    }
+
+    protected JSONKeyValueMap<String> getTable8() {
+        return JSONGeneral.KEY_8_TABLE;
+    }
+
+    protected final String getCacheEightCharsKey(char[] buf, int offset, int len, long hashValue) {
+        return JSONGeneral.getCacheEightCharsKey(buf, offset, len, hashValue, getTable8());
+    }
+
+    protected final String getCacheKey(char[] buf, int offset, int len, long hashValue) {
+        return JSONGeneral.getCacheKey(buf, offset, len, hashValue, getTable32());
+    }
+
+    protected final String getCacheEightBytesKey(byte[] bytes, int offset, int len, long hashValue) {
+        return JSONGeneral.getCacheEightBytesKey(bytes, offset, len, hashValue, getTable8());
+    }
+
+    protected final String getCacheKey(byte[] bytes, int offset, int len, long hashValue) {
+        return JSONGeneral.getCacheKey(bytes, offset, len, hashValue, getTable32());
+    }
 }

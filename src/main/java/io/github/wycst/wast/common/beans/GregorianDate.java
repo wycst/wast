@@ -164,11 +164,32 @@ public class GregorianDate extends GeneralDate implements java.io.Serializable, 
                 this.month += count;
                 this.updateTime();
                 break;
-            case DAY_OF_MONTH:
+            case DAY_OF_MONTH: {
                 // 如果是添加的天数
-                long timeMills = this.timeMills + count * 24l * 3600 * 1000;
+                long timeMills = this.timeMills + 24l * 3600 * 1000 * count;
                 setTime(timeMills);
                 break;
+            }
+            case HOUR: {
+                long timeMills = this.timeMills + 3600l * 1000 * count;
+                setTime(timeMills);
+                break;
+            }
+            case MINUTE: {
+                long timeMills = this.timeMills + 60l * 1000 * count;
+                setTime(timeMills);
+                break;
+            }
+            case SECOND: {
+                long timeMills = this.timeMills + 1000L * count;
+                setTime(timeMills);
+                break;
+            }
+            case MILLISECOND: {
+                long timeMills = this.timeMills + count;
+                setTime(timeMills);
+                break;
+            }
             default:
                 break;
         }

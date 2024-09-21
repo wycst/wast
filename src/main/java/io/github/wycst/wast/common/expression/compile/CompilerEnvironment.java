@@ -15,6 +15,7 @@ import java.util.*;
  */
 public class CompilerEnvironment extends EvaluateEnvironment {
 
+
     public CompilerEnvironment() {
     }
 
@@ -26,6 +27,7 @@ public class CompilerEnvironment extends EvaluateEnvironment {
     private boolean disableSecurityCheck;
     // disable keys
     private Set<String> disableKeys = new HashSet<String>();
+    private boolean supportedContextRoot;
 
     // 变量类型映射
     private Map<String, Class> variableTypeMap = new LinkedHashMap<String, Class>();
@@ -104,6 +106,14 @@ public class CompilerEnvironment extends EvaluateEnvironment {
             }
             variableTypeMap.put(var, type);
         }
+    }
+
+    public void setSupportedContextRoot(boolean supportedContextRoot) {
+        this.supportedContextRoot = supportedContextRoot;
+    }
+
+    public boolean isSupportedContextRoot() {
+        return supportedContextRoot;
     }
 
     /**

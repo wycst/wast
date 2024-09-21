@@ -144,6 +144,26 @@ public final class ClassStructureWrapper {
         return getterInfoMap.get(name);
     }
 
+    /**
+     * If used to generate compiled code, the method takes priority
+     *
+     * @param name
+     * @return
+     */
+    public GetterInfo matchGenerateGetterInfo(String name) {
+        for (GetterInfo getterInfo : getterInfos) {
+            if (name.equals(getterInfo.getName())/*|| name.equals(getterInfo.getUnderlineName())*/) {
+                return getterInfo;
+            }
+        }
+        for (GetterInfo getterInfo : getterInfoOfFields) {
+            if (name.equals(getterInfo.getName())/*|| name.equals(getterInfo.getUnderlineName())*/) {
+                return getterInfo;
+            }
+        }
+        return null;
+    }
+
     private void fillGetterInfoMap() {
         for (GetterInfo getterInfo : getterInfos) {
             if (getterInfo.existField()) {
@@ -242,7 +262,7 @@ public final class ClassStructureWrapper {
     }
 
     public static ClassStructureWrapper ofEnumClass(Class<? extends Enum> enumClass) {
-        if(!enumClass.isEnum()) {
+        if (!enumClass.isEnum()) {
             throw new UnsupportedOperationException("not enum class " + enumClass);
         }
         ClassStructureWrapper wrapper = createBy(enumClass);
@@ -424,7 +444,7 @@ public final class ClassStructureWrapper {
         for (Method method : methods) {
 
             Class<?> declaringClass = method.getDeclaringClass();
-            if (declaringClass == Object.class)
+            if (declaringClass == Object.class || Modifier.isStatic(method.getModifiers()))
                 continue;
 
             String methodName = method.getName();
@@ -460,7 +480,7 @@ public final class ClassStructureWrapper {
                 // load annotations
                 Map<Class<? extends Annotation>, Annotation> annotationMap = new HashMap<Class<? extends Annotation>, Annotation>();
                 addAnnotations(annotationMap, method.getAnnotations());
-                if(!globalMIP && !annotationMap.containsKey(MethodInvokePriority.class)) {
+                if (!globalMIP && !annotationMap.containsKey(MethodInvokePriority.class)) {
                     try {
                         // declared field, not considering inheriting
                         Field field = sourceClass.getDeclaredField(fieldName);
@@ -526,7 +546,7 @@ public final class ClassStructureWrapper {
 
                 Annotation[] methodAnnotations = method.getAnnotations();
                 addAnnotations(annotationMap, methodAnnotations);
-                if(!globalMIP && !annotationMap.containsKey(MethodInvokePriority.class)) {
+                if (!globalMIP && !annotationMap.containsKey(MethodInvokePriority.class)) {
                     try {
                         Field field = sourceClass.getDeclaredField(setFieldName);
                         if (!Modifier.isStatic(field.getModifiers()) && !Modifier.isFinal(field.getModifiers())) {
@@ -916,13 +936,13 @@ public final class ClassStructureWrapper {
             if (nameMethods.size() == 1) {
                 Method method = nameMethods.get(0);
                 Class[] parameterTypes = method.getParameterTypes();
-                if(parameterTypes.length != params.length) {
+                if (parameterTypes.length != params.length) {
                     throw new IllegalArgumentException("argument mismatch");
                 }
                 for (int i = 0, n = params.length; i < n; ++i) {
                     Object value = params[i];
                     Class parameterType = parameterTypes[i];
-                    if(!parameterType.isInstance(value)) {
+                    if (!parameterType.isInstance(value)) {
                         try {
                             params[i] = ObjectUtils.toType(value, parameterType);
                         } catch (Throwable throwable) {

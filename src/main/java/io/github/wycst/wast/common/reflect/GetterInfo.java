@@ -128,6 +128,11 @@ public class GetterInfo {
         return !Modifier.isPrivate(field.getModifiers());
     }
 
+    // 是否public
+    public boolean isPublic() {
+        return Modifier.isPublic(field.getModifiers());
+    }
+
     public boolean isPrimitive() {
         return fieldPrimitive;
     }

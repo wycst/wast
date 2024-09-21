@@ -228,6 +228,24 @@ public final class JSON extends JSONGeneral {
     }
 
     /**
+     * <p> 将json字符串（{}）转化为指定class的实例
+     *
+     * @param json        源字符串
+     * @param actualType  类型
+     * @param customMapper
+     * @param readOptions 解析配置项
+     * @return T对象
+     */
+    public static <T> T parseObject(String json, Class<T> actualType, JSONCustomMapper customMapper, ReadOption... readOptions) {
+        if (json == null) return null;
+        try {
+            return customMapper.parseCustomObject(json, actualType, readOptions);
+        } catch (Throwable throwable) {
+            throw new JSONException("custom error for " + actualType, throwable);
+        }
+    }
+
+    /**
      * <p> 将字符数组转化为指定class的实例
      *
      * @param buf         字符数组
@@ -1103,7 +1121,7 @@ public final class JSON extends JSONGeneral {
             if (!parent.exists()) {
                 parent.mkdirs();
             }
-            writeJsonTo(object, new FileOutputStream(file), options);
+            writeJsonTo(object, new FileOutputStream(file), EnvUtils.CHARSET_DEFAULT, options);
         } catch (FileNotFoundException e) {
             throw new JSONException("file not found", e);
         }
@@ -1206,6 +1224,115 @@ public final class JSON extends JSONGeneral {
         writeToJSONWriter(object, JSONWriter.wrap(writer), JSONConfig.config(options));
     }
 
+    /**
+     * 将对象转化为json字符串
+     *
+     * @param obj     目标对象
+     * @param options 配置选项
+     * @return JSON字符串
+     */
+    public static String toJsonString(Object obj, JSONCustomMapper customizedMapper, WriteOption... options) {
+        if (obj == null) {
+            return null;
+        }
+        JSONConfig jsonConfig = JSONConfig.config(options);
+        if (customizedMapper == null) {
+            return stringify(obj, jsonConfig, 0);
+        } else {
+            return stringify(obj, jsonConfig, 0, customizedMapper);
+        }
+    }
+
+    /**
+     * 将对象转化为美化后的json字符串
+     *
+     * @param obj
+     * @return
+     */
+    public static String toPrettifyJsonString(Object obj, JSONCustomMapper customizedMapper) {
+        if (obj == null) {
+            return null;
+        }
+        return stringify(obj, JSONConfig.config(WriteOption.FormatOutColonSpace), 0, customizedMapper);
+    }
+
+    /**
+     * serialize obj
+     *
+     * @param obj          序列化对象
+     * @param jsonConfig   配置
+     * @param customMapper
+     * @return JSON字符串
+     */
+    public static String toJsonString(Object obj, JSONConfig jsonConfig, JSONCustomMapper customMapper) {
+        if (obj == null) {
+            return null;
+        }
+        return stringify(obj, jsonConfig, 0, customMapper);
+    }
+
+    /**
+     * 将对象序列化内容直接写入os
+     *
+     * @param object
+     * @param os
+     * @param options
+     */
+    public static void writeJsonTo(Object object, OutputStream os, JSONCustomMapper customMapper, WriteOption... options) {
+        writeJsonTo(object, os, EnvUtils.CHARSET_DEFAULT, customMapper, options);
+    }
+
+    /**
+     * 将对象序列化内容直接写入os
+     *
+     * @param object
+     * @param os
+     * @param charset
+     * @param customMapper
+     * @param options
+     */
+    public static void writeJsonTo(Object object, OutputStream os, Charset charset, JSONCustomMapper customMapper, WriteOption... options) {
+        JSONConfig jsonConfig = JSONConfig.config(options);
+        JSONWriter streamWriter = JSONWriter.forStreamWriter(charset, jsonConfig);
+        try {
+            writeToJSONWriter(object, streamWriter, jsonConfig, customMapper);
+            streamWriter.toOutputStream(os);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } finally {
+            streamWriter.reset();
+        }
+    }
+
+    /**
+     * <p>
+     * 将对象序列化内容使用指定的writer；<br/>
+     * </p>
+     *
+     * <pre>
+     *  OutputStream os = ...
+     *  OutputStreamWriter osw = new OutputStreamWriter(os, "UTF-8");
+     *  JSON.writeJsonTo(object, osw);
+     * </pre>
+     *
+     * @param object
+     * @param writer
+     * @param customMapper
+     * @param options
+     */
+    public static void writeJsonTo(Object object, Writer writer, JSONCustomMapper customMapper, WriteOption... options) {
+        JSONConfig jsonConfig = JSONConfig.config(options);
+        JSONWriter jsonWriter = JSONWriter.forStringWriter(jsonConfig);
+        try {
+            writeToJSONWriter(object, jsonWriter, jsonConfig, customMapper);
+            jsonWriter.writeTo(writer);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } finally {
+            jsonWriter.reset();
+        }
+    }
+
     static void writeToJSONWriter(Object object, JSONWriter writer, JSONConfig jsonConfig) {
         if (object != null) {
             try {
@@ -1223,6 +1350,39 @@ public final class JSON extends JSONGeneral {
                     }
                 }
             }
+        }
+    }
+
+    static void writeToJSONWriter(Object object, JSONWriter writer, JSONConfig jsonConfig, JSONCustomMapper customizedMapper) {
+        if (object != null) {
+            try {
+                customizedMapper.serializeCustomized(object, writer, jsonConfig, 0);
+                writer.flush();
+            } catch (Exception e) {
+                throw new JSONException(e);
+            } finally {
+                jsonConfig.clear();
+                if (jsonConfig.autoCloseStream) {
+                    try {
+                        writer.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }
+    }
+
+    private static String stringify(Object obj, JSONConfig jsonConfig, int indentLevel, JSONCustomMapper customizedMapper) {
+        JSONWriter content = JSONWriter.forStringWriter(jsonConfig);
+        try {
+            customizedMapper.serializeCustomized(obj, content, jsonConfig, indentLevel);
+            return content.toString();
+        } catch (Exception e) {
+            throw (e instanceof JSONException) ? (JSONException) e : new JSONException(e);
+        } finally {
+            content.reset();
+            jsonConfig.clear();
         }
     }
 
@@ -1313,19 +1473,7 @@ public final class JSON extends JSONGeneral {
                 }
             } else {
                 // deserializer
-                JSONTypeDeserializer.registerTypeDeserializer(new JSONTypeDeserializer() {
-                    @Override
-                    protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
-                        Object value = ANY.deserialize(charSource, buf, fromIndex, toIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
-                        return mapper.readOf(value);
-                    }
-
-                    @Override
-                    protected Object deserialize(CharSource charSource, byte[] bytes, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext jsonParseContext) throws Exception {
-                        Object value = ANY.deserialize(charSource, bytes, fromIndex, toIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
-                        return mapper.readOf(value);
-                    }
-                }, type);
+                JSONTypeDeserializer.registerTypeDeserializer(buildCustomizedDeserializer(mapper), type);
             }
             if (JSONTypeSerializer.isBuiltInType(type)) {
                 if (!ignoreIfExist) {
@@ -1333,21 +1481,59 @@ public final class JSON extends JSONGeneral {
                 }
             } else {
                 // serializer
-                JSONTypeSerializer.registerTypeSerializer(new JSONTypeSerializer() {
-                    @Override
-                    protected void serialize(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
-                        JSONValue<?> result = mapper.writeAs((T) value, jsonConfig);
-                        Object baseValue;
-                        if (result == null || (baseValue = result.value) == null) {
-                            writer.writeNull();
-                        } else {
-                            JSONTypeSerializer typeSerializer = getTypeSerializer(baseValue.getClass());
-                            typeSerializer.serialize(baseValue, writer, jsonConfig, indent);
-                        }
-                    }
-                }, type);
+                JSONTypeSerializer.registerTypeSerializer(buildCustomizedSerializer(mapper), type);
             }
         }
+    }
+
+    static <T> JSONTypeSerializer buildCustomizedSerializer(final JSONTypeMapper<T> mapper) {
+        return new JSONTypeSerializer() {
+            @Override
+            protected void serialize(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
+                JSONValue<?> result = mapper.writeAs((T) value, jsonConfig);
+                Object baseValue;
+                if (result == null || (baseValue = result.value) == null) {
+                    writer.writeNull();
+                } else {
+                    JSONTypeSerializer typeSerializer = getTypeSerializer(baseValue.getClass());
+                    typeSerializer.serialize(baseValue, writer, jsonConfig, indent);
+                }
+            }
+
+            @Override
+            protected void serializeCustomized(Object value, JSONWriter writer, JSONConfig jsonConfig, int indentLevel, JSONCustomMapper customizedMapper) throws Exception {
+                JSONValue<?> result = mapper.writeAs((T) value, jsonConfig);
+                Object baseValue;
+                if (result == null || (baseValue = result.value) == null) {
+                    writer.writeNull();
+                } else {
+                    if (baseValue instanceof Map) {
+                        MAP.serializeCustomized(baseValue, writer, jsonConfig, indentLevel, customizedMapper);
+                    } else if (baseValue instanceof List) {
+                        COLLECTION.serializeCustomized(baseValue, writer, jsonConfig, indentLevel, customizedMapper);
+                    } else {
+                        JSONTypeSerializer typeSerializer = getTypeSerializer(baseValue.getClass());
+                        typeSerializer.serialize(baseValue, writer, jsonConfig, indentLevel);
+                    }
+                }
+            }
+        };
+    }
+
+    static <E> JSONTypeDeserializer buildCustomizedDeserializer(final JSONTypeMapper<E> typeMapper) {
+        return new JSONTypeDeserializer() {
+            @Override
+            protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
+                Object value = ANY.deserialize(charSource, buf, fromIndex, toIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
+                return typeMapper.readOf(value);
+            }
+
+            @Override
+            protected Object deserialize(CharSource charSource, byte[] bytes, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext jsonParseContext) throws Exception {
+                Object value = ANY.deserialize(charSource, bytes, fromIndex, toIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
+                return typeMapper.readOf(value);
+            }
+        };
     }
 
 }

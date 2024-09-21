@@ -1,12 +1,10 @@
 package io.github.wycst.wast.clients.http.url;
 
-import io.github.wycst.wast.clients.http.definition.HttpClientConfig;
-import io.github.wycst.wast.clients.http.definition.HttpClientParameter;
-import io.github.wycst.wast.clients.http.definition.HttpClientRequest;
-import io.github.wycst.wast.clients.http.definition.HttpClientResponse;
+import io.github.wycst.wast.clients.http.definition.*;
 import io.github.wycst.wast.clients.http.impl.HttpClientResponseImpl;
 import io.github.wycst.wast.clients.http.provider.RequestServiceInstance;
 import io.github.wycst.wast.clients.http.provider.ServiceInstance;
+import io.github.wycst.wast.common.utils.IOUtils;
 import io.github.wycst.wast.json.JSON;
 import io.github.wycst.wast.log.Log;
 import io.github.wycst.wast.log.LogFactory;
@@ -15,6 +13,7 @@ import java.io.*;
 import java.net.*;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * @Author: wangy
@@ -27,6 +26,74 @@ public class UrlHttpClientExecutor extends AbstractUrlHttpClientExecutor {
     private Log log = LogFactory.getLog(UrlHttpClientExecutor.class);
 
     @Override
+    public final byte[] fastGetBody(String targetUrl, Map<String, String> headers) {
+        HttpURLConnection connection = null;
+        try {
+            connection = connection(targetUrl, headers);
+            return IOUtils.readBytes(getInputStream(connection));
+        } catch (Throwable throwable) {
+            throw clientException(throwable);
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    @Override
+    public InputStream fastGetInputStream(String targetUrl, Map<String, String> headers) {
+        try {
+            return getInputStream(connection(targetUrl, headers));
+        } catch (Throwable throwable) {
+            throw clientException(throwable);
+        }
+    }
+
+    private HttpClientException clientException(Throwable throwable) {
+        if(throwable instanceof HttpClientException) {
+            return (HttpClientException) throwable;
+        }
+        return new HttpClientException(throwable.getMessage(), throwable);
+    }
+
+    final HttpURLConnection connection(String targetUrl, Map<String, String> headers) {
+        HttpURLConnection httpConnection;
+        try {
+            URL url = new URL(targetUrl);
+            httpConnection = (HttpURLConnection) url.openConnection();
+            httpConnection.setRequestMethod("GET");
+            if (headers != null) {
+                Set<Map.Entry<String, String>> entries = headers.entrySet();
+                for (Map.Entry<String, String> entry : entries) {
+                    httpConnection.setRequestProperty(entry.getKey(), entry.getValue());
+                }
+            }
+            return httpConnection;
+        } catch (Throwable throwable) {
+            throw new HttpClientException(throwable.getMessage(), throwable);
+        }
+    }
+
+    final InputStream getInputStream(HttpURLConnection httpConnection) throws IOException {
+        InputStream is;
+        try {
+            int resCode = httpConnection.getResponseCode();
+            boolean httpOk = resCode == HttpURLConnection.HTTP_OK;
+            if (httpOk) {
+                is = httpConnection.getInputStream();
+            } else {
+                is = httpConnection.getErrorStream();
+            }
+            if (is == null) {
+                is = httpOk ? httpConnection.getErrorStream() : httpConnection.getInputStream();
+            }
+            return is;
+        } catch (Throwable throwable) {
+            throw clientException(throwable);
+        }
+    }
+
+    @Override
     protected HttpClientResponse doExecuteRequest(HttpClientRequest httpRequest) throws Throwable {
         RequestServiceInstance requestServiceInstance = getRequestServiceInstance(httpRequest);
         try {
@@ -35,14 +102,14 @@ public class UrlHttpClientExecutor extends AbstractUrlHttpClientExecutor {
             // Timeout or connection failure
             ServiceInstance serviceInstance = requestServiceInstance.getServiceInstance();
             // if null throw exception
-            if(serviceInstance == null) {
+            if (serviceInstance == null) {
                 // Non load balancing mode
                 throw throwable;
             }
 
             // load balancing mode keepAlive instance
             boolean keepAliveOnTimeout = isKeepAliveOnTimeout() || httpRequest.isKeepAliveOnTimeout();
-            if(keepAliveOnTimeout && throwable instanceof SocketTimeoutException) {
+            if (keepAliveOnTimeout && throwable instanceof SocketTimeoutException) {
                 throw throwable;
             }
 
@@ -92,15 +159,20 @@ public class UrlHttpClientExecutor extends AbstractUrlHttpClientExecutor {
         String resContentType = httpConnection.getContentType();
         InputStream is = null;
         try {
-            is = httpConnection.getErrorStream();
-            if (is == null) {
+            boolean httpOk = resCode == HttpURLConnection.HTTP_OK;
+            if (httpOk) {
                 is = httpConnection.getInputStream();
+            } else {
+                is = httpConnection.getErrorStream();
+            }
+            if (is == null) {
+                is = httpOk ? httpConnection.getErrorStream() : httpConnection.getInputStream();
             }
         } catch (Throwable throwable) {
             throwable.printStackTrace();
         }
 
-        HttpClientResponse clientResponse = new HttpClientResponseImpl(resCode, httpConnection.getResponseMessage(),  is, contentLength);
+        HttpClientResponse clientResponse = new HttpClientResponseImpl(resCode, httpConnection.getResponseMessage(), is, contentLength);
         clientResponse.setContentType(resContentType);
         clientResponse.setHeaders(httpConnection.getHeaderFields());
 
@@ -157,7 +229,7 @@ public class UrlHttpClientExecutor extends AbstractUrlHttpClientExecutor {
                     builder.append("content-disposition: form-data; name=\"").append(name).append("\"\r\n");
                 }
                 builder.append("content-length: ").append(contentLength).append("\r\n");
-                if(itemContentType != null && itemContentType.length() > 0) {
+                if (itemContentType != null && itemContentType.length() > 0) {
                     builder.append("content-type: ").append(itemContentType).append("\r\n");
                 }
                 builder.append("\r\n");

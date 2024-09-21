@@ -302,6 +302,18 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
      */
     protected abstract void serialize(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception;
 
+    /***
+     * 定制序列化
+     *
+     * @param value
+     * @param writer
+     * @param jsonConfig
+     * @param indentLevel
+     */
+    protected void serializeCustomized(Object value, JSONWriter writer, JSONConfig jsonConfig, int indentLevel, JSONCustomMapper customizedMapper) throws Exception {
+        serialize(value, writer, jsonConfig, indentLevel);
+    }
+
     protected boolean checkWriteClassName(boolean writeClassName, JSONWriter writer, Class clazz, boolean formatOut, int indentLevel, JSONConfig jsonConfig) throws IOException {
         if (writeClassName) {
             writeType(writer, clazz, formatOut, indentLevel, jsonConfig);
@@ -764,6 +776,59 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
             jsonConfig.setStatus(hashcode, -1);
         }
 
+        @Override
+        protected final void serializeCustomized(Object obj, JSONWriter writer, JSONConfig jsonConfig, int indentLevel, JSONCustomMapper customizedMapper) throws Exception {
+            int hashcode = -1;
+            if (jsonConfig.isSkipCircularReference()) {
+                if (jsonConfig.getStatus(hashcode = System.identityHashCode(obj)) == 0) {
+                    writer.writeNull();
+                    return;
+                }
+                jsonConfig.setStatus(hashcode, 0);
+            }
+            boolean formatOut = jsonConfig.isFormatOut();
+            Collection<?> collect = (Collection<?>) obj;
+            if (collect.size() > 0) {
+                writer.writeJSONToken('[');
+                int indentLevelPlus = indentLevel + 1;
+                boolean isEmptyFlag = true;
+                Class<?> firstElementClass = null;
+                JSONTypeSerializer firstSerializer = null;
+                for (Object value : collect) {
+                    if (isEmptyFlag) {
+                        isEmptyFlag = false;
+                    } else {
+                        writer.writeJSONToken(',');
+                    }
+                    writeFormatOutSymbols(writer, indentLevelPlus, formatOut, jsonConfig);
+                    if (value != null) {
+                        // 此处防止重复查找序列化器小处理一下
+                        Class<?> valueClass = value.getClass();
+                        if (valueClass == firstElementClass) {
+                            firstSerializer.serializeCustomized(value, writer, jsonConfig, indentLevelPlus, customizedMapper);
+                        } else {
+                            if (firstElementClass == null) {
+                                firstElementClass = valueClass;
+                                firstSerializer = customizedMapper.getCustomizedSerializer(valueClass);
+                                firstSerializer.serializeCustomized(value, writer, jsonConfig, indentLevelPlus, customizedMapper);
+                            } else {
+                                getTypeSerializer(valueClass).serializeCustomized(value, writer, jsonConfig, indentLevelPlus, customizedMapper);
+                            }
+                        }
+                    } else {
+                        writer.writeNull();
+                    }
+                }
+                if (!isEmptyFlag) {
+                    writeFormatOutSymbols(writer, indentLevel, formatOut, jsonConfig);
+                }
+                writer.write(']');
+            } else {
+                writer.writeEmptyArray();
+            }
+            jsonConfig.setStatus(hashcode, -1);
+        }
+
         final static class CollectionFinalTypeImpl extends CollectionImpl {
             private final JSONTypeSerializer valueSerializer;
 
@@ -856,6 +921,57 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                 jsonConfig.setStatus(hashcode, 0);
             }
             writeMap(obj, writer, jsonConfig, indent);
+            jsonConfig.setStatus(hashcode, -1);
+        }
+
+        @Override
+        protected final void serializeCustomized(Object obj, JSONWriter writer, JSONConfig jsonConfig, int indentLevel, JSONCustomMapper customizedMapper) throws Exception {
+            int hashcode = -1;
+            if (jsonConfig.isSkipCircularReference()) {
+                if (jsonConfig.getStatus(hashcode = System.identityHashCode(obj)) == 0) {
+                    writer.writeNull();
+                    return;
+                }
+                jsonConfig.setStatus(hashcode, 0);
+            }
+            boolean formatOut = jsonConfig.isFormatOut();
+            boolean formatOutColonSpace = formatOut && jsonConfig.isFormatOutColonSpace();
+            Map<Object, Object> map = (Map<Object, Object>) obj;
+            if (map.size() == 0) {
+                writer.write(EMPTY_OBJECT);
+            } else {
+                writer.writeJSONToken('{');
+                Set<Map.Entry<Object, Object>> entrySet = map.entrySet();
+                boolean isFirstKey = true;
+                int indentLevelPlus = indentLevel + 1;
+                for (Map.Entry<Object, Object> entry : entrySet) {
+                    Object key = entry.getKey();
+                    Object value = entry.getValue();
+                    if (isFirstKey) {
+                        isFirstKey = false;
+                    } else {
+                        writer.writeJSONToken(',');
+                    }
+                    writeFormatOutSymbols(writer, indentLevelPlus, formatOut, jsonConfig);
+                    if (jsonConfig.isAllowUnquotedMapKey() && (key == null || key instanceof Number)) {
+                        writer.append(String.valueOf(key)).write(':');
+                    } else {
+                        String stringKey = key == null ? "null" : key.toString();
+                        writer.writeJSONKeyAndColon(stringKey);
+                    }
+                    if (formatOutColonSpace) {
+                        writer.writeJSONToken(' ');
+                    }
+                    if (value != null) {
+                        JSONTypeSerializer valueSerializer = customizedMapper.getCustomizedSerializer(value.getClass());
+                        valueSerializer.serializeCustomized(value, writer, jsonConfig, formatOut ? indentLevelPlus : -1, customizedMapper);
+                    } else {
+                        writer.writeNull();
+                    }
+                }
+                writeFormatOutSymbols(writer, indentLevel, formatOut, jsonConfig);
+                writer.write('}');
+            }
             jsonConfig.setStatus(hashcode, -1);
         }
     }

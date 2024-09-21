@@ -9,11 +9,13 @@ import io.github.wycst.wast.clients.http.provider.RequestServiceInstance;
 import io.github.wycst.wast.clients.http.provider.ServiceInstance;
 import io.github.wycst.wast.clients.http.provider.ServiceProvider;
 
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @Author: wangy
@@ -27,6 +29,10 @@ public abstract class HttpClientExecutor {
     private boolean keepAliveOnTimeout;
 
     protected abstract HttpClientResponse doExecuteRequest(HttpClientRequest httpRequest) throws Throwable;
+
+    public abstract byte[] fastGetBody(String url, Map<String, String> headers);
+
+    public abstract InputStream fastGetInputStream(String url, Map<String, String> headers);
 
     public HttpClientResponse executeRequest(HttpClientRequest httpRequest) {
         checkIfEmptyRequest(httpRequest);
@@ -150,5 +156,4 @@ public abstract class HttpClientExecutor {
         // if throw an exception ?
         throw new HttpClientException(e.getMessage(), e);
     }
-
 }

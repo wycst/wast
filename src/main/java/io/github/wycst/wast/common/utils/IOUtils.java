@@ -144,6 +144,13 @@ public final class IOUtils {
         return charLen;
     }
 
+    final static ThreadLocal<byte[]> BYTES_2048_TL = new ThreadLocal<byte[]>() {
+        @Override
+        protected byte[] initialValue() {
+            return new byte[2048];
+        }
+    };
+
     /**
      * 从输入读中读取完整的bytes
      *
@@ -152,23 +159,20 @@ public final class IOUtils {
      */
     public static byte[] readBytes(InputStream is) throws IOException {
         try {
-            // init 1024
-            byte[] bytes = new byte[0];
-            int len = 1024;
-            byte[] tmp = new byte[len];
-            int count;
-            while ((count = is.read(tmp)) > 0) {
-                int oldLen = bytes.length;
-                bytes = Arrays.copyOf(bytes, oldLen + count);
-                System.arraycopy(tmp, 0, bytes, oldLen, count);
+            byte[] tmp = BYTES_2048_TL.get(); // new byte[len];
+            int len = tmp.length;
+            int count, readedCount = 0;
+            while ((count = is.read(tmp, readedCount, len)) > -1) {
+                readedCount += count;
                 if (count < len) {
-                    break;
+                    len -= count;
                 } else {
-                    // Capacity expansion
-                    tmp = new byte[len <<= 1];
+                    // Expansion
+                    len = tmp.length << 1;
+                    tmp = Arrays.copyOf(tmp, tmp.length + len);
                 }
             }
-            return bytes;
+            return Arrays.copyOf(tmp, readedCount);
         } finally {
             is.close();
         }

@@ -100,10 +100,11 @@ public class LoggerManagerHandler {
 
     private synchronized static void initLevelMap() {
         levelMap.clear();
-        for (String key : LOGGER_PROPERTIES.keySet()) {
+        for (Map.Entry<String, String> entry : LOGGER_PROPERTIES.entrySet()) {
+            String key = entry.getKey();
             if (key.endsWith(".level")) {
                 String customPackageLevel = key.substring(0, key.length() - 6);
-                Level level = getLevel(LOGGER_PROPERTIES.get(key), null);
+                Level level = getLevel(entry.getValue(), null);
                 if (level != null) {
                     levelMap.put(customPackageLevel, level);
                 }
@@ -132,9 +133,10 @@ public class LoggerManagerHandler {
 
     static Level matchLevel(Class<?> logCls) {
         String logClassName = logCls.getName();
-        for (String pk : levelMap.keySet()) {
+        for (Map.Entry<String, Level> entry : levelMap.entrySet()) {
+            String pk = entry.getKey();
             if (logClassName.startsWith(pk) || logClassName.matches(pk)) {
-                return levelMap.get(pk);
+                return entry.getValue();
             }
         }
         return null;

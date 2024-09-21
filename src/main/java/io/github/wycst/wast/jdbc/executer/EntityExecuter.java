@@ -108,6 +108,11 @@ public final class EntityExecuter implements OqlExecuter {
     }
 
     @Override
+    public <E> List<E> queryList(Class<E> cls, OqlQuery query) {
+        return queryList(cls, query, new HashMap<String,Object>());
+    }
+
+    @Override
     public <E> StreamCursor<E> queryStreamBy(Class<E> entityCls, Map<String, Object> params) {
         return executeQueryStreamBy(entityCls, params);
     }
@@ -598,8 +603,9 @@ public final class EntityExecuter implements OqlExecuter {
         int index = 0;
         Map<String, FieldColumn> fieldColumnMapping = entitySqlMapping.getFieldColumnMapping();
         int columnLength = fieldColumnMapping.size();
-        for (String fieldName : fieldColumnMapping.keySet()) {
-            FieldColumn fieldColumn = fieldColumnMapping.get(fieldName);
+        for (Map.Entry<String, FieldColumn> entry : fieldColumnMapping.entrySet()) {
+            String fieldName = entry.getKey();
+            FieldColumn fieldColumn = entry.getValue();
             String columnName = fieldColumn.getColumnName();
             Object value = ObjectUtils.get(entity, fieldName);
             columns.append(columnName);
