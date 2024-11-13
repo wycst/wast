@@ -1,7 +1,7 @@
 package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.common.beans.DateTemplate;
-import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
+import io.github.wycst.wast.common.reflect.ClassStrucWrap;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.exceptions.JSONException;
@@ -37,7 +37,7 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
         }
     }
 
-    static JSONTypeDeserializer getTemporalDeserializerInstance(ClassStructureWrapper.ClassWrapperType classWrapperType, GenericParameterizedType genericParameterizedType, JsonProperty property) {
+    static JSONTypeDeserializer getTemporalDeserializerInstance(ClassStrucWrap.ClassWrapperType classWrapperType, GenericParameterizedType genericParameterizedType, JsonProperty property) {
         TemporalConfig temporalConfig = TemporalConfig.of(genericParameterizedType, property);
         switch (classWrapperType) {
             case TemporalLocalDate: {

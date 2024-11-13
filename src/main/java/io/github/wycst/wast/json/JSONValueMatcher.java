@@ -3,7 +3,7 @@ package io.github.wycst.wast.json;
 import java.util.Map;
 
 /**
- * <p> A Fast Finder Based on Prefix Matching </p>
+ * <p> A Fast Finder </p>
  *
  * @Date 2024/4/14 8:59
  * @Created by wangyc

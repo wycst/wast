@@ -1,6 +1,6 @@
 package com.wast.test.json.custom;
 
-import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
+import io.github.wycst.wast.common.reflect.ClassStrucWrap;
 import io.github.wycst.wast.common.reflect.SetterInfo;
 import io.github.wycst.wast.json.JSON;
 import io.github.wycst.wast.json.annotations.JsonDeserialize;
@@ -40,11 +40,11 @@ public class CustomBean {
 
     public static void main(String[] args) {
 
-        ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(CustomBean.class);
+        ClassStrucWrap classStrucWrap = ClassStrucWrap.get(CustomBean.class);
 
-        SetterInfo setterInfo = classStructureWrapper.getSetterInfo("detail");
+        SetterInfo setterInfo = classStrucWrap.getSetterInfo("detail");
 
-        System.out.println(classStructureWrapper);
+        System.out.println(classStrucWrap);
 
         CustomBean customBean = new CustomBean();
         customBean.setName("custom example");

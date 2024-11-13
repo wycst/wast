@@ -12,10 +12,11 @@ import java.util.List;
  */
 public final class JSONNodeContext extends JSONParseContext {
 
-//    /**
-//     * 是否懒加载（对路径的最后一级只进行校验扫描但不进行value解析）
-//     */
-//    public boolean lazy;
+    JSONNodeContext() {
+        allowLastEndComma = true;
+        allowSingleQuotes = true;
+        allowUnquotedFieldNames = true;
+    }
 
     /**
      * 开启校验模式（调用validate方法时）
@@ -30,22 +31,50 @@ public final class JSONNodeContext extends JSONParseContext {
     /**
      * 提取数据列表
      */
-    public List extractValues = new ArrayList();
+    public List extractValues;
+
+    JSONNodeCollector collector;
 
     private JSONKeyValueMap<String> KEY_32_TABLE;
-    // cache keys
     static final JSONKeyValueMap<String> GLOBAL_KEY_8_TABLE = new JSONKeyValueMap<String>(2048);
 
-    void extractValue(Object value) {
-        extractValues.add(value);
+    static String getString(char[] chars, int offset, int len) {
+        if (len <= 8) {
+            long h = 0;
+            for (int i = 0; i < len; ++i) {
+                char c = chars[offset + i];
+                if (c > 0xFF) return new String(chars, offset, len);
+                h = h << 8 | c;
+            }
+            String val = GLOBAL_KEY_8_TABLE.getValueByHash(h);
+            if (val == null) {
+                GLOBAL_KEY_8_TABLE.putExactHashValue(h, val = new String(chars, offset, len));
+            }
+            return val;
+        }
+        return new String(chars, offset, len);
+    }
+
+    void extractValue(JSONNode value) {
+        if (collector.filter(value)) {
+            extractValues.add(collector.map(value));
+        }
+    }
+
+    void enableExtract(JSONNodeCollector nodeCollector) {
+        collector = nodeCollector;
+        extract = true;
+        extractValues = new ArrayList();
     }
 
     public void reset() {
         super.clear();
     }
 
-    public void clearCacheKeys() {
-        GLOBAL_KEY_8_TABLE.reset();
+    public static void clearCacheKeys() {
+        synchronized (GLOBAL_KEY_8_TABLE) {
+            GLOBAL_KEY_8_TABLE.reset();
+        }
     }
 
     @Override

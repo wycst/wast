@@ -50,6 +50,17 @@ public enum ElOperator {
     COLON(":", 700, 70),
     QUESTION("?", 701, 71);
 
+    static final ElOperator[] INDEXS_OPERATORS = new ElOperator[128];
+    static {
+        ElOperator[] values = ElOperator.values();
+        for (ElOperator value : values) {
+            if(value.symbol.length() == 1) {
+                INDEXS_OPERATORS[value.symbol.charAt(0)] = value;
+            }
+        }
+        INDEXS_OPERATORS['='] = EQ;
+    }
+
     final String symbol;
     final int level;
     final int type;

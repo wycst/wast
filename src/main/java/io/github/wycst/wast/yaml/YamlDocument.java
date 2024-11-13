@@ -16,9 +16,12 @@
  */
 package io.github.wycst.wast.yaml;
 
+import io.github.wycst.wast.common.utils.IOUtils;
+
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.Charset;
 import java.util.*;
 
 /**
@@ -92,26 +95,19 @@ public final class YamlDocument extends YamlParser {
      * @throws IOException
      */
     public static YamlDocument read(InputStream is) throws IOException {
-        InputStreamReader streamReader = new InputStreamReader(is);
-        try {
-            int buffSize = 8192;
-            char[] source = null;
-            char[] buff = new char[buffSize];
-            int count = 0;
-            int len;
-            while ((len = streamReader.read(buff)) > 0) {
-                if (source == null) {
-                    source = Arrays.copyOf(buff, len);
-                } else {
-                    source = Arrays.copyOf(source, count + len);
-                    System.arraycopy(buff, 0, source, count, len);
-                }
-                count += len;
-            }
-            return parse(source);
-        } finally {
-            streamReader.close();
-        }
+        return parse(IOUtils.readAsChars(is));
+    }
+
+    /**
+     * In yaml scenarios, large files will not appear. Read the complete stream directly and then parse it
+     *
+     * @param is
+     * @param charset
+     * @return
+     * @throws IOException
+     */
+    public static YamlDocument read(InputStream is, Charset charset) throws IOException {
+        return parse(IOUtils.readAsChars(is, charset));
     }
 
     public static YamlDocument read(File yamlFile) throws IOException {

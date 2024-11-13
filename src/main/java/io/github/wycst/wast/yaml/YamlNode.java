@@ -17,7 +17,7 @@
 package io.github.wycst.wast.yaml;
 
 import io.github.wycst.wast.common.beans.GregorianDate;
-import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
+import io.github.wycst.wast.common.reflect.ClassStrucWrap;
 import io.github.wycst.wast.common.reflect.SetterInfo;
 
 import java.io.IOException;
@@ -332,16 +332,16 @@ public class YamlNode extends YamlLine {
 
         Object instance;
         boolean isMapInstance;
-        ClassStructureWrapper classStructureWrapper = null;
+        ClassStrucWrap classStrucWrap = null;
         if (actualType == null || actualType == Map.class || actualType == LinkedHashMap.class) {
             instance = new LinkedHashMap();
             isMapInstance = true;
         } else {
-            classStructureWrapper = ClassStructureWrapper.get(actualType);
-            isMapInstance = classStructureWrapper.isAssignableFromMap();
+            classStrucWrap = ClassStrucWrap.get(actualType);
+            isMapInstance = classStrucWrap.isAssignableFromMap();
             try {
                 if (!isMapInstance) {
-                    instance = classStructureWrapper.newInstance();
+                    instance = classStrucWrap.newInstance();
                 } else {
                     instance = actualType.newInstance();
                 }
@@ -359,7 +359,7 @@ public class YamlNode extends YamlLine {
                 putNodeValueOfMap((String) key, yamlNode, map);
             } else {
                 String fieldName = key.toString();
-                SetterInfo setterInfo = classStructureWrapper.getSetterInfo(fieldName);
+                SetterInfo setterInfo = classStrucWrap.getSetterInfo(fieldName);
                 if (setterInfo != null) {
                     Class<?> parameterType = setterInfo.getParameterType();
                     Class<?> entityClass = parameterType;

@@ -1,6 +1,6 @@
 package io.github.wycst.wast.common.csv;
 
-import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
+import io.github.wycst.wast.common.reflect.ClassStrucWrap;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.SetterInfo;
 import io.github.wycst.wast.common.utils.ObjectUtils;
@@ -51,11 +51,11 @@ public class CSVRow {
         if (classCategory != ReflectConsts.ClassCategory.ObjectCategory) {
             throw new UnsupportedOperationException("class " + eClass + " is not supported ");
         }
-        ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(eClass);
+        ClassStrucWrap classStrucWrap = ClassStrucWrap.get(eClass);
         List<String> columns = csvTable.getColumns().values;
-        Map<String, CSVColumnMapper> annotationedColumnMap = validatedColumnAnnotationed(classStructureWrapper, columns);
+        Map<String, CSVColumnMapper> annotationedColumnMap = validatedColumnAnnotationed(classStrucWrap, columns);
         try {
-            E e = (E) classStructureWrapper.newInstance();
+            E e = (E) classStrucWrap.newInstance();
             int columnIndex = 0, size = values.size();
             for (String column : columns) {
                 if(columnIndex < size) {
@@ -69,7 +69,7 @@ public class CSVRow {
                         typeHandlerCls = csvColumnMapper.csvColumn.handler();
                     } else {
                         String name = columnMapping == null ? null : columnMapping.get(column);
-                        setterInfo = classStructureWrapper.getSetterInfo(name == null ? column : name);
+                        setterInfo = classStrucWrap.getSetterInfo(name == null ? column : name);
                     }
                     String stringVal = values.get(columnIndex);
                     if (setterInfo != null) {
@@ -104,9 +104,9 @@ public class CSVRow {
         }
     }
 
-    private Map<String, CSVColumnMapper> validatedColumnAnnotationed(ClassStructureWrapper classStructureWrapper, List<String> columns) {
+    private Map<String, CSVColumnMapper> validatedColumnAnnotationed(ClassStrucWrap classStrucWrap, List<String> columns) {
         Map<String, CSVColumnMapper> annotationedMap = new HashMap<String, CSVColumnMapper>();
-        Set<SetterInfo> setterInfoSet = classStructureWrapper.setterSet();
+        Set<SetterInfo> setterInfoSet = classStrucWrap.setterSet();
         for (SetterInfo setterInfo : setterInfoSet) {
             CSVColumn csvColumn = (CSVColumn) setterInfo.getAnnotation(CSVColumn.class);
             if(csvColumn == null) continue;

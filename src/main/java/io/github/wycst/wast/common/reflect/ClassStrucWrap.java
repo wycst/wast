@@ -16,14 +16,14 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * @author wangy
  */
-public final class ClassStructureWrapper {
+public final class ClassStrucWrap {
 
     // cache
-    private static Map<Class<?>, ClassStructureWrapper> classStructureWarppers = new ConcurrentHashMap<Class<?>, ClassStructureWrapper>();
+    private final static Map<Class<?>, ClassStrucWrap> CLASS_STRUC_WRAP_MAP = new ConcurrentHashMap<Class<?>, ClassStrucWrap>();
     private static final Map<Class<?>, List> COMPATIBLE_TYPES = new HashMap<Class<?>, List>();
     // 内置类默认使用field序列化，可维护名称列表控制使用getter method
-    private static String[] USE_GETTER_METHOD_TYPE_NAME_LIST = {
-    };
+//    private static String[] USE_GETTER_METHOD_TYPE_NAME_LIST = {
+//    };
 
     // 内置类默认使用field序列化，可维护超类列表控制使用getter method
     private static Class[] USE_GETTER_METHOD_TYPE_LIST = {
@@ -47,7 +47,7 @@ public final class ClassStructureWrapper {
         COMPATIBLE_TYPES.put(Byte.class, Arrays.asList(byte.class));
     }
 
-    private ClassStructureWrapper(Class<?> sourceClass) {
+    private ClassStrucWrap(Class<?> sourceClass) {
         this.sourceClass = sourceClass;
         this.privateFlag = Modifier.isPrivate(sourceClass.getModifiers());
         this.assignableFromMap = Map.class.isAssignableFrom(sourceClass);
@@ -120,7 +120,7 @@ public final class ClassStructureWrapper {
     /**
      * public 方法集合
      */
-    private Map<String, List<Method>> publicMethods = null;
+    volatile Map<String, List<Method>> publicMethods = null;
 
     /**
      * 获取所有getter方法映射的GetterMethodInfo信息
@@ -238,11 +238,11 @@ public final class ClassStructureWrapper {
         return constructorArgs;
     }
 
-    public static ClassStructureWrapper get(Class<?> sourceClass) {
+    public static ClassStrucWrap get(Class<?> sourceClass) {
         if (sourceClass == null) {
             throw new IllegalArgumentException("sourceClass is null");
         }
-        ClassStructureWrapper wrapper = classStructureWarppers.get(sourceClass);
+        ClassStrucWrap wrapper = CLASS_STRUC_WRAP_MAP.get(sourceClass);
         if (wrapper != null) {
             return wrapper;
         }
@@ -251,27 +251,27 @@ public final class ClassStructureWrapper {
         }
         if (wrapper == null) {
             synchronized (sourceClass) {
-                if (classStructureWarppers.containsKey(sourceClass)) {
-                    return classStructureWarppers.get(sourceClass);
+                if (CLASS_STRUC_WRAP_MAP.containsKey(sourceClass)) {
+                    return CLASS_STRUC_WRAP_MAP.get(sourceClass);
                 }
                 wrapper = createBy(sourceClass);
-                classStructureWarppers.put(sourceClass, wrapper);
+                CLASS_STRUC_WRAP_MAP.put(sourceClass, wrapper);
             }
         }
         return wrapper;
     }
 
-    public static ClassStructureWrapper ofEnumClass(Class<? extends Enum> enumClass) {
+    public static ClassStrucWrap ofEnumClass(Class<? extends Enum> enumClass) {
         if (!enumClass.isEnum()) {
             throw new UnsupportedOperationException("not enum class " + enumClass);
         }
-        ClassStructureWrapper wrapper = createBy(enumClass);
+        ClassStrucWrap wrapper = createBy(enumClass);
         wrapper.forceUseFields = true;
         return wrapper;
     }
 
-    private static ClassStructureWrapper createBy(Class<?> sourceClass) {
-        ClassStructureWrapper wrapper = new ClassStructureWrapper(sourceClass);
+    private static ClassStrucWrap createBy(Class<?> sourceClass) {
+        ClassStrucWrap wrapper = new ClassStrucWrap(sourceClass);
         wrapper.checkClassStructure();
         // parse genericClass
         Type genericSuperclass = sourceClass.getGenericSuperclass();
@@ -300,7 +300,7 @@ public final class ClassStructureWrapper {
         return wrapper;
     }
 
-    private static void wrapperWithRecordConstructor(ClassStructureWrapper wrapper, Map<String, Class<?>> superGenericClassMap) {
+    private static void wrapperWithRecordConstructor(ClassStrucWrap wrapper, Map<String, Class<?>> superGenericClassMap) {
         // sourceClass
         Class<?> sourceClass = wrapper.sourceClass;
         Constructor<?>[] constructors = sourceClass.getDeclaredConstructors();
@@ -395,7 +395,7 @@ public final class ClassStructureWrapper {
         }
     }
 
-    private static void wrapperWithMethodAndField(ClassStructureWrapper wrapper, Map<String, Class<?>> superGenericClassMap) {
+    private static void wrapperWithMethodAndField(ClassStrucWrap wrapper, Map<String, Class<?>> superGenericClassMap) {
         // sourceClass
         Class<?> sourceClass = wrapper.sourceClass;
         boolean globalMIP = wrapper.annotationMap.containsKey(MethodInvokePriority.class);
@@ -627,6 +627,9 @@ public final class ClassStructureWrapper {
 
         // jdk17 java.lang.Record
         Class<?> theSuperClass = sourceClass.getSuperclass();
+        if(theSuperClass == null) {
+            return;
+        }
         if (theSuperClass.getName().equals("java.lang.Record")) {
             this.record = true;
             this.javaBuiltInModule = true;
@@ -762,7 +765,7 @@ public final class ClassStructureWrapper {
     /**
      * 解析类的所有字段（包含父类字段）
      */
-    private static void parseWrapperFields(ClassStructureWrapper wrapper, Class<?> sourceClass, Map<String, Class<?>> superGenericClassMap) {
+    private static void parseWrapperFields(ClassStrucWrap wrapper, Class<?> sourceClass, Map<String, Class<?>> superGenericClassMap) {
         Class<?> target = sourceClass;
         Set<String> fieldNames = new HashSet<String>();
         List<GetterInfo> getterInfoOfFields = new ArrayList<GetterInfo>();
@@ -934,7 +937,7 @@ public final class ClassStructureWrapper {
         }
         try {
             if (nameMethods.size() == 1) {
-                Method method = nameMethods.get(0);
+                final Method method = nameMethods.get(0);
                 Class[] parameterTypes = method.getParameterTypes();
                 if (parameterTypes.length != params.length) {
                     throw new IllegalArgumentException("argument mismatch");
@@ -942,22 +945,22 @@ public final class ClassStructureWrapper {
                 for (int i = 0, n = params.length; i < n; ++i) {
                     Object value = params[i];
                     Class parameterType = parameterTypes[i];
-                    if (!parameterType.isInstance(value)) {
+                    if (!ObjectUtils.isInstance(parameterType, value)) {
                         try {
-                            params[i] = ObjectUtils.toType(value, parameterType);
+                            params[i] = ObjectUtils.toType(value, parameterType, ReflectConsts.getClassCategory(parameterType));
                         } catch (Throwable throwable) {
                             throw new IllegalArgumentException("argument mismatch: " + parameterType + " ");
                         }
                     }
                 }
-                return nameMethods.get(0).invoke(invoker, params);
+                return method.invoke(invoker, params);
             }
             for (Method method : nameMethods) {
                 Class[] parameterTypes = method.getParameterTypes();
                 if (parameterTypes.length == params.length) {
                     boolean matched = true;
                     for (int i = 0; i < parameterTypes.length; i++) {
-                        if (params[i] != null && !parameterTypes[i].isInstance(params[i])) {
+                        if (params[i] != null && !ObjectUtils.isInstance(parameterTypes[i], params[i])) {
                             matched = false;
                             break;
                         }

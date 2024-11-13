@@ -1,6 +1,6 @@
 package io.github.wycst.wast.json;
 
-import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
+import io.github.wycst.wast.common.reflect.ClassStrucWrap;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.GetterInfo;
 import io.github.wycst.wast.common.reflect.SetterInfo;
@@ -11,7 +11,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 对ClassStructureWrapper的进一步包装，提供给json模块使用
+ * 对ClassStrucWrap的进一步包装，提供给json模块使用
  *
  * @Author wangyunchao
  */
@@ -19,8 +19,8 @@ public final class JSONPojoStructure {
 
     private final static Map<Class<?>, JSONPojoStructure> OBJECT_STRUCTURE_WARPPERS = new ConcurrentHashMap<Class<?>, JSONPojoStructure>();
 
-    private final ClassStructureWrapper classStructureWrapper;
-    private ClassStructureWrapper.ClassWrapperType classWrapperType;
+    private final ClassStrucWrap classStrucWrap;
+    private ClassStrucWrap.ClassWrapperType classWrapperType;
     private final GenericParameterizedType genericType;
     final JSONValueMatcher<JSONPojoFieldDeserializer> fieldDeserializerMatcher;
     // deserializers
@@ -37,14 +37,14 @@ public final class JSONPojoStructure {
     private final boolean supportedJavaBeanConvention;
     private final boolean enableJIT;
 
-    private JSONPojoStructure(ClassStructureWrapper classStructureWrapper) {
-        classStructureWrapper.getClass();
-        this.classStructureWrapper = classStructureWrapper;
-        this.classWrapperType = classStructureWrapper.getClassWrapperType();
-        this.forceUseFields = classStructureWrapper.isForceUseFields();
-        this.jsonTypeSetting = (JsonTypeSetting) classStructureWrapper.getDeclaredAnnotation(JsonTypeSetting.class);
+    private JSONPojoStructure(ClassStrucWrap classStrucWrap) {
+        classStrucWrap.getClass();
+        this.classStrucWrap = classStrucWrap;
+        this.classWrapperType = classStrucWrap.getClassWrapperType();
+        this.forceUseFields = classStrucWrap.isForceUseFields();
+        this.jsonTypeSetting = (JsonTypeSetting) classStrucWrap.getDeclaredAnnotation(JsonTypeSetting.class);
         // serializer info
-        List<GetterInfo> getterInfos = classStructureWrapper.getGetterInfos();
+        List<GetterInfo> getterInfos = classStrucWrap.getGetterInfos();
         List<JSONPojoFieldSerializer> fieldSerializers = new ArrayList<JSONPojoFieldSerializer>();
         Map<String, JSONPojoFieldSerializer> fieldSerializerHashMap = new HashMap<String, JSONPojoFieldSerializer>();
         for (GetterInfo getterInfo : getterInfos) {
@@ -66,7 +66,7 @@ public final class JSONPojoStructure {
         getterMethodSerializers = fieldSerializers.toArray(new JSONPojoFieldSerializer[fieldSerializers.size()]);
 
         fieldSerializers.clear();
-        List<GetterInfo> getterByFieldInfos = classStructureWrapper.getGetterInfos(true);
+        List<GetterInfo> getterByFieldInfos = classStrucWrap.getGetterInfos(true);
         for (GetterInfo getterInfo : getterByFieldInfos) {
             JsonProperty jsonProperty = (JsonProperty) getterInfo.getAnnotation(JsonProperty.class);
             String name = getterInfo.getName();
@@ -86,12 +86,12 @@ public final class JSONPojoStructure {
         supportedJavaBeanConvention = checkJavaBeanConvention(fieldSerializerHashMap);
 
         // 反序列化初始化
-        this.genericType = GenericParameterizedType.actualType(classStructureWrapper.getSourceClass());
-        Set<String> setterNames = classStructureWrapper.setterNames();
+        this.genericType = GenericParameterizedType.actualType(classStrucWrap.getSourceClass());
+        Set<String> setterNames = classStrucWrap.setterNames();
 
         Map<String, JSONPojoFieldDeserializer> fieldDeserializerHashMap = new HashMap<String, JSONPojoFieldDeserializer>();
         for (String setterName : setterNames) {
-            SetterInfo setterInfo = classStructureWrapper.getSetterInfo(setterName);
+            SetterInfo setterInfo = classStrucWrap.getSetterInfo(setterName);
             JsonProperty jsonProperty = (JsonProperty) setterInfo.getAnnotation(JsonProperty.class);
             String name = setterName;
             boolean priority = name.equals(setterInfo.getName());
@@ -121,7 +121,7 @@ public final class JSONPojoStructure {
      * @return
      */
     private boolean checkJavaBeanConvention(Map<String, JSONPojoFieldSerializer> fieldSerializerHashMap) {
-        return !classStructureWrapper.isPrivate();
+        return !classStrucWrap.isPrivate();
     }
 
     void ensureInitializedFieldSerializers() {
@@ -150,27 +150,27 @@ public final class JSONPojoStructure {
     }
 
     public Class<?> getSourceClass() {
-        return classStructureWrapper.getSourceClass();
+        return classStrucWrap.getSourceClass();
     }
 
     public boolean isRecord() {
-        return classStructureWrapper.isRecord();
+        return classStrucWrap.isRecord();
     }
 
     public boolean isTemporal() {
-        return classStructureWrapper.isTemporal();
+        return classStrucWrap.isTemporal();
     }
 
     public int getFieldCount() {
-        return classStructureWrapper.getFieldCount();
+        return classStrucWrap.getFieldCount();
     }
 
-    public ClassStructureWrapper.ClassWrapperType getClassWrapperType() {
+    public ClassStrucWrap.ClassWrapperType getClassWrapperType() {
         return classWrapperType;
     }
 
     public Object[] createConstructorArgs() {
-        return classStructureWrapper.createConstructorArgs();
+        return classStrucWrap.createConstructorArgs();
     }
 
     /**
@@ -191,7 +191,7 @@ public final class JSONPojoStructure {
             if (OBJECT_STRUCTURE_WARPPERS.containsKey(pojoClass)) {
                 return OBJECT_STRUCTURE_WARPPERS.get(pojoClass);
             }
-            ClassStructureWrapper wrapper = ClassStructureWrapper.get(pojoClass);
+            ClassStrucWrap wrapper = ClassStrucWrap.get(pojoClass);
             if (wrapper == null) {
                 throw new IllegalArgumentException("pojoClass " + pojoClass + " is not supported !");
             }
@@ -202,11 +202,11 @@ public final class JSONPojoStructure {
     }
 
     public Object newInstance() throws Exception {
-        return classStructureWrapper.newInstance();
+        return classStrucWrap.newInstance();
     }
 
     public Object newInstance(Object[] constructorArgs) throws Exception {
-        return classStructureWrapper.newInstance(constructorArgs);
+        return classStrucWrap.newInstance(constructorArgs);
     }
 
     public GenericParameterizedType getGenericType() {
@@ -214,7 +214,7 @@ public final class JSONPojoStructure {
     }
 
     public boolean isAssignableFromMap() {
-        return classStructureWrapper.isAssignableFromMap();
+        return classStrucWrap.isAssignableFromMap();
     }
 
     public JSONPojoFieldSerializer[] getFieldSerializers(boolean useFields) {
@@ -222,7 +222,7 @@ public final class JSONPojoStructure {
     }
 
     public boolean isPrivate() {
-        return classStructureWrapper.isPrivate();
+        return classStrucWrap.isPrivate();
     }
 
     public boolean isForceUseFields() {

@@ -1,6 +1,6 @@
 package io.github.wycst.wast.common.expression;
 
-import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
+import io.github.wycst.wast.common.reflect.ClassStrucWrap;
 import io.github.wycst.wast.common.reflect.GetterInfo;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.utils.CollectionUtils;
@@ -14,7 +14,6 @@ import java.util.Map;
  * <p> invoke过程：
  * <p> 获取变量上下文：
  * <p> 如果当前为root,则将参数直接作为上下文进行invoke，否则调用parent结果作为上下文；
- * <p> 结果存储到属性value中，一个表达式开始执行到结束每个点只调用一次，表达式执行完成后清除value值；
  *
  * @Author: wangy
  * @Date: 2022/10/28 22:30
@@ -26,6 +25,7 @@ public class ElVariableInvoker implements ElInvoker {
     ValueInvokeHolder invokeHolder = ValueInvokeHolder.Empty;
     // index pos
     int index;
+    int tailIndex;
 
     // Parent or Up one level
     ElVariableInvoker parent;
@@ -116,19 +116,19 @@ public class ElVariableInvoker implements ElInvoker {
                 // create
                 ValueInvoke valueInvoke;
                 if (context instanceof Map) {
-                    valueInvoke = new MapValueInvoke(key);
+                    valueInvoke = new MapImpl(key);
                 } else {
                     GetterInfo getterInfo = null;
                     try {
-                        getterInfo = ClassStructureWrapper.get(contextClass).getGetterInfo(key);
+                        getterInfo = ClassStrucWrap.get(contextClass).getGetterInfo(key);
                         if (getterInfo.isSupportedUnsafe()) {
                             if (getterInfo.isPrimitive()) {
-                                valueInvoke = new ObjectPrimitiveFieldInvoke(getterInfo);
+                                valueInvoke = new ObjectPrimitiveFieldImpl(getterInfo);
                             } else {
-                                valueInvoke = new ObjectFieldInvoke(getterInfo);
+                                valueInvoke = new ObjectFieldImpl(getterInfo);
                             }
                         } else {
-                            valueInvoke = new ObjectGetterInvoke(getterInfo);
+                            valueInvoke = new ObjectGetterImpl(getterInfo);
                         }
                     } catch (RuntimeException runtimeException) {
                         if (getterInfo == null) {
@@ -165,7 +165,7 @@ public class ElVariableInvoker implements ElInvoker {
 //            Class<?> contextClass = context.getClass();
 //            GetterInfo getterInfo = null;
 //            try {
-//                getterInfo = ClassStructureWrapper.get(contextClass).getGetterInfo(key);
+//                getterInfo = ClassStrucWrap.get(contextClass).getGetterInfo(key);
 //                target = getterInfo.invoke(context);
 //            } catch (RuntimeException throwable) {
 //                if (getterInfo == null) {
@@ -177,12 +177,22 @@ public class ElVariableInvoker implements ElInvoker {
 //        return target;
 //    }
 
-    public void setIndex(int index) {
+    ElVariableInvoker index(int index) {
         this.index = index;
+        return this;
     }
 
     public int getIndex() {
         return this.index;
+    }
+
+    ElVariableInvoker tailIndex(int tailIndex) {
+        this.tailIndex = tailIndex;
+        return this;
+    }
+
+    public int getTailIndex() {
+        return this.tailIndex;
     }
 
     public void internKey() {
@@ -209,9 +219,9 @@ public class ElVariableInvoker implements ElInvoker {
     /**
      * Variable root node
      */
-    static class RootVariableInvoke extends ElVariableInvoker {
+    final static class RootImpl extends ElVariableInvoker {
 
-        public RootVariableInvoke(String key) {
+        public RootImpl(String key) {
             super(key);
         }
 
@@ -250,15 +260,15 @@ public class ElVariableInvoker implements ElInvoker {
     /**
      * 子表达式变量
      */
-    static class ChildElVariableInvoke extends ElVariableInvoker {
+    final static class ChildElImpl extends ElVariableInvoker {
 
         protected Expression el;
 
-        ChildElVariableInvoke(String key) {
+        ChildElImpl(String key) {
             super(key);
         }
 
-        ChildElVariableInvoke(String key, ElVariableInvoker parent) {
+        ChildElImpl(String key, ElVariableInvoker parent) {
             super(key, parent);
             // lazy is required
             // this.expression = Expression.parse(key);
@@ -414,10 +424,10 @@ public class ElVariableInvoker implements ElInvoker {
         Object getValue(T context);
     }
 
-    static class MapValueInvoke implements ValueInvoke<Map<String, Object>> {
+    static class MapImpl implements ValueInvoke<Map<String, Object>> {
         private final String key;
 
-        MapValueInvoke(String key) {
+        MapImpl(String key) {
             this.key = key;
         }
 
@@ -432,10 +442,10 @@ public class ElVariableInvoker implements ElInvoker {
         }
     }
 
-    final static class ObjectGetterInvoke implements ValueInvoke {
+    final static class ObjectGetterImpl implements ValueInvoke {
         private final GetterInfo getterInfo;
 
-        ObjectGetterInvoke(GetterInfo getterInfo) {
+        ObjectGetterImpl(GetterInfo getterInfo) {
             getterInfo.getClass();
             this.getterInfo = getterInfo;
         }
@@ -446,11 +456,11 @@ public class ElVariableInvoker implements ElInvoker {
         }
     }
 
-    final static class ObjectFieldInvoke implements ValueInvoke {
+    final static class ObjectFieldImpl implements ValueInvoke {
         private final GetterInfo getterInfo;
         private final long fieldOffset;
 
-        ObjectFieldInvoke(GetterInfo getterInfo) {
+        ObjectFieldImpl(GetterInfo getterInfo) {
             getterInfo.getClass();
             this.getterInfo = getterInfo;
             this.fieldOffset = getterInfo.getFieldOffset();
@@ -462,11 +472,11 @@ public class ElVariableInvoker implements ElInvoker {
         }
     }
 
-    final static class ObjectPrimitiveFieldInvoke implements ValueInvoke {
+    final static class ObjectPrimitiveFieldImpl implements ValueInvoke {
         private final ReflectConsts.PrimitiveType primitiveType;
         private final long fieldOffset;
 
-        ObjectPrimitiveFieldInvoke(GetterInfo getterInfo) {
+        ObjectPrimitiveFieldImpl(GetterInfo getterInfo) {
             getterInfo.getClass();
             this.primitiveType = getterInfo.getPrimitiveType();
             this.fieldOffset = getterInfo.getFieldOffset();

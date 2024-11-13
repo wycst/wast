@@ -22,8 +22,8 @@ public final class ObjectUtils extends InvokeUtils {
         if (target instanceof Map) {
             return ((Map<?, ?>) target).containsKey(key);
         } else {
-            ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(target.getClass());
-            List<GetterInfo> getterInfos = classStructureWrapper.getGetterInfos();
+            ClassStrucWrap classStrucWrap = ClassStrucWrap.get(target.getClass());
+            List<GetterInfo> getterInfos = classStrucWrap.getGetterInfos();
             for (GetterInfo getterInfo : getterInfos) {
                 if (getterInfo.getName().equals(key.trim())) {
                     return true;
@@ -45,11 +45,13 @@ public final class ObjectUtils extends InvokeUtils {
      */
     public static <E> E getContext(Object context, String exprKey, Class<E> clazz) {
         Object result = get(context, exprKey);
-        if (result == null) return (E) null;
-        if (clazz != null && !clazz.isInstance(result)) {
-            throw new TypeNotMatchExecption(" type is not match, expect " + clazz + ", but get " + result.getClass());
+        if (result == null || clazz == null) {
+            return (E) result;
         }
-        return (E) result;
+        if (isInstance(clazz, result)) {
+            return (E) result;
+        }
+        throw new ClassCastException(result.getClass().getName() + " cannot be cast to " + clazz.getName());
     }
 
     public static <E> E get(Object target, String key, Class<E> clazz) {
@@ -152,8 +154,8 @@ public final class ObjectUtils extends InvokeUtils {
     }
 
     public static Object getObjectFieldValue(Object target, String field) {
-        ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(target.getClass());
-        GetterInfo getterInfo = classStructureWrapper.getGetterInfo(field);
+        ClassStrucWrap classStrucWrap = ClassStrucWrap.get(target.getClass());
+        GetterInfo getterInfo = classStrucWrap.getGetterInfo(field);
         if (getterInfo != null) {
             return getterInfo.invoke(target);
         }
@@ -224,8 +226,8 @@ public final class ObjectUtils extends InvokeUtils {
                     }
                     throw new TypeNotMatchExecption("context property '" + key + "' is invalid ");
                 } else {
-                    ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(target.getClass());
-                    SetterInfo setterInfo = classStructureWrapper.getSetterInfo(key);
+                    ClassStrucWrap classStrucWrap = ClassStrucWrap.get(target.getClass());
+                    SetterInfo setterInfo = classStrucWrap.getSetterInfo(key);
                     if (setterInfo != null) {
                         invokeSet(setterInfo, target, ObjectUtils.toType(value, setterInfo.getParameterType()));
                     }
@@ -251,8 +253,8 @@ public final class ObjectUtils extends InvokeUtils {
         }
 
         Map<String, Object> map = new HashMap<String, Object>();
-        ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(target.getClass());
-        List<GetterInfo> getterInfos = classStructureWrapper.getGetterInfos();
+        ClassStrucWrap classStrucWrap = ClassStrucWrap.get(target.getClass());
+        List<GetterInfo> getterInfos = classStrucWrap.getGetterInfos();
         for (GetterInfo getterInfo : getterInfos) {
             map.put(getterInfo.getName(), invokeGet(getterInfo, target));
         }
@@ -274,7 +276,7 @@ public final class ObjectUtils extends InvokeUtils {
             Map<Object, Object> map = (Map<Object, Object>) target;
             for (Map.Entry<Object, Object> entry : map.entrySet()) {
                 Object key = entry.getKey();
-                if(key == null) continue;
+                if (key == null) continue;
                 String field = key.toString();
                 Object val = entry.getValue();
                 if (val != null && !val.equals("")) {
@@ -282,8 +284,8 @@ public final class ObjectUtils extends InvokeUtils {
                 }
             }
         } else {
-            ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(target.getClass());
-            List<GetterInfo> getterInfos = classStructureWrapper.getGetterInfos();
+            ClassStrucWrap classStrucWrap = ClassStrucWrap.get(target.getClass());
+            List<GetterInfo> getterInfos = classStrucWrap.getGetterInfos();
             for (GetterInfo getterInfo : getterInfos) {
                 Object val = getterInfo.invoke(target);
                 if (val == null || val.equals("")) continue;
@@ -365,11 +367,41 @@ public final class ObjectUtils extends InvokeUtils {
         return null;
     }
 
+    public static boolean isInstance(Class<?> valueClass, Object value) {
+        if (valueClass.isPrimitive()) {
+            valueClass = ReflectConsts.PrimitiveType.getWrap(valueClass);
+        }
+        return valueClass.isInstance(value);
+    }
+
     public static <E> E toType(Object value, Class<E> valueClass, ReflectConsts.ClassCategory classCategory) {
-        if (value == null) return null;
-        if (valueClass.isInstance(value) || valueClass == Object.class) {
+        if (value == null || valueClass == null) return (E) value;
+        if (isInstance(valueClass, value)) {
             return (E) value;
         }
+        return toTypeByClassCategory(value, valueClass, classCategory);
+    }
+
+    /**
+     * 将value转化为valueClass的实例,缺省情况下返回0或者null
+     *
+     * @param value
+     * @param valueClass
+     * @param <E>
+     * @return
+     */
+    public static <E> E toType(Object value, Class<E> valueClass) {
+        if (value == null || valueClass == null) {
+            return (E) value;
+        }
+        if (isInstance(valueClass, value)) {
+            return (E) value;
+        }
+        ReflectConsts.ClassCategory classCategory = ReflectConsts.getClassCategory(valueClass);
+        return toTypeByClassCategory(value, valueClass, classCategory);
+    }
+
+    private static <E> E toTypeByClassCategory(Object value, Class<E> valueClass, ReflectConsts.ClassCategory classCategory) {
         switch (classCategory) {
             case CharSequence: {
                 if (valueClass == String.class) {
@@ -461,31 +493,13 @@ public final class ObjectUtils extends InvokeUtils {
                 return (E) value;
             }
             case ObjectCategory: {
-                ClassStructureWrapper structureWrapper = ClassStructureWrapper.get(valueClass);
+                ClassStrucWrap structureWrapper = ClassStrucWrap.get(valueClass);
                 if (structureWrapper.isTemporal()) {
                     // jdk8+ time api
                 }
                 break;
             }
         }
-
         return null;
-    }
-
-    /**
-     * 将value转化为valueClass的实例,缺省情况下返回0或者null
-     *
-     * @param value
-     * @param valueClass
-     * @param <E>
-     * @return
-     */
-    public static <E> E toType(Object value, Class<E> valueClass) {
-        if (value == null) {
-            return null;
-        }
-        if (valueClass == null) return (E) value;
-        ReflectConsts.ClassCategory classCategory = ReflectConsts.getClassCategory(valueClass);
-        return toType(value, valueClass, classCategory);
     }
 }

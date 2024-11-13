@@ -1,6 +1,6 @@
 package io.github.wycst.wast.common.csv;
 
-import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
+import io.github.wycst.wast.common.reflect.ClassStrucWrap;
 import io.github.wycst.wast.common.reflect.GetterInfo;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
@@ -355,8 +355,8 @@ public final class CSV {
             }
             objectKeys.addAll(csvColumnNames);
         } else if(classCategory == ReflectConsts.ClassCategory.ObjectCategory) {
-            ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(aClass);
-            List<GetterInfo> getterInfos = classStructureWrapper.getGetterInfos(classStructureWrapper.isForceUseFields());
+            ClassStrucWrap classStrucWrap = ClassStrucWrap.get(aClass);
+            List<GetterInfo> getterInfos = classStrucWrap.getGetterInfos(classStrucWrap.isForceUseFields());
             for (GetterInfo getterInfo : getterInfos) {
                 CSVColumn csvColumn = (CSVColumn) getterInfo.getAnnotation(CSVColumn.class);
                 String name;

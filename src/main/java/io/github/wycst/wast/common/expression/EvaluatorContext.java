@@ -23,7 +23,7 @@ public class EvaluatorContext {
         try {
             return variableValues[variableInvoker.index];
         } catch (Throwable throwable) {
-            throw new ExpressionException("Unresolved property or variable '" + variableInvoker + "' by context");
+            throw new ExpressionException("unresolved property or variable: '" + variableInvoker + "' from context");
         }
     }
 
@@ -52,8 +52,8 @@ public class EvaluatorContext {
         return new EvaluatorContext();
     }
 
-    final static class EvaluatorContextSingleVariableImpl extends EvaluatorContext {
-        EvaluatorContextSingleVariableImpl() {
+    final static class SingleVariableImpl extends EvaluatorContext {
+        SingleVariableImpl() {
         }
 
         Object variableValue;
@@ -64,33 +64,33 @@ public class EvaluatorContext {
         }
 
         @Override
-        public EvaluatorContextSingleVariableImpl invokeVariables(ElInvoker invoke, Object context, int variableCount) {
+        public SingleVariableImpl invokeVariables(ElInvoker invoke, Object context, int variableCount) {
             variableValue = invoke.invokeDirect(context);
             return this;
         }
 
         @Override
-        public EvaluatorContextSingleVariableImpl invokeVariables(ElInvoker invoke, Map context, int variableCount) {
+        public SingleVariableImpl invokeVariables(ElInvoker invoke, Map context, int variableCount) {
             variableValue = invoke.invokeDirect(context);
             return this;
         }
 
         @Override
         protected EvaluatorContext cloneContext() {
-            return new EvaluatorContextSingleVariableImpl();
+            return new SingleVariableImpl();
         }
     }
 
-    final static class EvaluatorContextSibbingVariablesImpl extends EvaluatorContext {
+    final static class SibbingVariablesImpl extends EvaluatorContext {
 
         final ElVariableInvoker parent;
 
-        EvaluatorContextSibbingVariablesImpl(ElVariableInvoker parent) {
+        SibbingVariablesImpl(ElVariableInvoker parent) {
             this.parent = parent;
         }
 
         @Override
-        public EvaluatorContextSibbingVariablesImpl invokeVariables(ElInvoker invoke, Object context, int variableCount) {
+        public SibbingVariablesImpl invokeVariables(ElInvoker invoke, Object context, int variableCount) {
             Object parentContext = parent.invokeDirect(context);
             variableValues = variableCount < 10 ? new Object[10] : new Object[variableCount];
             invoke.invokeCurrent(context, parentContext, variableValues);
@@ -98,7 +98,7 @@ public class EvaluatorContext {
         }
 
         @Override
-        public EvaluatorContextSibbingVariablesImpl invokeVariables(ElInvoker invoke, Map context, int variableCount) {
+        public SibbingVariablesImpl invokeVariables(ElInvoker invoke, Map context, int variableCount) {
             Object parentContext = parent.invokeDirect(context);
             variableValues = variableCount < 10 ? new Object[10] : new Object[variableCount];
             invoke.invokeCurrent(context, parentContext, variableValues);
@@ -107,11 +107,11 @@ public class EvaluatorContext {
 
         @Override
         protected EvaluatorContext cloneContext() {
-            return new EvaluatorContextSibbingVariablesImpl(parent);
+            return new SibbingVariablesImpl(parent);
         }
     }
 
-    final static class EvaluatorContextTwinsImpl extends EvaluatorContext {
+    final static class TwinsImpl extends EvaluatorContext {
 
         final ElVariableInvoker parent;
 
@@ -120,7 +120,7 @@ public class EvaluatorContext {
         Object oneValue;
         Object otherValue;
 
-        EvaluatorContextTwinsImpl(ElVariableInvoker parent, ElVariableInvoker one, ElVariableInvoker other) {
+        TwinsImpl(ElVariableInvoker parent, ElVariableInvoker one, ElVariableInvoker other) {
             this.parent = parent;
             this.one = one;
             this.other = other;
@@ -132,7 +132,7 @@ public class EvaluatorContext {
         }
 
         @Override
-        public EvaluatorContextTwinsImpl invokeVariables(ElInvoker invoke, Object context, int variableCount) {
+        public TwinsImpl invokeVariables(ElInvoker invoke, Object context, int variableCount) {
             Object parentContext = parent.invokeDirect(context);
             oneValue = one.invokeCurrent(context, parentContext);
             otherValue = other.invokeCurrent(context, parentContext);
@@ -140,7 +140,7 @@ public class EvaluatorContext {
         }
 
         @Override
-        public EvaluatorContextTwinsImpl invokeVariables(ElInvoker invoke, Map context, int variableCount) {
+        public TwinsImpl invokeVariables(ElInvoker invoke, Map context, int variableCount) {
             Object parentContext = parent.invokeDirect(context);
             oneValue = one.invokeCurrent(context, parentContext);
             otherValue = other.invokeCurrent(context, parentContext);
@@ -149,7 +149,22 @@ public class EvaluatorContext {
 
         @Override
         protected EvaluatorContext cloneContext() {
-            return new EvaluatorContextTwinsImpl(parent, one, other);
+            return new TwinsImpl(parent, one, other);
+        }
+    }
+
+    final static class ParametersImpl extends EvaluatorContext {
+        public ParametersImpl(Object[] params) {
+            this.variableValues = params;
+        }
+
+        @Override
+        public Object getContextValue(ElVariableInvoker variableInvoker) {
+            try {
+                return variableValues[variableInvoker.tailIndex];
+            } catch (Throwable throwable) {
+                throw new ExpressionException("unresolved property or variable: '" + variableInvoker + "' from parameters[" + variableInvoker.tailIndex + "]");
+            }
         }
     }
 }

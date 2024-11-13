@@ -86,9 +86,9 @@ public class ElChainVariableInvoker implements ElInvoker {
     /**
      * tail
      */
-    static class TailVariableInvoke extends ElChainVariableInvoker {
+    static class TailImpl extends ElChainVariableInvoker {
 
-        TailVariableInvoke(ElVariableInvoker variableInvoke) {
+        TailImpl(ElVariableInvoker variableInvoke) {
             super(variableInvoke);
         }
 
@@ -141,11 +141,11 @@ public class ElChainVariableInvoker implements ElInvoker {
         ElChainVariableInvoker head = null, prev = null;
         for (ElVariableInvoker variableInvoke : collection) {
             if (indexVariable) {
-                variableInvoke.setIndex(index);
+                variableInvoke.index(index);
             }
             if (onlyOne) return variableInvoke;
             boolean tail = ++index == length;
-            ElChainVariableInvoker node = tail ? new TailVariableInvoke(variableInvoke) : new ElChainVariableInvoker(variableInvoke);
+            ElChainVariableInvoker node = tail ? new TailImpl(variableInvoke) : new ElChainVariableInvoker(variableInvoke);
             if (head == null) {
                 head = node;
             } else {
@@ -172,7 +172,7 @@ public class ElChainVariableInvoker implements ElInvoker {
         ElChainVariableInvoker head = null, prev = null;
         for (ElVariableInvoker variableInvoke : leafTailValues) {
             boolean tail = ++index == length;
-            ElChainVariableInvoker node = tail ? new TailVariableInvoke(variableInvoke) : new ElChainVariableInvoker(variableInvoke);
+            ElChainVariableInvoker node = tail ? new TailImpl(variableInvoke) : new ElChainVariableInvoker(variableInvoke);
             if (head == null) {
                 head = node;
             } else {

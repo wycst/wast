@@ -52,7 +52,7 @@ public class DefaultSqlExecuter {
     private ConnectionManager connectionManager;
 
     // query
-    private QueryExecutor queryExecutor = new QueryExecutor();
+    private final QueryExecutor queryExecutor = new QueryExecutor();
 
     private Dialect dialect;
     private PageDialectAgent pageDialectAgent;
@@ -359,8 +359,8 @@ public class DefaultSqlExecuter {
             if (sqlInterceptor != null) {
                 sqlInterceptor.after(sql, params, methodName, entity);
             }
-            long endMillis = System.currentTimeMillis();
             if (isDevelopment()) {
+                long endMillis = System.currentTimeMillis();
                 log.info("- api:[{}], exec: {}ms, success: {}", methodName, endMillis - beginMillis, success);
             }
             // handler close

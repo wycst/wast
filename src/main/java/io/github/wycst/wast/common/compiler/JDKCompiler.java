@@ -15,11 +15,11 @@ import java.util.*;
  */
 public class JDKCompiler {
 
-    private static final JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-    private static final StandardJavaFileManager fileManager = compiler.getStandardFileManager(null, null, null);
+    private static final JavaCompiler JAVA_COMPILER = ToolProvider.getSystemJavaCompiler();
+    private static final StandardJavaFileManager FILE_MANAGER = JAVA_COMPILER.getStandardFileManager(null, null, null);
 
     public synchronized static Class<?> compileJavaSource(JavaSourceObject sourceObject) {
-        MemoryJavaFileManager javaFileManager = new MemoryJavaFileManager(fileManager);
+        MemoryJavaFileManager javaFileManager = new MemoryJavaFileManager(FILE_MANAGER);
         try {
             List<String> options = null;
             if(EnvUtils.JDK_16_PLUS) {
@@ -28,7 +28,7 @@ public class JDKCompiler {
                 options = Arrays.asList("-encoding", "UTF-8", "-XDuseUnsharedTable");
             }
             JavaFileObject javaFileObject = javaFileManager.createJavaFileObject(sourceObject.className + ".java", sourceObject.javaSourceCode);
-            JavaCompiler.CompilationTask task = compiler.getTask(null, javaFileManager, null,
+            JavaCompiler.CompilationTask task = JAVA_COMPILER.getTask(null, javaFileManager, null,
                     options, null,
                     Arrays.asList(javaFileObject));
             boolean bl = task.call();
@@ -51,14 +51,14 @@ public class JDKCompiler {
     }
 
     public static List<Class<?>> compileJavaSources(JavaSourceObject... sourceObjects) {
-        MemoryJavaFileManager javaFileManager = new MemoryJavaFileManager(fileManager, sourceObjects);
+        MemoryJavaFileManager javaFileManager = new MemoryJavaFileManager(FILE_MANAGER, sourceObjects);
         try {
             List<Class<?>> targetList = new ArrayList<Class<?>>();
             List<JavaFileObject> javaFileObjects = new ArrayList<JavaFileObject>();
             for (JavaSourceObject javaSourceObject : sourceObjects) {
                 javaFileObjects.add(javaFileManager.createJavaFileObject(javaSourceObject.className + ".java", javaSourceObject.javaSourceCode));
             }
-            JavaCompiler.CompilationTask task = compiler.getTask(null, javaFileManager, null,
+            JavaCompiler.CompilationTask task = JAVA_COMPILER.getTask(null, javaFileManager, null,
                     Arrays.asList(/*"-d", classPath, */"-encoding", "UTF-8", "-XDuseUnsharedTable"), null,
                     javaFileObjects);
             boolean bl = task.call();

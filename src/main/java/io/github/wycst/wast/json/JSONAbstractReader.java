@@ -16,7 +16,7 @@
  */
 package io.github.wycst.wast.json;
 
-import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
+import io.github.wycst.wast.common.reflect.ClassStrucWrap;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.SetterInfo;
@@ -37,7 +37,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author wangyunchao
- * @see ReaderCallback
+ * @see JSONReaderCallback
  * @see JSON
  * @see JSONNode
  * @see JSONCharArrayWriter
@@ -68,7 +68,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
      * current character
      */
     int current;
-    ReaderCallback callback;
+    JSONReaderCallback callback;
     final JSONParseContext parseContext = new JSONParseContext();
     final StringBuilder writer = new StringBuilder();
     ReadOption[] readOptions = new ReadOption[0];
@@ -106,7 +106,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
     public abstract Object read();
 
     public void read(boolean async) {
-        read(new ReaderCallback(), async);
+        read(new JSONReaderCallback(), async);
     }
 
     public Object readAsResult(Class<?> actualType) {
@@ -119,7 +119,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
         return (T) result;
     }
 
-    public void read(ReaderCallback callback) {
+    public void read(JSONReaderCallback callback) {
         read(callback, false);
     }
 
@@ -127,7 +127,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
      * @param callback
      * @param async
      */
-    public void read(ReaderCallback callback, boolean async) {
+    public void read(JSONReaderCallback callback, boolean async) {
         if (reading) return;
         checkReadState();
         this.callback = callback;
@@ -284,7 +284,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
             }
         }
         if (callback != null) {
-            callback.complete(result);
+            callback.onCompleted(result);
         }
     }
 
@@ -294,7 +294,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
         } else {
             Class<?> actualType = genericType.getActualType();
             if (!Collection.class.isAssignableFrom(actualType)) {
-                if(!actualType.isArray()) {
+                if (!actualType.isArray()) {
                     this.genericType = GenericParameterizedType.collectionType(ArrayList.class, actualType);
                 }
             }
@@ -313,7 +313,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
         for (; ; ) {
             clearWhitespaces();
             if (current == '}') {
-                if (!empty) {
+                if (!empty && !parseContext.allowLastEndComma) {
                     throw new JSONException("Syntax error, not allowed ',' followed by '}', pos " + pos);
                 }
                 return instance;
@@ -416,7 +416,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
 
     private Number readNumber(char endSyntax) throws Exception {
         final boolean useBigDecimal = parseContext.useBigDecimalAsDefault;
-        if(useBigDecimal) {
+        if (useBigDecimal) {
             writer.setLength(0);
             writer.append((char) current);
             int ch;
@@ -426,7 +426,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
             String text = writer.toString();
             try {
                 return new BigDecimal(text.trim());
-            } catch (NumberFormatException  numberFormatException) {
+            } catch (NumberFormatException numberFormatException) {
                 throw new NumberFormatException("offset " + offset + ", error input " + text);
             }
         }
@@ -567,7 +567,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
         for (; ; ) {
             clearWhitespaces();
             if (current == ']') {
-                if (elementIndex > 0) {
+                if (elementIndex > 0 && !parseContext.allowLastEndComma) {
                     throw new JSONException("Syntax error, not allowed ',' followed by ']', pos " + pos);
                 }
                 return arrInstance;
@@ -638,8 +638,8 @@ abstract class JSONAbstractReader extends JSONGeneral {
         Object instance;
         Map mapInstane = null;
         boolean assignableFromMap = true;
-        ClassStructureWrapper classStructureWrapper = null;
-        boolean externalImpl = isExternalImpl();
+        ClassStrucWrap classStrucWrap = null;
+        boolean externalImpl = callback != null;
         GenericParameterizedType ofValueType = null;
         if (!externalImpl) {
             if (genericType != null) {
@@ -651,18 +651,22 @@ abstract class JSONAbstractReader extends JSONGeneral {
                     ofValueType = genericType.getValueType();
                 } else if (classCategory == ReflectConsts.ClassCategory.ObjectCategory) {
                     assignableFromMap = false;
-                    classStructureWrapper = ClassStructureWrapper.get(actualType);
-                    if (classStructureWrapper == null) {
-                        throw new UnsupportedOperationException("Class " + actualType + " is not supported ");
+                    classStrucWrap = ClassStrucWrap.get(actualType);
+                    if (classStrucWrap == null) {
+                        throw new UnsupportedOperationException(actualType + " is not supported ");
                     }
-                    instance = classStructureWrapper.newInstance();
+                    instance = classStrucWrap.newInstance();
                 } else {
-                    throw new UnsupportedOperationException("Class " + actualType + " is not supported ");
+                    throw new UnsupportedOperationException(actualType + " is not supported ");
                 }
             } else {
                 instance = mapInstane = new LinkedHashMap();
             }
         } else {
+            if (!callback.filter(path, 1)) {
+                skipObject();
+                return null;
+            }
             instance = callback.created(path, 1);
         }
 
@@ -670,7 +674,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
         for (; ; ) {
             clearWhitespaces();
             if (current == '}') {
-                if (!empty) {
+                if (!empty && !parseContext.allowLastEndComma) {
                     throw new JSONException("Syntax error, not allowed ',' followed by '}', pos " + pos);
                 }
                 return instance;
@@ -695,12 +699,14 @@ abstract class JSONAbstractReader extends JSONGeneral {
                     // if skip value
                     boolean isSkipValue = false;
                     if (!externalImpl && !assignableFromMap) {
-                        setterInfo = classStructureWrapper.getSetterInfo(key);
+                        setterInfo = classStrucWrap.getSetterInfo(key);
                         isSkipValue = setterInfo == null;
                         if (!isSkipValue) {
                             jsonProperty = (JsonProperty) setterInfo.getAnnotation(JsonProperty.class);
                             valueType = setterInfo.getGenericParameterizedType();
                         }
+                    } else {
+
                     }
                     if (isSkipValue) {
                         this.skipValue('}');
@@ -816,7 +822,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
         for (; ; ) {
             clearWhitespaces();
             if (current == '}') {
-                if (!empty) {
+                if (!empty && !parseContext.allowLastEndComma) {
                     throw new JSONException("Syntax error, not allowed ',' followed by '}', pos " + pos);
                 }
                 return;
@@ -853,7 +859,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
         for (; ; ) {
             clearWhitespaces();
             if (current == ']') {
-                if (elementIndex > 0) {
+                if (elementIndex > 0 && !parseContext.allowLastEndComma) {
                     throw new JSONException("Syntax error, not allowed ',' followed by ']', pos " + pos);
                 }
                 return;
@@ -921,7 +927,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
             return simpleValue;
         }
         Class<?> actualType = valueType.getActualType();
-        if (actualType.isInstance(simpleValue)) {
+        if (ObjectUtils.isInstance(actualType, simpleValue)) {
             return simpleValue;
         }
         Number numValue = (Number) simpleValue;
@@ -994,8 +1000,8 @@ abstract class JSONAbstractReader extends JSONGeneral {
             valueType = genericType.getValueType();
             actualType = valueType == null ? null : valueType.getActualType();
         }
-        boolean externalImpl = isExternalImpl();
-        if (!isExternalImpl()) {
+        boolean externalImpl = callback != null;
+        if (!externalImpl) {
             if (collectionCls == null || collectionCls == ArrayList.class) {
                 arrInstance = new ArrayList<Object>();
             } else {
@@ -1013,6 +1019,10 @@ abstract class JSONAbstractReader extends JSONGeneral {
             }
             instance = arrInstance;
         } else {
+            if (!callback.filter(path, 2)) {
+                skipArray();
+                return null;
+            }
             instance = callback.created(path, 2);
         }
 
@@ -1020,14 +1030,14 @@ abstract class JSONAbstractReader extends JSONGeneral {
         for (; ; ) {
             clearWhitespaces();
             if (current == ']') {
-                if (elementIndex > 0) {
+                if (elementIndex > 0 && !parseContext.allowLastEndComma) {
                     throw new JSONException("Syntax error, not allowed ',' followed by ']', pos " + pos);
                 }
                 return isArrayCls ? CollectionUtils.toArray(arrInstance, actualType == null ? Object.class : actualType) : arrInstance;
             }
 
             boolean toBreakOrContinue = false;
-            String nextPath = externalImpl ? path + "/[" + elementIndex + "]" : null;
+            String nextPath = externalImpl ? path + "/" + elementIndex : null;
 
             switch (current) {
                 case '{': {
@@ -1228,13 +1238,6 @@ abstract class JSONAbstractReader extends JSONGeneral {
     }
 
     /**
-     * External implementation
-     */
-    private boolean isExternalImpl() {
-        return this.callback != null && this.callback.readParseMode == ReadParseMode.ExternalImpl;
-    }
-
-    /**
      * whether the reading completed
      *
      * @return
@@ -1282,83 +1285,4 @@ abstract class JSONAbstractReader extends JSONGeneral {
      */
     public abstract void close();
 
-    public enum ReadParseMode {
-
-        /**
-         * Built in parsing
-         */
-        BuiltParse,
-
-        /**
-         * External implementation
-         */
-        ExternalImpl
-    }
-
-    /***
-     * Response parsing process through callback (subscription) mode
-     * Hook mode, non asynchronous call
-     */
-    public static class ReaderCallback {
-
-        // Read parsing mode
-        private final ReadParseMode readParseMode;
-        private boolean abored;
-
-        /**
-         * Default internal parsing mode
-         * After reading the end of the stream, it is returned to the user
-         */
-        public ReaderCallback() {
-            this(ReadParseMode.BuiltParse);
-        }
-
-        public ReaderCallback(ReadParseMode readParseMode) {
-            this.readParseMode = readParseMode;
-        }
-
-        /**
-         * Give the initiative to build the object to the caller. If the type is 1, create a map or object. If the type is 2, create a collection object
-         *
-         * @param path JSON PATH
-         * @param type 1. Object type; 2 Collection type
-         * @return
-         * @throws Exception
-         */
-        public Object created(String path, int type) throws Exception {
-            return null;
-        }
-
-        /**
-         * Assign property settings to the caller
-         *
-         * @param key          the key if object({}), otherwise null
-         * @param value        map/collection/string/number
-         * @param host         object or collection
-         * @param elementIndex the index if collection([]), otherwise -1
-         * @param path         JSON PATH
-         * @throws Exception
-         */
-        public void parseValue(String key, Object value, Object host, int elementIndex, String path) throws Exception {
-        }
-
-        /**
-         * Parse completed callback
-         *
-         * @param result
-         */
-        void complete(Object result) {
-        }
-
-        /**
-         * terminate read operation
-         */
-        final void abort() {
-            this.abored = true;
-        }
-
-        final boolean isAbored() {
-            return abored;
-        }
-    }
 }

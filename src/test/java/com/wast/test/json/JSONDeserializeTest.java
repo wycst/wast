@@ -10,13 +10,13 @@ import java.util.Map;
 public class JSONDeserializeTest {
 
     static void test1() {
-        String json = "{\"msg\":\"hello, light json !\",\"name\":\"zhangsan\"}";
+        String json = "{\"msg\":\"hello, wast json !\",\"name\":\"zhangsan\"}";
         Map map = (Map) JSON.parse(json);
         System.out.println(map);
     }
 
     static void test2() {
-        String json = "{\"msg\":\"hello, light json !\",\"name\":\"zhangsan\"}";
+        String json = "{\"msg\":\"hello, wast json !\",\"name\":\"zhangsan\"}";
         Map map = JSON.parseObject(json, Map.class);
         System.out.println(map);
     }

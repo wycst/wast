@@ -180,6 +180,11 @@ public final class ReflectConsts {
     public enum PrimitiveType {
         PrimitiveByte(byte[].class, arrayBaseOffset(byte[].class), arrayIndexScale(byte[].class)) {
             @Override
+            public Class<?> getWrap() {
+                return Byte.class;
+            }
+
+            @Override
             void putValue(Object target, long fieldOffset, Object value) {
                 UnsafeHelper.UNSAFE.putByte(target, fieldOffset, (Byte) value);
             }
@@ -205,6 +210,11 @@ public final class ReflectConsts {
             }
         },
         PrimitiveShort(short[].class, arrayBaseOffset(short[].class), arrayIndexScale(short[].class)) {
+            @Override
+            public Class<?> getWrap() {
+                return Short.class;
+            }
+
             @Override
             void putValue(Object target, long fieldOffset, Object value) {
                 UnsafeHelper.UNSAFE.putShort(target, fieldOffset, (Short) value);
@@ -232,6 +242,11 @@ public final class ReflectConsts {
         },
         PrimitiveInt(int[].class, arrayBaseOffset(int[].class), arrayIndexScale(int[].class)) {
             @Override
+            public Class<?> getWrap() {
+                return Integer.class;
+            }
+
+            @Override
             void putValue(Object target, long fieldOffset, Object value) {
                 UnsafeHelper.UNSAFE.putInt(target, fieldOffset, ((Number) value).intValue());
             }
@@ -257,6 +272,11 @@ public final class ReflectConsts {
             }
         },
         PrimitiveFloat(float[].class, arrayBaseOffset(float[].class), arrayIndexScale(float[].class)) {
+            @Override
+            public Class<?> getWrap() {
+                return Float.class;
+            }
+
             @Override
             void putValue(Object target, long fieldOffset, Object value) {
                 UnsafeHelper.UNSAFE.putFloat(target, fieldOffset, ((Number) value).floatValue());
@@ -284,6 +304,11 @@ public final class ReflectConsts {
         },
         PrimitiveLong(long[].class, arrayBaseOffset(long[].class), arrayIndexScale(long[].class)) {
             @Override
+            public Class<?> getWrap() {
+                return Long.class;
+            }
+
+            @Override
             void putValue(Object target, long fieldOffset, Object value) {
                 UnsafeHelper.UNSAFE.putLong(target, fieldOffset, ((Number) value).longValue());
             }
@@ -309,6 +334,11 @@ public final class ReflectConsts {
             }
         },
         PrimitiveDouble(double[].class, arrayBaseOffset(double[].class), arrayIndexScale(double[].class)) {
+            @Override
+            public Class<?> getWrap() {
+                return Double.class;
+            }
+
             @Override
             void putValue(Object target, long fieldOffset, Object value) {
                 UnsafeHelper.UNSAFE.putDouble(target, fieldOffset, ((Number) value).doubleValue());
@@ -336,6 +366,11 @@ public final class ReflectConsts {
         },
         PrimitiveBoolean(boolean[].class, arrayBaseOffset(boolean[].class), arrayIndexScale(boolean[].class)) {
             @Override
+            public Class<?> getWrap() {
+                return Boolean.class;
+            }
+
+            @Override
             void putValue(Object target, long fieldOffset, Object value) {
                 UnsafeHelper.UNSAFE.putBoolean(target, fieldOffset, (Boolean) value);
             }
@@ -361,6 +396,11 @@ public final class ReflectConsts {
             }
         },
         PrimitiveCharacter(char[].class, arrayBaseOffset(char[].class), arrayIndexScale(char[].class)) {
+            @Override
+            public Class<?> getWrap() {
+                return Character.class;
+            }
+
             @Override
             void putValue(Object target, long fieldOffset, Object value) {
                 UnsafeHelper.UNSAFE.putChar(target, fieldOffset, (Character) value);
@@ -396,6 +436,12 @@ public final class ReflectConsts {
             this.arrayBaseOffset = arrayBaseOffset;
             this.arrayIndexScale = arrayIndexScale;
         }
+
+        public static <E> Class<E> getWrap(Class<E> eClass) {
+            return typeOf(eClass).getWrap();
+        }
+
+        public abstract <E> Class<E> getWrap();
 
         public int arrayLength(Object objects) {
             return 0;

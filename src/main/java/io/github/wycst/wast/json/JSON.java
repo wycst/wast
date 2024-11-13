@@ -857,7 +857,7 @@ public final class JSON extends JSONGeneral {
     /***
      * 读取流返回Map对象或者List集合
      *
-     * @param is
+     * @param is 流对象(注: 不要使用网络流,请使用URL或者直接使用JSONReader)
      * @param readOptions
      * @return
      */
@@ -876,7 +876,7 @@ public final class JSON extends JSONGeneral {
     private static Object read(InputStream is, long size, ReadOption... readOptions) throws IOException {
         if (size <= 0) size = is.available();
         if (size <= DIRECT_READ_BUFFER_SIZE) {
-            char[] buf = readInputStream(is, (int) size);
+            char[] buf = readOnceInputStream(is, (int) size);
             return parse(buf, readOptions);
         } else {
             JSONReader jsonReader = new JSONReader(is);
@@ -910,7 +910,7 @@ public final class JSON extends JSONGeneral {
         if (size <= 0) size = is.available();
         if (size <= DIRECT_READ_BUFFER_SIZE) {
             if (size == 0) return null;
-            char[] buf = readInputStream(is, (int) size);
+            char[] buf = readOnceInputStream(is, (int) size);
             return (T) parse(buf, actualType, readOptions);
         } else {
             JSONReader jsonReader = new JSONReader(is);

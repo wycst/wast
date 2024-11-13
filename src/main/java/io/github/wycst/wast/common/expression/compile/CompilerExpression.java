@@ -13,14 +13,14 @@ import java.util.Map;
  */
 public abstract class CompilerExpression extends Expression {
 
-    private static Coder DefaultCoder;
+    private static Coder defaultCoder;
 
     static {
-        if (CompilerExpressionCoder.isJavassistSupported()) {
-            DefaultCoder = Coder.Javassist;
-        } else {
-            DefaultCoder = Coder.Native;
-        }
+//        if (CompilerExpressionCoder.isJavassistSupported()) {
+//            defaultCoder = Coder.Javassist;
+//        } else {
+//        }
+        defaultCoder = Coder.Native;
     }
 
     public enum Coder {
@@ -31,7 +31,7 @@ public abstract class CompilerExpression extends Expression {
     }
 
     public static void setDefaultCoder(Coder defaultCoder) {
-        CompilerExpression.DefaultCoder = defaultCoder;
+        CompilerExpression.defaultCoder = defaultCoder;
     }
 
     protected final CompilerEnvironment environment;
@@ -51,7 +51,7 @@ public abstract class CompilerExpression extends Expression {
      * @return
      */
     public static CompilerExpression compile(String expr) {
-        return compile(expr, createEnvironment());
+        return compile(expr, CompilerEnvironment.COMPILER_DEFAULT);
     }
 
     /**
@@ -62,7 +62,7 @@ public abstract class CompilerExpression extends Expression {
      * @return
      */
     public static String generateJavaCode(String expr, CompilerEnvironment environment) {
-        return CompilerCodeUtils.generateJavaCode(expr, environment);
+        return CompilerCodeUtils.generateNativeJavaCode(expr, environment);
     }
 
     /**
@@ -73,7 +73,7 @@ public abstract class CompilerExpression extends Expression {
      * @return
      */
     public static CompilerExpression compile(String expr, CompilerEnvironment environment) {
-        return compile(expr, environment, DefaultCoder);
+        return compile(expr, environment, defaultCoder);
     }
 
     /**
@@ -86,7 +86,7 @@ public abstract class CompilerExpression extends Expression {
      */
     public static CompilerExpression compile(String expr, CompilerEnvironment environment, Coder coder) {
         if (coder == null) {
-            coder = DefaultCoder == null ? Coder.Native : DefaultCoder;
+            coder = defaultCoder == null ? Coder.Native : defaultCoder;
         }
         switch (coder) {
             case Native:
@@ -143,6 +143,16 @@ public abstract class CompilerExpression extends Expression {
         return evaluate(context);
     }
 
+    @Override
+    public final Object evaluateParameters(Object... params) {
+        return invokeParameters(params);
+    }
+
+    @Override
+    public final Object evaluateParameters(EvaluateEnvironment evaluateEnvironment, Object... params) {
+        return invokeParameters(params);
+    }
+
     protected final <T> T getValue(Object value, Class<T> tClass) {
         return (T) value;
     }
@@ -156,6 +166,10 @@ public abstract class CompilerExpression extends Expression {
     }
 
     protected Object invoke(Map context) {
+        throw new UnsupportedOperationException();
+    }
+
+    protected Object invokeParameters(Object[] parameters) {
         throw new UnsupportedOperationException();
     }
 

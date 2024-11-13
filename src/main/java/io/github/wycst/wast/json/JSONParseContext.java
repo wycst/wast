@@ -81,6 +81,7 @@ public class JSONParseContext {
     boolean escape = true;
     int escapeOffset = -1;
     private String[] strings;
+    protected int elementSize;
 
     public void setContextWriter(JSONCharArrayWriter writer) {
         this.writer = writer;

@@ -1,7 +1,7 @@
 package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.common.beans.DateFormatter;
-import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
+import io.github.wycst.wast.common.reflect.ClassStrucWrap;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.temporal.*;
 
@@ -36,9 +36,9 @@ public abstract class JSONTemporalSerializer extends JSONTypeSerializer {
         useFormatter = dateFormatter != null;
     }
 
-    static JSONTypeSerializer getTemporalSerializerInstance(ClassStructureWrapper classStructureWrapper, JsonProperty property) {
-        ClassStructureWrapper.ClassWrapperType classWrapperType = classStructureWrapper.getClassWrapperType();
-        Class<?> temporalClass = classStructureWrapper.getSourceClass();
+    static JSONTypeSerializer getTemporalSerializerInstance(ClassStrucWrap classStrucWrap, JsonProperty property) {
+        ClassStrucWrap.ClassWrapperType classWrapperType = classStrucWrap.getClassWrapperType();
+        Class<?> temporalClass = classStrucWrap.getSourceClass();
         switch (classWrapperType) {
             case TemporalLocalDate: {
                 return new TemporalLocalDateSerializer(temporalClass, property);

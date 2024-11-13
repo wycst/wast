@@ -8,6 +8,7 @@ import io.github.wycst.wast.common.utils.ObjectUtils;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.math.MathContext;
 import java.net.URLClassLoader;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -28,18 +29,19 @@ public class EvaluateEnvironment {
     Object context;
     private Map<String, Object> variables = new HashMap<String, Object>();
     boolean useVariables;
-    private boolean mapContext;
-    private boolean allowVariableNull;
+    boolean mapContext;
+    boolean allowVariableNull;
     /**
      * 字符串+默认情况下进行拼接，且不支持除+以外其他运算，开启后自动将字符串变量转化为double类型（字符串常量逻辑不变）
      */
     private boolean autoParseStringAsDouble;
+    MathContext mathContext = MathContext.DECIMAL128;
 
     // 静态函数列表（静态类+函数名）
     private Map<String, Method> staticMethods = new HashMap<String, Method>();
     private Set<Class> staticClassSet = new HashSet<Class>();
 
-    private static Map<String, Method> builtInStaticMethods = new HashMap<String, Method>();
+    private final static Map<String, Method> BUILT_IN_STATIC_METHODS = new HashMap<String, Method>();
     private static final Set<Class> BLACKLIST_LIST = CollectionUtils.setOf(
             System.class,
             Runtime.class,
@@ -47,7 +49,7 @@ public class EvaluateEnvironment {
     );
 
     static {
-        registerStaticMethods(true, BuiltInFunction.class, builtInStaticMethods);
+        registerStaticMethods(true, BuiltInFunction.class, BUILT_IN_STATIC_METHODS);
     }
 
     static final EvaluateEnvironment DEFAULT = new EvaluateEnvironment();
@@ -68,6 +70,11 @@ public class EvaluateEnvironment {
         return allowVariableNull;
     }
 
+    public void setMathContext(MathContext mathContext) {
+        mathContext.toString();
+        this.mathContext = mathContext;
+    }
+
     // 临时缓存
     private Map<String, ExprFunction> tempFunctionMap = new HashMap<String, ExprFunction>();
 
@@ -86,7 +93,7 @@ public class EvaluateEnvironment {
     }
 
     protected EvaluateEnvironment() {
-        staticMethods.putAll(builtInStaticMethods);
+        staticMethods.putAll(BUILT_IN_STATIC_METHODS);
     }
 
     /**
@@ -279,14 +286,14 @@ public class EvaluateEnvironment {
                     Object arrParam = Array.newInstance(componentType, params.length);
                     int i = 0;
                     for (Object param : params) {
-                        Array.set(arrParam, i++, componentType.isInstance(param) ? param : ObjectUtils.toType(param, componentType));
+                        Array.set(arrParam, i++, ObjectUtils.toType(param, componentType));
                     }
                     return method.invoke(null, new Object[]{arrParam});
                 } else {
                     for (int i = 0; i < parameterTypes.length; ++i) {
                         Object val = params[i];
                         Class<?> parameterType = parameterTypes[i];
-                        params[i] = parameterType.isInstance(val) ? val : ObjectUtils.toType(val, parameterType);
+                        params[i] = ObjectUtils.toType(val, parameterType);
                     }
                     return method.invoke(null, params);
                 }

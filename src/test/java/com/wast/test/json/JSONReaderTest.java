@@ -2,6 +2,7 @@ package com.wast.test.json;
 
 import io.github.wycst.wast.json.JSON;
 import io.github.wycst.wast.json.JSONReader;
+import io.github.wycst.wast.json.JSONReaderCallback;
 
 import java.io.File;
 import java.util.List;
@@ -17,13 +18,13 @@ public class JSONReaderTest {
         // download addr: https://codeload.github.com/zemirco/sf-city-lots-json/zip/refs/heads/master
         String f = "e:/tmp/sf-city-lots-json-master/citylots.json";
         final JSONReader reader = JSONReader.from(new File(f));
-        reader.read(new JSONReader.ReaderCallback(JSONReader.ReadParseMode.ExternalImpl) {
+        reader.read(new JSONReaderCallback() {
             @Override
             public void parseValue(String key, Object value, Object host, int elementIndex, String path) throws Exception {
                 super.parseValue(key, value, host, elementIndex, path);
-                if(path.equals("/features/[100000]/properties/STREET")) {
+                if(path.equals("/features/1/properties/STREET")) {
                     System.out.println(value);
-//                    abort();
+                    abort();
                 }
             }
         }, true);

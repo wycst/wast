@@ -126,8 +126,28 @@ public abstract class Expression {
      * @param expr
      * @return
      */
-    public static Expression parse(String expr) {
+    public final static Expression parse(String expr) {
         return new ExprParser(expr);
+    }
+
+    /***
+     * 从指定offset开始提取合法的表达式
+     *
+     * @param expr
+     * @return
+     */
+    public final static ExprParser find(String expr, int offset) {
+        return new ExprParser(expr, offset);
+    }
+
+    /***
+     * 编译表达式
+     *
+     * @param expr
+     * @return
+     */
+    public static Expression compile(String expr) {
+        return CompilerExpression.compile(expr);
     }
 
     /***
@@ -160,8 +180,52 @@ public abstract class Expression {
      * @param evaluateEnvironment 执行环境
      * @return
      */
-    public static Object eval(String expr, EvaluateEnvironment evaluateEnvironment) {
+    public final static Object eval(String expr, EvaluateEnvironment evaluateEnvironment) {
         return parse(expr).evaluate(evaluateEnvironment);
+    }
+
+    /***
+     * 简化调用
+     *
+     * @param expr
+     * @param params 可变参数
+     * @return
+     */
+    public final static Object evalParameters(String expr, Object...params) {
+        return parse(expr).evaluateParameters(params);
+    }
+
+    /***
+     * 简化调用
+     *
+     * @param expr
+     * @param targetClass
+     * @param params 可变参数
+     * @return
+     */
+    public final static  <T> T evalParameters(String expr, Class<T> targetClass, Object...params) {
+        return ObjectUtils.toType(parse(expr).evaluateParameters(params), targetClass);
+    }
+
+    /**
+     * 注：只有parse模式支持，compile模式暂时不支持
+     *
+     * @param params
+     * @return
+     */
+    public Object evaluateParameters(Object... params) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * 注：只有parse模式支持，compile模式暂时不支持
+     *
+     * @param evaluateEnvironment
+     * @param params
+     * @return
+     */
+    public Object evaluateParameters(EvaluateEnvironment evaluateEnvironment, Object... params) {
+        throw new UnsupportedOperationException();
     }
 
     /***
@@ -171,8 +235,8 @@ public abstract class Expression {
      * @param evaluateEnvironment 执行环境
      * @return
      */
-    public static <T> T evalResult(String expr, EvaluateEnvironment evaluateEnvironment, Class<T> targetClass) {
-        return toResult(parse(expr).evaluate(evaluateEnvironment), targetClass);
+    public final static <T> T evalResult(String expr, EvaluateEnvironment evaluateEnvironment, Class<T> targetClass) {
+        return ObjectUtils.toType(parse(expr).evaluate(evaluateEnvironment), targetClass);
     }
 
     /**
@@ -181,7 +245,7 @@ public abstract class Expression {
      * @param expr
      * @return
      */
-    public static Object eval(String expr) {
+    public final static Object eval(String expr) {
         return parse(expr).evaluate();
     }
 
@@ -192,7 +256,7 @@ public abstract class Expression {
      * @param targetClass 返回对象类型
      * @return
      */
-    public static <T> T evalResult(String expr, Class<T> targetClass) {
+    public final static <T> T evalResult(String expr, Class<T> targetClass) {
         return parse(expr).evaluateResult(targetClass);
     }
 
@@ -203,7 +267,7 @@ public abstract class Expression {
      * @param context
      * @return
      */
-    public static Object eval(String expr, Object context) {
+    public final static Object eval(String expr, Object context) {
         return parse(expr).evaluate(context);
     }
 
@@ -214,7 +278,7 @@ public abstract class Expression {
      * @param context
      * @return
      */
-    public static Object eval(String expr, Map context) {
+    public final static Object eval(String expr, Map context) {
         return parse(expr).evaluate(context);
     }
 
@@ -225,7 +289,7 @@ public abstract class Expression {
      * @param context
      * @return
      */
-    public static Object[] eval(String[] exprs, Object context) {
+    public final static Object[] eval(String[] exprs, Object context) {
         if (exprs == null) {
             return null;
         }
@@ -245,7 +309,7 @@ public abstract class Expression {
      * @param targetClass
      * @return
      */
-    public static <T> List<T> evalResult(String[] exprs, Object context, Class<T> targetClass) {
+    public final static <T> List<T> evalResult(String[] exprs, Object context, Class<T> targetClass) {
         if (exprs == null) {
             return null;
         }
@@ -265,7 +329,7 @@ public abstract class Expression {
      * @param targetClass 返回对象类型
      * @return
      */
-    public static <T> T evalResult(String expr, Object context, Class<T> targetClass) {
+    public final static <T> T evalResult(String expr, Object context, Class<T> targetClass) {
         return parse(expr).evaluateResult(context, targetClass);
     }
 
@@ -325,11 +389,11 @@ public abstract class Expression {
      * @return
      */
     public final <T> T evaluateResult(Class<T> targetClass) {
-        return toResult(evaluate(), targetClass);
+        return ObjectUtils.toType(evaluate(), targetClass);
     }
 
     /**
-     * 执行常量运算表达式
+     * 执行变量运算表达式
      *
      * @param context
      * @param targetClass
@@ -337,19 +401,34 @@ public abstract class Expression {
      * @return
      */
     public final <T> T evaluateResult(Object context, Class<T> targetClass) {
-        return toResult(evaluate(context), targetClass);
+        return ObjectUtils.toType(evaluate(context), targetClass);
     }
 
-    protected final static <T> T toResult(Object result, Class<T> targetClass) {
-        if (result == null) {
-            return null;
-        }
-        // force
-        if (targetClass.isInstance(result)) {
-            return (T) result;
-        }
-        return ObjectUtils.toType(result, targetClass);
+    /**
+     * 执行变量运算表达式
+     *
+     * @param context
+     * @param targetClass
+     * @param <T>
+     * @return
+     */
+    public final <T> T evaluateResult(Map context, Class<T> targetClass) {
+        return ObjectUtils.toType(evaluate(context), targetClass);
     }
+
+    /**
+     * 执行可变参数运算表达式
+     *
+     * @param targetClass 目标类型
+     * @return
+     */
+    public final <T> T evaluateParametersResult(Class<T> targetClass, Object...parameters) {
+        return ObjectUtils.toType(evaluateParameters(parameters), targetClass);
+    }
+
+//    protected final static <T> T toResult(Object result, Class<T> targetClass) {
+//        return ObjectUtils.toType(result, targetClass);
+//    }
 
     /**
      * 提供静态方法直接渲染模板（no编译）
@@ -358,7 +437,7 @@ public abstract class Expression {
      * @param context
      * @return
      */
-    public static String renderTemplate(String template, Object context) {
+    public final static String renderTemplate(String template, Object context) {
         return renderTemplate(template, "${", "}", context);
     }
 
@@ -372,7 +451,7 @@ public abstract class Expression {
      * @param context  上下文
      * @return
      */
-    public static String renderTemplate(String template, String prefix, String suffix, Object context) {
+    public final static String renderTemplate(String template, String prefix, String suffix, Object context) {
         if (template == null || prefix == null || suffix == null) return null;
 
         int prefixLen = prefix.length();
@@ -419,6 +498,14 @@ public abstract class Expression {
     }
 
     public List<String> getVariables() {
+        throw new UnsupportedOperationException();
+    }
+
+    public List<String> getRootVariables() {
+        throw new UnsupportedOperationException();
+    }
+
+    public String getSource() {
         throw new UnsupportedOperationException();
     }
 }

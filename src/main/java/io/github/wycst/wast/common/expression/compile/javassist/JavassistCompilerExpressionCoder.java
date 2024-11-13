@@ -11,6 +11,7 @@ import javassist.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * @Author: wangy
@@ -34,6 +35,10 @@ public class JavassistCompilerExpressionCoder extends CompilerExpressionCoder {
             pool.importPackage(ElVariableInvoker.class.getName());
             pool.importPackage(ExprFunction.class.getName());
             pool.importPackage(JavassistExprFunction.class.getName());
+            Set<Class> importSet = environment.getImportSet();
+            for (Class iptClass : importSet) {
+                pool.importPackage(iptClass.getName());
+            }
             CtClass ctClass = pool.makeClass(vars.get("className").toString(), pool.get(JavassistCompilerExpression.class.getName()));
 
             // fields

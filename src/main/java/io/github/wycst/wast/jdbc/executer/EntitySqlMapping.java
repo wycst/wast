@@ -30,7 +30,7 @@ public class EntitySqlMapping {
     private final Map<String, FieldColumn> fieldColumnMapping;
     // 主键
     private final FieldColumn primary;
-    private final EntityHandler entityHandler;
+    final EntityHandler entityHandler;
 
     /**
      * 生成join语句映射配置
@@ -727,7 +727,7 @@ public class EntitySqlMapping {
         return table.expires();
     }
 
-    EntityHandler getEntityHandler() {
+    final EntityHandler getEntityHandler() {
         return this.entityHandler;
     }
 

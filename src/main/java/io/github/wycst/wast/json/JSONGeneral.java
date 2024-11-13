@@ -1396,18 +1396,18 @@ class JSONGeneral {
         return buffer;
     }
 
-    // 读取流中的最大限度（maxLen）的字符数组
-    protected static char[] readInputStream(InputStream is, int maxLen) throws IOException {
+    // 读取流中的最大限度（maxLen）的字符数组(只读取一次)
+    protected final static char[] readOnceInputStream(InputStream is, int maxLen) throws IOException {
         try {
             char[] buf = new char[maxLen];
             InputStreamReader streamReader = new InputStreamReader(is);
             int len = streamReader.read(buf);
-            streamReader.close();
             if (len != maxLen) {
                 char[] tmp = new char[len];
                 System.arraycopy(buf, 0, tmp, 0, len);
                 buf = tmp;
             }
+            streamReader.close();
             return buf;
         } catch (RuntimeException rx) {
             throw rx;
@@ -1416,7 +1416,7 @@ class JSONGeneral {
         }
     }
 
-    protected static void handleCatchException(Throwable ex, char[] buf, int toIndex) {
+    protected final static void handleCatchException(Throwable ex, char[] buf, int toIndex) {
         // There is only one possibility to control out of bounds exceptions when indexing toindex
         if (ex instanceof IndexOutOfBoundsException) {
             String errorContextTextAt = createErrorContextText(buf, toIndex);
@@ -1427,7 +1427,7 @@ class JSONGeneral {
         }
     }
 
-    protected static void handleCatchException(Throwable ex, byte[] bytes, int toIndex) {
+    protected final static void handleCatchException(Throwable ex, byte[] bytes, int toIndex) {
         // There is only one possibility to control out of bounds exceptions when indexing toindex
         if (ex instanceof IndexOutOfBoundsException) {
             String errorContextTextAt = createErrorContextText(bytes, toIndex);
@@ -1439,7 +1439,7 @@ class JSONGeneral {
     }
 
     // 常规日期格式分类
-    protected static int getPatternType(String pattern) {
+    protected final static int getPatternType(String pattern) {
         if (pattern != null) {
             if (pattern.equalsIgnoreCase("yyyy-MM-dd HH:mm:ss")
                     || pattern.equalsIgnoreCase("yyyy/MM/dd HH:mm:ss")

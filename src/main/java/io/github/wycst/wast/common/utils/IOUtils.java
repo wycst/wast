@@ -2,6 +2,8 @@ package io.github.wycst.wast.common.utils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 
 /**
@@ -151,6 +153,13 @@ public final class IOUtils {
         }
     };
 
+    final static ThreadLocal<char[]> CHARS_1024_TL = new ThreadLocal<char[]>() {
+        @Override
+        protected char[] initialValue() {
+            return new char[1024];
+        }
+    };
+
     /**
      * 从输入读中读取完整的bytes
      *
@@ -174,6 +183,49 @@ public final class IOUtils {
             }
             return Arrays.copyOf(tmp, readedCount);
         } finally {
+            is.close();
+        }
+    }
+
+    /**
+     * 从输入读中读取字符数组
+     *
+     * @param is
+     * @return
+     */
+    public static char[] readAsChars(InputStream is) throws IOException {
+        return readAsChars(is, EnvUtils.CHARSET_DEFAULT);
+    }
+
+    /**
+     * 从输入读中读取字符数组
+     *
+     * @param is
+     * @param charset
+     * @return
+     */
+    public static char[] readAsChars(InputStream is, Charset charset) throws IOException {
+        InputStreamReader isr = null;
+        try {
+            isr = new InputStreamReader(is, charset);
+            char[] tmp = CHARS_1024_TL.get();
+            int len = tmp.length;
+            int count, readedCount = 0;
+            while ((count = isr.read(tmp, readedCount, len)) > -1) {
+                readedCount += count;
+                if (count < len) {
+                    len -= count;
+                } else {
+                    // Expansion
+                    len = tmp.length << 1;
+                    tmp = Arrays.copyOf(tmp, tmp.length + len);
+                }
+            }
+            return Arrays.copyOf(tmp, readedCount);
+        } finally {
+            if (isr != null) {
+                isr.close();
+            }
             is.close();
         }
     }

@@ -1,6 +1,6 @@
 package io.github.wycst.wast.jdbc.executer;
 
-import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
+import io.github.wycst.wast.common.reflect.ClassStrucWrap;
 import io.github.wycst.wast.common.reflect.GetterInfo;
 import io.github.wycst.wast.common.reflect.SetterInfo;
 import io.github.wycst.wast.common.utils.ClassUtils;
@@ -128,7 +128,7 @@ public class EntityManagementFactory {
             FieldColumn primary = null;
             Collection<Field> fields = this.getEntityFields(entityCls);
 
-            ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(entityCls);
+            ClassStrucWrap classStrucWrap = ClassStrucWrap.get(entityCls);
 
             Map<String, JoinField> joinFields = new HashMap<String, JoinField>();
             List<CascadeFetchMapping> cascadeFetchMappings = new ArrayList<CascadeFetchMapping>();
@@ -140,11 +140,11 @@ public class EntityManagementFactory {
                 }
                 String fieldName = field.getName();
                 // 非setter方法跳过
-                if (!classStructureWrapper.containsSetterKey(fieldName)) {
+                if (!classStrucWrap.containsSetterKey(fieldName)) {
                     continue;
                 }
-                SetterInfo setterInfo = classStructureWrapper.getSetterInfo(fieldName);
-                GetterInfo getterInfo = classStructureWrapper.getGetterInfo(fieldName);
+                SetterInfo setterInfo = classStrucWrap.getSetterInfo(fieldName);
+                GetterInfo getterInfo = classStrucWrap.getGetterInfo(fieldName);
 
                 // join处理
                 if (field.getAnnotation(JoinField.class) != null) {

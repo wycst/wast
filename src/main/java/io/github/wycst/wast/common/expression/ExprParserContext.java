@@ -28,4 +28,95 @@ final class ExprParserContext {
         this.negate = negate;
         this.logicalNot = logicalNot;
     }
+
+    final static int MASK = 511;
+    final static EntryNode<String>[] VAR_INDEXED = new EntryNode[512];
+    static int count;
+    static boolean disabledIndexed;
+
+    static class EntryNode<T> {
+        long key;
+        T value;
+        EntryNode<T> next;
+
+        public EntryNode(long key, T value) {
+            this.key = key;
+            this.value = value;
+        }
+    }
+
+    // all are visible characters
+    static String getString(char[] buf, int offset, int len) {
+        if (len > 8 || disabledIndexed) {
+            return new String(buf, offset, len);
+        }
+        long key = 0;
+        char ch;
+        int i = offset, end = offset + len;
+        for (; i < end; ++i) {
+            ch = buf[i];
+            if (ch > 0xff) {
+                return new String(buf, offset, len);
+            }
+            key = key << 8 | ch;
+        }
+        return getKey(buf, offset, len, key);
+    }
+
+    static String getKey(char[] buf, int offset, int len, long hash) {
+//        int index = (int) (hash & 31);
+//        EntryNode<String> entryNode = nodes[index];
+//        if (entryNode == null) {
+//            String value = new String(buf, offset, len);
+//            nodes[index] = new EntryNode<String>(hash, value);
+//            return value;
+//        } else {
+//            EntryNode<String> top = entryNode;
+//            do {
+//                if (entryNode.key == hash) {
+//                    return entryNode.value;
+//                }
+//                entryNode = entryNode.next;
+//            } while (entryNode != null);
+//            String value = new String(buf, offset, len);
+//            EntryNode<String> newNode = new EntryNode<String>(hash, value);
+//            newNode.next = top;
+//            nodes[index] = newNode;
+//            return value;
+//        }
+        String value = getIndexedKey(hash); // KEYS.get(hash);
+        if (value != null) {
+            return value;
+        }
+        synchronized (VAR_INDEXED) {
+            value = getIndexedKey(hash);
+            if (value != null) {
+                return value;
+            }
+            value = new String(buf, offset, len);
+            setIndexedKey(hash, value);
+            return value;
+        }
+    }
+
+    static void setIndexedKey(long hash, String value) {
+        int index = (int) (hash & MASK);
+        EntryNode<String> newNode = new EntryNode<String>(hash, value);
+        EntryNode<String> entryNode = VAR_INDEXED[index];
+        newNode.next = entryNode;
+        VAR_INDEXED[index] = newNode;
+        disabledIndexed = ++count > MASK;
+    }
+
+    static String getIndexedKey(long hash) {
+        int index = (int) (hash & MASK);
+        EntryNode<String> entryNode = VAR_INDEXED[index];
+        while (entryNode != null) {
+            if (entryNode.key == hash) {
+                return entryNode.value;
+            }
+            entryNode = entryNode.next;
+        }
+        return null;
+    }
 }

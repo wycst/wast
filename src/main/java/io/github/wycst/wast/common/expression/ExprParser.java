@@ -18,6 +18,7 @@ package io.github.wycst.wast.common.expression;
 
 import io.github.wycst.wast.common.utils.NumberUtils;
 
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -35,6 +36,13 @@ public class ExprParser extends Expression {
 
     ExprParser(char[] buffers, int offset, int count) {
         this.init(buffers, offset, count);
+        this.parse();
+    }
+
+    ExprParser(String exprSource, int offset) {
+        this.init(exprSource, offset, exprSource.length() - offset);
+        this.findMode = true;
+        this.findEndIndex = exprSource.length();
         this.parse();
     }
 
@@ -68,6 +76,8 @@ public class ExprParser extends Expression {
     private int offset;
     private int count;
     private int readIndex;
+    private boolean findMode;
+    private int findEndIndex;
 
     private String errorMsg;
     private Map<String, ElVariableInvoker> invokes;
@@ -114,25 +124,40 @@ public class ExprParser extends Expression {
         return new ExprEvaluator();
     }
 
-    protected String getSource() {
-        return this.exprSource;
+    public String getSource() {
+        if (findMode) {
+            return new String(sourceChars, offset, findEndIndex - offset);
+        }
+        if (offset == 0 && count == sourceChars.length) {
+            return this.exprSource;
+        }
+        return new String(sourceChars, offset, count);
     }
 
     public int length() {
         return count;
     }
 
+    public final int findIndex() {
+        return findMode ? findEndIndex : -1;
+    }
+
     protected ExprEvaluator getEvaluator() {
         return exprEvaluator;
     }
 
-    protected void init(String exprSource) {
-        this.exprSource = exprSource;
-        this.count = exprSource.length();
-        this.sourceChars = getChars(exprSource);
+    protected final void init(String exprSource) {
+        init(exprSource, 0, exprSource.length());
     }
 
-    protected void init(char[] buffers, int offset, int count) {
+    protected final void init(String exprSource, int offset, int count) {
+        this.exprSource = exprSource;
+        this.sourceChars = getChars(exprSource);
+        this.offset = offset;
+        this.count = count;
+    }
+
+    protected final void init(char[] buffers, int offset, int count) {
         this.sourceChars = buffers;
         this.offset = offset;
         this.count = count;
@@ -141,7 +166,7 @@ public class ExprParser extends Expression {
     /**
      * 解析表达式字符串
      */
-    protected void parse() {
+    protected final void parse() {
         // 解析执行器
         parseEvaluator();
         // 置换优先级
@@ -152,11 +177,18 @@ public class ExprParser extends Expression {
         compressVariables();
         // optimize
         checkOptimizeRequired();
+        validate();
     }
 
     private void checkOptimizeRequired() {
         if (evaluatorCount > MAX_OPTIMIZE_COUNT) {
             optimize();
+        }
+    }
+
+    private void validate() {
+        if (exprEvaluator == null) {
+            throw new ExpressionException("syntax error, input maybe empty");
         }
     }
 
@@ -166,6 +198,14 @@ public class ExprParser extends Expression {
             parseNext(parserContext);
             ++evaluatorCount;
         } while (readable());
+        checkEndTokenSyntaxError(tokenType);
+    }
+
+    private void checkEndTokenSyntaxError(int tokenType) {
+        if (tokenType == OPS_TOKEN) {
+            String errorMessage = createErrorContextText(sourceChars, this.readIndex);
+            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", unsupported operator ends, Expression[... " + errorMessage + " ]");
+        }
     }
 
     private void merge() {
@@ -332,39 +372,39 @@ public class ExprParser extends Expression {
         if (tailInvokes != null) {
             // chainValues = ChainVariableInvoker.build(invokes, true);
             variableCount = invokes.size();
-            int index = 0;
-            boolean sibbingMode = true;
-            ElVariableInvoker tailParent = null;
-            for (ElVariableInvoker variableInvoker : invokes.values()) {
-                variableInvoker.setIndex(index++);
-                if (variableInvoker.isTail()) {
-                    if (sibbingMode) {
-                        if (variableInvoker.parent == null) {
-                            sibbingMode = false;
-                        } else {
-                            if (tailParent == null) {
-                                tailParent = variableInvoker.parent;
+            if (tailInvokes.size() == 1) {
+                // single value
+                // tailChainInvoker = tailInvokes.values().iterator().next();
+                evaluatorContext = new EvaluatorContext.SingleVariableImpl();
+            } else {
+                //            int index = 0;
+                boolean sibbingMode = true;
+                ElVariableInvoker tailParent = null;
+                for (ElVariableInvoker variableInvoker : invokes.values()) {
+//                variableInvoker.setIndex(index++);
+                    if (variableInvoker.isTail()) {
+                        if (sibbingMode) {
+                            if (variableInvoker.parent == null) {
+                                sibbingMode = false;
                             } else {
-                                if (tailParent != variableInvoker.parent) {
-                                    sibbingMode = false;
+                                if (tailParent == null) {
+                                    tailParent = variableInvoker.parent;
+                                } else {
+                                    if (tailParent != variableInvoker.parent) {
+                                        sibbingMode = false;
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
-            if (tailInvokes.size() == 1) {
-                // single value
-                tailChainInvoker = tailInvokes.values().iterator().next();
-                evaluatorContext = new EvaluatorContext.EvaluatorContextSingleVariableImpl();
-            } else {
                 tailChainInvoker = ElChainVariableInvoker.buildTailChainInvoker(tailInvokes);
                 if (sibbingMode) {
                     if (tailChainInvoker.size() == 2) {
                         ElChainVariableInvoker chainVariableInvoker = (ElChainVariableInvoker) tailChainInvoker;
-                        evaluatorContext = new EvaluatorContext.EvaluatorContextTwinsImpl(tailParent, chainVariableInvoker.variableInvoke, chainVariableInvoker.next.variableInvoke);
+                        evaluatorContext = new EvaluatorContext.TwinsImpl(tailParent, chainVariableInvoker.variableInvoke, chainVariableInvoker.next.variableInvoke);
                     } else {
-                        evaluatorContext = new EvaluatorContext.EvaluatorContextSibbingVariablesImpl(tailParent);
+                        evaluatorContext = new EvaluatorContext.SibbingVariablesImpl(tailParent);
                     }
                 } else {
                     evaluatorContext = new EvaluatorContext();
@@ -381,6 +421,22 @@ public class ExprParser extends Expression {
     public final List<String> getVariables() {
         if (variableCount > 0) {
             return new ArrayList<String>(tailInvokes.keySet());
+        } else {
+            return new ArrayList<String>();
+        }
+    }
+
+    @Override
+    public final List<String> getRootVariables() {
+        if (variableCount > 0) {
+            List<String> variables = new ArrayList<String>();
+            Set<Map.Entry<String, ElVariableInvoker>> entrySet = invokes.entrySet();
+            for (Map.Entry<String, ElVariableInvoker> entry : entrySet) {
+                if(entry.getValue().parent == null) {
+                    variables.add(entry.getKey());
+                }
+            }
+            return variables;
         } else {
             return new ArrayList<String>();
         }
@@ -406,33 +462,35 @@ public class ExprParser extends Expression {
         ExprEvaluator evaluator = exprParserContext.exprEvaluator;
         boolean negate = exprParserContext.negate;
         boolean logicalNot = exprParserContext.logicalNot;
-        switch (startChar) {
-            case 't': {
-                if ("true".equals(identifierValue)) {
-                    ExprEvaluator.ConstantImpl left = new ExprEvaluator.ConstantImpl(!logicalNot);
-                    evaluator.setLeft(left);
-                    exprParserContext.setContext(evaluator, false, false);
-                    return;
+        if (identifierValue != null) {
+            switch (startChar) {
+                case 't': {
+                    if ("true".equals(identifierValue)) {
+                        ExprEvaluator.ConstantImpl left = new ExprEvaluator.ConstantImpl(!logicalNot);
+                        evaluator.setLeft(left);
+                        exprParserContext.setContext(evaluator, false, false);
+                        return;
+                    }
+                    break;
                 }
-                break;
-            }
-            case 'f': {
-                if ("false".equals(identifierValue)) {
-                    ExprEvaluator.ConstantImpl left = new ExprEvaluator.ConstantImpl(logicalNot);
-                    evaluator.setLeft(left);
-                    exprParserContext.setContext(evaluator, false, false);
-                    return;
+                case 'f': {
+                    if ("false".equals(identifierValue)) {
+                        ExprEvaluator.ConstantImpl left = new ExprEvaluator.ConstantImpl(logicalNot);
+                        evaluator.setLeft(left);
+                        exprParserContext.setContext(evaluator, false, false);
+                        return;
+                    }
+                    break;
                 }
-                break;
-            }
-            case 'n': {
-                if ("null".equals(identifierValue)) {
-                    ExprEvaluator.ConstantImpl left = new ExprEvaluator.ConstantImpl(null);
-                    evaluator.setLeft(left);
-                    exprParserContext.setContext(evaluator, false, false);
-                    return;
+                case 'n': {
+                    if ("null".equals(identifierValue)) {
+                        ExprEvaluator.ConstantImpl left = new ExprEvaluator.ConstantImpl(null);
+                        evaluator.setLeft(left);
+                        exprParserContext.setContext(evaluator, false, false);
+                        return;
+                    }
+                    break;
                 }
-                break;
             }
         }
         // 检查是否已初始化
@@ -442,7 +500,9 @@ public class ExprParser extends Expression {
         left.setNegate(negate);
         left.setLogicalNot(logicalNot);
 
-        left.setVariableInvoker(identifierValue == null ? ElVariableUtils.build(variableKeys, getInvokes(), getTailInvokes()) : ElVariableUtils.buildRoot(identifierValue, getInvokes(), getTailInvokes()));
+        ElVariableInvoker variableInvoker = identifierValue == null ? ElVariableUtils.build(variableKeys, getInvokes(), getTailInvokes()) : ElVariableUtils.buildRoot(identifierValue, getInvokes(), getTailInvokes());
+        global().tailChainInvoker = variableInvoker;
+        left.setVariableInvoker(variableInvoker);
         evaluator.setLeft(left);
         exprParserContext.setContext(evaluator, false, false);
     }
@@ -480,7 +540,7 @@ public class ExprParser extends Expression {
         // 解析类型如果没有结束括号说明表达式错误
         if (!bracketParserContext.endFlag) {
             String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-            throw new ExpressionException("syntax error, pos: " + this.readIndex + ",Expression[... " + errorMessage + " ], missing closing symbol')'");
+            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", missing closing symbol ')'" + ", Expression[... " + errorMessage + " ]");
         }
         //  置换子表达式优先级
         //  displacementSplit(child);
@@ -552,7 +612,11 @@ public class ExprParser extends Expression {
         ExprEvaluator.MethodImpl left = new ExprEvaluator.MethodImpl();
         left.setNegate(negate);
         left.setLogicalNot(logicalNot);
-        left.setMethod(ElVariableUtils.build(variableKeys, getInvokes(), getTailInvokes()), methodName, args, global());
+
+        ElVariableInvoker variableInvoker = ElVariableUtils.build(variableKeys, getInvokes(), getTailInvokes());
+        global().tailChainInvoker = variableInvoker;
+
+        left.setMethod(variableInvoker, methodName, args, global());
         evaluator.setLeft(left);
         exprParserContext.setContext(evaluator, false, false);
     }
@@ -583,23 +647,23 @@ public class ExprParser extends Expression {
         // reset
         this.resetToken();
 
-        // 读取跳过空白
-        while (readable() && isWhitespace(read())) {
+        char currentChar = 0;
+        // SKIP Whitespace
+        while (readable() && isWhitespace(currentChar = read())) {
             ++this.readIndex;
         }
 
-        if (!readable()) {
+        if (isEnd()) {
+            checkEndTokenSyntaxError(prevTokenType);
             return;
         }
-
-        char currentChar = read();
 
         // Based on prediction rules, it seems more efficient than switch
         ElOperator elOperator;
         // Is it a minus sign operator
         boolean isMinusSymbol = false;
-        if ((isDigit(currentChar) || (isMinusSymbol = currentChar == '-')) && isNotGroupTokenValue(prevTokenType)) {
-            int begin = this.readIndex;
+        if ((isDigit(currentChar) || (isMinusSymbol = currentChar == '-')) && prevTokenType < NUM_TOKEN) {
+            final int begin = this.readIndex;
             int cnt = 0;
             int readIndex = ++this.readIndex;
             int numberRadix = 10;
@@ -712,18 +776,23 @@ public class ExprParser extends Expression {
                 if (currentChar == 'E' || currentChar == 'e') {
                     mode = 2;
                     ++this.readIndex;
-                    currentChar = read();
-                    if ((expNegative = currentChar == '-') || currentChar == '+') {
-                        ++this.readIndex;
+                    try {
                         currentChar = read();
-                    }
-                    if (isDigit(currentChar)) {
-                        expValue = currentChar - 48;
-                        ++this.readIndex;
-                        while (readable() && isDigit(currentChar = read())) {
-                            expValue = (expValue << 3) + (expValue << 1) + currentChar - 48;
+                        if ((expNegative = currentChar == '-') || currentChar == '+') {
                             ++this.readIndex;
+                            currentChar = read();
                         }
+                        if (isDigit(currentChar)) {
+                            expValue = currentChar - 48;
+                            ++this.readIndex;
+                            while (readable() && isDigit(currentChar = read())) {
+                                expValue = (expValue << 3) + (expValue << 1) + currentChar - 48;
+                                ++this.readIndex;
+                            }
+                        }
+                    } catch (RuntimeException throwable) {
+                        String errorMessage = createErrorContextText(sourceChars, this.readIndex);
+                        throw new ExpressionException("syntax error, pos: " + this.readIndex + ", unexpected token '" + currentChar + "', Expression[... " + errorMessage + " ]");
                     }
                 }
                 switch (currentChar) {
@@ -742,6 +811,12 @@ public class ExprParser extends Expression {
                     case 'd':
                     case 'D': {
                         specifySuffix = 3;
+                        ++this.readIndex;
+                        break;
+                    }
+                    case '$': {
+                        // BigDecimal
+                        specifySuffix = 4;
                         ++this.readIndex;
                         break;
                     }
@@ -794,54 +869,65 @@ public class ExprParser extends Expression {
                         numberValue = (long) value;
                     } else if (specifySuffix == 2) {
                         numberValue = (float) value;
+                    } else if (specifySuffix == 4) {
+                        numberValue = BigDecimal.valueOf((long) value);
                     } else {
                         numberValue = value;
                     }
                 } else {
-                    if(overflow) {
-                        decimalVal = 0;
-                        cnt = 0;
-                        int j = begin, decimalPointIndex = this.readIndex;
-                        char c;
-                        decimalCount = 0;
-                        for (; j < this.readIndex; ++j) {
-                            if (isDigit(c = sourceChars[offset + j])) {
-                                if(cnt++ < 18) {
-                                    decimalVal = decimalVal * 10 + c - 48;
-                                }
-                                if (j > decimalPointIndex) {
-                                    ++decimalCount;
-                                }
-                            } else {
-                                if (c == '.') {
-                                    decimalPointIndex = j;
-                                } else if(c == 'e' || c == 'E') {
-                                    break;
-                                }
+                    do {
+                        if (overflow) {
+                            if (specifySuffix == 4) {
+                                numberValue = createBigDecimal(begin, this.readIndex - 1, negate);
+                                break;
                             }
-                            if (cnt >= 18 && decimalCount > 0) break;
+                            decimalVal = 0;
+                            cnt = 0;
+                            int j = begin, decimalPointIndex = this.readIndex;
+                            char c;
+                            decimalCount = 0;
+                            for (; j < this.readIndex; ++j) {
+                                if (isDigit(c = sourceChars[offset + j])) {
+                                    if (cnt++ < 18) {
+                                        decimalVal = decimalVal * 10 + c - 48;
+                                    }
+                                    if (j > decimalPointIndex) {
+                                        ++decimalCount;
+                                    }
+                                } else {
+                                    if (c == '.') {
+                                        decimalPointIndex = j;
+                                    } else if (c == 'e' || c == 'E') {
+                                        break;
+                                    }
+                                }
+                                if (cnt >= 18 && decimalCount > 0) break;
+                            }
+                            decimalCount -= cnt - 18;
                         }
-                        decimalCount -= cnt - 18;
-                    }
-                    expValue = expNegative ? -expValue - decimalCount : expValue - decimalCount;
-                    value = NumberUtils.scientificToIEEEDouble(decimalVal, -expValue);
-                    if (negate) {
-                        value = -value;
-                    }
-                    if (specifySuffix == 0) {
-                        numberValue = value;
-                    } else if (specifySuffix == 1) {
-                        numberValue = (long) value;
-                    } else if (specifySuffix == 2) {
-                        numberValue = (float) value;
-                    } else {
-                        numberValue = value;
-                    }
+                        expValue = expNegative ? -expValue - decimalCount : expValue - decimalCount;
+                        if (specifySuffix == 4) {
+                            numberValue = BigDecimal.valueOf(negate ? -decimalVal : decimalVal, -expValue);
+                            break;
+                        }
+                        value = NumberUtils.scientificToIEEEDouble(decimalVal, -expValue);
+                        if (negate) {
+                            value = -value;
+                        }
+                        if (specifySuffix == 0) {
+                            numberValue = value;
+                        } else if (specifySuffix == 1) {
+                            numberValue = (long) value;
+                        } else if (specifySuffix == 2) {
+                            numberValue = (float) value;
+                        } else {
+                            numberValue = value;
+                        }
+                    } while (false);
                 }
-
-                checkTokenSyntaxError();
+//                checkTokenSyntaxError();
+                checkValueTokenSyntaxError();
                 parseNumToken(exprParserContext, numberValue);
-                return;
             }
         } else if (this.prevTokenType > OPS_TOKEN && (elOperator = getOperator(currentChar)) != null) {
             // 运算操作符号 +-*/% **
@@ -856,19 +942,18 @@ public class ExprParser extends Expression {
                 // 双操作符只支持:
                 // 运算操作符 ** << >>
                 // 逻辑操作符 >= <= == && ||
-                if (currentChar == '*' && elOperator == ElOperator.MULTI) {
-                    // 指数运算调整类型和优先级
-                    this.operator = ElOperator.EXP;
-                    ++this.readIndex;
+                if (elOperator == ElOperator.MULTI) {
+                    if (currentChar == '*') {
+                        // 指数运算调整类型和优先级
+                        this.operator = ElOperator.EXP;
+                        ++this.readIndex;
+                    }
                 } else if (elOperator == ElOperator.AND) {
                     // &&
                     if (currentChar == '&') {
                         // 逻辑与： &&
                         ++this.readIndex;
                         this.operator = ElOperator.LOGICAL_AND;
-                    } else {
-                        this.errorMsg = String.valueOf(firstMatchChar) + currentChar;
-                        throwOperationNotSupported();
                     }
                 } else if (elOperator == ElOperator.OR) {
                     // ||
@@ -876,9 +961,6 @@ public class ExprParser extends Expression {
                         // 逻辑或： ||
                         ++this.readIndex;
                         this.operator = ElOperator.LOGICAL_OR;
-                    } else {
-                        this.errorMsg = String.valueOf(firstMatchChar) + currentChar;
-                        throwOperationNotSupported();
                     }
                 } else if (elOperator == ElOperator.NOT) {
                     // !搭配=使用
@@ -895,7 +977,7 @@ public class ExprParser extends Expression {
                     } else {
                         if (getOperator(currentChar) != null) {
                             this.errorMsg = String.valueOf(firstMatchChar) + currentChar;
-                            throwOperationNotSupported();
+                            throwSyntaxError();
                         }
                         this.tokenType = NOT_TOKEN;
                         checkTokenSyntaxError();
@@ -915,7 +997,7 @@ public class ExprParser extends Expression {
                     } else {
                         if (getOperator(currentChar) != null) {
                             this.errorMsg = String.valueOf(firstMatchChar) + currentChar;
-                            throwOperationNotSupported();
+                            throwSyntaxError();
                         }
                     }
                 } else if (elOperator == ElOperator.LT) {
@@ -932,7 +1014,7 @@ public class ExprParser extends Expression {
                         // fix a<b bug when no whitespace
                         if (getOperator(currentChar) != null) {
                             this.errorMsg = String.valueOf(firstMatchChar) + currentChar;
-                            throwOperationNotSupported();
+                            throwSyntaxError();
                         }
                     }
                 } else if (elOperator == ElOperator.EQ) {
@@ -943,11 +1025,8 @@ public class ExprParser extends Expression {
                     } else {
                         // 暂时不支持赋值表达式
                         this.errorMsg = String.valueOf(firstMatchChar) + currentChar;
-                        throwOperationNotSupported();
+                        throwSyntaxError();
                     }
-                } else {
-//                    this.tokenBuffer.append(currentChar);
-//                    throwOperationNotSupported();
                 }
             } else {
                 // 2022-03-11 开始支持！运算
@@ -955,170 +1034,181 @@ public class ExprParser extends Expression {
                     this.errorMsg = String.valueOf(firstMatchChar);
                     // 不支持=和！单独使用
                     // 后续实现！针对逻辑表达式的非运算
-                    throwOperationNotSupported();
+                    // throwSyntaxError();
+                    // throwUnsupportedError();
+                    String readSource = createErrorContextText(sourceChars, this.readIndex);
+                    throw new ExpressionException("syntax error, pos: " + this.readIndex + ", '=' is not supported, please use '==' instead, Expression[" + readSource + "]");
                 }
             }
-            checkTokenSyntaxError();
+//            checkTokenSyntaxError();
+            checkOpsTokenSyntaxError();
             parseOpsToken(exprParserContext);
-            return;
         } else if (isBracketSymbol(currentChar)) {
             this.operator = ElOperator.BRACKET;
             // 括号
             ++this.readIndex;
             if (currentChar == '(') {
                 this.tokenType = BRACKET_TOKEN;
-                bracketCount++;
+                ++bracketCount;
                 checkBeforeBracketTokenSyntaxError();
                 parseBracketToken(exprParserContext);
             } else {
-                bracketCount--;
+                --bracketCount;
                 this.tokenType = BRACKET_END_TOKEN;
                 if (bracketCount < 0) {
                     this.errorMsg = ")";
-                    throwOperationNotSupported();
+                    throwSyntaxError();
                 }
                 checkBeforeBracketEndTokenSyntaxError();
                 exprParserContext.endFlag = true;
             }
         } else if (isIdentifierStart(currentChar)) {
-            int start = this.readIndex;
-            char startChar = currentChar;
-            ++this.readIndex;
+            if (prevTokenType >= NUM_TOKEN) {
+                throwSyntaxError();
+            } else {
+                int start = this.readIndex;
+                char startChar = currentChar;
+                ++this.readIndex;
 
-            int localOffset = start;
-            List<String> variableKeys = getLocalVariableKeys(); // localVariableKeys.get();
-            try {
-                while (readable() && (isVariableAppend(currentChar = read()))) {
-                    if (currentChar == '.') {
-                        if (readIndex == localOffset) {
-                            String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-                            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ],token '\'' is duplicate or conflict with [] ");
-                        }
-                        variableKeys.add(new String(sourceChars, localOffset + this.offset, readIndex - localOffset));
-                        localOffset = ++this.readIndex;
-                        continue;
-                    }
-                    if (currentChar == '[') {
-                        if (readIndex == localOffset) {
-                            String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-                            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ],token '[' is duplicate or conflict with '.' ");
-                        }
-                        // 内层循环直到遇到]结束
-                        variableKeys.add(new String(sourceChars, localOffset + this.offset, readIndex - localOffset));
-                        localOffset = ++this.readIndex;
-
-                        // 查找结束的']',如果紧跟'则[]中的内容以字符串解析
-                        // 字符串中的'['和']'需要忽略
-                        int cnt = 1;
-                        boolean stringKey = true;
-                        while (readable()) {
-                            if ((currentChar = read()) <= ' ') {
-                                ++this.readIndex;
-                                continue;
-                            }
-                            if (currentChar == '\'') {
-                                // find end ',ignore
-                                this.scanString();
-                                ++this.readIndex;
-                                while (readable() && (currentChar = read()) <= ' ') {
-                                    ++this.readIndex;
-                                }
-                                if (currentChar == ']' && cnt == 1) {
-                                    break;
-                                }
-                                // continue find
-                                continue;
-                            }
-                            stringKey = false;
-                            if (currentChar == ']') {
-                                cnt--;
-                            } else if (currentChar == '[') {
-                                cnt++;
-                            }
-                            if (cnt == 0) {
-                                break;
-                            }
+                int localOffset = start;
+                List<String> variableKeys = getLocalVariableKeys(); // localVariableKeys.get();
+                try {
+                    for (; ; ) {
+                        while (readable() && (isVariableAppend(currentChar = read()))) {
                             ++this.readIndex;
                         }
-                        if (currentChar != ']') {
-                            String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-                            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ],未找到与开始字符'['相匹配的结束字符 ']'");
-                        }
-                        if (stringKey) {
-                            // 去除''
-                            int st = localOffset + this.offset;
-                            int et = readIndex + this.offset;
-                            while ((st < et) && (sourceChars[st] <= ' ')) {
-                                st++;
+                        if (currentChar == '.') {
+                            if (readIndex == localOffset) {
+                                String errorMessage = createErrorContextText(sourceChars, this.readIndex);
+                                throw new ExpressionException("syntax error, pos: " + this.readIndex + ", unexpected token '" + currentChar + "', Expression[... " + errorMessage + " ]");
                             }
-                            while ((st < et) && (sourceChars[et - 1] <= ' ')) {
-                                et--;
-                            }
-                            variableKeys.add(new String(sourceChars, st + 1, et - st - 2));
-                        } else {
-                            // 子表达式使用（）
-                            char[] chars = new char[readIndex - localOffset + 2];
-                            chars[0] = '(';
-                            chars[chars.length - 1] = ')';
-                            System.arraycopy(sourceChars, localOffset + this.offset, chars, 1, chars.length - 2);
-                            variableKeys.add(new String(chars));
-                        }
-                        localOffset = ++this.readIndex;
-                        continue;
-                    }
-                    ++this.readIndex;
-                }
-                String identifierValue = new String(sourceChars, localOffset + this.offset, readIndex - localOffset);
-                boolean oneLevelAccess = localOffset == start;
-                if (currentChar == '(') {
-                    // forward method or function
-                    localOffset = ++this.readIndex;
-                    int bracketCount = 1;
-                    while (readable()) {
-                        currentChar = read();
-                        if (currentChar == '\'') {
-                            // find end ',ignore
-                            this.scanString();
-                            ++this.readIndex;
+                            variableKeys.add(ExprParserContext.getString(sourceChars, localOffset + this.offset, readIndex - localOffset));
+                            localOffset = ++this.readIndex;
                             continue;
                         }
-                        ++this.readIndex;
-                        if (currentChar == ')') {
-                            bracketCount--;
-                        } else if (currentChar == '(') {
-                            bracketCount++;
+                        if (currentChar == '[') {
+                            if (readIndex == localOffset) {
+                                String errorMessage = createErrorContextText(sourceChars, this.readIndex);
+                                throw new ExpressionException("syntax error, pos: " + this.readIndex + ", unexpected token '" + currentChar + "', Expression[... " + errorMessage + " ]");
+                            }
+                            // 内层循环直到遇到]结束
+                            variableKeys.add(new String(sourceChars, localOffset + this.offset, readIndex - localOffset));
+                            localOffset = ++this.readIndex;
+
+                            boolean continueOuterLoop;
+                            while (true) {
+                                // 查找结束的']',如果紧跟'则[]中的内容以字符串解析
+                                // 字符串中的'['和']'需要忽略
+                                int cnt = 1;
+                                boolean stringKey = true;
+                                while (readable()) {
+                                    if ((currentChar = read()) <= ' ') {
+                                        ++this.readIndex;
+                                        continue;
+                                    }
+                                    if (currentChar == '\'') {
+                                        // find end ',ignore
+                                        this.scanString();
+                                        ++this.readIndex;
+                                        while (readable() && (currentChar = read()) <= ' ') {
+                                            ++this.readIndex;
+                                        }
+                                        if (currentChar == ']' && cnt == 1) {
+                                            break;
+                                        }
+                                        // continue find
+                                        continue;
+                                    }
+                                    stringKey = false;
+                                    if (currentChar == ']') {
+                                        --cnt;
+                                    } else if (currentChar == '[') {
+                                        ++cnt;
+                                    }
+                                    if (cnt == 0) {
+                                        break;
+                                    }
+                                    ++this.readIndex;
+                                }
+                                if (currentChar != ']') {
+                                    String errorMessage = createErrorContextText(sourceChars, this.readIndex);
+                                    throw new ExpressionException("syntax error, pos: " + this.readIndex + ", missing closing symbol ']', Expression[... " + errorMessage + " ]");
+                                }
+                                String identifierValue = null;
+                                if (stringKey) {
+                                    // 去除''
+                                    int st = localOffset + this.offset;
+                                    int et = readIndex + this.offset;
+                                    while ((st < et) && (sourceChars[st] <= ' ')) {
+                                        ++st;
+                                    }
+                                    while ((st < et) && (sourceChars[et - 1] <= ' ')) {
+                                        --et;
+                                    }
+                                    identifierValue = ExprParserContext.getString(sourceChars, st + 1, et - st - 2);
+                                } else {
+                                    // 子表达式使用（）
+                                    char[] chars = new char[readIndex - localOffset + 2];
+                                    chars[0] = '(';
+                                    chars[chars.length - 1] = ')';
+                                    System.arraycopy(sourceChars, localOffset + this.offset, chars, 1, chars.length - 2);
+                                    identifierValue = new String(chars);
+                                }
+                                ++this.readIndex;
+                                if (readable()) {
+                                    if ((currentChar = read()) == '.') {
+                                        variableKeys.add(identifierValue);
+                                        localOffset = ++this.readIndex;
+                                        continueOuterLoop = true;
+                                        break;
+                                    } else if (currentChar == '[') {
+                                        variableKeys.add(identifierValue);
+                                        localOffset = ++this.readIndex;
+                                        continue;
+                                    } else if (currentChar == '(') {
+                                        handleParseFunctionToken(identifierValue, false, variableKeys, exprParserContext);
+                                        return;
+                                    }
+                                }
+                                variableKeys.add(identifierValue);
+                                this.tokenType = VAR_TOKEN;
+                                checkValueTokenSyntaxError();
+                                parseVarToken(exprParserContext, startChar, null, variableKeys);
+                                return;
+                            }
+                            if (continueOuterLoop) {
+                                continue;
+                            }
                         }
-                        if (bracketCount == 0) {
-                            break;
-                        }
+                        break;
                     }
-                    if (currentChar != ')') {
+                    if (readIndex == localOffset) {
+                        // validate such as 'a. '
                         String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-                        throw new ExpressionException("syntax error, pos: " + this.readIndex + ",Expression[... " + errorMessage + " ], end token ')' not found !");
+                        throw new ExpressionException("syntax error, pos: " + this.readIndex + ", unexpected token '" + currentChar + "', Expression[... " + errorMessage + " ]");
                     }
-                    String args = new String(sourceChars, localOffset + this.offset, this.readIndex - localOffset - 1);
-                    this.tokenType = FUN_TOKEN;
-                    checkTokenSyntaxError();
-                    if (oneLevelAccess) {
-                        // static Function
-                        // @see @function
-                        parseFunToken(exprParserContext, identifierValue, args);
+                    String identifierValue = ExprParserContext.getString(sourceChars, localOffset + this.offset, readIndex - localOffset);
+                    boolean oneLevelAccess = localOffset == start;
+                    if (currentChar == '(') {
+                        handleParseFunctionToken(identifierValue, oneLevelAccess, variableKeys, exprParserContext);
                     } else {
-                        // reflect invoke : obj.method(...args)
-                        parseMethodToken(exprParserContext, variableKeys, identifierValue, args);
+                        String var;
+                        if (oneLevelAccess /*&& readIndex > localOffset*/) {
+                            var = identifierValue;
+                        } else {
+                            variableKeys.add(identifierValue);
+                            var = null;
+                        }
+                        this.tokenType = VAR_TOKEN; //设置标记类型为标识符token
+                        // todo 检查是否内置关键字（目前存在问题）
+                        // this.checkIfBuiltInKeywords();
+                        // checkTokenSyntaxError();
+                        checkValueTokenSyntaxError();
+                        parseVarToken(exprParserContext, startChar, var, variableKeys);
                     }
-                } else {
-                    if (localOffset > start && readIndex > localOffset) {
-                        variableKeys.add(identifierValue);
-                    }
-                    this.tokenType = VAR_TOKEN; //设置标记类型为标识符token
-                    // todo 检查是否内置关键字（目前存在问题）
-                    // this.checkIfBuiltInKeywords();
-                    checkTokenSyntaxError();
-                    parseVarToken(exprParserContext, startChar, oneLevelAccess ? identifierValue : null, variableKeys);
+                } finally {
+                    variableKeys.clear();
                 }
-            } finally {
-                variableKeys.clear();
             }
         } else if (currentChar == '!') {
             ++this.readIndex;
@@ -1197,9 +1287,9 @@ public class ExprParser extends Expression {
                 }
                 ++this.readIndex;
                 if (currentChar == ')') {
-                    bracketCount--;
+                    --bracketCount;
                 } else if (currentChar == '(') {
-                    bracketCount++;
+                    ++bracketCount;
                 }
                 if (bracketCount == 0) {
                     break;
@@ -1209,17 +1299,68 @@ public class ExprParser extends Expression {
             this.tokenType = FUN_TOKEN;
             checkTokenSyntaxError();
             parseFunToken(exprParserContext, functionName, args);
-        } else if(currentChar == '.' && prevTokenType == FUN_TOKEN) {
+        } else if (currentChar == '.' && prevTokenType == FUN_TOKEN) {
             // todo
             throw new UnsupportedOperationException("currently, it is not supported to access method return values as variables or method call handles");
-        } else if(currentChar == '+' && prevTokenType == RESET_TOKEN) {
+        } else if (currentChar == '+' && prevTokenType == RESET_TOKEN) {
             // dealing with the first character '+' issue
             ++readIndex;
             tokenType = OPS_TOKEN;
         } else {
-            // unexpected character token
+            if (prevTokenType != OPS_TOKEN && findMode) {
+                // todo if prevTokenType == OPS_TOKEN back to the prev value token
+                endFind();
+            } else {
+                // unexpected character token
+                String errorMessage = createErrorContextText(sourceChars, this.readIndex);
+                throw new ExpressionException("syntax error, pos: " + this.readIndex + ", unexpected token '" + currentChar + "', Expression[... " + errorMessage + " ]");
+            }
+        }
+    }
+
+    protected Number createBigDecimal(int beginIndex, int endIndex, boolean negate) {
+        BigDecimal value = new BigDecimal(sourceChars, offset + beginIndex, endIndex - beginIndex);
+        return negate ? value.negate() : value;
+    }
+
+    private void handleParseFunctionToken(String identifierValue, boolean oneLevelAccess, List<String> variableKeys, ExprParserContext exprParserContext) {
+        // forward method or function
+        int localOffset = ++this.readIndex;
+        int bracketCount = 1;
+        char currentChar = 0;
+        while (readable()) {
+            currentChar = read();
+            if (currentChar == '\'') {
+                // find end ',ignore
+                this.scanString();
+                ++this.readIndex;
+                continue;
+            }
+            ++this.readIndex;
+            if (currentChar == ')') {
+                --bracketCount;
+            } else if (currentChar == '(') {
+                ++bracketCount;
+            }
+            if (bracketCount == 0) {
+                break;
+            }
+        }
+        if (currentChar != ')') {
             String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", unexpected token '" + currentChar + "', Expression[... " + errorMessage + " ]");
+            throw new ExpressionException("syntax error, pos: " + this.readIndex + ",Expression[... " + errorMessage + " ], end token ')' not found !");
+        }
+        String args = new String(sourceChars, localOffset + this.offset, this.readIndex - localOffset - 1);
+        this.tokenType = FUN_TOKEN;
+//        checkTokenSyntaxError();
+        checkValueTokenSyntaxError();
+        if (oneLevelAccess) {
+            // static Function
+            // @see @function
+            parseFunToken(exprParserContext, identifierValue, args);
+        } else {
+            // reflect invoke : obj.method(...args)
+            parseMethodToken(exprParserContext, variableKeys, identifierValue, args);
         }
     }
 
@@ -1246,8 +1387,17 @@ public class ExprParser extends Expression {
         return this.readIndex < count;
     }
 
+    final boolean isEnd() {
+        return this.readIndex >= count;
+    }
+
     final char read() {
         return this.sourceChars[offset + this.readIndex];
+    }
+
+    final void endFind() {
+        findEndIndex = offset + readIndex;
+        this.readIndex = count;
     }
 
     /**
@@ -1295,18 +1445,26 @@ public class ExprParser extends Expression {
         }
     }
 
-    final static boolean isNotGroupTokenValue(int tokenType) {
-//        switch (tokenType) {
-//            case NUM_TOKEN:
-//            case STR_TOKEN:
-//            case IDENTIFIER_TOKEN:
-//            case ARR_TOKEN:
-//            case FUN_TOKEN:
-//                return false;
-//            default:
-//                return true;
-//        }
-        return tokenType < NUM_TOKEN;
+//    final static boolean isNotGroupTokenValue(int tokenType) {
+//        return tokenType < NUM_TOKEN;
+//    }
+
+    // 1.可以直接排除前置token类型一定不是VALUE_TOKEN
+    // 2.只需要校验不能紧跟')'
+    private void checkValueTokenSyntaxError() {
+        if (this.prevTokenType == BRACKET_END_TOKEN) {
+            String readSource = createErrorContextText(sourceChars, this.readIndex);
+            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", value cannot appear after the closing bracket, Expression[" + readSource + "]");
+        }
+    }
+
+    // 1.可以直接排除前置token类型一定不是OPS_TOKEN
+    // 2.只需要校验不能紧跟'('
+    private void checkOpsTokenSyntaxError() {
+        if (this.prevTokenType == BRACKET_TOKEN) {
+            String readSource = createErrorContextText(sourceChars, this.readIndex);
+            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", unsupported operation symbols follow '(' , Expression[" + readSource + "]");
+        }
     }
 
     private void checkTokenSyntaxError() {
@@ -1319,7 +1477,7 @@ public class ExprParser extends Expression {
                 throw new ExpressionException("syntax error, pos: " + this.readIndex + ", duplicate token operation, Expression[" + readSource + "]");
             } else if (preGroupValue == GROUP_TOKEN_VALUE) {
                 String readSource = createErrorContextText(sourceChars, this.readIndex);
-                throw new ExpressionException("syntax error, pos: " + this.readIndex + ", missing operation symbol between values, Expression[" + readSource + "]");
+                throw new ExpressionException("syntax error, pos: " + this.readIndex + ", missing operation symbol, Expression[" + readSource + "]");
             }
         } else {
             // value token before is )
@@ -1340,8 +1498,8 @@ public class ExprParser extends Expression {
     private void checkBeforeBracketEndTokenSyntaxError() {
         int preGroupValue = getTokenTypeGroup(this.prevTokenType);
         if (this.prevTokenType == BRACKET_TOKEN || preGroupValue == GROUP_TOKEN_OPS) {
-            String readSource = createErrorContextText(sourceChars, this.readIndex);
-            throw new ExpressionException("syntax error, pos: " + this.readIndex + ",unexpected symbol : '" + this.errorMsg + "', Expression[" + readSource + "]");
+            String readSource = createErrorContextText(sourceChars, --this.readIndex);
+            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", unexpected symbol : ')', Expression[" + readSource + "]");
         }
     }
 
@@ -1349,13 +1507,21 @@ public class ExprParser extends Expression {
     // expected ops type,  unexpected ) && value ,
     private void checkBeforeBracketTokenSyntaxError() {
         int preGroupValue = getTokenTypeGroup(this.prevTokenType);
-        if (this.prevTokenType == BRACKET_END_TOKEN && preGroupValue == GROUP_TOKEN_VALUE) {
-            String readSource = createErrorContextText(sourceChars, this.readIndex);
-            throw new ExpressionException("syntax error, pos: " + this.readIndex + ",unexpected symbol : '" + this.errorMsg + "', Expression[" + readSource + "]");
+        if (this.prevTokenType == BRACKET_END_TOKEN || preGroupValue == GROUP_TOKEN_VALUE) {
+            String readSource = createErrorContextText(sourceChars, --this.readIndex);
+            throw new ExpressionException("syntax error, pos: " + this.readIndex + ",unexpected symbol : '(', Expression[" + readSource + "]");
         }
     }
 
-    private void throwOperationNotSupported() {
+    private void throwSyntaxError() {
+        if (findMode) {
+            endFind();
+        } else {
+            throwUnsupportedError();
+        }
+    }
+
+    private void throwUnsupportedError() {
         String readSource = createErrorContextText(sourceChars, this.readIndex);
         throw new ExpressionException("syntax error, pos: " + this.readIndex + ", unexpected symbol '" + this.errorMsg + "', Expression[" + readSource + "]");
     }
@@ -1378,7 +1544,7 @@ public class ExprParser extends Expression {
     final static boolean isVariableAppend(char c) {
         if (Character.isLetter(c)) return true;
         if (c <= ' ') return false;
-        return c == '.' || c == '_' || c == '$' || isDigit(c) || c == '[' /*|| c == '('*/;
+        return /*c == '.' || */c == '_' || c == '$' || isDigit(c) /*|| c == '[' *//*|| c == '('*/;
     }
 
     final static int digit(char c, int numberRadix) {
@@ -1444,39 +1610,48 @@ public class ExprParser extends Expression {
      * +-/*%**（加(+)减(-)乘(*)除(/)余(%)及指数(**)）
      */
     private ElOperator getOperator(char symbol) {
-        switch (symbol) {
-            case '*':
-                return this.operator = ElOperator.MULTI;
-            case '/':
-                return this.operator = ElOperator.DIVISION;
-            case '%':
-                return this.operator = ElOperator.MOD;
-            case '+':
-                return this.operator = ElOperator.PLUS;
-            case '-':
-                return this.operator = ElOperator.MINUS;
-            case '&':
-                return this.operator = ElOperator.AND;
-            case '^':
-                return this.operator = ElOperator.XOR;
-            case '|':
-                return this.operator = ElOperator.OR;
-            case '!':
-                // &&(41) ||(42)  !=(43)
-                return this.operator = ElOperator.NOT;
-            case '>':
-                return this.operator = ElOperator.GT;
-            case '<':
-                return this.operator = ElOperator.LT;
-            case '=':
-                return this.operator = ElOperator.EQ;
-            case ':':
-                return this.operator = ElOperator.COLON;
-            case '?':
-                return this.operator = ElOperator.QUESTION;
-            default:
-                return /*this.operator = */null;
+        if (symbol >= ElOperator.INDEXS_OPERATORS.length) {
+            return null;
         }
+        ElOperator elOperator = ElOperator.INDEXS_OPERATORS[symbol];
+        if (elOperator != null) {
+            this.operator = elOperator;
+        }
+        return elOperator;
+
+//        switch (symbol) {
+//            case '*':
+//                return this.operator = ElOperator.MULTI;
+//            case '/':
+//                return this.operator = ElOperator.DIVISION;
+//            case '%':
+//                return this.operator = ElOperator.MOD;
+//            case '+':
+//                return this.operator = ElOperator.PLUS;
+//            case '-':
+//                return this.operator = ElOperator.MINUS;
+//            case '&':
+//                return this.operator = ElOperator.AND;
+//            case '^':
+//                return this.operator = ElOperator.XOR;
+//            case '|':
+//                return this.operator = ElOperator.OR;
+//            case '!':
+//                // &&(41) ||(42)  !=(43)
+//                return this.operator = ElOperator.NOT;
+//            case '>':
+//                return this.operator = ElOperator.GT;
+//            case '<':
+//                return this.operator = ElOperator.LT;
+//            case '=':
+//                return this.operator = ElOperator.EQ;
+//            case ':':
+//                return this.operator = ElOperator.COLON;
+//            case '?':
+//                return this.operator = ElOperator.QUESTION;
+//            default:
+//                return /*this.operator = */null;
+//        }
     }
 
     /**
@@ -1490,7 +1665,7 @@ public class ExprParser extends Expression {
     }
 
     public Object evaluate() {
-        return exprEvaluator.evaluate(EvaluatorContext.EMPTY, EvaluateEnvironment.DEFAULT);
+        return doEvaluate(EvaluatorContext.EMPTY, EvaluateEnvironment.DEFAULT);
     }
 
     public Object evaluate(Object context) {
@@ -1510,12 +1685,12 @@ public class ExprParser extends Expression {
     }
 
     @Override
-    public Object evaluate(Map context, EvaluateEnvironment evaluateEnvironment) {
+    public final Object evaluate(Map context, EvaluateEnvironment evaluateEnvironment) {
         return doEvaluate(variableCount == 0 ? EvaluatorContext.EMPTY : evaluatorContext.cloneContext().invokeVariables(tailChainInvoker, context, variableCount), evaluateEnvironment);
     }
 
     @Override
-    public Object evaluate(Object context, EvaluateEnvironment evaluateEnvironment) {
+    public final Object evaluate(Object context, EvaluateEnvironment evaluateEnvironment) {
         return doEvaluate(variableCount == 0 ? EvaluatorContext.EMPTY : evaluatorContext.cloneContext().invokeVariables(tailChainInvoker, context, variableCount), evaluateEnvironment);
     }
 
@@ -1529,6 +1704,16 @@ public class ExprParser extends Expression {
         } else {
             return doEvaluate(evaluatorContext.cloneContext().invokeVariables(tailChainInvoker, evaluateEnvironment.getContext(), variableCount), evaluateEnvironment);
         }
+    }
+
+    @Override
+    public final Object evaluateParameters(Object... params) {
+        return doEvaluate(new EvaluatorContext.ParametersImpl(params), EvaluateEnvironment.DEFAULT);
+    }
+
+    @Override
+    public final Object evaluateParameters(EvaluateEnvironment evaluateEnvironment, Object... params) {
+        return doEvaluate(new EvaluatorContext.ParametersImpl(params), evaluateEnvironment);
     }
 
     // evaluate entrance
@@ -1679,8 +1864,9 @@ public class ExprParser extends Expression {
         }
     }
 
-    protected static String createErrorContextText(char[] buf, int at) {
+    protected String createErrorContextText(char[] buf, int readIndex) {
         try {
+            int at = offset + readIndex;
             int len = buf.length;
             char[] text = new char[100];
             int count;

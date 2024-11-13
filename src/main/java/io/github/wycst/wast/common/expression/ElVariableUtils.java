@@ -12,7 +12,7 @@ import java.util.Map;
  * @Date: 2022/10/30 0:37
  * @Description:
  */
-public class ElVariableUtils {
+public final class ElVariableUtils {
 
     /**
      * 根据链式表达式构建变量执行模型
@@ -55,52 +55,30 @@ public class ElVariableUtils {
     public static ElVariableInvoker build(List<String> keys, Map<String, ElVariableInvoker> variableInvokes, Map<String, ElVariableInvoker> tailNodeInvokes) {
         ElVariableInvoker prev = null;
         String path = null;
-        StringBuilder stringBuilder = new StringBuilder();
         int index = 0;
         for (String key : keys) {
             boolean isRoot = index++ == 0;
+            path = isRoot ? key : path + '.' + key;
             boolean isChildEL = key.charAt(0) == '(';
-            stringBuilder.append(key);
-            path = stringBuilder.toString();
             ElVariableInvoker variableInvoke = variableInvokes.get(path);
             if (variableInvoke == null) {
                 if(isRoot) {
-                    variableInvoke = isChildEL ? new ElVariableInvoker.ChildElVariableInvoke(new String(key.substring(1, key.length() - 1))) : new ElVariableInvoker.RootVariableInvoke(key.intern());
+                    variableInvoke = isChildEL ? new ElVariableInvoker.ChildElImpl(new String(key.substring(1, key.length() - 1))) : new ElVariableInvoker.RootImpl(key.intern());
                 } else {
-                    variableInvoke = isChildEL ? new ElVariableInvoker.ChildElVariableInvoke(new String(key.substring(1, key.length() - 1)), prev) : new ElVariableInvoker(key, prev);
+                    variableInvoke = isChildEL ? new ElVariableInvoker.ChildElImpl(new String(key.substring(1, key.length() - 1)), prev) : new ElVariableInvoker(key, prev);
                 }
-                variableInvokes.put(path, variableInvoke);
+                variableInvokes.put(path, variableInvoke.index(variableInvokes.size()));
                 if(prev != null) {
                     prev.hasChildren = true;
                 }
             }
             prev = variableInvoke;
-            stringBuilder.append(".");
         }
 
         ElVariableInvoker result = prev;
-
-        // prev is the tailInvoke
-//        Set<String> variableKeys = tailNodeInvokes.keySet();
-//        boolean ignoreFlag = false;
-//        Set<String> removeKeys = new HashSet<String>();
-//        for (String variableKey : variableKeys) {
-//            if (variableKey.startsWith(path)) {
-//                ignoreFlag = true;
-//                break;
-//            }
-//            if (path.startsWith(variableKey)) {
-//                removeKeys.add(variableKey);
-//            }
-//        }
-//        if (!ignoreFlag) {
-//            tailNodeInvokes.put(path, result);
-//            for (String removeKey : removeKeys) {
-//                tailNodeInvokes.remove(removeKey);
-//            }
-//        }
-
-        tailNodeInvokes.put(path, result);
+        if(!tailNodeInvokes.containsKey(path)) {
+            tailNodeInvokes.put(path, result.tailIndex(tailNodeInvokes.size()));
+        }
         result.setTail(true);
         return result;
     }
@@ -117,12 +95,13 @@ public class ElVariableUtils {
         boolean isChildEL = key.charAt(0) == '(';
         ElVariableInvoker variableInvoke = variableInvokes.get(key);
         if (variableInvoke == null) {
-            variableInvoke = isChildEL ? new ElVariableInvoker.ChildElVariableInvoke(new String(key.substring(1, key.length() - 1))) : new ElVariableInvoker.RootVariableInvoke(key);
-            variableInvokes.put(key, variableInvoke);
+            variableInvoke = isChildEL ? new ElVariableInvoker.ChildElImpl(new String(key.substring(1, key.length() - 1))) : new ElVariableInvoker.RootImpl(key);
+            variableInvokes.put(key, variableInvoke.index(variableInvokes.size()));
         }
         // add or replace
-        tailNodeInvokes.put(key, variableInvoke);
-
+        if(!tailNodeInvokes.containsKey(key)) {
+            tailNodeInvokes.put(key, variableInvoke.tailIndex(tailNodeInvokes.size()));
+        }
         variableInvoke.setTail(true);
         return variableInvoke;
     }

@@ -9,7 +9,8 @@ import io.github.wycst.wast.common.expression.ExprFunction;
 import io.github.wycst.wast.common.expression.Expression;
 import io.github.wycst.wast.common.expression.ExpressionException;
 import io.github.wycst.wast.common.expression.functions.JavassistExprFunction;
-import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
+import io.github.wycst.wast.common.idgenerate.providers.IdGenerator;
+import io.github.wycst.wast.common.reflect.ClassStrucWrap;
 import io.github.wycst.wast.common.reflect.GetterInfo;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
@@ -35,6 +36,7 @@ final class CompilerCodeUtils {
             "package io.github.wycst.wast.common.expression.compile;\r\n" +
                     "import io.github.wycst.wast.common.expression.ExprFunction;\r\n" +
                     "import io.github.wycst.wast.common.expression.ElVariableInvoker;\r\n" +
+                    "${importSet}" +
                     "public class ${className} extends CompilerExpression {\r\n" +
                     "\r\n" +
                     "\tpublic ${className}(CompilerEnvironment environment){\r\n" +
@@ -44,6 +46,11 @@ final class CompilerCodeUtils {
                     "\r\n" +
                     "${declareInvokes}" +
                     "${registerFunctions}" +
+                    "\r\n" +
+                    "\tprotected Object invokeParameters(Object[] parameters) {\r\n" +
+                    "${assignmentArrayVariables}" +
+                    "\t\treturn ${expressionCode};\r\n" +
+                    "\t}\r\n" +
                     "\r\n" +
                     "\tprotected Object invoke(Object context) {\r\n" +
                     "${assignmentObjectVariables}" +
@@ -84,8 +91,8 @@ final class CompilerCodeUtils {
         PRIMITIVE_VALUE_METHODS.put(Byte.class, byteType);
     }
 
-    static String generateJavaCode(String expr, CompilerEnvironment environment) {
-        return generateJavaCode(expr, generateClassName(), environment);
+    static String generateNativeJavaCode(String expr, CompilerEnvironment environment) {
+        return generateNativeJavaCode(expr, generateClassName(), environment);
     }
 
     /**
@@ -96,31 +103,28 @@ final class CompilerCodeUtils {
      * @param environment
      * @return
      */
-    static String generateJavaCode(String expr, String expressionClassName, CompilerEnvironment environment) {
+    static String generateNativeJavaCode(String expr, String expressionClassName, CompilerEnvironment environment) {
         boolean skipParse = environment.isSkipParse();
         String exprCode;
-        String sourceCode;
         if (skipParse) {
             environment.initTypeNameInvokers();
-            expr = prepareElOnSkipMode(expr, environment);
-            sourceCode = generateJavaSourceCode(expr, expressionClassName, environment);
+            exprCode = prepareElOnSkipMode(expr, environment);
         } else {
             // prepare parse expr and generate code as new el
             CompilerExprParser exprParser = new CompilerExprParser(expr);
             exprCode = exprParser.code();
             environment.initTypeNameInvokers(exprParser);
-            sourceCode = generateJavaSourceCode(exprCode, expressionClassName, environment);
         }
-        return sourceCode;
+        return generateNativeJavaSourceCode(exprCode, expressionClassName, environment);
     }
 
     static String generateClassName() {
-        return "CEL$_" + ATOMIC_LONG.getAndIncrement();
+        return "CEL$_" + IdGenerator.hex();
     }
 
     static CompilerExpression compileByNative(String expr, CompilerEnvironment environment) {
         String expressionClassName = generateClassName();
-        final String javaCode = generateJavaCode(expr, expressionClassName, environment);
+        final String javaCode = generateNativeJavaCode(expr, expressionClassName, environment);
         try {
             Class<?> clazz = JDKCompiler.compileJavaSource(new JavaSourceObject(PACKAGE_NAME, expressionClassName, javaCode));
             Constructor<?> clazzConstructor = clazz.getConstructor(CompilerEnvironment.class);
@@ -215,12 +219,12 @@ final class CompilerCodeUtils {
         constructorBodyBuilder.append("}");
 
         // supported multi line script
-        if(environment.isSkipParse()) {
+        if (environment.isSkipParse()) {
             int returnStatementIndex = expr.lastIndexOf("return ");
-            if(returnStatementIndex > -1) {
+            if (returnStatementIndex > -1) {
                 invokeObjMethodBuilder.append("\r\n\t\t").append(expr, 0, returnStatementIndex).append("\r\n");
                 invokeMapMethodBuilder.append("\r\n\t\t").append(expr, 0, returnStatementIndex).append("\r\n");
-                expr = new String(expr.substring(returnStatementIndex + 8));
+                expr = new String(expr.substring(returnStatementIndex + 7));
             }
         }
 
@@ -435,10 +439,11 @@ final class CompilerCodeUtils {
      * @param environment
      * @return
      */
-    private static String generateJavaSourceCode(String source, String expressionClassName, CompilerEnvironment environment) {
+    private static String generateNativeJavaSourceCode(String source, String expressionClassName, CompilerEnvironment environment) {
         StringBuilder initInvokesBuilder = new StringBuilder();
         StringBuilder declareInvokesBuilder = new StringBuilder();
         StringBuilder assignmentObjectVariablesBuilder = new StringBuilder();
+        StringBuilder assignmentArrayVariables = new StringBuilder();
         StringBuilder assignmentMapVariablesBuilder = new StringBuilder();
         StringBuilder registerFunctionsBuilder = new StringBuilder();
 
@@ -460,6 +465,15 @@ final class CompilerCodeUtils {
             int index = invoker.getIndex();
             // default type
             tailTypes.put(index, typeNameInvoker.type);
+
+            Class type = typeNameInvoker.type;
+            assignmentArrayVariables.append("\t\t").append(typeNameInvoker.type.getCanonicalName()).append(" ").append(defineJavaIdentifier).append(" = ");
+            if(type.isPrimitive() && EnvUtils.JDK_7_BELOW) {
+                String primitiveMethodValue = PRIMITIVE_VALUE_METHODS.get(type).getValue();
+                assignmentArrayVariables.append(primitiveMethodValue).append("(").append("parameters[").append(index).append("]);\r\n");
+            } else {
+                assignmentArrayVariables.append("(").append(type.getCanonicalName()).append(") parameters[").append(index).append("];\r\n");
+            }
 
             if (defineIndexs.add(index)) {
                 initInvokesBuilder.append("\t\tthis._invoke_").append(index).append(" = getInvokerAt(").append(ofIndex).append(");\r\n");
@@ -522,24 +536,32 @@ final class CompilerCodeUtils {
         }
 
         String expressionCode = source;
-        if(environment.isSkipParse()) {
-            int returnStatementIndex = source.lastIndexOf(" return ");
-            if(returnStatementIndex > -1) {
+        if (environment.isSkipParse()) {
+            int returnStatementIndex = source.lastIndexOf("return ");
+            if (returnStatementIndex > -1) {
                 assignmentObjectVariablesBuilder.append("\r\n\t\t").append(source, 0, returnStatementIndex).append("\r\n");
                 assignmentMapVariablesBuilder.append("\r\n\t\t").append(source, 0, returnStatementIndex).append("\r\n");
                 int len = source.length();
                 while (len > 0 && source.charAt(len - 1) == ';') {
                     --len;
                 }
-                expressionCode = new String(source.substring(returnStatementIndex + 8, len));
+                expressionCode = new String(source.substring(returnStatementIndex + 7, len));
             }
         }
 
+
+        StringBuilder importSetBuilder = new StringBuilder();
+        Set<Class> importSet = environment.getImportSet();
+        for (Class iptClass : importSet) {
+            importSetBuilder.append("import " + iptClass.getName() + ";\r\n");
+        }
+        vars.put("importSet", importSetBuilder);
         vars.put("className", expressionClassName);
         vars.put("expressionCode", expressionCode);
         vars.put("initInvokes", initInvokesBuilder);
         vars.put("declareInvokes", declareInvokesBuilder);
         vars.put("assignmentObjectVariables", assignmentObjectVariablesBuilder);
+        vars.put("assignmentArrayVariables", assignmentArrayVariables);
         vars.put("assignmentMapVariables", assignmentMapVariablesBuilder);
         vars.put("registerFunctions", registerFunctionsBuilder);
 
@@ -585,19 +607,36 @@ final class CompilerCodeUtils {
                 // use 'context' as context
                 String typeName = null;
                 Class<?> defineType = definedTypes.get(invokeUniqueKey);
-
+                boolean isDefineType = defineType != null;
                 if (defineType == null && tail && tailTypes.containsKey(index)) {
                     defineType = tailTypes.get(index);
                 }
-
                 if (defineType != null) {
                     typeName = getTypeName(defineType); // defineType.getName();
-                    objVariablesBuilder.append(typeName).append(" ").append(defineJavaIdentifier).append(" = ");
                     mapVariablesBuilder.append(typeName).append(" ").append(defineJavaIdentifier).append(" = ");
+                    boolean pojoGetterMatched = false;
+                    Class objectParameterClass = environment.getObjectParameterClass();
+                    if (objectParameterClass != null) {
+                        ReflectConsts.ClassCategory classCategory = ReflectConsts.getClassCategory(objectParameterClass);
+                        if (classCategory == ReflectConsts.ClassCategory.ObjectCategory) {
+                            ClassStrucWrap parentStructureWrapper = ClassStrucWrap.get(objectParameterClass);
+                            GetterInfo getterInfo = parentStructureWrapper.matchGenerateGetterInfo(key);
+                            if (getterInfo != null && getterInfo.isPublic()) {
+                                if (!isDefineType || defineType == getterInfo.getReturnType()) {
+                                    objVariablesBuilder.append(getterInfo.getReturnType().getCanonicalName()).append(" ").append(defineJavaIdentifier).append(" = ");
+                                    objVariablesBuilder.append("((").append(objectParameterClass.getCanonicalName()).append(")context).").append(getterInfo.generateCode());
+                                    objVariablesBuilder.append(";\r\n");
+                                    pojoGetterMatched = true;
+                                }
+                            }
+                        }
+                    }
+                    if (!pojoGetterMatched) {
+                        objVariablesBuilder.append(typeName).append(" ").append(defineJavaIdentifier).append(" = ");
+                    }
                     if (defineType.isPrimitive()) {
                         // 基本类型不能强转（T）为Object类型的对象，使用类似intValue/doubleValue过渡
                         String primitiveMethodValue = PRIMITIVE_VALUE_METHODS.get(defineType).getValue();
-                        objVariablesBuilder.append(primitiveMethodValue).append("(");
                         mapVariablesBuilder.append(primitiveMethodValue).append("(");
                         if (!childEl) {
                             // T v = getValue(context.get(key),T.class);
@@ -606,13 +645,15 @@ final class CompilerCodeUtils {
                             // T v = getValue(_invoke_2.invokeValue(context),T.class);
                             mapVariablesBuilder.append("_invoke_").append(index).append(".invokeValue(context)");
                         }
-                        objVariablesBuilder.append("_invoke_").append(index).append(".invokeValue(context)");
-
-                        objVariablesBuilder.append(");\r\n");
                         mapVariablesBuilder.append(");\r\n");
+
+                        if (!pojoGetterMatched) {
+                            objVariablesBuilder.append(primitiveMethodValue).append("(");
+                            objVariablesBuilder.append("_invoke_").append(index).append(".invokeValue(context)");
+                            objVariablesBuilder.append(");\r\n");
+                        }
                     } else {
                         // 使用（T）强制转换
-                        objVariablesBuilder.append("(").append(typeName).append(") ");
                         mapVariablesBuilder.append("(").append(typeName).append(") ");
                         if (!childEl) {
                             // T v = (T) context.get(key);
@@ -621,11 +662,14 @@ final class CompilerCodeUtils {
                             // T v = (T) _invoke_2.invokeValue(context);
                             mapVariablesBuilder.append("_invoke_").append(index).append(".invokeValue(context);\r\n");
                         }
-                        if(environment.isSupportedContextRoot()) {
-                            objVariablesBuilder.append("(").append("context instanceof ").append(typeName).append(" ? context : ");
-                            objVariablesBuilder.append("_invoke_").append(index).append(".invokeValue(context));\r\n");
-                        } else {
-                            objVariablesBuilder.append("_invoke_").append(index).append(".invokeValue(context);\r\n");
+                        if (!pojoGetterMatched) {
+                            objVariablesBuilder.append("(").append(typeName).append(") ");
+                            if (environment.isSupportedContextRoot()) {
+                                objVariablesBuilder.append("(").append("context instanceof ").append(typeName).append(" ? context : ");
+                                objVariablesBuilder.append("_invoke_").append(index).append(".invokeValue(context));\r\n");
+                            } else {
+                                objVariablesBuilder.append("_invoke_").append(index).append(".invokeValue(context);\r\n");
+                            }
                         }
                         // 非基本类型添加到推导映射中
                         deductionTypes.put(invokeUniqueKey, defineType);
@@ -665,12 +709,12 @@ final class CompilerCodeUtils {
                         ReflectConsts.ClassCategory classCategory = ReflectConsts.getClassCategory(parentType);
                         if (classCategory == ReflectConsts.ClassCategory.ObjectCategory) {
                             // pojo checks whether there is a get method declared by public, and deduces the return type
-                            ClassStructureWrapper parentStructureWrapper = ClassStructureWrapper.get(parentType);
+                            ClassStrucWrap parentStructureWrapper = ClassStrucWrap.get(parentType);
                             getterInfo = parentStructureWrapper.matchGenerateGetterInfo(key); // getGetterInfo(parentStructureWrapper, key);
                             if (getterInfo != null) {
-                                if(!getterInfo.isPublic()) {
+                                if (!getterInfo.isPublic()) {
                                     forceConversionType = true;
-                                    if(EnvUtils.JDK_7_BELOW && getterInfo.isPrimitive()) {
+                                    if (EnvUtils.JDK_7_BELOW && getterInfo.isPrimitive()) {
                                         forcePrimitiveType = true;
                                     }
                                 } else {

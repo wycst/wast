@@ -48,6 +48,7 @@ public class ExprEvaluator {
     boolean constant;
     Object result;
     static final int OPTIMIZE_DEPTH_VALUE = 1 << 10;
+    static final Object[] EMPTY_ARGS = new Object[0];
 
     // use by code()
     public boolean isConstantExpr() {
@@ -93,6 +94,7 @@ public class ExprEvaluator {
         this.right = right;
     }
 
+    // Not the best performance issue
     String[] parseStringArr(String splitStr, AtomicInteger atomicInteger, AtomicBoolean strArr, AtomicBoolean doubleArr) {
         int length = splitStr.length();
         boolean isStrArr = false, isDoubleArr = false;
@@ -101,7 +103,7 @@ public class ExprEvaluator {
         int arrLen = 0;
         int bracketCount = 0;
         int bigBracketCount = 0;
-        for (int i = 0; i < length; i++) {
+        for (int i = 0; i < length; ++i) {
             char ch = splitStr.charAt(i);
             if (!isStrArr && (/*ch == '"' || */ch == '\'')) {
                 isStrArr = true;
@@ -110,13 +112,13 @@ public class ExprEvaluator {
                 isDoubleArr = true;
             }
             if (ch == '(') {
-                bracketCount++;
+                ++bracketCount;
             } else if (ch == ')') {
-                bracketCount--;
+                --bracketCount;
             } else if (ch == '{') {
-                bigBracketCount++;
+                ++bigBracketCount;
             } else if (ch == '}') {
-                bigBracketCount--;
+                --bigBracketCount;
             } else {
                 if (bracketCount == 0 && bigBracketCount == 0 && ch == ',') {
                     if (arrLen == strings.length) {
@@ -157,7 +159,7 @@ public class ExprEvaluator {
 
         int length = splitStr.length();
         if (length == 0) {
-            this.result = new Object[0];
+            this.result = EMPTY_ARGS;
             return;
         }
 
@@ -181,7 +183,7 @@ public class ExprEvaluator {
             }
         }
 
-        for (int i = 0; i < arrLen; i++) {
+        for (int i = 0; i < arrLen; ++i) {
             String val = strings[i];
             if (isStrArr) {
                 // 字符串数组
@@ -267,63 +269,28 @@ public class ExprEvaluator {
             }
 
             this.constant = left.constant && right.constant;
-            boolean isDouble = leftValue instanceof Double || rightValue instanceof Double;
+            // boolean isDouble = leftValue instanceof Double || rightValue instanceof Double;
             // use for debug
             // System.out.println("leftValue: " + leftValue + " rightValue: " + rightValue + " opsType: " + opsType);
             switch (operator) {
                 case MULTI:
                     // *乘法
-                    if (isDouble) {
-                        result = ((Number) leftValue).doubleValue() * ((Number) rightValue).doubleValue();
-                    } else {
-                        result = ((Number) leftValue).longValue() * ((Number) rightValue).longValue();
-                    }
-                    return result;
+                    return result = ExprCalculateUtils.multiply(leftValue, rightValue, evaluateEnvironment);
                 case DIVISION:
                     // /除法
-                    if (isDouble) {
-                        result = ((Number) leftValue).doubleValue() / ((Number) rightValue).doubleValue();
-                    } else {
-                        result = ((Number) leftValue).longValue() / ((Number) rightValue).longValue();
-                    }
-                    return result;
+                    return result = ExprCalculateUtils.divide(leftValue, rightValue, evaluateEnvironment);
                 case MOD:
                     // %取余数
-                    if (isDouble) {
-                        result = ((Number) leftValue).doubleValue() % ((Number) rightValue).doubleValue();
-                    } else {
-                        result = ((Number) leftValue).longValue() % ((Number) rightValue).longValue();
-                    }
-                    return result;
+                    return result = ExprCalculateUtils.mod(leftValue, rightValue, evaluateEnvironment);
                 case EXP:
                     // **指数，平方/根
-                    if (isDouble) {
-                        result = Math.pow(((Number) leftValue).doubleValue(), ((Number) rightValue).doubleValue());
-                    } else {
-                        result = Math.pow(((Number) leftValue).longValue(), ((Number) rightValue).longValue());
-                    }
-                    return result;
+                    return result = ExprCalculateUtils.pow(leftValue, rightValue, evaluateEnvironment);
                 case PLUS:
                     // +加法
-                    if (leftValue instanceof Number && rightValue instanceof Number) {
-                        // 数值加法
-                        if (isDouble) {
-                            result = ((Number) leftValue).doubleValue() + ((Number) rightValue).doubleValue();
-                        } else {
-                            result = ((Number) leftValue).longValue() + ((Number) rightValue).longValue();
-                        }
-                        return result;
-                    }
-                    // 字符串加法
-                    return leftValue + String.valueOf(rightValue);
+                    return result = ExprCalculateUtils.plus(leftValue, rightValue, evaluateEnvironment);
                 case MINUS:
                     // -减法（理论上代码不可达） 因为'-'统一转化为了'+'(负)
-                    if (isDouble) {
-                        result = ((Number) leftValue).doubleValue() - ((Number) rightValue).doubleValue();
-                    } else {
-                        result = ((Number) leftValue).longValue() - ((Number) rightValue).longValue();
-                    }
-                    return result;
+                    return result = ExprCalculateUtils.subtract(leftValue, rightValue, evaluateEnvironment);
                 case BIT_RIGHT:
                     // >> 位运算右移
                     return result = ((Number) leftValue).longValue() >> ((Number) rightValue).longValue();
@@ -387,7 +354,7 @@ public class ExprEvaluator {
                     return result = !this.evaluateIn(leftValue, rightValue);
                 case COLON:
                     // : 三目运算结果, 不支持单独运算
-                    throw new ExpressionException(" 不支持单独使用冒号运算符: ':'");
+                    throw new ExpressionException("cannot use colon operator alone: ':'");
                 case QUESTION:
                     // ? 三目运算条件
                     return right.evaluateTernary(context, evaluateEnvironment, (Boolean) leftValue, left.constant);
@@ -398,7 +365,7 @@ public class ExprEvaluator {
             Object bracketValue = right.evaluate(context, evaluateEnvironment);
             this.constant = right.constant;
             if (negate) {
-                return result = ExprUtils.negate(bracketValue);
+                return result = ExprCalculateUtils.negate(bracketValue);
             }
             if (logicalNot) {
                 return result = bracketValue == Boolean.FALSE || bracketValue == null;
@@ -429,7 +396,7 @@ public class ExprEvaluator {
             }
         } else if (rightValue.getClass().isArray()) {
             int length = Array.getLength(rightValue);
-            for (int i = 0; i < length; i++) {
+            for (int i = 0; i < length; ++i) {
                 Object value = Array.get(rightValue, i);
                 boolean isEqual = this.execEquals(value, leftValue);
                 if (isEqual) {
@@ -514,14 +481,14 @@ public class ExprEvaluator {
             try {
                 obj = evaluatorContext.getContextValue(variableInvoker); // context.variableValues[variableInvoke.index];
                 if (obj == null && !evaluateEnvironment.isAllowVariableNull()) {
-                    throw new ExpressionException("Unresolved property or variable:'" + variableInvoker + "' by context");
+                    throw new ExpressionException("unresolved property or variable '" + variableInvoker + "' from context");
                 }
                 if (evaluateEnvironment.isAutoParseStringAsDouble() && obj instanceof String) {
                     obj = Double.parseDouble((String) obj);
                 }
             } catch (RuntimeException e) {
                 if (obj == null && evaluatorContext == null) {
-                    throw new ExpressionException("Unresolved property or variable:'" + variableInvoker + "' by context");
+                    throw new ExpressionException("unresolved property or variable '" + variableInvoker + "' from context");
                 } else {
                     throw e;
                 }
@@ -551,14 +518,14 @@ public class ExprEvaluator {
         @Override
         public String code() {
             StringBuilder builder = new StringBuilder();
-            if(negate) {
+            if (negate) {
                 builder.append('-');
             }
-            if(logicalNot) {
+            if (logicalNot) {
                 builder.append("!(");
             }
             builder.append("_$").append(variableInvoker.getIndex());
-            if(logicalNot) {
+            if (logicalNot) {
                 builder.append(")");
             }
             return builder.toString();
@@ -677,24 +644,26 @@ public class ExprEvaluator {
 
         @Override
         public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
-            Object leftValue = left.evaluate(context, evaluateEnvironment);
-            Object rightValue = right.evaluate(context, evaluateEnvironment);
-            // +plus
-            if (leftValue instanceof Number && rightValue instanceof Number) {
-                boolean isDouble = leftValue instanceof Double || rightValue instanceof Double;
-                if (isDouble) {
-                    return ((Number) leftValue).doubleValue() + ((Number) rightValue).doubleValue();
-                } else {
-                    return ((Number) leftValue).longValue() + ((Number) rightValue).longValue();
-                }
-            }
-            if(String.class.isInstance(leftValue) || String.class.isInstance(rightValue)) {
-                StringBuilder builder = context.getStringBuilder();
-                builder.append(leftValue).append(rightValue);
-                return builder.toString();
-            }
-
-            throw new ExpressionException("not supported operate '+'");
+//            Object leftValue = left.evaluate(context, evaluateEnvironment);
+//            Object rightValue = right.evaluate(context, evaluateEnvironment);
+//            // +plus
+//            if (leftValue instanceof Number && rightValue instanceof Number) {
+//                boolean isDouble = leftValue instanceof Double || rightValue instanceof Double;
+//                if (isDouble) {
+//                    return ((Number) leftValue).doubleValue() + ((Number) rightValue).doubleValue();
+//                } else {
+//                    return ((Number) leftValue).longValue() + ((Number) rightValue).longValue();
+//                }
+//            }
+//            if (String.class.isInstance(leftValue) || String.class.isInstance(rightValue)) {
+//                StringBuilder builder = context.getStringBuilder();
+//                builder.append(leftValue).append(rightValue);
+//                return builder.toString();
+//            }
+//
+//            throw new ExpressionException("not supported operate '+'");
+//
+            return ExprCalculateUtils.plus(left.evaluate(context, evaluateEnvironment), right.evaluate(context, evaluateEnvironment), evaluateEnvironment);
         }
     }
 
@@ -714,15 +683,16 @@ public class ExprEvaluator {
 
         @Override
         public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
-            Object leftValue = left.evaluate(context, evaluateEnvironment);
-            Object rightValue = right.evaluate(context, evaluateEnvironment);
-            boolean isDouble = leftValue instanceof Double || rightValue instanceof Double;
-            // -减法
-            if (isDouble) {
-                return ((Number) leftValue).doubleValue() - ((Number) rightValue).doubleValue();
-            } else {
-                return ((Number) leftValue).longValue() - ((Number) rightValue).longValue();
-            }
+//            Object leftValue = left.evaluate(context, evaluateEnvironment);
+//            Object rightValue = right.evaluate(context, evaluateEnvironment);
+//            boolean isDouble = leftValue instanceof Double || rightValue instanceof Double;
+//            // -减法
+//            if (isDouble) {
+//                return ((Number) leftValue).doubleValue() - ((Number) rightValue).doubleValue();
+//            } else {
+//                return ((Number) leftValue).longValue() - ((Number) rightValue).longValue();
+//            }
+            return ExprCalculateUtils.subtract(left.evaluate(context, evaluateEnvironment), right.evaluate(context, evaluateEnvironment), evaluateEnvironment);
         }
     }
 
@@ -741,15 +711,7 @@ public class ExprEvaluator {
 
         @Override
         public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
-            Object leftValue = left.evaluate(context, evaluateEnvironment);
-            Object rightValue = right.evaluate(context, evaluateEnvironment);
-            boolean isDouble = leftValue instanceof Double || rightValue instanceof Double;
-            // *乘法
-            if (isDouble) {
-                return ((Number) leftValue).doubleValue() * ((Number) rightValue).doubleValue();
-            } else {
-                return ((Number) leftValue).longValue() * ((Number) rightValue).longValue();
-            }
+            return ExprCalculateUtils.multiply(left.evaluate(context, evaluateEnvironment), right.evaluate(context, evaluateEnvironment), evaluateEnvironment);
         }
     }
 
@@ -768,15 +730,7 @@ public class ExprEvaluator {
 
         @Override
         public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
-            Object leftValue = left.evaluate(context, evaluateEnvironment);
-            Object rightValue = right.evaluate(context, evaluateEnvironment);
-            double powValue = Math.pow(((Number) leftValue).doubleValue(), ((Number) rightValue).doubleValue());
-            long longVal = (long) powValue;
-            if (longVal == powValue) {
-                return longVal;
-            } else {
-                return powValue;
-            }
+            return ExprCalculateUtils.pow(left.evaluate(context, evaluateEnvironment), right.evaluate(context, evaluateEnvironment), evaluateEnvironment);
         }
     }
 
@@ -795,15 +749,7 @@ public class ExprEvaluator {
 
         @Override
         public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
-            Object leftValue = left.evaluate(context, evaluateEnvironment);
-            Object rightValue = right.evaluate(context, evaluateEnvironment);
-            boolean isDouble = leftValue instanceof Double || rightValue instanceof Double;
-            // (/)
-            if (isDouble) {
-                return ((Number) leftValue).doubleValue() / ((Number) rightValue).doubleValue();
-            } else {
-                return ((Number) leftValue).longValue() / ((Number) rightValue).longValue();
-            }
+            return ExprCalculateUtils.divide(left.evaluate(context, evaluateEnvironment), right.evaluate(context, evaluateEnvironment), evaluateEnvironment);
         }
     }
 
@@ -825,14 +771,7 @@ public class ExprEvaluator {
 
         @Override
         public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
-            Object leftValue = left.evaluate(context, evaluateEnvironment);
-            Object rightValue = right.evaluate(context, evaluateEnvironment);
-            boolean isDouble = leftValue instanceof Double || rightValue instanceof Double;
-            if (isDouble) {
-                return ((Number) leftValue).doubleValue() % ((Number) rightValue).doubleValue();
-            } else {
-                return ((Number) leftValue).longValue() % ((Number) rightValue).longValue();
-            }
+            return ExprCalculateUtils.mod(left.evaluate(context, evaluateEnvironment), right.evaluate(context, evaluateEnvironment), evaluateEnvironment);
         }
     }
 
@@ -1221,7 +1160,7 @@ public class ExprEvaluator {
             StringBuilder builder = new StringBuilder();
             builder.append(functionName)
                     .append("(");
-            for (int i = 0; i < paramLength; i++) {
+            for (int i = 0; i < paramLength; ++i) {
                 builder.append(paramExprParsers[i].getEvaluator().code());
                 if (i < paramLength - 1) {
                     builder.append(",");
@@ -1251,19 +1190,25 @@ public class ExprEvaluator {
             this.paramLength = atomicInteger.get();
 
             ExprParser[] paramExprParsers = new ExprParser[paramLength];
-            for (int i = 0; i < paramLength; i++) {
+            for (int i = 0; i < paramLength; ++i) {
                 paramExprParsers[i] = new ExprChildParser(paramExprs[i], global);
             }
             this.paramExprParsers = paramExprParsers;
         }
 
+        protected final Object[] invokeParams(EvaluatorContext evaluatorContext, EvaluateEnvironment evaluateEnvironment) {
+            if (paramLength == 0) return EMPTY_ARGS;
+            Object[] params = new Object[paramLength];
+            for (int i = 0; i < paramLength; ++i) {
+                params[i] = paramExprParsers[i].doEvaluate(evaluatorContext, evaluateEnvironment);
+            }
+            return params;
+        }
+
         // 执行函数表达式
         Object evaluateFunction(EvaluatorContext evaluatorContext, EvaluateEnvironment evaluateEnvironment) {
             // 函数参数
-            Object[] params = new Object[paramLength];
-            for (int i = 0; i < paramLength; i++) {
-                params[i] = paramExprParsers[i].doEvaluate(evaluatorContext, evaluateEnvironment);
-            }
+            Object[] params = invokeParams(evaluatorContext, evaluateEnvironment);
             ExprFunction exprFunction = evaluateEnvironment.getFunction(this.functionName);
             if (exprFunction == null) {
                 throw new ExpressionException("function '" + functionName + "' is unregistered!");
@@ -1276,7 +1221,7 @@ public class ExprEvaluator {
             // 执行函数
             Object functionValue = this.evaluateFunction(evaluatorContext, evaluateEnvironment);
             if (negate) {
-                return ExprUtils.negate(functionValue);
+                return ExprCalculateUtils.negate(functionValue);
             }
             if (logicalNot) {
                 return functionValue == Boolean.FALSE || functionValue == null;
@@ -1305,7 +1250,7 @@ public class ExprEvaluator {
                     .append(".")
                     .append(functionName)
                     .append("(");
-            for (int i = 0; i < paramLength; i++) {
+            for (int i = 0; i < paramLength; ++i) {
                 builder.append(paramExprParsers[i].getEvaluator().code());
                 if (i < paramLength - 1) {
                     builder.append(",");
@@ -1328,20 +1273,20 @@ public class ExprEvaluator {
                 invokeObj = evaluatorContext.getContextValue(variableInvoker);
             } catch (RuntimeException e) {
                 if (invokeObj == null) {
-                    throw new ExpressionException("Unresolved property or variable:'" + variableInvoker + "' by context");
+                    throw new ExpressionException("unresolved property or variable: '" + variableInvoker + "' from context");
                 } else {
                     throw e;
                 }
             }
-
-            // 函数参数
-            Object[] params = new Object[paramLength];
-            for (int i = 0; i < paramLength; i++) {
-                params[i] = paramExprParsers[i].doEvaluate(evaluatorContext, evaluateEnvironment);
-            }
             try {
-                return ReflectUtils.invoke(invokeObj, functionName, params);
+                if (invokeObj == null && evaluateEnvironment.allowVariableNull) {
+                    return null;
+                }
+                return ReflectUtils.invoke(invokeObj, functionName, invokeParams(evaluatorContext, evaluateEnvironment));
             } catch (Throwable throwable) {
+                if (invokeObj == null) {
+                    throw new ExpressionException("unresolved property or variable: '" + variableInvoker + "' from context");
+                }
                 throw new ExpressionException(String.format("invoke error, %s and methodName '%s', message: %s", invokeObj.getClass(), functionName, throwable.getMessage()));
             }
         }
@@ -1351,7 +1296,7 @@ public class ExprEvaluator {
             // 执行函数
             Object functionValue = this.evaluateMethod(evaluatorContext, evaluateEnvironment);
             if (negate) {
-                return ExprUtils.negate(functionValue);
+                return ExprCalculateUtils.negate(functionValue);
             }
             if (logicalNot) {
                 return functionValue == Boolean.FALSE || functionValue == null;
@@ -1363,7 +1308,7 @@ public class ExprEvaluator {
     /**
      * Stack splitting optimizer to solve the problem of stack depth overflow;
      * It is generally not useful. When the native compiler cannot solve the expression, expression splitting optimization can be enabled;
-     *
+     * <p>
      * default depth = 2 << 12 - 1
      */
     static class StackSplitImpl extends ExprEvaluator {

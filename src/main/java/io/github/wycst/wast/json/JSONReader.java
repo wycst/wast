@@ -58,7 +58,7 @@ import java.io.*;
  * <p> Calling abort() can terminate stream read at any time
  *
  * @author wangyunchao
- * @see ReaderCallback
+ * @see JSONReaderCallback
  * @see JSONReader#JSONReader(InputStream)
  * @see JSONReader#JSONReader(InputStream, String)
  * @see JSONReader#JSONReader(Reader)
@@ -191,11 +191,16 @@ public class JSONReader extends JSONAbstractReader {
         this.reader = reader;
     }
 
-    public Object read() {
+    public final JSONReader bufferSize(int bufferSize) {
+        this.bufferSize = Math.max(bufferSize, 64);
+        return this;
+    }
+
+    public final Object read() {
         try {
             this.readBuffer();
             if (!multiple && this.isCompleted()) {
-                return JSONDefaultParser.parseInternal(null, buf, 0, count, null, readOptions);
+                return JSONDefaultParser.parse(buf, 0, count, readOptions);
             }
             this.defaultRead();
         } catch (Exception e) {
@@ -220,8 +225,17 @@ public class JSONReader extends JSONAbstractReader {
             this.readingOffset = 0;
         }
         if (offset >= count) {
-            count = reader.read(buf);
-            offset = 0;
+            offset = count = 0;
+            int n, remSize = bufferSize;
+            while ((n = reader.read(buf, count, remSize)) != -1) {
+                count += n;
+                if(remSize == n) {
+                    return;
+                }
+                remSize -= n;
+            }
+            // n = -1
+            completed = true;
         }
     }
 
@@ -252,17 +266,12 @@ public class JSONReader extends JSONAbstractReader {
     protected int readNext() throws Exception {
         pos++;
         if (offset < count) return current = buf[offset++];
-        if (reader == null) {
+        if (isCompleted()) {
             return current = -1;
         }
-        if (count == bufferSize) {
-            readBuffer();
-            if (count == -1) return current = -1;
-            return current = buf[offset++];
-        } else {
-            // synchronous reading, when the count is less than bufferSize, it must be read completely
-            return current = -1;
-        }
+        readBuffer();
+        if (count <= 0) return current = -1;
+        return current = buf[offset++];
     }
 
     /**
@@ -271,7 +280,7 @@ public class JSONReader extends JSONAbstractReader {
      * @return
      */
     protected boolean isCompleted() {
-        return reader == null || count < bufferSize || completed;
+        return reader == null || completed;
     }
 
     /**

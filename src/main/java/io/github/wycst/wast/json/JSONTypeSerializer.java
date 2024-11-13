@@ -3,7 +3,7 @@ package io.github.wycst.wast.json;
 import io.github.wycst.wast.common.beans.DateFormatter;
 import io.github.wycst.wast.common.beans.GeneralDate;
 import io.github.wycst.wast.common.compiler.JDKCompiler;
-import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
+import io.github.wycst.wast.common.reflect.ClassStrucWrap;
 import io.github.wycst.wast.common.reflect.GetterInfo;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
@@ -34,6 +34,9 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
     static final JSONTypeSerializer SIMPLE = new SimpleImpl();
     static final CharSequenceImpl CHAR_SEQUENCE = new CharSequenceImpl();
     static final CharSequenceImpl CHAR_SEQUENCE_STRING = EnvUtils.JDK_9_PLUS ? new StringJDK9PlusImpl() : new StringJDK8Impl();
+
+    static final JSONTypeSerializer TO_STRING = new ToStringImpl();
+
     static final EnumImpl ENUM = new EnumImpl();
     static final BinaryImpl BINARY = new BinaryImpl();
     static final SimpleNumberImpl NUMBER = new SimpleNumberImpl();
@@ -87,15 +90,8 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
         putTypeSerializer(BINARY, byte[].class);
         putTypeSerializer(new ArrayPrimitiveImpl(SIMPLE, ReflectConsts.PrimitiveType.PrimitiveBoolean), boolean[].class);
         putTypeSerializer(CHAR_SEQUENCE, char[].class);
-
-        // 其他类型支持
-        putTypeSerializer(new JSONTypeSerializer() {
-            @Override
-            protected void serialize(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
-                writer.writeUUID((UUID) value);
-            }
-        }, UUID.class);
-
+        // extension types
+        JSONTypeExtensionSer.initExtens();
         BUILT_IN_TYPE_SET = new HashSet<Class<?>>(classJSONTypeSerializerMap.keySet());
     }
 
@@ -191,10 +187,10 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                 }
                 ReflectConsts.ClassCategory classCategory = ReflectConsts.getClassCategory(cls);
                 if (classCategory == ReflectConsts.ClassCategory.ObjectCategory) {
-                    ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(cls);
-                    if (classStructureWrapper.isTemporal()) {
-                        typeSerializer = JSONTemporalSerializer.getTemporalSerializerInstance(classStructureWrapper, null);
-                    } else if (classStructureWrapper.isSubEnum()) {
+                    ClassStrucWrap classStrucWrap = ClassStrucWrap.get(cls);
+                    if (classStrucWrap.isTemporal()) {
+                        typeSerializer = JSONTemporalSerializer.getTemporalSerializerInstance(classStrucWrap, null);
+                    } else if (classStrucWrap.isSubEnum()) {
                         typeSerializer = ENUM;
                     } else {
                         JSONPojoStructure pojoStructure = JSONPojoStructure.get(cls);
@@ -276,9 +272,9 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                 }
             }
             case ObjectCategory: {
-                ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(type);
-                if (classStructureWrapper.isTemporal()) {
-                    return JSONTemporalSerializer.getTemporalSerializerInstance(classStructureWrapper, jsonProperty);
+                ClassStrucWrap classStrucWrap = ClassStrucWrap.get(type);
+                if (classStrucWrap.isTemporal()) {
+                    return JSONTemporalSerializer.getTemporalSerializerInstance(classStrucWrap, jsonProperty);
                 } else {
                     if (jsonProperty != null && jsonProperty.unfixedType()) {
                         // auto type
@@ -1135,5 +1131,12 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
         second = generalDate.getSecond();
         millisecond = generalDate.getMillisecond();
         writeDate(year, month, day, hourOfDay, minute, second, millisecond, dateFormatter, writer);
+    }
+
+    final static class ToStringImpl extends JSONTypeSerializer {
+        @Override
+        protected void serialize(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
+            CHAR_SEQUENCE_STRING.serialize(value.toString(), writer, jsonConfig, indent);
+        }
     }
 }

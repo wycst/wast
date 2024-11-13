@@ -79,6 +79,29 @@ public final class JSONDefaultParser extends JSONGeneral {
     }
 
     /**
+     * 解析buf返回Map或者List
+     *
+     * @param buf
+     * @param offset
+     * @param len
+     * @param readOptions
+     * @return
+     */
+    static Object parse(char[] buf, int offset, int len, ReadOption... readOptions) {
+        if (EnvUtils.JDK_9_PLUS) {
+            String json = new String(buf, offset, len);
+            byte[] bytes = (byte[]) JSONUnsafe.getStringValue(json);
+            if (bytes.length == json.length()) {
+                return parseInternal(AsciiStringSource.of(json, bytes), bytes, 0, bytes.length, null, readOptions);
+            } else {
+                char[] chars = len == buf.length ? buf : json.toCharArray();
+                return parseInternal(UTF16ByteArraySource.of(json), chars, 0, chars.length, null, readOptions);
+            }
+        }
+        return parseInternal(null, buf, offset, len, null, readOptions);
+    }
+
+    /**
      * 指定外层的map类型
      *
      * @param json
@@ -202,14 +225,14 @@ public final class JSONDefaultParser extends JSONGeneral {
             Object value;
             switch (ch) {
                 case '{': {
-                    value = parseJSONObject(source, buf, i, toIndex, new LinkedHashMap(), jsonParseContext);
+                    value = parseJSONObject(source, buf, i, toIndex, new LinkedHashMap(10), jsonParseContext);
                     list.add(value);
                     i = jsonParseContext.endIndex;
                     break;
                 }
                 case '[': {
                     // Multilayer collections are relatively rare and can easily cause waste of collection space. The specified initialization capacity is displayed as 2
-                    value = parseJSONArray(source, buf, i, toIndex, new ArrayList(2), jsonParseContext);
+                    value = parseJSONArray(source, buf, i, toIndex, new ArrayList(10), jsonParseContext);
                     list.add(value);
                     i = jsonParseContext.endIndex;
                     break;
@@ -343,7 +366,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                 Object value;
                 switch (ch) {
                     case '{': {
-                        value = parseJSONObject(source, buf, i, toIndex, new LinkedHashMap(), jsonParseContext);
+                        value = parseJSONObject(source, buf, i, toIndex, new LinkedHashMap(10), jsonParseContext);
                         i = jsonParseContext.endIndex;
                         instance.put(key, value);
                         break;

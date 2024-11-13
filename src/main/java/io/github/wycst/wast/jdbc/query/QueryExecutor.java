@@ -1,6 +1,6 @@
 package io.github.wycst.wast.jdbc.query;
 
-import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
+import io.github.wycst.wast.common.reflect.ClassStrucWrap;
 import io.github.wycst.wast.common.reflect.GetterInfo;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.SetterInfo;
@@ -18,10 +18,10 @@ import java.sql.*;
 import java.util.*;
 
 @SuppressWarnings({"unchecked", "rawtypes"})
-public class QueryExecutor {
+public final class QueryExecutor {
 
     // log 类
-    private Log log = LogFactory.getLog(QueryExecutor.class);
+    private static Log log = LogFactory.getLog(QueryExecutor.class);
 
     /**
      * 查询对象，如果结果集多个返回第一个
@@ -134,20 +134,19 @@ public class QueryExecutor {
         Map<String, Object> mapData = null;
         E instance = null;
 
-        ClassStructureWrapper classStructureWrapper = null;
+        ClassStrucWrap classStrucWrap = null;
         EntitySqlMapping entitySqlMapping = null;
         // is map
         if (Map.class.isAssignableFrom(cls)) {
             isMap = true;
-            // 如果是map接口，使用LinkedHashMap实例化
             if (cls.isInterface()) {
                 mapData = new LinkedHashMap<String, Object>();
             } else {
                 mapData = (Map) cls.newInstance();
             }
         } else {
-            classStructureWrapper = ClassStructureWrapper.get(cls);
-            instance = (E) classStructureWrapper.newInstance();
+            classStrucWrap = ClassStrucWrap.get(cls);
+            instance = (E) classStrucWrap.newInstance();
             entitySqlMapping = EntityManagementFactory.defaultManagementFactory().getEntitySqlMapping(cls);
         }
 
@@ -170,20 +169,22 @@ public class QueryExecutor {
                     }
                     setterInfo.invoke(instance, value);
                 } else {
-                    SetterInfo setterInfo = classStructureWrapper.getSetterInfo(fieldName);
+                    SetterInfo setterInfo = classStrucWrap.getSetterInfo(fieldName);
                     // 默认直接查找fieldName，如果没有，将fieldName转化为小写驼峰格式比如INDEX_NAME-> indexName
                     if (setterInfo == null) {
                         String camelCase = StringUtils.getCamelCase(fieldName);
-                        setterInfo = classStructureWrapper.getSetterInfo(camelCase);
+                        setterInfo = classStrucWrap.getSetterInfo(camelCase);
                     }
                     if (setterInfo != null) {
                         setterInfo.invoke(instance, ObjectUtils.toType(fieldValue, setterInfo.getParameterType(), setterInfo.getGenericParameterizedType().getActualClassCategory()));
                     } else {
-                        // 判断是否需要解析为a.b.c
-                        // select语句中需要双引号 as "a.b.c"
-                        if (fieldName.matches("(\\w|[$¥])+([.](\\w|[$¥])+)+")) {
-                            // 解析对象属性
-                            parseObjectField(fieldName, fieldValue, instance, classStructureWrapper);
+                        if (fieldName.indexOf('.') > -1) {
+                            // 判断是否需要解析为a.b.c
+                            // select语句中需要双引号 as "a.b.c"
+                            try {
+                                // fieldName.matches("(\\w|[$¥])+([.](\\w|[$¥])+)+")
+                                parseObjectField(fieldName, fieldValue, instance, classStrucWrap);
+                            } catch (Throwable throwable) {}
                         }
                     }
                 }
@@ -197,20 +198,20 @@ public class QueryExecutor {
      * 解析对象属性
      * select t.city_name as "city.cityName"
      *
-     * @param fieldName    eg : city.cityName
+     * @param fieldName         eg : city.cityName
      * @param fieldValue
-     * @param instance     entity
-     * @param classWrapper
+     * @param instance          entity
+     * @param classStrucWrapper
      * @throws Exception
      */
     private void parseObjectField(String fieldName, Object fieldValue, Object instance,
-                                  ClassStructureWrapper classWrapper) throws Exception {
+                                  ClassStrucWrap classStrucWrapper) throws Exception {
 
         int dotIndex = fieldName.indexOf(".");
         SetterInfo setterInfo;
         if (dotIndex == -1) {
             // set
-            setterInfo = classWrapper.getSetterInfo(fieldName);
+            setterInfo = classStrucWrapper.getSetterInfo(fieldName);
             if (setterInfo != null) {
                 setterInfo.invoke(instance, ObjectUtils.toType(fieldValue, setterInfo.getParameterType(), setterInfo.getGenericParameterizedType().getActualClassCategory()));
             }
@@ -220,7 +221,7 @@ public class QueryExecutor {
             // 待下次递归的fieldName
             String nextFieldName = fieldName.substring(dotIndex + 1);
             // 对应的setter方法
-            setterInfo = classWrapper.getSetterInfo(topFieldName);
+            setterInfo = classStrucWrapper.getSetterInfo(topFieldName);
             // 如果存在setter方法，查询是否存在getter方法，并调用获取属性对象是否已创建
             // 如果已创建，获取属性对象，递归调用解析，否则调用类的newInstance创建属性对象，并调用setter
             // 递归调用解析
@@ -235,7 +236,7 @@ public class QueryExecutor {
                 }
 
                 Object target = null;
-                GetterInfo getterInfo = classWrapper.getGetterInfo(topFieldName);
+                GetterInfo getterInfo = classStrucWrapper.getGetterInfo(topFieldName);
                 if (getterInfo != null) {
                     target = getterInfo.invoke(instance);
                     if (target == null) {
@@ -253,9 +254,9 @@ public class QueryExecutor {
                         targetMap.put(nextFieldName, fieldValue);
                     } else {
                         if (parameterType.isInstance(target)) {
-                            ClassStructureWrapper nextClassStructureWrapper = ClassStructureWrapper.get(parameterType);
+                            ClassStrucWrap nextClassStrucWrap = ClassStrucWrap.get(parameterType);
                             // 递归调用
-                            parseObjectField(nextFieldName, fieldValue, target, nextClassStructureWrapper);
+                            parseObjectField(nextFieldName, fieldValue, target, nextClassStrucWrap);
                         }
                     }
                 }
@@ -284,7 +285,7 @@ public class QueryExecutor {
                     throw new SQLException("Expected to return 1 column, but actually returned " + columnCount + " column, please call queryObject ");
                 }
 
-                int columnIndex = 1;
+                final int columnIndex = 1;
                 int columnType = rsmd.getColumnType(columnIndex);
                 Object columnValue = getColumnValue(resultSet, columnType, columnIndex);
                 if (valueClass == null) {

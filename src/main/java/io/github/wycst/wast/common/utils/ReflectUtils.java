@@ -1,6 +1,6 @@
 package io.github.wycst.wast.common.utils;
 
-import io.github.wycst.wast.common.reflect.ClassStructureWrapper;
+import io.github.wycst.wast.common.reflect.ClassStrucWrap;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
@@ -115,30 +115,7 @@ public final class ReflectUtils {
      */
     public static Object invoke(Object invoker, String methodName, Object[] params) throws Exception {
         Class invokerCls = invoker.getClass();
-        ClassStructureWrapper classStructureWrapper = ClassStructureWrapper.get(invokerCls);
-        return classStructureWrapper.invokePublic(invoker, methodName, params);
+        ClassStrucWrap classStrucWrap = ClassStrucWrap.get(invokerCls);
+        return classStrucWrap.invokePublic(invoker, methodName, params);
     }
-
-//    /**
-//     * 获取自定义map类的key和value类型，如果没有定义（比如伪泛型）则返回null
-//     *
-//     * @param mapClass
-//     * @return
-//     */
-//    public static Class[] getMapDefinedKVTypes(Class<? extends Map> mapClass) {
-//        Type type = mapClass.getGenericSuperclass();
-//        if (type instanceof ParameterizedType) {
-//            ParameterizedType parameterizedType = (ParameterizedType) type;
-//            Type[] actualTypeArguments = parameterizedType.getActualTypeArguments();
-//            if(actualTypeArguments != null && actualTypeArguments.length == 2) {
-//                if(actualTypeArguments[0] instanceof Class && actualTypeArguments[1] instanceof Class) {
-//                	Class[] kvTypes = new Class[2];
-//                    kvTypes[0] = (Class) actualTypeArguments[0];
-//                    kvTypes[1] = (Class) actualTypeArguments[1];
-//                    return kvTypes;
-//                }
-//            }
-//        }
-//        return null;
-//    }
 }

@@ -15,9 +15,10 @@ import java.util.*;
  */
 public class CompilerEnvironment extends EvaluateEnvironment {
 
-
     public CompilerEnvironment() {
     }
+
+    final static CompilerEnvironment COMPILER_DEFAULT = new CompilerEnvironment();
 
     // 跳过解析直接使用源代码运行，支持所有java代码；
     private boolean skipParse;
@@ -28,6 +29,11 @@ public class CompilerEnvironment extends EvaluateEnvironment {
     // disable keys
     private Set<String> disableKeys = new HashSet<String>();
     private boolean supportedContextRoot;
+    private Class objectParameterClass;
+
+    Map<String, ExprFunctionMeta> javassistFunctionMetaMap = new LinkedHashMap<String, ExprFunctionMeta>();
+
+    final Set<Class> importSet = new HashSet<Class>();
 
     // 变量类型映射
     private Map<String, Class> variableTypeMap = new LinkedHashMap<String, Class>();
@@ -41,8 +47,6 @@ public class CompilerEnvironment extends EvaluateEnvironment {
     protected Map<String, Class> getVariableTypes() {
         return variableTypeMap;
     }
-
-    Map<String, ExprFunctionMeta> javassistFunctionMetaMap = new LinkedHashMap<String, ExprFunctionMeta>();
 
     /**
      * 拓展注册函数,仅仅在javassist编译下生效；
@@ -62,6 +66,10 @@ public class CompilerEnvironment extends EvaluateEnvironment {
         ExprFunctionMeta exprFunctionMeta = new ExprFunctionMeta(name, function, returnClass, paramClassList);
         javassistFunctionMetaMap.put(name, exprFunctionMeta);
         return this;
+    }
+
+    public final Expression compile(String el) {
+        return CompilerExpression.compile(el, this, CompilerExpression.Coder.Native);
     }
 
     static class ExprFunctionMeta {
@@ -97,7 +105,24 @@ public class CompilerEnvironment extends EvaluateEnvironment {
         }
     }
 
-    public void setVariableType(Class<?> type, String... vars) {
+    /**
+     * 编译模式设置context参数的类型
+     *
+     * @param objectParameterClass
+     */
+    public CompilerEnvironment objectParameterClass(Class objectParameterClass) {
+        if (!Modifier.isPublic(objectParameterClass.getModifiers()) || objectParameterClass.isInterface()) {
+            throw new UnsupportedOperationException("only support public class");
+        }
+        this.objectParameterClass = objectParameterClass;
+        return this;
+    }
+
+    public CompilerEnvironment variableTypes(Class<?> type, String... vars) {
+        return setVariableType(type, vars);
+    }
+
+    public CompilerEnvironment setVariableType(Class<?> type, String... vars) {
         for (String var : vars) {
             if (type == System.class) continue;
             if (type == Runtime.class) continue;
@@ -106,14 +131,39 @@ public class CompilerEnvironment extends EvaluateEnvironment {
             }
             variableTypeMap.put(var, type);
         }
+        return this;
     }
 
-    public void setSupportedContextRoot(boolean supportedContextRoot) {
+    public CompilerEnvironment importSet(Class<?>... importClasses) {
+        for (Class<?> importClass : importClasses) {
+            if (importClass.isPrimitive() || importClass.getName().startsWith("java.lang.") || Modifier.isPrivate(importClass.getModifiers())) {
+                continue;
+            }
+            importSet.add(importClass);
+        }
+        return this;
+    }
+
+    public Set<Class> getImportSet() {
+        return importSet;
+    }
+
+    public CompilerEnvironment clearImports() {
+        importSet.clear();
+        return this;
+    }
+
+    public CompilerEnvironment setSupportedContextRoot(boolean supportedContextRoot) {
         this.supportedContextRoot = supportedContextRoot;
+        return this;
     }
 
     public boolean isSupportedContextRoot() {
         return supportedContextRoot;
+    }
+
+    public Class getObjectParameterClass() {
+        return objectParameterClass;
     }
 
     /**
@@ -125,10 +175,6 @@ public class CompilerEnvironment extends EvaluateEnvironment {
         // 清除设置的变量信息
         typeNameInvokers.clear();
         if (parser.getVariableCount() == 0) return;
-
-//        Invoker variableValues = parser.getChainValues();
-////        // collect variableValue if tail
-//        variableValues.internKey();
         Collection<ElVariableInvoker> tailInvokers = parser.getTailVariableInvokers(); // variableValues.tailInvokers();
         for (ElVariableInvoker tailInvoker : tailInvokers) {
             String varName = "_$" + tailInvoker.getIndex();
@@ -141,7 +187,7 @@ public class CompilerEnvironment extends EvaluateEnvironment {
     }
 
     /**
-     * 通过variableTypeMap初始化invoke
+     * 通过variableTypeMap初始化invoke（SkipParse mode）
      */
     void initTypeNameInvokers() {
         if (variableTypeMap.size() == 0) return;
@@ -165,24 +211,27 @@ public class CompilerEnvironment extends EvaluateEnvironment {
         return skipParse;
     }
 
-    public void setSkipParse(boolean skipParse) {
+    public CompilerEnvironment setSkipParse(boolean skipParse) {
         this.skipParse = skipParse;
+        return this;
     }
 
     public boolean isEnableSystem() {
         return enableSystem;
     }
 
-    public void setEnableSystem(boolean enableSystem) {
+    public CompilerEnvironment setEnableSystem(boolean enableSystem) {
         this.enableSystem = enableSystem;
+        return this;
     }
 
     public boolean isDisableSecurityCheck() {
         return disableSecurityCheck;
     }
 
-    public void setDisableSecurityCheck(boolean disableSecurityCheck) {
+    public CompilerEnvironment setDisableSecurityCheck(boolean disableSecurityCheck) {
         this.disableSecurityCheck = disableSecurityCheck;
+        return this;
     }
 
     @Override
@@ -198,16 +247,18 @@ public class CompilerEnvironment extends EvaluateEnvironment {
     /**
      * 设置黑名单词组关键字调用防注入漏洞
      */
-    public void setKeyBlacklist(String... keys) {
+    public CompilerEnvironment setKeyBlacklist(String... keys) {
         for (String key : keys) {
             disableKeys.add(key);
         }
+        return this;
     }
 
-    public void setKeyBlacklist(Collection keys) {
+    public CompilerEnvironment setKeyBlacklist(Collection keys) {
         if (keys != null) {
             disableKeys.addAll(keys);
         }
+        return this;
     }
 
     public Set<String> getDisableKeys() {

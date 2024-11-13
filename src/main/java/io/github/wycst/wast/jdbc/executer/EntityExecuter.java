@@ -43,7 +43,7 @@ public final class EntityExecuter implements OqlExecuter {
         id.getClass();
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        E result = entitySqlMapping.getEntityHandler().getById(sqlExecuter, entityCls, id); // getById(entitySqlMapping, entityCls, id);
+        E result = entitySqlMapping.entityHandler.getById(sqlExecuter, entityCls, id); // getById(entitySqlMapping, entityCls, id);
         if (fetch && result != null) {
             this.handleFetch(entitySqlMapping, result);
         }
@@ -248,7 +248,7 @@ public final class EntityExecuter implements OqlExecuter {
         Class entityCls = entity.getClass();
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-        return entitySqlMapping.getEntityHandler().updateEntity(sqlExecuter, entity);
+        return entitySqlMapping.entityHandler.updateEntity(sqlExecuter, entity);
     }
 
     @Override
@@ -304,7 +304,7 @@ public final class EntityExecuter implements OqlExecuter {
         try {
             return sqlExecuter.update(sqlObject.getFormalSql(), sqlObject.getParamValues());
         } finally {
-            entitySqlMapping.getEntityHandler().afterUpdate(sqlExecuter, entity);
+            entitySqlMapping.entityHandler.afterUpdate(sqlExecuter, entity);
         }
     }
 
@@ -327,7 +327,7 @@ public final class EntityExecuter implements OqlExecuter {
             // handle cascadeDelete
             this.executeCascadeDelete(entitySqlMapping, id);
         }
-        return entitySqlMapping.getEntityHandler().deleteById(sqlExecuter, entityCls, id);
+        return entitySqlMapping.entityHandler.deleteById(sqlExecuter, entityCls, id);
     }
 
     @Override
@@ -349,7 +349,7 @@ public final class EntityExecuter implements OqlExecuter {
             influenceRows += sqlExecuter.update(deleteSql, id);
         }
         if (influenceRows > 0) {
-            entitySqlMapping.getEntityHandler().afterBatchDelete();
+            entitySqlMapping.entityHandler.afterBatchDelete();
         }
         return influenceRows;
     }
@@ -398,7 +398,7 @@ public final class EntityExecuter implements OqlExecuter {
         try {
             return sqlExecuter.update(sqlObject.getFormalSql(), sqlObject.getParamValues());
         } finally {
-            entitySqlMapping.getEntityHandler().afterBatchDelete();
+            entitySqlMapping.entityHandler.afterBatchDelete();
         }
     }
 
@@ -516,7 +516,7 @@ public final class EntityExecuter implements OqlExecuter {
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
 
-        return entitySqlMapping.getEntityHandler().executeQueryBy(sqlExecuter, entityCls, params);
+        return entitySqlMapping.entityHandler.executeQueryBy(sqlExecuter, entityCls, params);
     }
 
     <E> Page<E> executeQueryPage(Page<E> page, Object params) {
@@ -552,7 +552,7 @@ public final class EntityExecuter implements OqlExecuter {
     void executeCascadeDelete(EntitySqlMapping entitySqlMapping, Serializable id) {
         List<CascadeFetchMapping> cascadeFetchMappings = entitySqlMapping.getCascadeFetchMappings();
         Class<?> clazz = entitySqlMapping.getEntityClass();
-        Object result = entitySqlMapping.getEntityHandler().getById(sqlExecuter, clazz, id);
+        Object result = entitySqlMapping.entityHandler.getById(sqlExecuter, clazz, id);
         for (CascadeFetchMapping cascadeFetchMapping : cascadeFetchMappings) {
             if (!cascadeFetchMapping.isCascade()) {
                 continue;

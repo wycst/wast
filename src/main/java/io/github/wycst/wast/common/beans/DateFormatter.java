@@ -1,5 +1,7 @@
 package io.github.wycst.wast.common.beans;
 
+import io.github.wycst.wast.common.utils.NumberUtils;
+
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -289,7 +291,7 @@ public class DateFormatter {
 
         @Override
         public int getEstimateSize() {
-            return 19;
+            return 30;
         }
 
         @Override
@@ -370,7 +372,7 @@ public class DateFormatter {
 
         @Override
         public int getEstimateSize() {
-            return 24;
+            return 28;
         }
 
         @Override
@@ -390,13 +392,15 @@ public class DateFormatter {
         }
 
         public int write(int year, int month, int dayOfMonth, int hour, int minute, int second, int millisecond, char[] buf, int off) {
-            int size = dateFormatterYMDHMS_19.write(year, month, dayOfMonth, hour, minute, second, millisecond, buf, off);
+            final int begin = off;
+            off += dateFormatterYMDHMS_19.write(year, month, dayOfMonth, hour, minute, second, millisecond, buf, off);
             char s1 = (char) (millisecond / 100 + 48);
             int v = millisecond % 100;
+            buf[off++] = '.';
             buf[off++] = s1;
             buf[off++] = DateTemplate.DigitTens[v];
-            buf[off] = DateTemplate.DigitOnes[v];
-            return size + 3;
+            buf[off++] = DateTemplate.DigitOnes[v];
+            return off - begin;
         }
     }
 
