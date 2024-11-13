@@ -1,7 +1,5 @@
 package io.github.wycst.wast.common.beans;
 
-import io.github.wycst.wast.common.utils.NumberUtils;
-
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
