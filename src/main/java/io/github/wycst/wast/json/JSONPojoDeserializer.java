@@ -294,6 +294,11 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                 int endChar = jsonParseContext.endToken;
                 if (endChar == 0) {
                     while ((ch = buf[++i]) <= ' ') ;
+                    if (allowComment) {
+                        if (ch == '/') {
+                            ch = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext)];
+                        }
+                    }
                 } else {
                     ch = (char) endChar;
                     jsonParseContext.endToken = 0;
@@ -524,7 +529,12 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                 i = jsonParseContext.endIndex;
                 int endChar = jsonParseContext.endToken;
                 if (endChar == 0) {
-                    while ((b = buf[++i]) <= WHITE_SPACE) ;
+                    while ((b = buf[++i]) <= WHITE_SPACE);
+                    if (allowComment) {
+                        if (b == '/') {
+                            b = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext)];
+                        }
+                    }
                 } else {
                     b = (byte) endChar;
                     jsonParseContext.endToken = 0;
