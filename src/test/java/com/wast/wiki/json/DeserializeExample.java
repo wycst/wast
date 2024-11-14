@@ -1,12 +1,17 @@
 package com.wast.wiki.json;
 
+import com.wast.test.json.inputstream.InputStreamTest;
 import com.wast.wiki.beans.RestResult;
 import com.wast.wiki.beans.UserFact;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.json.JSON;
 import io.github.wycst.wast.json.options.ReadOption;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -33,10 +38,11 @@ public class DeserializeExample {
 
     static final String restResultJson = "{\"data\":{\"addr\":\"asdfgh\",\"userId\":1,\"userName\":\"test\"},\"msg\":\"success\",\"status\":\"200\"}";
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws Exception {
         deserializeTest();
         deserializeComment();
         deserializeGeneric();
+        readInputstream();
     }
 
     /**
@@ -50,7 +56,7 @@ public class DeserializeExample {
 
         // 集合类
         List list = (List) JSON.parse(listJson);
-        List list1 = JSON.parseArray(listJson, Object.class);
+        List list1 = JSON.parseArray(listJson, Object.class);  //  JSON.parseArray(listJson, T.class);
         System.out.println(list);
 
         // pojo类
@@ -59,7 +65,7 @@ public class DeserializeExample {
     }
 
     /**
-     * 2.解析带注释的JSON
+     * 2.带注释的JSON
      */
     private static void deserializeComment() {
         // pojo类
@@ -68,19 +74,40 @@ public class DeserializeExample {
     }
 
     /**
-     * 3.解析伪泛型场景
+     * 3.伪泛型场景
      */
     private static void deserializeGeneric() {
         // 伪泛型为单泛型场景可以简单如下处理
         GenericParameterizedType<RestResult> parameterizedType = GenericParameterizedType.entityType(RestResult.class, UserFact.class);
-        RestResult userFact = JSON.parse(restResultJson, parameterizedType);
-        System.out.println(userFact.getData().getClass() == UserFact.class);
+        RestResult rev = JSON.parse(restResultJson, parameterizedType);
+        System.out.println(rev.getData().getClass() == UserFact.class);
 
         // 伪泛型为多个泛型组合的场景
         Map<String, Class<?>> genericClassMap = new HashMap<String, Class<?>>();
         genericClassMap.put("T", UserFact.class); // T为RestResult类上的泛型声明
         GenericParameterizedType<RestResult> parameterizedType2 = GenericParameterizedType.entityType(RestResult.class, genericClassMap);
-        RestResult userFact2 = JSON.parse(restResultJson, parameterizedType2);
-        System.out.println(userFact2.getData().getClass() == UserFact.class);
+        RestResult rev2 = JSON.parse(restResultJson, parameterizedType2);
+        System.out.println(rev2.getData().getClass() == UserFact.class);
     }
+
+    /**
+     * 4.读取流或者远程资源
+     */
+    private static void readInputstream() throws Exception {
+        Map result = null;
+        // 1 读取网络资源 GET
+        result = JSON.read(new URL("https://developer.aliyun.com/artifact/aliyunMaven/searchArtifactByGav?groupId=spring&artifactId=&version=&repoId=all&_input_charset=utf-8"), Map.class);
+        System.out.println(result);
+
+        // 2 读取输入流
+        InputStream inputStream = InputStreamTest.class.getResourceAsStream("/json/path.json");
+        result = JSON.read(inputStream, Map.class);
+        System.out.println(result);
+
+        // 3 读取文件
+        result = JSON.read(new File("/json/path.json"), Map.class);
+        System.out.println(result);
+    }
+
+
 }
