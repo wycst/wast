@@ -17,6 +17,13 @@ final class JSONTypeExtensionSer {
                 writer.writeUUID((UUID) value);
             }
         }, UUID.class);
+        JSONTypeSerializer.putTypeSerializer(new JSONTypeSerializer() {
+            @Override
+            protected void serialize(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
+                JSONNode jsonNode = (JSONNode) value;
+                ANY.serialize(jsonNode.any(), writer, jsonConfig, indent);
+            }
+        }, JSONNode.class, JSONNode.B.class, JSONNode.C.class, JSONNode.D.class);
         JSONTypeSerializer.putTypeSerializer(JSONTypeSerializer.TO_STRING, URL.class, URI.class);
     }
 }

@@ -58,7 +58,7 @@ import java.io.*;
  * <p> Calling abort() can terminate stream read at any time
  *
  * @author wangyunchao
- * @see JSONReaderCallback
+ * @see JSONReaderHook
  * @see JSONReader#JSONReader(InputStream)
  * @see JSONReader#JSONReader(InputStream, String)
  * @see JSONReader#JSONReader(Reader)

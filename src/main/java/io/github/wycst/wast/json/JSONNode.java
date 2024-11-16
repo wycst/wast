@@ -26,7 +26,9 @@ import io.github.wycst.wast.common.utils.ObjectUtils;
 import io.github.wycst.wast.json.exceptions.JSONException;
 import io.github.wycst.wast.json.options.ReadOption;
 
+import java.io.IOException;
 import java.io.Serializable;
+import java.io.Writer;
 import java.lang.reflect.Array;
 import java.util.*;
 
@@ -110,8 +112,8 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     final static int NULL = 6;
     final static int EXPAND = 7;
     final static String[] TYPE_DESCS = new String[]{"", "object", "array", "string", "number", "boolean", "null", "expand"};
-    final boolean array;
-    final boolean leaf;
+    boolean array;
+    boolean leaf;
     Serializable value;
     Object any;
     boolean changed;
@@ -227,6 +229,18 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         this.beginIndex = beginIndex;
         this.endIndex = endIndex;
         this.type = type;
+    }
+
+    JSONNode(Serializable value, JSONNode rootNode) {
+        this.value = value;
+        this.completed = true;
+        this.array = false;
+        this.leaf = true;
+        this.parseContext = null;
+        this.root = rootNode;
+        this.beginIndex = -1;
+        this.endIndex = -1;
+        this.type = EXPAND;
     }
 
     /**
@@ -410,6 +424,48 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             }
         }
         return new RootContext(beginIndex, endIndex, type, leafValue);
+    }
+
+    final static class D extends JSONNode {
+
+        D(Serializable value, JSONNode root) {
+            super(value, root);
+        }
+
+        @Override
+        JSONNode parseArrayAt(int index, boolean lazy, boolean createObj) {
+            return null;
+        }
+
+        @Override
+        JSONNode parseValueNode(int beginIndex, char endChar, boolean lazy, boolean createObj) throws Exception {
+            return null;
+        }
+
+        @Override
+        public String getText() {
+            return null;
+        }
+
+        @Override
+        byte[] hexString2Bytes() {
+            return new byte[0];
+        }
+
+        @Override
+        public String source() {
+            return null;
+        }
+
+        @Override
+        void writeSourceTo(StringBuilder stringBuilder) {
+
+        }
+
+        @Override
+        protected void clearSource() {
+
+        }
     }
 
     final static class C extends JSONNode {
@@ -813,7 +869,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 default: {
                     // number
-                    node = parseNumberPathNode(charSource, buf, beginIndex, endIndex, endChar, parseContext, root);
+                    node = parseNumberPathNode(charSource, buf, beginIndex, endIndex, endChar, false, parseContext, root);
                     break;
                 }
             }
@@ -1288,7 +1344,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 default: {
                     // number
-                    node = parseNumberPathNode(charSource, buf, beginIndex, endIndex, (byte) endChar, parseContext, root);
+                    node = parseNumberPathNode(charSource, buf, beginIndex, endIndex, (byte) endChar, false, parseContext, root);
                     break;
                 }
             }
@@ -1739,14 +1795,13 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                         ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
                     }
                 }
-                boolean isLeafValue = false;
                 JSONNode node;
                 boolean isSkipValue = !matched;
                 switch (ch) {
                     case '{': {
                         if (isSkipValue || isLastPathLevel) {
                             JSONTypeDeserializer.MAP.skip(charSource, buf, i, toIndex, parseContext);
-                            node = new C(charSource, buf, i, parseContext.endIndex + 1, OBJECT, parseContext, null);
+                            node = isSkipValue ? null : new C(charSource, buf, i, parseContext.endIndex + 1, OBJECT, parseContext, null);
                         } else {
                             node = parseObjectPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
                         }
@@ -1755,7 +1810,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     case '[': {
                         if (isSkipValue || isLastPathLevel) {
                             JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, toIndex, parseContext);
-                            node = new C(charSource, buf, i, parseContext.endIndex + 1, ARRAY, parseContext, null);
+                            node = isSkipValue ? null : new C(charSource, buf, i, parseContext.endIndex + 1, ARRAY, parseContext, null);
                         } else {
                             node = parseArrayPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
                         }
@@ -1764,30 +1819,25 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     case '\'':
                     case '"': {
                         // 3 string
-                        isLeafValue = true;
                         node = parseStringPathNode(charSource, buf, i, toIndex, ch, isSkipValue, parseContext, null);
                         break;
                     }
                     case 'n': {
                         // null
-                        isLeafValue = true;
                         node = parseNullPathNode(charSource, buf, i, toIndex, parseContext, null);
                         break;
                     }
                     case 't': {
-                        isLeafValue = true;
                         node = parseBoolTruePathNode(charSource, buf, i, toIndex, parseContext, null);
                         break;
                     }
                     case 'f': {
-                        isLeafValue = true;
                         node = parseBoolFalsePathNode(charSource, buf, i, toIndex, parseContext, null);
                         break;
                     }
                     default: {
                         // number
-                        isLeafValue = true;
-                        node = parseNumberPathNode(charSource, buf, i, toIndex, '}', parseContext, null);
+                        node = parseNumberPathNode(charSource, buf, i, toIndex, '}', isSkipValue, parseContext, null);
                         break;
                     }
                 }
@@ -1903,14 +1953,13 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                         b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
                     }
                 }
-                boolean isLeafValue = false;
                 JSONNode node;
                 boolean isSkipValue = !matched;
                 switch (b) {
                     case '{': {
                         if (isSkipValue || isLastPathLevel) {
                             JSONTypeDeserializer.MAP.skip(charSource, buf, i, toIndex, parseContext);
-                            node = new B(charSource, buf, i, parseContext.endIndex + 1, OBJECT, parseContext, null);
+                            node = isSkipValue ? null : new B(charSource, buf, i, parseContext.endIndex + 1, OBJECT, parseContext, null);
                         } else {
                             node = parseObjectPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
                         }
@@ -1919,7 +1968,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     case '[': {
                         if (isSkipValue || isLastPathLevel) {
                             JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, toIndex, parseContext);
-                            node = new B(charSource, buf, i, parseContext.endIndex + 1, ARRAY, parseContext, null);
+                            node = isSkipValue ? null : new B(charSource, buf, i, parseContext.endIndex + 1, ARRAY, parseContext, null);
                         } else {
                             node = parseArrayPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
                         }
@@ -1928,30 +1977,25 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     case '\'':
                     case '"': {
                         // 3 string
-                        isLeafValue = true;
                         node = parseStringPathNode(charSource, buf, i, toIndex, b, isSkipValue, parseContext, null);
                         break;
                     }
                     case 'n': {
                         // null
-                        isLeafValue = true;
                         node = parseNullPathNode(charSource, buf, i, toIndex, parseContext, null);
                         break;
                     }
                     case 't': {
-                        isLeafValue = true;
                         node = parseBoolTruePathNode(charSource, buf, i, toIndex, parseContext, null);
                         break;
                     }
                     case 'f': {
-                        isLeafValue = true;
                         node = parseBoolFalsePathNode(charSource, buf, i, toIndex, parseContext, null);
                         break;
                     }
                     default: {
                         // number
-                        isLeafValue = true;
-                        node = parseNumberPathNode(charSource, buf, i, toIndex, (byte) '}', parseContext, null);
+                        node = parseNumberPathNode(charSource, buf, i, toIndex, (byte) '}', isSkipValue, parseContext, null);
                         break;
                     }
                 }
@@ -2041,7 +2085,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 case '{': {
                     if (isSkipValue || isLastPathLevel) {
                         JSONTypeDeserializer.MAP.skip(charSource, buf, i, toIndex, parseContext);
-                        node = new C(charSource, buf, i, parseContext.endIndex + 1, OBJECT, parseContext, null);
+                        node = isSkipValue ? null : new C(charSource, buf, i, parseContext.endIndex + 1, OBJECT, parseContext, null);
                     } else {
                         node = parseObjectPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
                     }
@@ -2050,7 +2094,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 case '[': {
                     if (isSkipValue || isLastPathLevel) {
                         JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, toIndex, parseContext);
-                        node = new C(charSource, buf, i, parseContext.endIndex + 1, ARRAY, parseContext, null);
+                        node = isSkipValue ? null : new C(charSource, buf, i, parseContext.endIndex + 1, ARRAY, parseContext, null);
                     } else {
                         node = parseArrayPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
                     }
@@ -2077,7 +2121,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 default: {
                     // number
-                    node = parseNumberPathNode(charSource, buf, i, toIndex, ']', parseContext, null);
+                    node = parseNumberPathNode(charSource, buf, i, toIndex, ']', isSkipValue, parseContext, null);
                     break;
                 }
             }
@@ -2163,7 +2207,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 case '{': {
                     if (isSkipValue || isLastPathLevel) {
                         JSONTypeDeserializer.MAP.skip(charSource, buf, i, toIndex, parseContext);
-                        node = new B(charSource, buf, i, parseContext.endIndex + 1, OBJECT, parseContext, null);
+                        node = isSkipValue ? null : new B(charSource, buf, i, parseContext.endIndex + 1, OBJECT, parseContext, null);
                     } else {
                         node = parseObjectPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
                     }
@@ -2172,7 +2216,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 case '[': {
                     if (isSkipValue || isLastPathLevel) {
                         JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, toIndex, parseContext);
-                        node = new B(charSource, buf, i, parseContext.endIndex + 1, ARRAY, parseContext, null);
+                        node = isSkipValue ? null : new B(charSource, buf, i, parseContext.endIndex + 1, ARRAY, parseContext, null);
                     } else {
                         node = parseArrayPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
                     }
@@ -2199,7 +2243,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 default: {
                     // number
-                    node = parseNumberPathNode(charSource, buf, i, toIndex, (byte) ']', parseContext, null);
+                    node = parseNumberPathNode(charSource, buf, i, toIndex, (byte) ']', isSkipValue, parseContext, null);
                     break;
                 }
             }
@@ -2301,13 +2345,21 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         return new B(charSource, false, buf, fromIndex, endIndex + 1, BOOLEAN, parseContext, rootNode);
     }
 
-    private static JSONNode parseNumberPathNode(CharSource charSource, char[] buf, int fromIndex, int toIndex, char endToken, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
+    private static JSONNode parseNumberPathNode(CharSource charSource, char[] buf, int fromIndex, int toIndex, char endToken, boolean skipValue, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
+        if (skipValue) {
+            JSONTypeDeserializer.NUMBER_SKIPPER.deserialize(charSource, buf, fromIndex, toIndex, null, null, endToken, parseContext);
+            return null;
+        }
         Number value = (Number) JSONTypeDeserializer.NUMBER.deserialize(charSource, buf, fromIndex, toIndex, parseContext.useBigDecimalAsDefault ? GenericParameterizedType.BigDecimalType : GenericParameterizedType.AnyType, null, endToken, parseContext);
         int endIndex = parseContext.endIndex;
         return new C(charSource, value, buf, fromIndex, endIndex + 1, NUMBER, parseContext, rootNode);
     }
 
-    private static JSONNode parseNumberPathNode(CharSource charSource, byte[] buf, int fromIndex, int toIndex, byte endToken, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
+    private static JSONNode parseNumberPathNode(CharSource charSource, byte[] buf, int fromIndex, int toIndex, byte endToken, boolean skipValue, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
+        if (skipValue) {
+            JSONTypeDeserializer.NUMBER_SKIPPER.deserialize(charSource, buf, fromIndex, toIndex, null, null, endToken, parseContext);
+            return null;
+        }
         Number value = (Number) JSONTypeDeserializer.NUMBER.deserialize(charSource, buf, fromIndex, toIndex, parseContext.useBigDecimalAsDefault ? GenericParameterizedType.BigDecimalType : GenericParameterizedType.AnyType, null, endToken, parseContext);
         int endIndex = parseContext.endIndex;
         return new B(charSource, value, buf, fromIndex, endIndex + 1, NUMBER, parseContext, rootNode);
@@ -2342,12 +2394,32 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         }
     }
 
+    // todo Short circuit optimization is possible
+    public static <T> T first(String source, String xpath, Class<T> doubleClass, ReadOption... options) {
+        List<JSONNode> nodes = collect(source, xpath, options);
+        return nodes.get(0).getValue(doubleClass);
+    }
+
+    public static <T> T firstIfEmpty(String source, String xpath, Class<T> doubleClass, T defaultVal, ReadOption... options) {
+        List<JSONNode> nodes = collect(source, xpath, options);
+        if (nodes.size() > 0) {
+            return nodes.get(0).getValue(doubleClass);
+        }
+        return defaultVal;
+    }
+
+    public static <T> T last(String source, String xpath, Class<T> doubleClass, ReadOption... options) {
+        List<JSONNode> nodes = collect(source, xpath, options);
+        return nodes.get(nodes.size() - 1).getValue(doubleClass);
+    }
+
     /**
      * <p> xpath语法支持（仅仅支持以下简单语法，部分语法进行了语义替换，xpath复杂的语法由于易用性（难记）不考虑实现）
      *
      * <h4>路径分隔语法(和xpath一致)</h4>
      * <li>"//" :  从当前节点开始查找所有满足条件的节点，并遍历所有子孙节点；</li>
      * <li>"/"  :  仅从当前节点开始查找所有满足条件的节点（不包括子孙节点）；</li>
+     * <p> 更多请查看JSONNodePath
      *
      * @param json
      * @param xpath
@@ -2420,6 +2492,10 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 return path.collect(root, nodeCollector);
             }
         }
+    }
+
+    public final List<JSONNode> collect(String xpath) {
+        return JSONNodePath.parse(xpath).collect(this, JSONNodeCollector.DEFAULT);
     }
 
     /**
@@ -2741,7 +2817,9 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         return value;
     }
 
-    abstract JSONNode parseObjectField(String fieldName, boolean lazy, boolean createObj);
+    JSONNode parseObjectField(String fieldName, boolean lazy, boolean createObj) {
+        return null;
+    }
 
     abstract JSONNode parseArrayAt(int index, boolean lazy, boolean createObj);
 
@@ -2803,7 +2881,9 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     }
 
     /**
-     * @param path
+     * 获取指定路径上的节点并转化为E
+     *
+     * @param path  JSON Absolute Path
      * @param clazz
      * @param <E>
      * @return
@@ -3235,46 +3315,47 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         return 0;
     }
 
-    private void writeTo(StringBuilder stringBuilder) {
+    private void writeTo(StringBuilder builder) {
         if (!this.changed) {
-            writeSourceTo(stringBuilder);
+            writeSourceTo(builder);
             return;
         }
-        switch (type) {
-            case OBJECT:
-                stringBuilder.append('{');
-                int len = fieldValues.size();
-                int i = 0;
-                for (Map.Entry<Serializable, JSONNode> entry : fieldValues.entrySet()) {
-                    String key = entry.getKey().toString();
-                    JSONNode node = entry.getValue();
-                    stringBuilder.append('"').append(key).append("\":");
-                    node.writeTo(stringBuilder);
-                    if (i++ < len - 1) {
-                        stringBuilder.append(',');
-                    }
-                }
-                stringBuilder.append('}');
-                break;
-            case ARRAY:
-                stringBuilder.append('[');
-                for (int j = 0; j < elementSize; ++j) {
-                    JSONNode node = elementValues[j];
-                    node.writeTo(stringBuilder);
-                    if (j < elementSize - 1) {
-                        stringBuilder.append(',');
-                    }
-                }
-                stringBuilder.append(']');
-                break;
-            case STRING:
-                stringBuilder.append('"');
-                writeStringTo((String) this.value, stringBuilder);
-                stringBuilder.append('"');
-                break;
-            default:
-                stringBuilder.append(this.value);
-        }
+        builder.append(JSON.toJsonString(any()));
+//        switch (type) {
+//            case OBJECT:
+//                builder.append('{');
+//                int len = fieldValues.size();
+//                int i = 0;
+//                for (Map.Entry<Serializable, JSONNode> entry : fieldValues.entrySet()) {
+//                    String key = entry.getKey().toString();
+//                    JSONNode node = entry.getValue();
+//                    builder.append('"').append(key).append("\":");
+//                    node.writeTo(builder);
+//                    if (i++ < len - 1) {
+//                        builder.append(',');
+//                    }
+//                }
+//                builder.append('}');
+//                break;
+//            case ARRAY:
+//                builder.append('[');
+//                for (int j = 0; j < elementSize; ++j) {
+//                    JSONNode node = elementValues[j];
+//                    node.writeTo(builder);
+//                    if (j < elementSize - 1) {
+//                        builder.append(',');
+//                    }
+//                }
+//                builder.append(']');
+//                break;
+//            case STRING:
+//                builder.append('"');
+//                writeStringTo((String) this.value, builder);
+//                builder.append('"');
+//                break;
+//            default:
+//                builder.append(this.value);
+//        }
     }
 
     abstract void writeSourceTo(StringBuilder stringBuilder);
@@ -3298,9 +3379,36 @@ public abstract class JSONNode implements Comparable<JSONNode> {
 
     public final void setPathValue(String path, Serializable value) {
         JSONNode node = get(path);
-        if (node != null && node.leaf) {
-            node.setLeafValue(value);
+        if (node != null /*&& node.leaf*/) {
+            node.setValue(value);
         }
+    }
+
+    public final void setChildValue(String field, Serializable value) {
+        setChildValue(field, value, false);
+    }
+
+    public final void setChildValue(String field, Serializable value, boolean createIfNotExist) {
+        if (leaf) return;
+        JSONNode node = getChild(field);
+        if (node != null /*&& node.leaf*/) {
+            node.setValue(value);
+        } else {
+            if (createIfNotExist) {
+                newChildValue(field, value);
+            }
+        }
+    }
+
+    final void newChildValue(String field, Serializable value) {
+        JSONNode newChild = new D(value, root);
+        newChild.parent = this;
+        if (array) {
+            addElementNode(newChild);
+        } else {
+            addFieldValue(fieldValues, field, newChild);
+        }
+        handleChange();
     }
 
     public final void removeElementAt(int index) {
@@ -3354,11 +3462,12 @@ public abstract class JSONNode implements Comparable<JSONNode> {
 //        return result;
 //    }
 
-    public final void setLeafValue(Serializable value) {
+    public final void setValue(Serializable value) {
         if (value == this.value) {
             return;
         }
         this.value = value;
+        this.leaf = true;
         this.updateType();
         this.handleChange();
     }
@@ -3404,10 +3513,33 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             parent.handleChange();
         }
         changed = true;
-        any = false;
+        any = null;
+    }
+
+    public void writeTo(Writer writer) {
+        writeTo(writer, true);
+    }
+
+    public void writeTo(Writer writer, boolean close) {
+        try {
+            writer.write(toJsonString(true));
+            writer.flush();
+            if (close) {
+                writer.close();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public final String toJsonString() {
+        return toJsonString(false);
+    }
+
+    public final String toJsonString(boolean rewrite) {
+        if (rewrite) {
+            return JSON.toJsonString(any());
+        }
         if (!this.changed) {
             return this.source();
         }

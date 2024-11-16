@@ -470,9 +470,9 @@ final class CompilerCodeUtils {
             assignmentArrayVariables.append("\t\t").append(typeNameInvoker.type.getCanonicalName()).append(" ").append(defineJavaIdentifier).append(" = ");
             if(type.isPrimitive() && EnvUtils.JDK_7_BELOW) {
                 String primitiveMethodValue = PRIMITIVE_VALUE_METHODS.get(type).getValue();
-                assignmentArrayVariables.append(primitiveMethodValue).append("(").append("parameters[").append(index).append("]);\r\n");
+                assignmentArrayVariables.append(primitiveMethodValue).append("(").append("parameters[").append(invoker.getTailIndex()).append("]);\r\n");
             } else {
-                assignmentArrayVariables.append("(").append(type.getCanonicalName()).append(") parameters[").append(index).append("];\r\n");
+                assignmentArrayVariables.append("(").append(type.getCanonicalName()).append(") parameters[").append(invoker.getTailIndex()).append("];\r\n");
             }
 
             if (defineIndexs.add(index)) {

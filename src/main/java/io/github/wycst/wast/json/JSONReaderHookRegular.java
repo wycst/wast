@@ -4,28 +4,29 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * @Date 2024/10/9 14:04
  * @Created by wangyc
  */
-class JSONReaderCallbackImpl extends JSONReaderCallback {
+final class JSONReaderHookRegular extends JSONReaderHook {
 
-    private final String pathMatcher;
+    private final String regular;
+    final Pattern pattern;
     private final boolean onlyLeaf;
-
-    public JSONReaderCallbackImpl(String pathMatcher) {
-        this(pathMatcher, false);
+    public JSONReaderHookRegular(String regular) {
+        this(regular, false);
     }
 
-    public JSONReaderCallbackImpl(String pathMatcher, boolean onlyLeaf) {
-        this.pathMatcher = pathMatcher;
+    public JSONReaderHookRegular(String regular, boolean onlyLeaf) {
+        this.pattern = Pattern.compile(this.regular = regular);
         this.onlyLeaf = onlyLeaf;
     }
 
     @Override
     protected Object created(String path, int type) throws Exception {
-        if (onlyLeaf || !path.matches(pathMatcher)) return null;
+        if (onlyLeaf || !pattern.matcher(path).matches()) return null;
         if ((type == 1)) {
             return new LinkedHashMap();
         } else {
@@ -34,8 +35,8 @@ class JSONReaderCallbackImpl extends JSONReaderCallback {
     }
 
     @Override
-    protected void parseValue(String key, Object value, Object host, int elementIndex, String path) throws Exception {
-        if (path.matches(pathMatcher)) {
+    protected void parseValue(String key, Object value, Object host, int elementIndex, String path, int type) throws Exception {
+        if (pattern.matcher(path).matches()) {
             results.add(value);
         }
         if (!onlyLeaf && host != null) {

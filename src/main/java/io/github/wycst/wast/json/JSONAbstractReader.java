@@ -33,11 +33,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author wangyunchao
- * @see JSONReaderCallback
+ * @see JSONReaderHook
  * @see JSON
  * @see JSONNode
  * @see JSONCharArrayWriter
@@ -68,7 +70,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
      * current character
      */
     int current;
-    JSONReaderCallback callback;
+    JSONReaderHook readerHook;
     final JSONParseContext parseContext = new JSONParseContext();
     final StringBuilder writer = new StringBuilder();
     ReadOption[] readOptions = new ReadOption[0];
@@ -79,7 +81,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
     boolean aborted;
     boolean completed;
     int readingOffset = -1;
-    volatile Object lock = new Object();
+    volatile CountDownLatch countDownLatch = new CountDownLatch(1);
     boolean async;
     long timeout = 60000;
     long currentThreadId;
@@ -106,10 +108,10 @@ abstract class JSONAbstractReader extends JSONGeneral {
     public abstract Object read();
 
     public void read(boolean async) {
-        read(new JSONReaderCallback(), async);
+        read(null, async);
     }
 
-    public Object readAsResult(Class<?> actualType) {
+    public <T> T readAsResult(Class<T> actualType) {
         return readAsResult(GenericParameterizedType.actualType(actualType));
     }
 
@@ -119,18 +121,18 @@ abstract class JSONAbstractReader extends JSONGeneral {
         return (T) result;
     }
 
-    public void read(JSONReaderCallback callback) {
-        read(callback, false);
+    public void read(JSONReaderHook readerHook) {
+        read(readerHook, false);
     }
 
     /**
-     * @param callback
+     * @param readerHook
      * @param async
      */
-    public void read(JSONReaderCallback callback, boolean async) {
+    public void read(JSONReaderHook readerHook, boolean async) {
         if (reading) return;
         checkReadState();
-        this.callback = callback;
+        this.readerHook = readerHook;
         this.reading = true;
         if (!async) {
             // sync
@@ -217,19 +219,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
     abstract void readBuffer() throws IOException;
 
     private void unlock() {
-        synchronized (lock) {
-            lock.notify();
-        }
-    }
-
-    private void await(long timeout) {
-        synchronized (lock) {
-            try {
-                lock.wait(timeout);
-            } catch (InterruptedException e) {
-                throw new JSONException(e);
-            }
-        }
+        countDownLatch.countDown();
     }
 
     final void defaultRead() throws Exception {
@@ -283,8 +273,8 @@ abstract class JSONAbstractReader extends JSONGeneral {
                 throw new JSONException("Syntax error, extra characters found, '" + (char) current + "', pos " + pos);
             }
         }
-        if (callback != null) {
-            callback.onCompleted(result);
+        if (readerHook != null) {
+            readerHook.onCompleted(result);
         }
     }
 
@@ -537,15 +527,6 @@ abstract class JSONAbstractReader extends JSONGeneral {
             }
             return value;
         } else {
-//            double doubleVal = value;
-//            expValue = expNegative ? -expValue - decimalCount : expValue - decimalCount;
-//            if (expValue > 0) {
-//                double powValue = getDecimalPowerValue(expValue); // Math.pow(radix, expValue);
-//                doubleVal *= powValue;
-//            } else if (expValue < 0) {
-//                double powValue = getDecimalPowerValue(-expValue);// Math.pow(radix, -expValue);
-//                doubleVal /= powValue;
-//            }
             double dv = NumberUtils.scientificToIEEEDouble(value, expNegative ? expValue + decimalCount : decimalCount - expValue);
             double doubleVal = negative ? -dv : dv;
             if (specifySuffix > 0) {
@@ -636,10 +617,10 @@ abstract class JSONAbstractReader extends JSONGeneral {
     Object readObject(String path, GenericParameterizedType genericType) throws Exception {
 
         Object instance;
-        Map mapInstane = null;
+        Map map = null;
         boolean assignableFromMap = true;
         ClassStrucWrap classStrucWrap = null;
-        boolean externalImpl = callback != null;
+        boolean externalImpl = readerHook != null;
         GenericParameterizedType ofValueType = null;
         if (!externalImpl) {
             if (genericType != null) {
@@ -647,7 +628,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
                 ReflectConsts.ClassCategory classCategory = genericType.getActualClassCategory();
                 if (classCategory == ReflectConsts.ClassCategory.MapCategory || classCategory == ReflectConsts.ClassCategory.ANY) {
                     assignableFromMap = true;
-                    instance = mapInstane = createMapInstance(genericType);
+                    instance = map = createMapInstance(genericType);
                     ofValueType = genericType.getValueType();
                 } else if (classCategory == ReflectConsts.ClassCategory.ObjectCategory) {
                     assignableFromMap = false;
@@ -660,14 +641,14 @@ abstract class JSONAbstractReader extends JSONGeneral {
                     throw new UnsupportedOperationException(actualType + " is not supported ");
                 }
             } else {
-                instance = mapInstane = new LinkedHashMap();
+                instance = map = new LinkedHashMap();
             }
         } else {
-            if (!callback.filter(path, 1)) {
+            if (!readerHook.filter(path, 1)) {
                 skipObject();
                 return null;
             }
-            instance = callback.created(path, 1);
+            instance = readerHook.created(path, 1);
         }
 
         boolean empty = true;
@@ -715,35 +696,35 @@ abstract class JSONAbstractReader extends JSONGeneral {
                         switch (current) {
                             case '{':
                                 value = this.readObject(nextPath, valueType);
-                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, mapInstane, instance, setterInfo);
+                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, map, instance, setterInfo, JSONNode.OBJECT);
                                 break;
                             case '[':
                                 value = this.readArray(nextPath, valueType);
-                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, mapInstane, instance, setterInfo);
+                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, map, instance, setterInfo, JSONNode.ARRAY);
                                 break;
                             case '"':
                                 value = parseStringTo(this.readString(), valueType, jsonProperty);
-                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, mapInstane, instance, setterInfo);
+                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, map, instance, setterInfo, JSONNode.STRING);
                                 break;
                             case 'n':
                                 readNull();
-                                invokeValueOfObject(key, null, nextPath, externalImpl, assignableFromMap, mapInstane, instance, setterInfo);
+                                invokeValueOfObject(key, null, nextPath, externalImpl, assignableFromMap, map, instance, setterInfo, JSONNode.NULL);
                                 break;
                             case 't':
                                 readTrue();
                                 value = toBoolType(true, valueType);
-                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, mapInstane, instance, setterInfo);
+                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, map, instance, setterInfo, JSONNode.BOOLEAN);
                                 break;
                             case 'f':
                                 readFalse();
                                 value = toBoolType(false, valueType);
-                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, mapInstane, instance, setterInfo);
+                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, map, instance, setterInfo, JSONNode.BOOLEAN);
                                 break;
                             default:
                                 // number
                                 value = parseNumberTo(this.readNumber('}'), valueType);
                                 toBreakOrContinue = true;
-                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, mapInstane, instance, setterInfo);
+                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, map, instance, setterInfo, JSONNode.NUMBER);
                                 break;
                         }
 
@@ -751,11 +732,9 @@ abstract class JSONAbstractReader extends JSONGeneral {
                         if (isAborted()) {
                             return instance;
                         }
-                        if (callback != null) {
-                            if (callback.isAbored()) {
-                                abortRead();
-                                return instance;
-                            }
+                        if (readerHook != null && readerHook.isAbored()) {
+                            abortRead();
+                            return instance;
                         }
                         if (!toBreakOrContinue) {
                             clearWhitespaces();
@@ -779,7 +758,9 @@ abstract class JSONAbstractReader extends JSONGeneral {
                 throwUnexpectedException();
             }
         }
-
+        if (readerHook != null && readerHook.isAboredOnParsed(instance, path, 1)) {
+            abortRead();
+        }
         return instance;
     }
 
@@ -957,7 +938,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
         return deserializer.valueOf(value, actualType);
     }
 
-    private void invokeValueOfObject(String key, Object value, String nextPath, boolean externalImpl, boolean assignableFromMap, Map mapInstane, Object instance, SetterInfo setterInfo) throws Exception {
+    private void invokeValueOfObject(String key, Object value, String nextPath, boolean externalImpl, boolean assignableFromMap, Map mapInstane, Object instance, SetterInfo setterInfo, int type) throws Exception {
         if (!externalImpl) {
             if (assignableFromMap) {
                 mapInstane.put(key, value);
@@ -967,15 +948,15 @@ abstract class JSONAbstractReader extends JSONGeneral {
                 }
             }
         } else {
-            callback.parseValue(key, value, instance, -1, nextPath);
+            readerHook.parseValue(key, value, instance, -1, nextPath, type);
         }
     }
 
-    private void parseCollectionElement(boolean externalImpl, Object value, Collection arrInstance, Object instance, int elementIndex, String nextPath) throws Exception {
+    private void parseCollectionElement(boolean externalImpl, Object value, Collection arrInstance, Object instance, int elementIndex, String nextPath, int type) throws Exception {
         if (!externalImpl) {
             arrInstance.add(value);
         } else {
-            callback.parseValue(null, value, instance, elementIndex, nextPath);
+            readerHook.parseValue(null, value, instance, elementIndex, nextPath, type);
         }
     }
 
@@ -990,7 +971,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
     final Object readArray(String path, GenericParameterizedType genericType) throws Exception {
 
         Object instance;
-        Collection arrInstance = null;
+        Collection collection = null;
         Class<?> collectionCls = null;
         GenericParameterizedType valueType = null;
         Class actualType = null;
@@ -1000,30 +981,31 @@ abstract class JSONAbstractReader extends JSONGeneral {
             valueType = genericType.getValueType();
             actualType = valueType == null ? null : valueType.getActualType();
         }
-        boolean externalImpl = callback != null;
+        boolean externalImpl = readerHook != null;
         if (!externalImpl) {
             if (collectionCls == null || collectionCls == ArrayList.class) {
-                arrInstance = new ArrayList<Object>();
+                collection = new ArrayList<Object>();
             } else {
                 isArrayCls = collectionCls.isArray();
                 if (isArrayCls) {
                     // arr用list先封装数据再转化为数组
-                    arrInstance = new ArrayList<Object>();
+                    collection = new ArrayList<Object>();
                     actualType = collectionCls.getComponentType();
                     if (valueType == null) {
                         valueType = GenericParameterizedType.actualType(actualType);
                     }
                 } else {
-                    arrInstance = createCollectionInstance(collectionCls);
+                    collection = createCollectionInstance(collectionCls);
                 }
             }
-            instance = arrInstance;
+            instance = collection;
         } else {
-            if (!callback.filter(path, 2)) {
+            if (!readerHook.filter(path, 2)) {
                 skipArray();
                 return null;
             }
-            instance = callback.created(path, 2);
+            instance = readerHook.created(path, 2);
+            collection = (Collection) instance;
         }
 
         int elementIndex = 0;
@@ -1033,7 +1015,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
                 if (elementIndex > 0 && !parseContext.allowLastEndComma) {
                     throw new JSONException("Syntax error, not allowed ',' followed by ']', pos " + pos);
                 }
-                return isArrayCls ? CollectionUtils.toArray(arrInstance, actualType == null ? Object.class : actualType) : arrInstance;
+                return isArrayCls ? CollectionUtils.toArray(collection, actualType == null ? Object.class : actualType) : collection;
             }
 
             boolean toBreakOrContinue = false;
@@ -1042,61 +1024,55 @@ abstract class JSONAbstractReader extends JSONGeneral {
             switch (current) {
                 case '{': {
                     Object value = this.readObject(nextPath, valueType);
-                    this.parseCollectionElement(externalImpl, value, arrInstance, instance, elementIndex, nextPath);
+                    this.parseCollectionElement(externalImpl, value, collection, instance, elementIndex, nextPath, JSONNode.OBJECT);
                     break;
                 }
                 case '[': {
                     // 2 [ array
                     Object value = this.readArray(nextPath, valueType);
-                    this.parseCollectionElement(externalImpl, value, arrInstance, instance, elementIndex, nextPath);
+                    this.parseCollectionElement(externalImpl, value, collection, instance, elementIndex, nextPath, JSONNode.ARRAY);
                     break;
                 }
                 case '"': {
                     // 3 string
                     Object value = parseStringTo(this.readString(), valueType, null);
-                    this.parseCollectionElement(externalImpl, value, arrInstance, instance, elementIndex, nextPath);
+                    this.parseCollectionElement(externalImpl, value, collection, instance, elementIndex, nextPath, JSONNode.STRING);
                     break;
                 }
                 case 'n':
                     readNull();
-                    this.parseCollectionElement(externalImpl, null, arrInstance, instance, elementIndex, nextPath);
+                    this.parseCollectionElement(externalImpl, null, collection, instance, elementIndex, nextPath, JSONNode.NULL);
                     break;
                 case 't': {
                     readTrue();
                     Object value = toBoolType(true, valueType);
-                    this.parseCollectionElement(externalImpl, value, arrInstance, instance, elementIndex, nextPath);
+                    this.parseCollectionElement(externalImpl, value, collection, instance, elementIndex, nextPath, JSONNode.BOOLEAN);
                     break;
                 }
                 case 'f': {
                     readFalse();
                     Object value = toBoolType(false, valueType);
-                    this.parseCollectionElement(externalImpl, value, arrInstance, instance, elementIndex, nextPath);
+                    this.parseCollectionElement(externalImpl, value, collection, instance, elementIndex, nextPath, JSONNode.BOOLEAN);
                     break;
                 }
                 default: {
                     // null, boolean, number
                     Object value = parseNumberTo(this.readNumber(']'), valueType);
                     toBreakOrContinue = true;
-                    this.parseCollectionElement(externalImpl, value, arrInstance, instance, elementIndex, nextPath);
+                    this.parseCollectionElement(externalImpl, value, collection, instance, elementIndex, nextPath, JSONNode.NUMBER);
                     break;
                 }
             }
-
             // if aborted
             if (isAborted()) {
-                return isArrayCls ? CollectionUtils.toArray(arrInstance, actualType == null ? Object.class : actualType) : arrInstance;
+                return isArrayCls ? CollectionUtils.toArray(collection, actualType == null ? Object.class : actualType) : collection;
             }
-
             // supported abort
-            if (callback != null) {
-                if (callback.isAbored()) {
-                    abortRead();
-                    return isArrayCls ? CollectionUtils.toArray(arrInstance, actualType == null ? Object.class : actualType) : arrInstance;
-                }
+            if (readerHook != null && readerHook.isAbored()) {
+                abortRead();
+                return isArrayCls ? CollectionUtils.toArray(collection, actualType == null ? Object.class : actualType) : collection;
             }
-
             elementIndex++;
-
             if (!toBreakOrContinue) {
                 clearWhitespaces();
             }
@@ -1107,15 +1083,15 @@ abstract class JSONAbstractReader extends JSONGeneral {
             if (current == ',') {
                 continue;
             }
-
             if (current == -1) {
                 throw new JSONException("Syntax error, the closing symbol ']' is not found, end pos: " + pos);
             }
-
             throwUnexpectedException();
         }
-
-        return isArrayCls ? CollectionUtils.toArray(arrInstance, actualType == null ? Object.class : actualType) : arrInstance;
+        if (readerHook != null && readerHook.isAboredOnParsed(instance, path, 2)) {
+            abortRead();
+        }
+        return isArrayCls ? CollectionUtils.toArray(collection, actualType == null ? Object.class : actualType) : collection;
     }
 
     /**
@@ -1261,13 +1237,21 @@ abstract class JSONAbstractReader extends JSONGeneral {
     public Object getResult(long timeout) {
         if (async) {
             long threadId = Thread.currentThread().getId();
-            // <p> The getResult () that calls the reader in the callback mode can be blocked.
+            // <p> The getResult () that calls the reader in the readerHook mode can be blocked.
             if (threadId != currentThreadId) {
                 return result;
             }
             await(timeout);
         }
         return result;
+    }
+
+    private void await(long timeout) {
+        try {
+            countDownLatch.await(timeout, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**

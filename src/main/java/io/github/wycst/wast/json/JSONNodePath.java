@@ -13,6 +13,9 @@ import java.util.List;
 /**
  * JSON xpath
  *
+ * <li>"//" :  从当前节点开始查找所有满足条件的节点，并遍历所有子孙节点；</li>
+ * <li>"/"  :  仅从当前节点开始查找所有满足条件的节点（不包括子孙节点）；</li>
+ *
  * @Date 2024/10/9 19:28
  * @Created by wangyc
  */
@@ -145,8 +148,16 @@ public final class JSONNodePath {
                         try {
                             JSONParseContext parseContext = new JSONNodeContext();
                             Integer[] values = JSONTypeDeserializer.INTEGER_ARRAY.deserialize(chars, offset, parseContext);
-                            pathCollector = JSONNodePathCollector.indexs(values).recursive(recursive);
-                            result.next(pathCollector);
+                            if (values.length == 1) {
+                                pathCollector = JSONNodePathCollector.exact(values[0]);
+                            } else {
+                                if (values.length == 0) {
+                                    String errorMsg = JSONGeneral.createErrorContextText(chars, offset);
+                                    throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorMsg + "', empty array");
+                                }
+                                pathCollector = JSONNodePathCollector.indexs(values);
+                            }
+                            result.next(pathCollector.recursive(recursive));
                             offset = parseContext.endIndex + 1;
                             if (offset == len) {
                                 return result;
@@ -259,6 +270,7 @@ public final class JSONNodePath {
                         ExprParser parser = Expression.find(xpath, ++offset);
                         offset = parser.findIndex();
                         pathCollector.condition(parser);
+                        result.supportedExtract(false);
                         if (offset == len || (ch = xpath.charAt(offset++)) != ']') {
                             String errorMsg = JSONGeneral.createErrorContextText(chars, offset);
                             throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorMsg + "', unexpected '" + ch + "', expected end ']'  error expression, ");

@@ -20,7 +20,7 @@
 <dependency>
     <groupId>io.github.wycst</groupId>
     <artifactId>wast</artifactId>
-    <version>0.0.17</version>
+    <version>0.0.18</version>
 </dependency>
 ```
 
@@ -45,7 +45,7 @@
 > 2 支持java中所有的操作运算符（加减乘除余，位运算，逻辑运算，字符串+）；<br>
 > 3 支持**指数运算(java本身不支持)； <br>
 > 4 支持函数以及自定义函数实现,函数可以任意嵌套； <br>
-> 5 科学记数法支持，16进制，8进制等解析，支持大数运算（大数统一转为double类型）；<br>
+> 5 科学记数法支持，16进制，8进制等解析，支持大数运算(BigDecimal)；<br>
 > 6 支持简单的三目运算；<br>
 > 7 代码轻量，使用安全，没有漏洞风险；<br>
 > 8 支持超长文本表达式执行；<br>
@@ -162,12 +162,11 @@ System.out.println(map);
 
 ```
         final JSONReader reader = JSONReader.from(new File(f));
-        reader.read(new JSONReader.ReaderCallback(JSONReader.ReadParseMode.ExternalImpl) {
+        reader.read(new JSONReaderHook() {
             @Override
-            public void parseValue(String key, Object value, Object host, int elementIndex, String path) throws Exception {
-                super.parseValue(key, value, host, elementIndex, path);
-                if(path.equals("/features/[100000]/properties/STREET")) {
-                     // 终止读取;
+            public void parseValue(String key, Object value, Object host, int elementIndex, String path, int type) throws Exception {
+                if(path.equals("/features/1/properties/STREET")) {
+                    System.out.println(value);
                     abort();
                 }
             }
@@ -179,11 +178,11 @@ System.out.println(map);
 > 1、支持对大文本json的懒加载解析功能，即访问时解析，当需要读取一个大文本json中一个或多个属性值时非常有用。<br>
 > 2、支持按需解析；<br>
 > 3、支持上下文查找；<br>
-> 4、支持在大文本json中提取部分内容作为解析上下文结果,使用JSONNode.from(source, path, lazy?)  <br>
+> 4、支持在大文本json中提取部分内容作为解析上下文结果,使用JSONNode.from(source, path)  <br>
 > 5、支持对节点的属性修改，删除等，节点的JSON反向序列化；<br>
 > 6、支持直接提取功能(v0.0.2+支持)，参考JSONPath；
 
-使用'/'作为路径的分隔符，数组下标使用[n]访问支持[*], [n+], [n-],[n]等复合下标访问，例如/store/book/[*]/author(注意不是/store/book[*]/author, 中括号[]可以省略)
+使用'/'作为路径的分隔符，数组下标使用n访问支持*, n+, n-,n等复合下标访问，例如/store/book/*/author
 
 ```
   String json = "{\"name\": \"li lei\", \”properties\": {\"age\": 23}}";
@@ -259,18 +258,18 @@ System.out.println(map);
                     }`
 ;
   
-  // 直接提取所有的author使用[*]
-  List authors = JSONNode.extract(json2, "/store/book/[*]/author");
+  // 直接提取所有的author使用*
+  List authors = JSONNode.extract(json2, "/store/book/*/author");
   
-  // 提取第2本书的作者author使用指定的下标[n]
-  String author = JSONNode.extract(json2, "/store/book/[1]/author").get(1);
-  （或者 JSONNode.from(json2, "/store/book/[1]/author").getStringValue();性能大体一致)
+  // 提取第2本书的作者author使用指定的下标n
+  String author = JSONNode.extract(json2, "/store/book/1/author").get(1);
+  （或者 JSONNode.from(json2, "/store/book/1/author").getStringValue();性能大体一致)
   
-  // 提取前2本书的作者使用下标[n-]（包含n）
-  List authors = JSONNode.extract(json2, "/store/book/[1-]/author").get(1);
+  // 提取前2本书的作者使用下标n-（包含n）
+  List authors = JSONNode.extract(json2, "/store/book/1-/author").get(1);
   
-  // 提取从第2本书开始后面所有的作者使用下标[n+]（包含n）
-  List authors = JSONNode.extract(json2, "/store/book/[1+]/author");
+  // 提取从第2本书开始后面所有的作者使用下标n+（包含n）
+  List authors = JSONNode.extract(json2, "/store/book/1+/author");
   
   
 ```
@@ -421,7 +420,7 @@ compileEnvironment.setVariableType(int.class, "arg.a", "arg.b", "b", "c");
 
 // 输出编译的源代码
 System.out.println(CompilerExpression.generateJavaCode(el, compileEnvironment));
-CompilerExpression compiler = CompilerExpression.compile(el, compileEnvironment, CompilerExpression.Coder.Native);
+CompilerExpression compiler = CompilerExpression.compile(el, compileEnvironment);
 
 
 Map aa = new HashMap();
@@ -440,7 +439,7 @@ System.out.println("==== eval result " + compiler.evaluate(var));
 
 ### 4 函数和自定义函数使用
 
-内置函数： max/min/sum/avg/abs/sqrt/lower/upper/size/ifNull <br>
+内置函数： max/min/sum/avg/abs/sqrt/lower/upper/size/ifNull/toArray <br>
 源码见： BuiltInFunction <br>
 自定义函数可以是全局函数不需要类名作为命名空间，使用@max(@可省略)直接调用，全局函数可以通过两种方式注册：<br>
 

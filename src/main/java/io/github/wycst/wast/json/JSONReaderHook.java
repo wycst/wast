@@ -7,14 +7,14 @@ import java.util.List;
  * Response parsing process through callback (subscription) mode
  * Hook mode, non asynchronous call
  */
-public class JSONReaderCallback {
+public abstract class JSONReaderHook {
 
     private boolean abored;
     protected List<Object> results = new ArrayList<Object>();
 
     private String filterRegular;
 
-    public JSONReaderCallback() {
+    public JSONReaderHook() {
     }
 
     public void setFilterRegular(String... pathRegularSegments) {
@@ -58,7 +58,7 @@ public class JSONReaderCallback {
     /**
      * Give the initiative to build the object to the caller. If the type is 1, create a map or object. If the type is 2, create a collection object
      *
-     * @param path JSON XPATH
+     * @param path JSON Absolute Path
      * @param type 1. Object type; 2 Collection type
      * @return
      * @throws Exception
@@ -68,17 +68,18 @@ public class JSONReaderCallback {
     }
 
     /**
-     * Assign property settings to the caller
+     * Assign property settings to the caller.
+     * If you want to interrupt and exit the read, you can call abort()
      *
      * @param key          the key if object({}), otherwise null
      * @param value        map/collection/string/number
      * @param host         object or collection
-     * @param elementIndex the index if collection([]), otherwise -1
-     * @param path         JSON XPATH
+     * @param elementIndex the index if collection, otherwise -1
+     * @param path         JSON Absolute Path
+     * @param type
      * @throws Exception
      */
-    protected void parseValue(String key, Object value, Object host, int elementIndex, String path) throws Exception {
-    }
+    protected abstract void parseValue(String key, Object value, Object host, int elementIndex, String path, int type) throws Exception;
 
     public void reset() {
         if (results != null) {
@@ -102,16 +103,46 @@ public class JSONReaderCallback {
         this.abored = true;
     }
 
-    final boolean isAbored() {
+    protected final boolean isAbored() {
         return abored;
     }
 
-    public final static JSONReaderCallback matcherOf(String matcher) {
-        return new JSONReaderCallbackImpl(matcher);
+    /**
+     * path解析完成触发调用;
+     *
+     * <p> 如果返回true则会终止读取；子类可重写实现自定义终止的时机;
+     *
+     * @param value
+     * @param path JSON Absolute Path
+     * @param type  1 对象； 2 数组；
+     * @return abort if true;
+     */
+    protected boolean isAboredOnParsed(Object value, String path, int type) {
+        return false;
     }
 
-    public final static JSONReaderCallback matcherOf(String matcher, boolean onlyLeaf) {
-        return new JSONReaderCallbackImpl(matcher, onlyLeaf);
+    /**
+     * 构建JSONReaderCallback
+     *
+     * @param regular 正则表达式
+     * @return
+     */
+    public final static JSONReaderHook regularPath(String regular) {
+        return new JSONReaderHookRegular(regular);
+    }
+
+    public final static JSONReaderHook regularPath(String regular, boolean onlyLeaf) {
+        return new JSONReaderHookRegular(regular, onlyLeaf);
+    }
+
+    /**
+     * 构建JSONReaderCallback
+     *
+     * @param exactPath 路径
+     * @return
+     */
+    public final static JSONReaderHook exactPath(String exactPath) {
+        return new JSONReaderHookExact(exactPath);
     }
 
     public final List<Object> getResults() {

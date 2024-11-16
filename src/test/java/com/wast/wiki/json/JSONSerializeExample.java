@@ -14,7 +14,7 @@ import java.util.Map;
  * @Date 2024/11/13
  * @Created by wangyc
  */
-public class SerializeExample {
+public class JSONSerializeExample {
 
 
     public static void main(String[] args) throws IOException {

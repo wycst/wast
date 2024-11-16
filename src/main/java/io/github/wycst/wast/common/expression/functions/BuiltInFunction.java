@@ -20,6 +20,16 @@ import java.util.Map;
 public final class BuiltInFunction {
 
     /**
+     * 支持将变量/常量参数转化为数组
+     *
+     * @param params
+     * @return
+     */
+    public static Object[] toArray(Object... params) {
+        return params;
+    }
+
+    /**
      * // 兼容1.5,1,6不使用流
      * 最大值number && string && Comparable
      *

@@ -1,6 +1,5 @@
 package com.wast.wiki.json;
 
-import com.wast.test.json.inputstream.InputStreamTest;
 import com.wast.wiki.beans.RestResult;
 import com.wast.wiki.beans.UserFact;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
@@ -8,9 +7,7 @@ import io.github.wycst.wast.json.JSON;
 import io.github.wycst.wast.json.options.ReadOption;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.InputStream;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -21,7 +18,7 @@ import java.util.Map;
  * @Date 2024/11/13
  * @Created by wangyc
  */
-public class DeserializeExample {
+public class JSONDeserializeExample {
 
     static final String userFactJson = "{\"addr\":\"asdfgh\",\"userId\":1,\"userName\":\"test\"}";
     static final String userFactCommontJson =
@@ -100,7 +97,7 @@ public class DeserializeExample {
         System.out.println(result);
 
         // 2 读取输入流
-        InputStream inputStream = InputStreamTest.class.getResourceAsStream("/json/path.json");
+        InputStream inputStream = JSONDeserializeExample.class.getResourceAsStream("/json/path.json");
         result = JSON.read(inputStream, Map.class);
         System.out.println(result);
 

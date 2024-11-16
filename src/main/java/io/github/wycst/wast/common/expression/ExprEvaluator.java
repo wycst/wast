@@ -431,8 +431,8 @@ public class ExprEvaluator {
         if (this.constant) {
             return this.result;
         }
-        Object result = null;
-        if (bool == null || bool == Boolean.FALSE) {
+        Object result;
+        if (bool == null || !bool) {
             this.constant = isStatic && right.constant;
             result = right.evaluate(context, evaluateEnvironment);
         } else {

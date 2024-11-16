@@ -432,7 +432,7 @@ public class ExprParser extends Expression {
             List<String> variables = new ArrayList<String>();
             Set<Map.Entry<String, ElVariableInvoker>> entrySet = invokes.entrySet();
             for (Map.Entry<String, ElVariableInvoker> entry : entrySet) {
-                if(entry.getValue().parent == null) {
+                if (entry.getValue().parent == null) {
                     variables.add(entry.getKey());
                 }
             }
@@ -1611,7 +1611,13 @@ public class ExprParser extends Expression {
      */
     private ElOperator getOperator(char symbol) {
         if (symbol >= ElOperator.INDEXS_OPERATORS.length) {
-            return null;
+            if (symbol == '∈') {
+                return this.operator = ElOperator.IN;
+            } else if (symbol == '∉') {
+                return this.operator = ElOperator.OUT;
+            } else {
+                return null;
+            }
         }
         ElOperator elOperator = ElOperator.INDEXS_OPERATORS[symbol];
         if (elOperator != null) {
