@@ -64,9 +64,13 @@ public class FieldCondition {
         paramValues.add(conditionValue);
     }
 
+    protected String valueSpace() {
+        return " ";
+    }
+
     public void appendWhereField(StringBuilder whereBuilder, FieldColumn fieldColumn) {
         whereBuilder.append("t.").append(fieldColumn.getColumnName())
-                .append(" ").append(getOperator()).append(" ");
+                .append(" ").append(getOperator()).append(valueSpace());
     }
 
     public enum Operator {

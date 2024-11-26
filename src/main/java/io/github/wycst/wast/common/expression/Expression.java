@@ -191,7 +191,7 @@ public abstract class Expression {
      * @param params 可变参数
      * @return
      */
-    public final static Object evalParameters(String expr, Object...params) {
+    public final static Object evalParameters(String expr, Object... params) {
         return parse(expr).evaluateParameters(params);
     }
 
@@ -203,7 +203,7 @@ public abstract class Expression {
      * @param params 可变参数
      * @return
      */
-    public final static  <T> T evalParameters(String expr, Class<T> targetClass, Object...params) {
+    public final static <T> T evalParameters(String expr, Class<T> targetClass, Object... params) {
         return ObjectUtils.toType(parse(expr).evaluateParameters(params), targetClass);
     }
 
@@ -283,6 +283,18 @@ public abstract class Expression {
     }
 
     /**
+     * 执行带上下文表达式
+     *
+     * @param expr
+     * @param context
+     * @param evaluateEnvironment
+     * @return
+     */
+    public final static Object eval(String expr, Object context, EvaluateEnvironment evaluateEnvironment) {
+        return parse(expr).evaluate(context, evaluateEnvironment);
+    }
+
+    /**
      * 批量执行带上下文表达式
      *
      * @param exprs
@@ -359,6 +371,25 @@ public abstract class Expression {
     /**
      * 执行变量表达式
      *
+     * @param context 显示指定map作为参数上下文
+     * @param timeout 超时时间单位毫秒（只有编译模式下生效）
+     * @return
+     */
+    public abstract Object evaluate(Map context, long timeout);
+
+    /**
+     * 执行变量表达式
+     *
+     * @param context 实体对象或者map
+     * @param timeout 超时时间单位毫秒（只有编译模式下生效）
+     * @return
+     * @see Object#wait(long)
+     */
+    public abstract Object evaluate(Object context, long timeout);
+
+    /**
+     * 执行变量表达式
+     *
      * @param evaluateEnvironment 执行环境
      * @return
      */
@@ -417,12 +448,38 @@ public abstract class Expression {
     }
 
     /**
+     * 执行变量运算表达式
+     *
+     * @param context
+     * @param targetClass
+     * @param <T>
+     * @param timeout     超时时间单位毫秒（只有编译模式下生效）
+     * @return
+     */
+    public final <T> T evaluateResult(Object context, Class<T> targetClass, long timeout) {
+        return ObjectUtils.toType(evaluate(context, timeout), targetClass);
+    }
+
+    /**
+     * 执行变量运算表达式
+     *
+     * @param context
+     * @param targetClass
+     * @param <T>
+     * @param timeout     超时时间单位毫秒（只有编译模式下生效）
+     * @return
+     */
+    public final <T> T evaluateResult(Map context, Class<T> targetClass, long timeout) {
+        return ObjectUtils.toType(evaluate(context, timeout), targetClass);
+    }
+
+    /**
      * 执行可变参数运算表达式
      *
      * @param targetClass 目标类型
      * @return
      */
-    public final <T> T evaluateParametersResult(Class<T> targetClass, Object...parameters) {
+    public final <T> T evaluateParametersResult(Class<T> targetClass, Object... parameters) {
         return ObjectUtils.toType(evaluateParameters(parameters), targetClass);
     }
 

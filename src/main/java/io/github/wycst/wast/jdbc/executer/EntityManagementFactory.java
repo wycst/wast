@@ -45,10 +45,6 @@ public class EntityManagementFactory {
         return Default;
     }
 
-//    public Map<Class<?>, EntitySqlMapping> getEntitySqlMappings() {
-//        return entitySqlMappings;
-//    }
-
     /***
      * 设置实体扫描目录
      *
@@ -333,7 +329,7 @@ public class EntityManagementFactory {
     public void checkEntityClass(Class<?> entityCls) {
         entityCls.getClass();
         if (!existEntity(entityCls)) {
-            throw new OqlParematerException("参数错误：" + entityCls + "没有纳入对象sql管理，请检查实体扫描配置");
+            throw new OqlParematerException(entityCls + " not included in object SQL management, please check entity scanning configuration");
         }
     }
 }

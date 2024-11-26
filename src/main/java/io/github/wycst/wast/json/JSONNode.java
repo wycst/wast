@@ -19,14 +19,12 @@ package io.github.wycst.wast.json;
 import io.github.wycst.wast.common.reflect.ClassStrucWrap;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.SetterInfo;
-import io.github.wycst.wast.common.utils.Base64Utils;
-import io.github.wycst.wast.common.utils.CollectionUtils;
-import io.github.wycst.wast.common.utils.EnvUtils;
-import io.github.wycst.wast.common.utils.ObjectUtils;
+import io.github.wycst.wast.common.utils.*;
 import io.github.wycst.wast.json.exceptions.JSONException;
 import io.github.wycst.wast.json.options.ReadOption;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.Serializable;
 import java.io.Writer;
 import java.lang.reflect.Array;
@@ -427,44 +425,8 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     }
 
     final static class D extends JSONNode {
-
         D(Serializable value, JSONNode root) {
             super(value, root);
-        }
-
-        @Override
-        JSONNode parseArrayAt(int index, boolean lazy, boolean createObj) {
-            return null;
-        }
-
-        @Override
-        JSONNode parseValueNode(int beginIndex, char endChar, boolean lazy, boolean createObj) throws Exception {
-            return null;
-        }
-
-        @Override
-        public String getText() {
-            return null;
-        }
-
-        @Override
-        byte[] hexString2Bytes() {
-            return new byte[0];
-        }
-
-        @Override
-        public String source() {
-            return null;
-        }
-
-        @Override
-        void writeSourceTo(StringBuilder stringBuilder) {
-
-        }
-
-        @Override
-        protected void clearSource() {
-
         }
     }
 
@@ -549,7 +511,6 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             }
             char ch;
             boolean allowComment = parseContext.allowComment;
-            boolean empty = true;
             for (int i = offset + 1; i < endIndex; ++i) {
                 while ((ch = buf[i]) <= ' ') {
                     ++i;
@@ -564,35 +525,23 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 boolean matchedField;
                 if (ch == '"') {
                     key = JSONDefaultParser.parseMapKeyByCache(buf, i, endIndex, '"', parseContext);
-                    empty = false;
                     i = parseContext.endIndex + 1;
                 } else {
                     if (ch == '}') {
-                        if (!empty && !parseContext.allowLastEndComma) {
-                            throw new JSONException("Syntax error, not allowed ',' followed by '}', pos " + i + ", use ReadOption.AllowLastEndComma to supported");
-                        }
+                        // parseContext.allowLastEndComma
                         offset = i;
                         completed = true;
                         return null;
                     }
                     if (ch == '\'') {
-                        if (parseContext.allowSingleQuotes) {
-                            while (i + 1 < endIndex && (buf[++i] != '\'' || buf[i - 1] == '\\')) ;
-                            empty = false;
-                            ++i;
-                            key = (String) JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, false);
-                        } else {
-                            throw new JSONException("Syntax error, the single quote symbol ' is not allowed at pos " + i);
-                        }
+                        // parseContext.allowSingleQuotes
+                        while (i + 1 < endIndex && (buf[++i] != '\'' || buf[i - 1] == '\\')) ;
+                        ++i;
+                        key = (String) JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, false);
                     } else {
-                        if (parseContext.allowUnquotedFieldNames) {
-                            while (i + 1 < endIndex && buf[++i] != ':') ;
-                            empty = false;
-                            key = String.valueOf(JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, true));
-                        } else {
-                            String errorContextTextAt = JSONGeneral.createErrorContextText(buf, i);
-                            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + ch + "', expected '\"' or use option ReadOption.AllowUnquotedFieldNames ");
-                        }
+                        // parseContext.allowUnquotedFieldNames
+                        while (i + 1 < endIndex && buf[++i] != ':') ;
+                        key = String.valueOf(JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, true));
                     }
                 }
                 while ((ch = buf[i]) <= ' ') {
@@ -651,7 +600,6 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             int beginIndex = fromIndex + 1, toIndex = endIndex;
             char ch;
             String key;
-            boolean empty = true;
             final boolean allowComment = parseContext.allowComment;
             Map<Serializable, JSONNode> fieldValues = new LinkedHashMap<Serializable, JSONNode>();
 
@@ -673,33 +621,22 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 if (ch == '"') {
                     key = JSONDefaultParser.parseMapKeyByCache(buf, i, toIndex, '"', parseContext);
                     i = parseContext.endIndex + 1;
-                    empty = false;
                 } else {
                     if (ch == '}') {
-                        if (!empty && !parseContext.allowLastEndComma) {
-                            throw new JSONException("Syntax error, the closing symbol '}' is not allowed at pos " + i);
-                        }
+                        // parseContext.allowLastEndComma
                         parseContext.endIndex = i++;
                         objectNode.endIndex = i;
                         return objectNode;
                     }
                     if (ch == '\'') {
-                        if (parseContext.allowSingleQuotes) {
-                            key = JSONDefaultParser.parseMapKeyByCache(buf, i, toIndex, '\'', parseContext);
-                            i = parseContext.endIndex + 1;
-                            empty = false;
-                        } else {
-                            throw new JSONException("Syntax error, the single quote symbol ' is not allowed at pos " + i);
-                        }
+                        // parseContext.allowSingleQuotes
+                        key = JSONDefaultParser.parseMapKeyByCache(buf, i, toIndex, '\'', parseContext);
+                        i = parseContext.endIndex + 1;
                     } else {
-                        if (parseContext.allowUnquotedFieldNames) {
-                            int begin = i;
-                            while (i + 1 < toIndex && buf[++i] != ':') ;
-                            empty = false;
-                            key = String.valueOf(JSONDefaultParser.parseKeyOfMap(buf, begin, i, true));
-                        } else {
-                            throw new JSONException("Syntax error, '\'' or '\"' expected or add ReadOption.AllowUnquotedFieldNames ");
-                        }
+                        // parseContext.allowUnquotedFieldNames
+                        int begin = i;
+                        while (i + 1 < toIndex && buf[++i] != ':') ;
+                        key = String.valueOf(JSONDefaultParser.parseKeyOfMap(buf, begin, i, true));
                     }
                 }
                 while ((ch = buf[i]) <= ' ') {
@@ -778,9 +715,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     }
                 }
                 if (ch == ']') {
-                    if (elementSize > 0 && !parseContext.allowLastEndComma) {
-                        throw new JSONException("Syntax error, not allowed ',' followed by ']', pos " + i);
-                    }
+                    // parseContext.allowLastEndComma
                     parseContext.endIndex = i++;
                     arrayNode.endIndex = i;
                     arrayNode.updateArray(elementValues, elementSize);
@@ -890,15 +825,12 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     }
                 }
                 if (ch == ']') {
-                    if (elementSize > 0 && !parseContext.allowLastEndComma) {
-                        throw new JSONException("Syntax error, not allowed ',' followed by ']', pos " + i + ", use ReadOption.AllowLastEndComma to supported");
-                    }
+                    // parseContext.allowLastEndComma
                     offset = i;
                     completed = true;
                     return null;
                 }
                 matchedIndex = index > -1 && index == elementSize;
-
                 JSONNode node;
                 try {
                     node = parseValueNode(i, ']', lazy, createObj);
@@ -945,7 +877,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         this.elementSize = elementSize;
     }
 
-    final static class B extends JSONNode {
+    static class B extends JSONNode {
 
         CharSource charSource;
         // source
@@ -1023,73 +955,77 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             if (completed) {
                 return fieldValues.get(fieldName);
             }
-            byte ch;
-            boolean allowComment = parseContext.allowComment;
-            boolean empty = true;
+            byte b;
+            final boolean allowComment = parseContext.allowComment, extract = parseContext.extract;
+            final boolean stored = !extract || !lazy;
+            final byte[] fieldNameBytes = (!stored && fieldName != null) ? JSONUnsafe.getStringUTF8Bytes(fieldName) : null;
+            // boolean empty = true;
             for (int i = offset + 1; i < endIndex; ++i) {
-                while ((ch = buf[i]) <= ' ') {
+                while ((b = buf[i]) <= ' ') {
                     ++i;
                 }
                 if (allowComment) {
-                    if (ch == '/') {
-                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, endIndex, parseContext)];
+                    if (b == '/') {
+                        b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, endIndex, parseContext)];
                     }
                 }
                 int fieldKeyFrom = i;
-                String key;
-                boolean matchedField;
-                if (ch == '"') {
-                    key = JSONTypeDeserializer.parseMapKeyByCache(buf, i, endIndex, '"', parseContext);
-                    empty = false;
+                String key = null;
+                boolean matched, skipValue;
+                if (b == '"') {
+                    if (stored) {
+                        key = JSONTypeDeserializer.parseMapKeyByCache(buf, i, endIndex, '"', parseContext);
+                        matched = fieldName != null && fieldName.equals(key);
+                        skipValue = false;
+                    } else {
+                        // direct match bytes
+                        matched = matchJSONKey(charSource, buf, i, fieldNameBytes, parseContext);
+                        skipValue = !matched;
+                    }
+                    // empty = false;
                     i = parseContext.endIndex + 1;
                 } else {
-                    if (ch == '}') {
-                        if (!empty && !parseContext.allowLastEndComma) {
-                            throw new JSONException("Syntax error, not allowed ',' followed by '}', pos " + i + ", use ReadOption.AllowLastEndComma to supported");
-                        }
+                    if (b == '}') {
+                        // parseContext.allowLastEndComma
                         offset = i;
                         completed = true;
                         return null;
                     }
-                    if (ch == '\'') {
-                        if (parseContext.allowSingleQuotes) {
-                            while (i + 1 < endIndex && (buf[++i] != '\'' || buf[i - 1] == '\\')) ;
-                            empty = false;
-                            ++i;
-                            key = (String) JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, false);
-                        } else {
-                            throw new JSONException("Syntax error, the single quote symbol ' is not allowed at pos " + i);
-                        }
+                    if (b == '\'') {
+                        // parseContext.allowSingleQuotes
+                        while (i + 1 < endIndex && (buf[++i] != '\'' || buf[i - 1] == '\\')) ;
+                        ++i;
+                        key = (String) JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, false);
                     } else {
-                        if (parseContext.allowUnquotedFieldNames) {
-                            while (i + 1 < endIndex && buf[++i] != ':') ;
-                            empty = false;
-                            key = String.valueOf(JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, true));
-                        } else {
-                            String errorContextTextAt = JSONGeneral.createErrorContextText(buf, i);
-                            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected '" + ch + "', expected '\"' or use option ReadOption.AllowUnquotedFieldNames ");
-                        }
+                        // parseContext.allowUnquotedFieldNames
+                        while (i + 1 < endIndex && buf[++i] != ':') ;
+                        key = String.valueOf(JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, true));
                     }
+                    matched = fieldName != null && fieldName.equals(key);
+                    skipValue = !stored && !matched;
                 }
-                while ((ch = buf[i]) <= ' ') {
+                while ((b = buf[i]) <= ' ') {
                     ++i;
                 }
                 if (allowComment) {
-                    if (ch == '/') {
-                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, endIndex, parseContext)];
+                    if (b == '/') {
+                        b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, endIndex, parseContext)];
                     }
                 }
-                if (ch == ':') {
-                    matchedField = fieldName != null && fieldName.equals(key);
-                    while ((ch = buf[++i]) <= ' ') ;
+                if (b == ':') {
+                    while ((b = buf[++i]) <= ' ') ;
                     if (allowComment) {
-                        if (ch == '/') {
+                        if (b == '/') {
                             i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, endIndex, parseContext);
                         }
                     }
-                    JSONNode node;
+                    JSONNode node = null;
                     try {
-                        node = parseValueNode(i, '}', lazy, createObj);
+                        if (skipValue) {
+                            JSONTypeDeserializer.ANY.skip(charSource, buf, i, endIndex, (byte) '}', parseContext);
+                        } else {
+                            node = parseValueNode(i, '}', lazy, createObj);
+                        }
                     } catch (Throwable throwable) {
                         if (throwable instanceof JSONException) {
                             throw (JSONException) throwable;
@@ -1097,27 +1033,29 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                         throw new JSONException(throwable.getMessage(), throwable);
                     }
                     i = parseContext.endIndex;
-                    while ((ch = buf[++i]) <= ' ') ;
+                    while ((b = buf[++i]) <= ' ') ;
                     if (allowComment) {
-                        if (ch == '/') {
-                            ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, endIndex, parseContext)];
+                        if (b == '/') {
+                            b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, endIndex, parseContext)];
                         }
                     }
-                    offset = i;
-                    boolean isClosingSymbol = ch == '}';
-                    if (ch == ',' || isClosingSymbol) {
-                        addFieldValue(fieldValues, key, node);
-                        if (isClosingSymbol) {
-                            completed = true;
+                    boolean isClosingSymbol = b == '}';
+                    if (b == ',' || isClosingSymbol) {
+                        if (stored) {
+                            addFieldValue(fieldValues, key, node);
+                            offset = i;
+                            if (isClosingSymbol) {
+                                completed = true;
+                            }
                         }
-                        if (matchedField) {
+                        if (matched) {
                             return node;
                         }
                     } else {
-                        throw new JSONException("Syntax error, unexpected '" + ch + "', position " + i);
+                        throw new JSONException("Syntax error, unexpected '" + (char) b + "', position " + i);
                     }
                 } else {
-                    throw new JSONException("Syntax error, unexpected '" + ch + "', position " + i);
+                    throw new JSONException("Syntax error, unexpected '" + (char) b + "', position " + i);
                 }
             }
             return null;
@@ -1126,8 +1064,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         private JSONNode completeObjectNode(CharSource charSource, byte[] buf, int fromIndex, final boolean createObj) throws Exception {
             int beginIndex = fromIndex + 1, toIndex = endIndex;
             byte b;
-            String key = null;
-            boolean empty = true;
+            String key;
             boolean allowComment = parseContext.allowComment;
             Map<Serializable, JSONNode> fieldValues = new LinkedHashMap<Serializable, JSONNode>();
 
@@ -1148,31 +1085,22 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 if (b == '"') {
                     key = JSONTypeDeserializer.parseMapKeyByCache(buf, i, toIndex, '"', parseContext);
                     i = parseContext.endIndex + 1;
-                    empty = false;
                 } else {
                     if (b == '}') {
-                        if (!empty && !parseContext.allowLastEndComma) {
-                            throw new JSONException("Syntax error, the closing symbol '}' is not allowed at pos " + i);
-                        }
+                        // parseContext.allowLastEndComma
                         parseContext.endIndex = i++;
                         objectNode.endIndex = i;
                         return objectNode;
                     }
                     if (b == '\'') {
-                        if (parseContext.allowSingleQuotes) {
-                            key = JSONTypeDeserializer.parseMapKeyByCache(buf, i, toIndex, '\'', parseContext);
-                            i = parseContext.endIndex + 1;
-                            empty = false;
-                        } else {
-                            throw new JSONException("Syntax error, the single quote symbol ' is not allowed at pos " + i);
-                        }
+                        // parseContext.allowSingleQuotes
+                        key = JSONTypeDeserializer.parseMapKeyByCache(buf, i, toIndex, '\'', parseContext);
+                        i = parseContext.endIndex + 1;
                     } else {
-                        if (parseContext.allowUnquotedFieldNames) {
-                            int begin = i;
-                            while (i + 1 < toIndex && buf[++i] != ':') ;
-                            empty = false;
-                            key = String.valueOf(JSONDefaultParser.parseKeyOfMap(buf, begin, i, true));
-                        }
+                        // parseContext.allowUnquotedFieldNames
+                        int begin = i;
+                        while (i + 1 < toIndex && buf[++i] != ':') ;
+                        key = String.valueOf(JSONDefaultParser.parseKeyOfMap(buf, begin, i, true));
                     }
                 }
                 while ((b = buf[i]) <= ' ') {
@@ -1253,9 +1181,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     }
                 }
                 if (b == ']') {
-                    if (elementSize > 0 && !parseContext.allowLastEndComma) {
-                        throw new JSONException("Syntax error, not allowed ',' followed by ']', pos " + i);
-                    }
+                    // parseContext.allowLastEndComma
                     parseContext.endIndex = i++;
                     arrayNode.endIndex = i;
                     arrayNode.updateArray(elementValues, elementSize);
@@ -1365,9 +1291,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     }
                 }
                 if (ch == ']') {
-                    if (elementSize > 0 && !parseContext.allowLastEndComma) {
-                        throw new JSONException("Syntax error, not allowed ',' followed by ']', pos " + i + ", use ReadOption.AllowLastEndComma to supported");
-                    }
+                    // parseContext.allowLastEndComma
                     offset = i;
                     completed = true;
                     return null;
@@ -1440,6 +1364,60 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         return parseInternal(source, path, readOptions);
     }
 
+    public final static JSONNode parse(byte[] bytes, ReadOption... readOptions) {
+        return parse(bytes, null, readOptions);
+    }
+
+    public final static JSONNode parse(InputStream is, ReadOption... readOptions) {
+        if (EnvUtils.JDK_9_PLUS) {
+            try {
+                return parse(IOUtils.readBytes(is), null, readOptions);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            return parse(StringUtils.fromStream(is), null, readOptions);
+        }
+    }
+
+    /**
+     * Return the complete JSON tree node
+     *
+     * @param bytes       json source
+     * @param path        <p> 1. Access the root and split path through '/' off;
+     *                    <p> 2. use n to access the array subscript;
+     *                    <p> 3. does not support recursion '//';
+     * @param readOptions
+     * @return
+     */
+    public final static JSONNode parse(byte[] bytes, String path, ReadOption... readOptions) {
+        if (bytes == null)
+            return null;
+        try {
+            JSONNodeContext parseContext = new JSONNodeContext();
+            JSONOptions.readOptions(readOptions, parseContext);
+            JSONNode root;
+            if (EnvUtils.JDK_9_PLUS) {
+                if (!EnvUtils.hasNegatives(bytes, 0, bytes.length)) {
+                    root = new B(AsciiStringSource.of(bytes), bytes, 0, bytes.length, parseContext);
+                } else {
+                    root = new B(UTF8CharSource.of(bytes), bytes, 0, bytes.length, parseContext);
+                }
+            } else {
+                root = new B(null, bytes, 0, bytes.length, parseContext);
+            }
+            if (path == null) {
+                return root;
+            }
+            return root.get(path);
+        } catch (Throwable throwable) {
+            if (throwable instanceof JSONException) {
+                throw (JSONException) throwable;
+            }
+            throw new JSONException(throwable.getMessage(), throwable);
+        }
+    }
+
     final static JSONNode parseInternal(String source, String path, ReadOption... readOptions) {
         if (source == null)
             return null;
@@ -1472,19 +1450,6 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         }
     }
 
-
-//    /***
-//     * Generate JSON root node (local root) based on specified path
-//     *
-//     * @param source
-//     * @param path
-//     * @param readOptions
-//     * @return
-//     */
-//    public static JSONNode from(String source, String path, ReadOption... readOptions) {
-//        return from(source, path, false, readOptions);
-//    }
-
     /**
      * Generate JSON root node (local root) based on specified path
      *
@@ -1507,21 +1472,29 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         }
     }
 
+    /**
+     * Generate JSON root node (local root) based on specified path
+     *
+     * @param bytes
+     * @param path        the exact path
+     * @param readOptions
+     * @return
+     */
+    public final static JSONNode from(byte[] bytes, String path, ReadOption... readOptions) {
+        if (EnvUtils.JDK_9_PLUS) {
+            if (!EnvUtils.hasNegatives(bytes, 0, bytes.length)) {
+                return parseInternal(AsciiStringSource.of(bytes), bytes, JSONNodePath.parse(path), readOptions);
+            } else {
+                return parseInternal(UTF8CharSource.of(bytes), bytes, JSONNodePath.parse(path), readOptions);
+            }
+        } else {
+            return parseInternal(null, bytes, JSONNodePath.parse(path), readOptions);
+        }
+    }
+
     public final static <T> T from(String source, String path, Class<T> valueClass, ReadOption... readOptions) {
         return from(source, path, readOptions).getValue(valueClass);
     }
-
-//    /**
-//     * Generate JSON root node (local root) based on specified path
-//     *
-//     * @param buf
-//     * @param path        the exact path
-//     * @param readOptions
-//     * @return
-//     */
-//    public final static JSONNode from(char[] buf, String path, ReadOption... readOptions) {
-//        return parseInternal(null, buf, path, readOptions);
-//    }
 
     /***
      * 根据指定path生成json根节点(局部根)
@@ -1609,6 +1582,31 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             }
         } else {
             return extractInternal(null, (char[]) JSONUnsafe.getStringValue(json.toString()), path, nodeCollector, readOptions);
+        }
+    }
+
+    /**
+     * Extract path value list
+     * <p>
+     * Supports wildcard(*) search but does not support recursion and filter
+     * <p>
+     * 不支持递归和属性过滤器
+     *
+     * @param bytes
+     * @param path
+     * @param nodeCollector
+     * @param readOptions
+     * @return
+     */
+    public final static <T> List<T> extract(byte[] bytes, JSONNodePath path, JSONNodeCollector<T> nodeCollector, ReadOption... readOptions) {
+        if (EnvUtils.JDK_9_PLUS) {
+            if (!EnvUtils.hasNegatives(bytes, 0, bytes.length)) {
+                return extractInternal(AsciiStringSource.of(bytes), bytes, path, nodeCollector, readOptions);
+            } else {
+                return extractInternal(UTF8CharSource.of(bytes), bytes, path, nodeCollector, readOptions);
+            }
+        } else {
+            return extractInternal(null, bytes, path, nodeCollector, readOptions);
         }
     }
 
@@ -1733,7 +1731,6 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         int beginIndex = fromIndex + 1;
         char ch;
         String key;
-        boolean empty = true;
         final boolean allowComment = parseContext.allowComment, extract = parseContext.extract;
         boolean matched, returnValueIfMatched;
         boolean isLastPathLevel = pathCollector.next == null;
@@ -1741,7 +1738,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             while ((ch = buf[i]) <= ' ') {
                 ++i;
             }
-            if (parseContext.allowComment) {
+            if (allowComment) {
                 if (ch == '/') {
                     ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
                 }
@@ -1749,32 +1746,21 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             if (ch == '"') {
                 key = JSONDefaultParser.parseMapKeyByCache(buf, i, toIndex, '"', parseContext);
                 i = parseContext.endIndex + 1;
-                empty = false;
             } else {
                 if (ch == '}') {
-                    if (!empty && !parseContext.allowLastEndComma) {
-                        throw new JSONException("Syntax error, the closing symbol '}' is not allowed at pos " + i);
-                    }
+                    // parseContext.allowLastEndComma
                     parseContext.endIndex = i;
                     return null;
                 }
                 if (ch == '\'') {
-                    if (parseContext.allowSingleQuotes) {
-                        key = JSONDefaultParser.parseMapKeyByCache(buf, i, toIndex, '\'', parseContext);
-                        i = parseContext.endIndex + 1;
-                        empty = false;
-                    } else {
-                        throw new JSONException("Syntax error, the single quote symbol ' is not allowed at pos " + i);
-                    }
+                    // parseContext.allowSingleQuotes
+                    key = JSONDefaultParser.parseMapKeyByCache(buf, i, toIndex, '\'', parseContext);
+                    i = parseContext.endIndex + 1;
                 } else {
-                    if (parseContext.allowUnquotedFieldNames) {
-                        int begin = i;
-                        while (i + 1 < toIndex && buf[++i] != ':') ;
-                        empty = false;
-                        key = String.valueOf(JSONDefaultParser.parseKeyOfMap(buf, begin, i, true));
-                    } else {
-                        throw new JSONException("Syntax error, '\'' or '\"' expected or add ReadOption.AllowUnquotedFieldNames ");
-                    }
+                    // parseContext.allowUnquotedFieldNames
+                    int begin = i;
+                    while (i + 1 < toIndex && buf[++i] != ':') ;
+                    key = String.valueOf(JSONDefaultParser.parseKeyOfMap(buf, begin, i, true));
                 }
             }
             while ((ch = buf[i]) <= ' ') {
@@ -1891,7 +1877,6 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         int beginIndex = fromIndex + 1;
         byte b;
         String key;
-        boolean empty = true;
         final boolean allowComment = parseContext.allowComment, extract = parseContext.extract;
         boolean matched, returnValueIfMatched;
         boolean isLastPathLevel = pathCollector.next == null;
@@ -1907,32 +1892,21 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             if (b == '"') {
                 key = JSONTypeDeserializer.parseMapKeyByCache(buf, i, toIndex, '"', parseContext);
                 i = parseContext.endIndex + 1;
-                empty = false;
             } else {
                 if (b == '}') {
-                    if (!empty && !parseContext.allowLastEndComma) {
-                        throw new JSONException("Syntax error, the closing symbol '}' is not allowed at pos " + i);
-                    }
+                    // parseContext.allowLastEndComma
                     parseContext.endIndex = i;
                     return null;
                 }
                 if (b == '\'') {
-                    if (parseContext.allowSingleQuotes) {
-                        key = JSONTypeDeserializer.parseMapKeyByCache(buf, i, toIndex, '\'', parseContext);
-                        i = parseContext.endIndex + 1;
-                        empty = false;
-                    } else {
-                        throw new JSONException("Syntax error, the single quote symbol ' is not allowed at pos " + i);
-                    }
+                    // parseContext.allowSingleQuotes
+                    key = JSONTypeDeserializer.parseMapKeyByCache(buf, i, toIndex, '\'', parseContext);
+                    i = parseContext.endIndex + 1;
                 } else {
-                    if (parseContext.allowUnquotedFieldNames) {
-                        int begin = i;
-                        while (i + 1 < toIndex && buf[++i] != ':') ;
-                        empty = false;
-                        key = String.valueOf(JSONDefaultParser.parseKeyOfMap(buf, begin, i, true));
-                    } else {
-                        throw new JSONException("Syntax error, '\'' or '\"' expected or add ReadOption.AllowUnquotedFieldNames ");
-                    }
+                    // parseContext.allowUnquotedFieldNames
+                    int begin = i;
+                    while (i + 1 < toIndex && buf[++i] != ':') ;
+                    key = String.valueOf(JSONDefaultParser.parseKeyOfMap(buf, begin, i, true));
                 }
             }
             while ((b = buf[i]) <= ' ') {
@@ -2058,7 +2032,6 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             JSONTypeDeserializer.COLLECTION.skip(charSource, buf, fromIndex, toIndex, parseContext);
             size = parseContext.elementSize;
         }
-        boolean empty = true;
         for (int i = beginIndex; i < toIndex; ++i) {
             int mr = pathCollector.matchedArrayIndex(elementIndex++, size);
             matched = mr > -1;
@@ -2072,13 +2045,10 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
             }
             if (ch == ']') {
-                if (!empty && !parseContext.allowLastEndComma) {
-                    throw new JSONException("Syntax error, not allowed ',' followed by ']', pos " + i);
-                }
+                // parseContext.allowLastEndComma
                 parseContext.endIndex = i;
                 return null;
             }
-            empty = false;
             boolean isSkipValue = !matched;
             JSONNode node;
             switch (ch) {
@@ -2180,7 +2150,6 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             JSONTypeDeserializer.COLLECTION.skip(charSource, buf, fromIndex, toIndex, parseContext);
             size = parseContext.elementSize;
         }
-        boolean empty = true;
         for (int i = beginIndex; i < toIndex; ++i) {
             int mr = pathCollector.matchedArrayIndex(elementIndex++, size);
             matched = mr > -1;
@@ -2194,13 +2163,10 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
             }
             if (ch == ']') {
-                if (!empty && !parseContext.allowLastEndComma) {
-                    throw new JSONException("Syntax error, not allowed ',' followed by ']', pos " + i);
-                }
+                // parseContext.allowLastEndComma
                 parseContext.endIndex = i;
                 return null;
             }
-            empty = false;
             boolean isSkipValue = !matched;
             JSONNode node;
             switch (ch) {
@@ -2309,43 +2275,43 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         return new B(charSource, value, buf, fromIndex, endIndex + 1, STRING, parseContext, rootNode);
     }
 
-    private static JSONNode parseNullPathNode(CharSource charSource, char[] buf, int fromIndex, int toIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
+    static JSONNode parseNullPathNode(CharSource charSource, char[] buf, int fromIndex, int toIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
         JSONTypeDeserializer.NULL.deserialize(charSource, buf, fromIndex, toIndex, null, null, parseContext);
         int endIndex = parseContext.endIndex;
         return new C(charSource, null, buf, fromIndex, endIndex + 1, NULL, parseContext, rootNode);
     }
 
-    private static JSONNode parseNullPathNode(CharSource charSource, byte[] buf, int fromIndex, int toIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
+    static JSONNode parseNullPathNode(CharSource charSource, byte[] buf, int fromIndex, int toIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
         JSONTypeDeserializer.NULL.deserialize(charSource, buf, fromIndex, toIndex, null, null, parseContext);
         int endIndex = parseContext.endIndex;
         return new B(charSource, null, buf, fromIndex, endIndex + 1, NULL, parseContext, rootNode);
     }
 
-    private static JSONNode parseBoolTruePathNode(CharSource charSource, char[] buf, int fromIndex, int toIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
+    static JSONNode parseBoolTruePathNode(CharSource charSource, char[] buf, int fromIndex, int toIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
         JSONTypeDeserializer.parseTrue(buf, fromIndex, toIndex, parseContext);
         int endIndex = parseContext.endIndex;
         return new C(charSource, true, buf, fromIndex, endIndex + 1, BOOLEAN, parseContext, rootNode);
     }
 
-    private static JSONNode parseBoolTruePathNode(CharSource charSource, byte[] buf, int fromIndex, int toIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
+    static JSONNode parseBoolTruePathNode(CharSource charSource, byte[] buf, int fromIndex, int toIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
         JSONTypeDeserializer.parseTrue(buf, fromIndex, toIndex, parseContext);
         int endIndex = parseContext.endIndex;
         return new B(charSource, true, buf, fromIndex, endIndex + 1, BOOLEAN, parseContext, rootNode);
     }
 
-    private static JSONNode parseBoolFalsePathNode(CharSource charSource, char[] buf, int fromIndex, int toIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
+    static JSONNode parseBoolFalsePathNode(CharSource charSource, char[] buf, int fromIndex, int toIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
         JSONTypeDeserializer.parseFalse(buf, fromIndex, toIndex, parseContext);
         int endIndex = parseContext.endIndex;
         return new C(charSource, false, buf, fromIndex, endIndex + 1, BOOLEAN, parseContext, rootNode);
     }
 
-    private static JSONNode parseBoolFalsePathNode(CharSource charSource, byte[] buf, int fromIndex, int toIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
+    static JSONNode parseBoolFalsePathNode(CharSource charSource, byte[] buf, int fromIndex, int toIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
         JSONTypeDeserializer.parseFalse(buf, fromIndex, toIndex, parseContext);
         int endIndex = parseContext.endIndex;
         return new B(charSource, false, buf, fromIndex, endIndex + 1, BOOLEAN, parseContext, rootNode);
     }
 
-    private static JSONNode parseNumberPathNode(CharSource charSource, char[] buf, int fromIndex, int toIndex, char endToken, boolean skipValue, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
+    static JSONNode parseNumberPathNode(CharSource charSource, char[] buf, int fromIndex, int toIndex, char endToken, boolean skipValue, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
         if (skipValue) {
             JSONTypeDeserializer.NUMBER_SKIPPER.deserialize(charSource, buf, fromIndex, toIndex, null, null, endToken, parseContext);
             return null;
@@ -2355,7 +2321,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         return new C(charSource, value, buf, fromIndex, endIndex + 1, NUMBER, parseContext, rootNode);
     }
 
-    private static JSONNode parseNumberPathNode(CharSource charSource, byte[] buf, int fromIndex, int toIndex, byte endToken, boolean skipValue, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
+    static JSONNode parseNumberPathNode(CharSource charSource, byte[] buf, int fromIndex, int toIndex, byte endToken, boolean skipValue, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
         if (skipValue) {
             JSONTypeDeserializer.NUMBER_SKIPPER.deserialize(charSource, buf, fromIndex, toIndex, null, null, endToken, parseContext);
             return null;
@@ -2432,6 +2398,24 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     }
 
     /**
+     * <p> xpath语法支持（仅仅支持以下简单语法，部分语法进行了语义替换，xpath复杂的语法由于易用性（难记）不考虑实现）
+     *
+     * <h4>路径分隔语法(和xpath一致)</h4>
+     * <li>"//" :  从当前节点开始查找所有满足条件的节点，并遍历所有子孙节点；</li>
+     * <li>"/"  :  仅从当前节点开始查找所有满足条件的节点（不包括子孙节点）；</li>
+     * <p> 更多请查看JSONNodePath
+     *
+     * @param bytes
+     * @param xpath
+     * @param options
+     * @return
+     * @see JSONNodePath
+     */
+    public final static List<JSONNode> collect(byte[] bytes, String xpath, ReadOption... options) {
+        return collect(bytes, JSONNodePath.parse(xpath), JSONNodeCollector.DEFAULT, options);
+    }
+
+    /**
      * 解析并收集
      *
      * @param json
@@ -2494,6 +2478,39 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         }
     }
 
+    public final static <T> List<T> collect(byte[] bytes, JSONNodePath path, JSONNodeCollector<T> nodeCollector, ReadOption... options) {
+        path.head.self();
+        if (path.supportedExtract) {
+            return extract(bytes, path, nodeCollector, options);
+        } else {
+            JSONNodePathCollector head = path.head;
+            if (head.isSupportedExtract()) {
+                JSONNodePath extractPath = JSONNodePath.create();
+                extractPath.next(head.clone());
+                JSONNodePathCollector tail = head.next;
+                while (tail.isSupportedExtract()) {
+                    extractPath.next(tail.clone());
+                    if (tail.next != null) {
+                        tail = tail.next;
+                    } else {
+                        break;
+                    }
+                }
+                List<T> results = new ArrayList<T>();
+                JSONNodePathCtx pathCtx = path.newCollectCtx();
+                List<JSONNode> extractNodes = extract(bytes, extractPath, JSONNodeCollector.DEFAULT, options);
+                for (JSONNode node : extractNodes) {
+                    tail.collect(node, results, nodeCollector, pathCtx);
+                }
+                return results;
+            } else {
+                JSONNode root = JSONNode.parse(bytes, options);
+                root.ensureCompleted(false, false);
+                return path.collect(root, nodeCollector);
+            }
+        }
+    }
+
     public final List<JSONNode> collect(String xpath) {
         return JSONNodePath.parse(xpath).collect(this, JSONNodeCollector.DEFAULT);
     }
@@ -2523,10 +2540,6 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     public final <T> List<T> collectAs(JSONNodePath path, JSONNodeCollector<T> collector) {
         return path.collect(this, collector);
     }
-
-//    public final static JSONNode location(String json, Serializable... paths) {
-//        return parse(json).locationTo(paths);
-//    }
 
     /**
      * 精确定位到指定子节点或孙子节点
@@ -2817,11 +2830,56 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         return value;
     }
 
+    static boolean matchJSONKey(CharSource charSource, byte[] buf, int offset, byte[] keyBytes, JSONNodeContext parseContext) {
+        if (keyBytes != null) {
+            int beginIndex = offset + 1, fieldLength = keyBytes.length;
+            boolean matched = true;
+            int i = 0;
+            for (; i < fieldLength; ++i) {
+                if (keyBytes[i] != buf[beginIndex + i]) {
+                    matched = false;
+                    break;
+                }
+            }
+            if (matched) {
+                int endIndex = fieldLength + beginIndex;
+                if (buf[endIndex] == '"') {
+                    parseContext.endIndex = endIndex;
+                    return true;
+                }
+            }
+            try {
+                JSONTypeDeserializer.CHAR_SEQUENCE_STRING.skip(charSource, buf, beginIndex + i, (byte) '"', parseContext);
+            } catch (Exception e) {
+                throw e instanceof RuntimeException ? (RuntimeException) e : new JSONException(e);
+            }
+            return false;
+        } else {
+            try {
+                JSONTypeDeserializer.CHAR_SEQUENCE_STRING.skip(charSource, buf, offset + 1, (byte) '"', parseContext);
+            } catch (Exception e) {
+                throw e instanceof RuntimeException ? (RuntimeException) e : new JSONException(e);
+            }
+            return false;
+        }
+    }
+
+    // 关闭Extract模式
+    public void closeExtractMode() {
+        parseContext.extract = false;
+    }
+
+    /**
+     * 针对bytes(B)有按需加载优化，chars(C)无
+     *
+     * @param fieldName
+     * @param lazy
+     * @param createObj
+     * @return
+     */
     JSONNode parseObjectField(String fieldName, boolean lazy, boolean createObj) {
         return null;
     }
-
-    abstract JSONNode parseArrayAt(int index, boolean lazy, boolean createObj);
 
     final void addElementNode(JSONNode node) {
         if (elementValues == null) {
@@ -2837,8 +2895,6 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         node.path = elementSize;
         elementValues[elementSize++] = node;
     }
-
-    abstract JSONNode parseValueNode(int beginIndex, char endChar, boolean lazy, boolean createObj) throws Exception;
 
     public final JSONNode getElementAt(int index) {
         if (elementSize > index) {
@@ -2908,8 +2964,6 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         return jsonNode.getValue(eClass);
     }
 
-    public abstract String getText();
-
     public final String getStringValue() {
         return getValue(String.class);
     }
@@ -2918,8 +2972,6 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         if (this.value != null) return this.value;
         return getValue(null);
     }
-
-    abstract byte[] hexString2Bytes();
 
     /**
      * @return map/list/string/number/boolean/null
@@ -3267,8 +3319,6 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         return avg(null);
     }
 
-    public abstract String source();
-
     public final boolean isArray() {
         return array;
     }
@@ -3321,44 +3371,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             return;
         }
         builder.append(JSON.toJsonString(any()));
-//        switch (type) {
-//            case OBJECT:
-//                builder.append('{');
-//                int len = fieldValues.size();
-//                int i = 0;
-//                for (Map.Entry<Serializable, JSONNode> entry : fieldValues.entrySet()) {
-//                    String key = entry.getKey().toString();
-//                    JSONNode node = entry.getValue();
-//                    builder.append('"').append(key).append("\":");
-//                    node.writeTo(builder);
-//                    if (i++ < len - 1) {
-//                        builder.append(',');
-//                    }
-//                }
-//                builder.append('}');
-//                break;
-//            case ARRAY:
-//                builder.append('[');
-//                for (int j = 0; j < elementSize; ++j) {
-//                    JSONNode node = elementValues[j];
-//                    node.writeTo(builder);
-//                    if (j < elementSize - 1) {
-//                        builder.append(',');
-//                    }
-//                }
-//                builder.append(']');
-//                break;
-//            case STRING:
-//                builder.append('"');
-//                writeStringTo((String) this.value, builder);
-//                builder.append('"');
-//                break;
-//            default:
-//                builder.append(this.value);
-//        }
     }
-
-    abstract void writeSourceTo(StringBuilder stringBuilder);
 
     private static void writeStringTo(String leafValue, StringBuilder content) {
         int len = leafValue.length();
@@ -3506,7 +3519,31 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         clearSource();
     }
 
-    protected abstract void clearSource();
+    JSONNode parseArrayAt(int index, boolean lazy, boolean createObj) {
+        return null;
+    }
+
+    JSONNode parseValueNode(int beginIndex, char endChar, boolean lazy, boolean createObj) throws Exception {
+        return null;
+    }
+
+    public String getText() {
+        return null;
+    }
+
+    byte[] hexString2Bytes() {
+        return new byte[0];
+    }
+
+    public String source() {
+        return null;
+    }
+
+    void writeSourceTo(StringBuilder stringBuilder) {
+    }
+
+    protected void clearSource() {
+    }
 
     final void handleChange() {
         if (parent != null) {

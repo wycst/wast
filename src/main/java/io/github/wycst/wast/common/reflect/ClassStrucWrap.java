@@ -315,6 +315,7 @@ public final class ClassStrucWrap {
         }
 
         wrapper.defaultConstructor = constructor;
+        setAccessible(constructor);
 
         List<GetterInfo> getterInfoOfFields = new ArrayList<GetterInfo>();
         wrapper.getterInfoOfFields = getterInfoOfFields;

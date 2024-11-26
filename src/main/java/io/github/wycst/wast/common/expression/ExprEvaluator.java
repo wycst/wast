@@ -16,10 +16,10 @@
  */
 package io.github.wycst.wast.common.expression;
 
+import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.utils.ObjectUtils;
 import io.github.wycst.wast.common.utils.ReflectUtils;
 
-import java.lang.reflect.Array;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -35,16 +35,17 @@ public class ExprEvaluator {
     protected final static int EVAL_TYPE_OPERATOR = 1;
     protected final static int EVAL_TYPE_VARIABLE = 2;
     protected final static int EVAL_TYPE_FUN = 3;
-    protected final static int EVAL_TYPE_BRACKET = 4;
+    protected final static int EVAL_TYPE_QUESTION = 4;
+    protected final static int EVAL_TYPE_BRACKET = 5;
 
     protected int evalType;
     protected ElOperator operator = ElOperator.ATOM;
 
-    ExprEvaluator left;
-    ExprEvaluator right;
+    protected ExprEvaluator left;
+    protected ExprEvaluator right;
 
-    boolean negate;
-    boolean logicalNot;
+    protected boolean negate;
+    protected boolean logicalNot;
     boolean constant;
     Object result;
     static final int OPTIMIZE_DEPTH_VALUE = 1 << 10;
@@ -52,8 +53,6 @@ public class ExprEvaluator {
 
     // use by code()
     public boolean isConstantExpr() {
-        // if ':' retutn false
-        if (operator == ElOperator.COLON) return false;
         if (left == null && right == null) {
             return this.constant;
         }
@@ -66,32 +65,12 @@ public class ExprEvaluator {
         return left.isConstantExpr() && right.isConstantExpr();
     }
 
-    public int getEvalType() {
-        return evalType;
-    }
-
-    public void setEvalType(int evalType) {
-        this.evalType = evalType;
-    }
-
-    public void setOperator(ElOperator operator) {
-        this.operator = operator;
-    }
-
-    public ExprEvaluator getLeft() {
+    public final ExprEvaluator getLeft() {
         return left;
     }
 
-    public void setLeft(ExprEvaluator left) {
-        this.left = left;
-    }
-
-    public ExprEvaluator getRight() {
+    public final ExprEvaluator getRight() {
         return right;
-    }
-
-    public void setRight(ExprEvaluator right) {
-        this.right = right;
     }
 
     // Not the best performance issue
@@ -126,7 +105,7 @@ public class ExprEvaluator {
                         strings = new String[strings.length << 1];
                         System.arraycopy(tmp, 0, strings, 0, tmp.length);
                     }
-                    String val = new String(splitStr.substring(beginIndex, i)).trim();
+                    String val = new String(splitStr.substring(beginIndex, i).trim());
                     strings[arrLen++] = val;
                     beginIndex = i + 1;
                 }
@@ -138,7 +117,7 @@ public class ExprEvaluator {
             System.arraycopy(tmp, 0, strings, 0, tmp.length);
         }
         // 添加最后一个
-        strings[arrLen++] = new String(splitStr.substring(beginIndex, length)).trim();
+        strings[arrLen++] = new String(splitStr.substring(beginIndex, length).trim());
         // 设置输出长度
         atomicInteger.set(arrLen);
         strArr.set(isStrArr);
@@ -210,17 +189,9 @@ public class ExprEvaluator {
         return negate;
     }
 
-    public boolean isLogicalNot() {
-        return logicalNot;
-    }
-
     public ExprEvaluator negate(boolean negate) {
         this.negate = negate;
         return this;
-    }
-
-    public void setNegate(boolean negate) {
-        this.negate = negate;
     }
 
     public void setLogicalNot(boolean logicalNot) {
@@ -242,23 +213,11 @@ public class ExprEvaluator {
             return result;
         } else if (evalType == EVAL_TYPE_OPERATOR) {
             Object leftValue = left.evaluate(context, evaluateEnvironment);
-            if (right == null) {
-                this.constant = left.constant;
-                return result = leftValue;
-            }
-            Object rightValue = null;
-            if (operator == ElOperator.QUESTION) {
-                // ?运算不计算right分支(根据left的值获取right子表达式的r-left和r-right)
-                Object result = right.evaluateTernary(context, evaluateEnvironment, (Boolean) leftValue, left.constant);
-                this.constant = left.constant && right.constant;
-                if (this.constant) {
-                    this.result = result;
-                }
-                return result;
-            } else {
-                rightValue = right.evaluate(context, evaluateEnvironment);
-            }
-
+//            if (right == null) {
+//                this.constant = left.constant;
+//                return result = leftValue;
+//            }
+            Object rightValue = right.evaluate(context, evaluateEnvironment);
             if (evaluateEnvironment.isAutoParseStringAsDouble()) {
                 if (leftValue instanceof String) {
                     leftValue = Double.parseDouble(leftValue.toString());
@@ -269,7 +228,6 @@ public class ExprEvaluator {
             }
 
             this.constant = left.constant && right.constant;
-            // boolean isDouble = leftValue instanceof Double || rightValue instanceof Double;
             // use for debug
             // System.out.println("leftValue: " + leftValue + " rightValue: " + rightValue + " opsType: " + opsType);
             switch (operator) {
@@ -302,13 +260,14 @@ public class ExprEvaluator {
                     return result = ((Number) leftValue).longValue() & ((Number) rightValue).longValue();
                 case XOR:
                     // ^
-                    return result = ((Number) leftValue).longValue() ^ ((Number) rightValue).longValue();
+                    if (leftValue instanceof Boolean) {
+                        return result = ((Boolean) leftValue) ^ ((Boolean) rightValue);
+                    } else {
+                        return result = ((Number) leftValue).longValue() ^ ((Number) rightValue).longValue();
+                    }
                 case OR:
                     // |
                     return result = ((Number) leftValue).longValue() | ((Number) rightValue).longValue();
-//                    case 43:
-//                        // 代码不可达 !
-//                        return result = !(rightValue == Boolean.TRUE) ;
                 case GT:
                     // >
                     return result = ((Number) leftValue).doubleValue() > ((Number) rightValue).doubleValue();
@@ -352,12 +311,12 @@ public class ExprEvaluator {
                 case OUT:
                     /// out
                     return result = !this.evaluateIn(leftValue, rightValue);
-                case COLON:
-                    // : 三目运算结果, 不支持单独运算
-                    throw new ExpressionException("cannot use colon operator alone: ':'");
-                case QUESTION:
-                    // ? 三目运算条件
-                    return right.evaluateTernary(context, evaluateEnvironment, (Boolean) leftValue, left.constant);
+//                case COLON:
+//                    // : 三目运算结果, 不支持单独运算
+//                    throw new ExpressionException("cannot use colon operator alone: ':'");
+//                case QUESTION:
+//                    // ? 三目运算条件
+//                    return right.evaluateTernary(context, evaluateEnvironment, (Boolean) leftValue, left.constant);
             }
             // 默认返回null
         } else if (evalType == EVAL_TYPE_BRACKET) {
@@ -371,6 +330,15 @@ public class ExprEvaluator {
                 return result = bracketValue == Boolean.FALSE || bracketValue == null;
             }
             return result = bracketValue;
+        } else if (evalType == EVAL_TYPE_QUESTION) {
+            // 三目运算
+            Object conditionValue = left.evaluate(context, evaluateEnvironment);
+            Object result = right.evaluateTernary(context, evaluateEnvironment, (Boolean) conditionValue, left.constant);
+            this.constant = left.constant && right.constant;
+            if (this.constant) {
+                this.result = result;
+            }
+            return result;
         } else {
             // Other unified returns to left
             result = left.evaluate(context, evaluateEnvironment);
@@ -386,6 +354,7 @@ public class ExprEvaluator {
     boolean evaluateIn(Object leftValue, Object rightValue) {
         if (leftValue == null || rightValue == null)
             return false;
+        Class<?> rightCls;
         if (rightValue instanceof Collection) {
             Collection collection = (Collection) rightValue;
             for (Object value : collection) {
@@ -394,13 +363,24 @@ public class ExprEvaluator {
                     return true;
                 }
             }
-        } else if (rightValue.getClass().isArray()) {
-            int length = Array.getLength(rightValue);
-            for (int i = 0; i < length; ++i) {
-                Object value = Array.get(rightValue, i);
-                boolean isEqual = this.execEquals(value, leftValue);
-                if (isEqual) {
-                    return true;
+        } else if ((rightCls = rightValue.getClass()).isArray()) {
+            Class<?> componentType = rightCls.getComponentType();
+            if (componentType.isPrimitive()) {
+                ReflectConsts.PrimitiveType primitiveType = ReflectConsts.PrimitiveType.typeOf(componentType);
+                int length = primitiveType.arrayLength(rightValue);
+                for (int i = 0; i < length; ++i) {
+                    Object value = primitiveType.elementAt(rightValue, i);
+                    boolean isEqual = leftValue == value;
+                    if (isEqual) {
+                        return true;
+                    }
+                }
+            } else {
+                for (Object value : (Object[]) rightValue) {
+                    boolean isEqual = this.execEquals(value, leftValue);
+                    if (isEqual) {
+                        return true;
+                    }
                 }
             }
         } else {
@@ -588,9 +568,7 @@ public class ExprEvaluator {
         }
     }
 
-    /**
-     * 括号执行器
-     */
+    // Bracket
     final static class BracketImpl extends ExprEvaluator {
         static BracketImpl of(ExprEvaluator evaluator) {
             BracketImpl exprEvaluatorImpl = new BracketImpl();
@@ -644,25 +622,6 @@ public class ExprEvaluator {
 
         @Override
         public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
-//            Object leftValue = left.evaluate(context, evaluateEnvironment);
-//            Object rightValue = right.evaluate(context, evaluateEnvironment);
-//            // +plus
-//            if (leftValue instanceof Number && rightValue instanceof Number) {
-//                boolean isDouble = leftValue instanceof Double || rightValue instanceof Double;
-//                if (isDouble) {
-//                    return ((Number) leftValue).doubleValue() + ((Number) rightValue).doubleValue();
-//                } else {
-//                    return ((Number) leftValue).longValue() + ((Number) rightValue).longValue();
-//                }
-//            }
-//            if (String.class.isInstance(leftValue) || String.class.isInstance(rightValue)) {
-//                StringBuilder builder = context.getStringBuilder();
-//                builder.append(leftValue).append(rightValue);
-//                return builder.toString();
-//            }
-//
-//            throw new ExpressionException("not supported operate '+'");
-//
             return ExprCalculateUtils.plus(left.evaluate(context, evaluateEnvironment), right.evaluate(context, evaluateEnvironment), evaluateEnvironment);
         }
     }
@@ -683,15 +642,6 @@ public class ExprEvaluator {
 
         @Override
         public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
-//            Object leftValue = left.evaluate(context, evaluateEnvironment);
-//            Object rightValue = right.evaluate(context, evaluateEnvironment);
-//            boolean isDouble = leftValue instanceof Double || rightValue instanceof Double;
-//            // -减法
-//            if (isDouble) {
-//                return ((Number) leftValue).doubleValue() - ((Number) rightValue).doubleValue();
-//            } else {
-//                return ((Number) leftValue).longValue() - ((Number) rightValue).longValue();
-//            }
             return ExprCalculateUtils.subtract(left.evaluate(context, evaluateEnvironment), right.evaluate(context, evaluateEnvironment), evaluateEnvironment);
         }
     }
@@ -877,6 +827,9 @@ public class ExprEvaluator {
         public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
             Object leftValue = left.evaluate(context, evaluateEnvironment);
             Object rightValue = right.evaluate(context, evaluateEnvironment);
+            if(leftValue instanceof Boolean) {
+                return ((Boolean) leftValue) ^ ((Boolean) rightValue);
+            }
             // ^ 异或运算
             return ((Number) leftValue).longValue() ^ ((Number) rightValue).longValue();
         }

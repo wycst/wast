@@ -406,10 +406,13 @@ public final class EntityExecuter implements OqlExecuter {
     public <E> int deleteBy(Class<E> entityCls, OqlQuery query, Object params) {
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-
-        Sql sqlObject = entitySqlMapping.getSelectSqlObject(query, params);
-        List<E> entityList = sqlExecuter.queryList(sqlObject.getFormalSql(), entityCls, sqlObject.getParamValues());
-        return deleteList(entityList);
+        String sqlTemplate = getSqlStringFormat(SqlFunctionType.DELETE_BY_PARAMS);
+        Sql sqlObject = entitySqlMapping.getDeleteSqlObject(sqlTemplate, query, params);
+        try {
+            return sqlExecuter.update(sqlObject.getFormalSql(), sqlObject.getParamValues());
+        } finally {
+            entitySqlMapping.entityHandler.afterBatchDelete();
+        }
     }
 
     @Override

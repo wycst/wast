@@ -118,20 +118,20 @@ public class OqlQuery {
      *
      * @param fields
      */
-    public OqlQuery addConditions(String...fields) {
-        for (String field: fields) {
+    public OqlQuery addConditions(String... fields) {
+        for (String field : fields) {
             addCondition(field, FieldCondition.Operator.EQ);
         }
         return this;
     }
-    
+
     /**
      * 添加查询字段（列表集合）： value设置指定值或者自定义的占位符
      *
      * @param fields
      */
     public OqlQuery addConditions(Collection<String> fields) {
-        for (String field: fields) {
+        for (String field : fields) {
             addCondition(field, FieldCondition.Operator.EQ);
         }
         return this;
@@ -182,7 +182,7 @@ public class OqlQuery {
      * @return
      */
     public OqlQuery between(String field, List<? extends Serializable> betweenValues) {
-        if(betweenValues == null || betweenValues.size() < 2) {
+        if (betweenValues == null || betweenValues.size() < 2) {
             throw new SqlExecuteException("BETWEEN syntax must provide 2 values");
         }
         fieldConditions.add(new BetweenFieldCondition(field, betweenValues.get(0), betweenValues.get(1)));
@@ -197,7 +197,7 @@ public class OqlQuery {
      * @return
      */
     public OqlQuery between(String field, Serializable... betweenValues) {
-        if(betweenValues.length < 2) {
+        if (betweenValues.length < 2) {
             throw new SqlExecuteException("BETWEEN syntax must provide 2 values");
         }
         fieldConditions.add(new BetweenFieldCondition(field, betweenValues[0], betweenValues[1]));
@@ -206,6 +206,11 @@ public class OqlQuery {
 
     public OqlQuery isNull(String field) {
         fieldConditions.add(new IsNullFieldCondition(field));
+        return this;
+    }
+
+    public OqlQuery isNotNull(String field) {
+        fieldConditions.add(new IsNullFieldCondition(field, true));
         return this;
     }
 
@@ -255,13 +260,13 @@ public class OqlQuery {
      * @param fields
      * @return
      */
-    public OqlQuery clearConditions(String...fields) {
-    	FieldCondition[] conditions = fieldConditions.toArray(new FieldCondition[fieldConditions.size()]);
-    	List<String> fieldList = Arrays.asList(fields);
-        for(FieldCondition fieldCondition : conditions) {
-        	if(fieldList.contains(fieldCondition.getField())) {
-        		fieldConditions.remove(fieldCondition);
-        	}
+    public OqlQuery clearConditions(String... fields) {
+        FieldCondition[] conditions = fieldConditions.toArray(new FieldCondition[fieldConditions.size()]);
+        List<String> fieldList = Arrays.asList(fields);
+        for (FieldCondition fieldCondition : conditions) {
+            if (fieldList.contains(fieldCondition.getField())) {
+                fieldConditions.remove(fieldCondition);
+            }
         }
         return this;
     }
@@ -296,19 +301,49 @@ public class OqlQuery {
 //        return this;
 //    }
 
-    public List<String> getSelectFields() {
+    List<String> getSelectFields() {
         return selectFields;
     }
 
-    public List<FieldCondition> getConditions() {
+    List<FieldCondition> getConditions() {
         return fieldConditions;
     }
 
-    public List<FieldOrder> getOrders() {
+    List<FieldOrder> getOrders() {
         return orders;
     }
 
-    public List<SubQueryCondition> getSubQueryConditions() {
+    List<SubQueryCondition> getSubQueryConditions() {
         return subQueryConditions;
+    }
+
+    /**
+     * 生成字段sql
+     *
+     * @param entityClass
+     * @param <T>
+     * @return
+     */
+    public <T> String generateSelectColumnsSql(Class<T> entityClass) {
+        EntityManagementFactory.defaultManagementFactory().checkEntityClass(entityClass);
+        EntitySqlMapping entitySqlMapping = EntityManagementFactory.defaultManagementFactory().getEntitySqlMapping(entityClass);
+        StringBuilder columns = new StringBuilder();
+        entitySqlMapping.appendSelectColumns(this, columns, true, null);
+        return columns.toString().trim();
+    }
+
+    /**
+     * 生成where条件sql（注意条件存在时包含where否则返回空串）
+     *
+     * @param entityClass
+     * @param <T>
+     * @return
+     */
+    public <T> String generateWhereSql(Class<T> entityClass, Object params) {
+        EntityManagementFactory.defaultManagementFactory().checkEntityClass(entityClass);
+        EntitySqlMapping entitySqlMapping = EntityManagementFactory.defaultManagementFactory().getEntitySqlMapping(entityClass);
+        StringBuilder whereClauseSql = new StringBuilder();
+        entitySqlMapping.appendWhereClause(whereClauseSql, this, params, new ArrayList<Object>());
+        return whereClauseSql.toString().trim();
     }
 }

@@ -1,11 +1,9 @@
 package io.github.wycst.wast.common.expression.compile;
 
-import io.github.wycst.wast.common.expression.ElVariableInvoker;
-import io.github.wycst.wast.common.expression.EvaluateEnvironment;
-import io.github.wycst.wast.common.expression.ExprFunction;
-import io.github.wycst.wast.common.expression.Expression;
+import io.github.wycst.wast.common.expression.*;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @Author wangyunchao
@@ -16,18 +14,12 @@ public abstract class CompilerExpression extends Expression {
     private static Coder defaultCoder;
 
     static {
-//        if (CompilerExpressionCoder.isJavassistSupported()) {
-//            defaultCoder = Coder.Javassist;
-//        } else {
-//        }
         defaultCoder = Coder.Native;
     }
 
     public enum Coder {
-        // JDK
         Native,
         Javassist,
-//        Asm
     }
 
     public static void setDefaultCoder(Coder defaultCoder) {
@@ -120,12 +112,80 @@ public abstract class CompilerExpression extends Expression {
 
     @Override
     public Object evaluate(Map context) {
-        return invoke(context);
+        try {
+            return invoke(context);
+        } catch (Throwable e) {
+            throw new ExpressionException(e.getMessage(), e);
+        }
     }
 
     @Override
     public Object evaluate(Object context) {
-        return invoke(context);
+        try {
+            return invoke(context);
+        } catch (Throwable e) {
+            throw new ExpressionException(e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public final Object evaluate(final Map context, final long timeout) {
+        final ValueHolder valueHolder = new ValueHolder();
+        final AtomicBoolean atomicBoolean = new AtomicBoolean();
+        return evaluateAsync(valueHolder, atomicBoolean, new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    valueHolder.value = evaluate(context);
+                } catch (Throwable throwable) {
+                    if (!(throwable instanceof Error)) {
+                        throwable.printStackTrace();
+                    }
+                } finally {
+                    atomicBoolean.set(true);
+                    synchronized (valueHolder) {
+                        valueHolder.notify();
+                    }
+                }
+            }
+        }), timeout);
+    }
+
+    @Override
+    public final Object evaluate(final Object context, final long timeout) {
+        final ValueHolder valueHolder = new ValueHolder();
+        final AtomicBoolean atomicBoolean = new AtomicBoolean();
+        return evaluateAsync(valueHolder, atomicBoolean, new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    valueHolder.value = evaluate(context);
+                } catch (Throwable throwable) {
+                    if (!(throwable instanceof Error)) {
+                        throwable.printStackTrace();
+                    }
+                } finally {
+                    atomicBoolean.set(true);
+                    synchronized (valueHolder) {
+                        valueHolder.notify();
+                    }
+                }
+            }
+        }), timeout);
+    }
+
+    final Object evaluateAsync(final ValueHolder valueHolder, final AtomicBoolean atomicBoolean, Thread thread, long timeout) {
+        try {
+            thread.start();
+            synchronized (valueHolder) {
+                valueHolder.wait(timeout);
+                if (!atomicBoolean.get()) {
+                    thread.interrupt();
+                }
+            }
+        } catch (Throwable throwable) {
+        }
+        return valueHolder.value;
     }
 
     @Override
@@ -145,12 +205,20 @@ public abstract class CompilerExpression extends Expression {
 
     @Override
     public final Object evaluateParameters(Object... params) {
-        return invokeParameters(params);
+        try {
+            return invokeParameters(params);
+        } catch (Throwable e) {
+            throw new ExpressionException(e.getMessage(), e);
+        }
     }
 
     @Override
     public final Object evaluateParameters(EvaluateEnvironment evaluateEnvironment, Object... params) {
-        return invokeParameters(params);
+        try {
+            return invokeParameters(params);
+        } catch (Throwable e) {
+            throw new ExpressionException(e.getMessage(), e);
+        }
     }
 
     protected final <T> T getValue(Object value, Class<T> tClass) {
@@ -161,15 +229,15 @@ public abstract class CompilerExpression extends Expression {
         return environment.getTypeNameInvokers().get(index).variableInvoker;
     }
 
-    protected Object invoke(Object context) {
+    protected Object invoke(Object context) throws Throwable {
         throw new UnsupportedOperationException();
     }
 
-    protected Object invoke(Map context) {
+    protected Object invoke(Map context) throws Throwable {
         throw new UnsupportedOperationException();
     }
 
-    protected Object invokeParameters(Object[] parameters) {
+    protected Object invokeParameters(Object[] parameters) throws Throwable {
         throw new UnsupportedOperationException();
     }
 

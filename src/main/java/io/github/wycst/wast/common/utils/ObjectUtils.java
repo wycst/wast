@@ -269,6 +269,17 @@ public final class ObjectUtils extends InvokeUtils {
      * @return
      */
     public static List<String> getNonEmptyFields(Object target) {
+        return getNonEmptyFields(target, new String[0]);
+    }
+
+    /**
+     * 获取对象的非空属性列表
+     *
+     * @param target
+     * @param excludeKeys
+     * @return
+     */
+    public static List<String> getNonEmptyFields(Object target, String... excludeKeys) {
         if (target == null)
             return null;
         List<String> fields = new ArrayList<String>();
@@ -279,7 +290,7 @@ public final class ObjectUtils extends InvokeUtils {
                 if (key == null) continue;
                 String field = key.toString();
                 Object val = entry.getValue();
-                if (val != null && !val.equals("")) {
+                if (val != null && !val.equals("") && !CollectionUtils.contains(excludeKeys, field)) {
                     fields.add(field);
                 }
             }
@@ -291,7 +302,11 @@ public final class ObjectUtils extends InvokeUtils {
                 if (val == null || val.equals("")) continue;
                 // exclude zero val
                 if (Number.class.isInstance(val) && val.toString().equals("0")) continue;
-                fields.add(getterInfo.getName());
+                String name = getterInfo.getName();
+                if (CollectionUtils.contains(excludeKeys, name)) {
+                    continue;
+                }
+                fields.add(name);
             }
         }
         return fields;

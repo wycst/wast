@@ -129,6 +129,29 @@ public final class CollectionUtils {
     }
 
     /**
+     * 获取数组指定下标的元素
+     *
+     * @param arr
+     * @param index
+     * @return
+     */
+    public static Object arrayValueAt(Object arr, int index) {
+        if (index == -1) throw new ArrayIndexOutOfBoundsException(-1);
+        Class<?> arrCls = arr.getClass();
+        if (!arrCls.isArray()) {
+            throw new UnsupportedOperationException("Non array object do not support get value by index");
+        }
+        Class<?> componentType = arrCls.getComponentType();
+        ReflectConsts.PrimitiveType primitiveType = ReflectConsts.PrimitiveType.typeOf(componentType);
+        if (primitiveType != null) {
+            return primitiveType.elementAt(arr, index);
+        } else {
+            Object[] objects = (Object[]) arr;
+            return objects[index];
+        }
+    }
+
+    /**
      * 判断对象是否为集合类型
      *
      * @param target
@@ -150,6 +173,7 @@ public final class CollectionUtils {
      * @return
      */
     public static boolean contains(Object[] arr, Object obj) {
+        if (arr == null || arr.length == 0) return false;
         return indexOf(arr, obj) > -1;
     }
 
@@ -209,7 +233,7 @@ public final class CollectionUtils {
             arr = (Object[]) target;
         } else {
             try {
-                return UnsafeHelper.arrayValueAt(target, index);
+                return arrayValueAt(target, index);
             } catch (RuntimeException throwable) {
                 throw new UnsupportedOperationException("Non array object do not support get value by index, " + target.getClass());
             }

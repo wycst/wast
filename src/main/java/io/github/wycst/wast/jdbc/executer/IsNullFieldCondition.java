@@ -5,13 +5,25 @@ import java.util.List;
 
 public class IsNullFieldCondition extends FieldCondition {
 
+    boolean notNull;
+
     public IsNullFieldCondition(String field) {
         super(field, null);
     }
 
+    public IsNullFieldCondition(String field, boolean notNull) {
+        super(field, null);
+        this.notNull = true;
+    }
+
+    @Override
+    protected String valueSpace() {
+        return "";
+    }
+
     @Override
     public String getOperator() {
-        return "IS NULL";
+        return notNull ? "IS NOT NULL" : "IS NULL";
     }
 
     @Override

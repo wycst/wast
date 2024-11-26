@@ -2,6 +2,7 @@ package io.github.wycst.wast.common.expression;
 
 import io.github.wycst.wast.common.expression.functions.BuiltInFunction;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
+import io.github.wycst.wast.common.utils.BeanUtils;
 import io.github.wycst.wast.common.utils.CollectionUtils;
 import io.github.wycst.wast.common.utils.ObjectUtils;
 
@@ -10,10 +11,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.math.MathContext;
 import java.net.URLClassLoader;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * 执行环境
@@ -28,7 +26,8 @@ public class EvaluateEnvironment {
     private Map<String, ExprFunction> functionMap = new HashMap<String, ExprFunction>();
     Object context;
     private Map<String, Object> variables = new HashMap<String, Object>();
-    boolean useVariables;
+    private Map<String, ExprParser> computedEls = new LinkedHashMap<String, ExprParser>();
+    boolean computable;
     boolean mapContext;
     boolean allowVariableNull;
     /**
@@ -66,6 +65,11 @@ public class EvaluateEnvironment {
         this.allowVariableNull = allowVariableNull;
     }
 
+    public EvaluateEnvironment allowVariableNull(boolean allowVariableNull) {
+        this.allowVariableNull = allowVariableNull;
+        return this;
+    }
+
     public final boolean isAllowVariableNull() {
         return allowVariableNull;
     }
@@ -73,6 +77,11 @@ public class EvaluateEnvironment {
     public void setMathContext(MathContext mathContext) {
         mathContext.toString();
         this.mathContext = mathContext;
+    }
+
+    public EvaluateEnvironment mathContext(MathContext mathContext) {
+        this.mathContext = mathContext;
+        return this;
     }
 
     // 临时缓存
@@ -121,7 +130,6 @@ public class EvaluateEnvironment {
      */
     public static EvaluateEnvironment create() {
         EvaluateEnvironment environment = new EvaluateEnvironment();
-        environment.useVariables = true;
         environment.context = environment.variables;
         environment.mapContext = true;
         return environment;
@@ -184,7 +192,7 @@ public class EvaluateEnvironment {
      */
     public EvaluateEnvironment registerStaticMethods(boolean global, Class<?>... classList) {
         for (Class<?> clazz : classList) {
-            if(BLACKLIST_LIST.contains(clazz)) continue;
+            if (BLACKLIST_LIST.contains(clazz)) continue;
             if (staticClassSet.add(clazz)) {
                 registerStaticMethods(global, clazz, staticMethods);
             }
@@ -202,12 +210,10 @@ public class EvaluateEnvironment {
         if (functionMap.containsKey(functionName)) {
             return functionMap.get(functionName);
         }
-
         // 临时缓存中查找
         if (tempFunctionMap.containsKey(functionName)) {
             return tempFunctionMap.get(functionName);
         }
-
         if (staticMethods.containsKey(functionName)) {
             ExprFunction exprFunction = new MethodFunction(functionName, staticMethods.get(functionName));
             tempFunctionMap.put(functionName, exprFunction);
@@ -230,13 +236,39 @@ public class EvaluateEnvironment {
     /**
      * 绑定变量参数
      *
-     * @param key
+     * @param key   根变量
      * @param value
      * @return
      */
     public EvaluateEnvironment binding(String key, Object value) {
-        if (useVariables) {
-            variables.put(key, value);
+        variables.put(key, value);
+        return this;
+    }
+
+    public EvaluateEnvironment removeBinding(String key) {
+        variables.remove(key);
+        computedEls.remove(key);
+        computable = !computedEls.isEmpty();
+        return this;
+    }
+
+    /**
+     * 绑定计算变量
+     *
+     * @param key        根变量
+     * @param computedEl
+     * @return
+     */
+    public EvaluateEnvironment bindingComputed(String key, String computedEl) {
+        ExprParser exprParser = new ExprParser(computedEl);
+        if (exprParser.isConstantExpr()) {
+            variables.put(key, exprParser.evaluate());
+        } else {
+            if (exprParser.getInvokes().containsKey(key)) {
+                throw new IllegalArgumentException("There is a variable with the same name key in the expression for '" + key + "'");
+            }
+            computedEls.put(key, exprParser);
+            computable = true;
         }
         return this;
     }
@@ -248,19 +280,82 @@ public class EvaluateEnvironment {
         return this;
     }
 
-    public EvaluateEnvironment clearVariables() {
+    public EvaluateEnvironment clear() {
+        clearFunctions();
         variables.clear();
+        computedEls.clear();
+        computable = false;
         return this;
     }
 
-    /**
-     * 上下文是否为空
-     *
-     * @return
-     */
-    public boolean isEmptyContext() {
-        return useVariables ? variables.isEmpty() : context == null;
+    final Object computedVariables() {
+        return computedVariables(getContext());
     }
+
+    final Object computedVariables(Object context) {
+        if (!computable) {
+            return context;
+        }
+        Map<String, Object> newContext = newContext(context);
+        // 迭代两次
+        Collection<Map.Entry<String, ExprParser>> entrySet = computedEls.entrySet();
+        int count = entrySet.size();
+        while (count-- > 0) {
+            List<Map.Entry<String, ExprParser>> nextEntrys = new ArrayList<Map.Entry<String, ExprParser>>();
+            for (Map.Entry<String, ExprParser> entry : entrySet) {
+                String key = entry.getKey();
+                if (newContext.containsKey(key)) {
+                    continue;
+                }
+                ExprParser exprParser = entry.getValue();
+                // 检查变量依赖
+                if (checkVariableDependencies(newContext, exprParser.getInvokes())) {
+                    // 保存执行结果,注意这里可能出现的死循环
+                    Object result = exprParser.evaluateInternal(newContext, this);
+                    newContext.put(key, result);
+                } else {
+                    nextEntrys.add(entry);
+                }
+            }
+            if (nextEntrys.isEmpty()) {
+                break;
+            }
+            entrySet = nextEntrys;
+        }
+
+        computable = true;
+        return newContext;
+    }
+
+    private Map<String, Object> newContext(Object context) {
+        Map<String, Object> newContext = new HashMap<String, Object>(variables);
+        if (context instanceof Map) {
+            newContext.putAll((Map) context);
+        } else {
+            BeanUtils.copy(context, newContext);
+        }
+        return newContext;
+    }
+
+    private boolean checkVariableDependencies(Map<String, Object> context, Map<String, ElVariableInvoker> invokes) {
+        Set<Map.Entry<String, ElVariableInvoker>> entrySet = invokes.entrySet();
+        for (Map.Entry<String, ElVariableInvoker> entry : entrySet) {
+            ElVariableInvoker invoker = entry.getValue();
+            if (invoker.parent == null && !context.containsKey(entry.getKey())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+//    /**
+//     * 上下文是否为空
+//     *
+//     * @return
+//     */
+//    public boolean isEmptyContext() {
+//        return useVariables ? variables.isEmpty() : context == null;
+//    }
 
     /**
      * 内置运行静态method的函数

@@ -2,6 +2,7 @@ package io.github.wycst.wast.common.expression.compile.javassist;
 
 import io.github.wycst.wast.common.expression.compile.CompilerEnvironment;
 import io.github.wycst.wast.common.expression.compile.CompilerExpression;
+import io.github.wycst.wast.common.expression.compile.ValueHolder;
 
 import java.util.Map;
 

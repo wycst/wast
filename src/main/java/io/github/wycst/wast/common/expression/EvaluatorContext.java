@@ -12,7 +12,6 @@ public class EvaluatorContext {
 
     public final static EvaluatorContext EMPTY = new EvaluatorContext();
     Object[] variableValues;
-    StringBuilder builder;
     // use for ExprEvaluatorStackSplitImpl & ExprEvaluatorContextValueHolderImpl
     Object value;
 
@@ -37,15 +36,6 @@ public class EvaluatorContext {
         variableValues = variableCount < 10 ? new Object[10] : new Object[variableCount];
         invoke.invoke(context, variableValues);
         return this;
-    }
-
-    final StringBuilder getStringBuilder() {
-        if (builder == null) {
-            builder = new StringBuilder();
-        } else {
-            builder.setLength(0);
-        }
-        return builder;
     }
 
     protected EvaluatorContext cloneContext() {

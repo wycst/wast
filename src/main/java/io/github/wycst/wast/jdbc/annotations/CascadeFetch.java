@@ -33,14 +33,14 @@ public @interface CascadeFetch {
     public String targetField();
 
     /***
-     *  级联删除
+     *  级联删除(一对多，删除一时级联删除多)
      *
      * @return
      */
     public boolean cascade() default true;
 
     /***
-     * 同步提取
+     * 同步提取（一对多或者一对一，查询一时同步加载多）
      *
      * @return
      */

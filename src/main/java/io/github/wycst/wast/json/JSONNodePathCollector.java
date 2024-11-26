@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
  * <li> *abc*      :  仅仅支持对象节点查找，匹配包含abc；</li>
  * <li> ^xxx       :  仅仅支持对象节点查找，匹配正则表达式；</li>
  * <li> n+         :  仅仅支持数组节点查找，匹配索引大于等于n；</li>
- * <li> n-         :  仅仅支持数组节点查找，匹配索引小于n；</li>
+ * <li> n-         :  仅仅支持数组节点查找，匹配索引小于等于n；</li>
  * <li> n~m        :  仅仅支持数组节点查找，匹配索引大于等于n且小于等于m；</li>
  * <li> [n,n1,n2]  :  仅仅支持数组节点查找，匹配索引存在集合；</li>
  * <li> '*BC*[SDA' :  仅仅支持对象节点查找,且精确匹配*BC*[SDA；</li>
@@ -149,7 +149,7 @@ public abstract class JSONNodePathCollector {
 
     protected <T> void collect(JSONNode parentNode, Collection<T> results, JSONNodeCollector<T> collector, final JSONNodePathCtx collectCx) {
         if (parentNode.leaf) return;
-        parentNode.ensureCompleted(true);
+        parentNode.ensureCompleted(!recursive);
         final boolean leafPath = leafPath();
         if (parentNode.array) {
             for (int i = 0, size = parentNode.elementSize; i < size; ++i) {
@@ -269,7 +269,7 @@ public abstract class JSONNodePathCollector {
         @Override
         protected <T> void collect(JSONNode parentNode, Collection<T> results, JSONNodeCollector<T> collector, JSONNodePathCtx collectCx) {
             if (parentNode.leaf) return;
-            parentNode.ensureCompleted(true);
+            parentNode.ensureCompleted(!recursive);
             final boolean leafPath = leafPath();
             if (parentNode.array) {
                 for (int i = 0, size = parentNode.elementSize; i < size; ++i) {
@@ -444,7 +444,7 @@ public abstract class JSONNodePathCollector {
             String str = path.toString().trim();
             final boolean leafPath = leafPath();
             if (parentNode.isObject()) {
-                parentNode.ensureCompleted(true);
+                parentNode.ensureCompleted(!recursive);
                 Map<Serializable, JSONNode> fieldValues = parentNode.fieldValues;
                 Set<Map.Entry<Serializable, JSONNode>> entrySet = fieldValues.entrySet();
                 for (Map.Entry<Serializable, JSONNode> entry : entrySet) {
@@ -466,7 +466,7 @@ public abstract class JSONNodePathCollector {
                 }
             } else {
                 if (recursive) {
-                    parentNode.ensureCompleted(true);
+                    parentNode.ensureCompleted(false);
                     for (int size = parentNode.elementSize, i = 0; i < size; ++i) {
                         JSONNode value = parentNode.elementValues[i];
                         collect(value, results, collector, collectCx);
@@ -495,7 +495,7 @@ public abstract class JSONNodePathCollector {
             final boolean leafPath = leafPath();
             if (parentNode.array) {
                 if (recursive) {
-                    parentNode.ensureCompleted(true);
+                    parentNode.ensureCompleted(false);
                     for (int i = 0, size = parentNode.elementSize; i < size; ++i) {
                         JSONNode value = parentNode.elementValues[i];
                         if (matched(i, size) && doFilter(value)) {
@@ -525,7 +525,7 @@ public abstract class JSONNodePathCollector {
                 }
             } else {
                 if (recursive) {
-                    parentNode.ensureCompleted(true);
+                    parentNode.ensureCompleted(false);
                     Map<Serializable, JSONNode> fieldValues = parentNode.fieldValues;
                     for (JSONNode value : fieldValues.values()) {
                         collect(value, results, collector, collectCx);
@@ -848,7 +848,7 @@ public abstract class JSONNodePathCollector {
             if (parentNode.leaf) return;
             final boolean leafPath = leafPath();
             if (recursive) {
-                parentNode.ensureCompleted(true);
+                parentNode.ensureCompleted(false);
                 if (parentNode.array) {
                     for (int size = parentNode.elementSize, i = 0; i < size; ++i) {
                         JSONNode value = parentNode.elementValues[i];
@@ -865,7 +865,6 @@ public abstract class JSONNodePathCollector {
                         collect(value, results, collector, collectCx);
                     }
                 } else {
-                    parentNode.ensureCompleted(true);
                     Map<Serializable, JSONNode> fieldValues = parentNode.fieldValues;
                     for (JSONNode value : fieldValues.values()) {
                         collect(value, results, collector, collectCx);

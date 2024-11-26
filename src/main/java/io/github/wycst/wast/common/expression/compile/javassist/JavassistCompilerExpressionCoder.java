@@ -6,6 +6,7 @@ import io.github.wycst.wast.common.expression.ExpressionException;
 import io.github.wycst.wast.common.expression.compile.CompilerEnvironment;
 import io.github.wycst.wast.common.expression.compile.CompilerExpression;
 import io.github.wycst.wast.common.expression.compile.CompilerExpressionCoder;
+import io.github.wycst.wast.common.expression.compile.ValueHolder;
 import io.github.wycst.wast.common.expression.functions.JavassistExprFunction;
 import javassist.*;
 

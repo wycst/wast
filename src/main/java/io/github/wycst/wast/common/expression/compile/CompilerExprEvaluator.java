@@ -31,12 +31,12 @@ public final class CompilerExprEvaluator extends ExprEvaluator {
             return String.valueOf(result);
         }
 
-        int evalType = getEvalType();
-        boolean negate = isNegate();
-        boolean logicalNot = isLogicalNot();
+        int evalType = this.evalType; // getEvalType();
+        boolean negate = this.negate; // isNegate();
+        boolean logicalNot = this.logicalNot; //isLogicalNot();
 
-        ExprEvaluator left = getLeft();
-        ExprEvaluator right = getRight();
+        ExprEvaluator left = this.left; // getLeft();
+        ExprEvaluator right = this.right; // getRight();
 
         if (evalType == EVAL_TYPE_OPERATOR) {
             String leftGenerateCode = left.code();
@@ -59,14 +59,14 @@ public final class CompilerExprEvaluator extends ExprEvaluator {
                     return builder.append("Math.pow(").append(leftGenerateCode).append(", ").append(rightGenerateCode).append(")").toString();
                 case PLUS:
                     // 加法
-                    if(right.isNegate()) {
+                    if (right.isNegate()) {
                         try {
                             return builder.append(leftGenerateCode).append(" - ").append(right.negate(false).code()).toString();
                         } finally {
                             // reduction
                             right.negate(true);
                         }
-                    } else if(right.isConstantExpr() && rightGenerateCode.startsWith("-")) {
+                    } else if (right.isConstantExpr() && rightGenerateCode.startsWith("-")) {
                         return builder.append(leftGenerateCode).append(" - ").append(rightGenerateCode.substring(1)).toString();
                     }
                     return builder.append(leftGenerateCode).append(" + ").append(rightGenerateCode).toString();
@@ -114,16 +114,16 @@ public final class CompilerExprEvaluator extends ExprEvaluator {
                     return builder.append(leftGenerateCode).append(" || ").append(rightGenerateCode).toString();
                 case IN:
                     // in 暂时不支持
-                    throw new ExpressionException("暂时不支持'in'符号编译");
+                    throw new ExpressionException("暂时不支持'in(∈)'符号编译");
                 case OUT:
                     // out 暂时不支持out
-                    throw new ExpressionException("暂时不支持'out'符号编译");
-                case COLON:
-                    // : 三目运算条件
-                    return builder.append(leftGenerateCode).append(" : ").append(rightGenerateCode).toString();
-                case QUESTION:
-                    // ? 三目运算结果
-                    return builder.append(leftGenerateCode).append(" ? ").append(rightGenerateCode).toString();
+                    throw new ExpressionException("暂时不支持'out(∉)'符号编译");
+//                case COLON:
+//                    // : 三目运算条件
+//                    return builder.append(leftGenerateCode).append(" : ").append(rightGenerateCode).toString();
+//                case QUESTION:
+//                    // ? 三目运算结果
+//                    return builder.append(leftGenerateCode).append(" ? ").append(rightGenerateCode).toString();
             }
 
         } else if (evalType == EVAL_TYPE_BRACKET) {
@@ -134,6 +134,11 @@ public final class CompilerExprEvaluator extends ExprEvaluator {
                 return builder.append("!(").append(right.code()).append(")").toString();
             }
             return builder.append("(").append(right.code()).append(")").toString();
+        } else if (evalType == EVAL_TYPE_QUESTION) {
+            // 三目运算
+            ExprEvaluator rLeft = right.getLeft();
+            ExprEvaluator rRight = right.getRight();
+            return builder.append(left.code()).append(" ? ").append(rLeft.code()).append(" : ").append(rRight.code()).toString();
         } else {
             // 其他统一返回left
             return left.code();

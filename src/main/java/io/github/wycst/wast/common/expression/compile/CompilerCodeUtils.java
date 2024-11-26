@@ -47,17 +47,17 @@ final class CompilerCodeUtils {
                     "${declareInvokes}" +
                     "${registerFunctions}" +
                     "\r\n" +
-                    "\tprotected Object invokeParameters(Object[] parameters) {\r\n" +
+                    "\tprotected Object invokeParameters(Object[] parameters) throws Throwable {\r\n" +
                     "${assignmentArrayVariables}" +
                     "\t\treturn ${expressionCode};\r\n" +
                     "\t}\r\n" +
                     "\r\n" +
-                    "\tprotected Object invoke(Object context) {\r\n" +
+                    "\tprotected Object invoke(Object context) throws Throwable {\r\n" +
                     "${assignmentObjectVariables}" +
                     "\t\treturn ${expressionCode};\r\n" +
                     "\t}\r\n" +
                     "\r\n" +
-                    "\tprotected Object invoke(java.util.Map context) {\r\n" +
+                    "\tprotected Object invoke(java.util.Map context) throws Throwable {\r\n" +
                     "${assignmentMapVariables}" +
                     "\t\treturn ${expressionCode};\r\n" +
                     "\t}\r\n" +
@@ -541,6 +541,7 @@ final class CompilerCodeUtils {
             if (returnStatementIndex > -1) {
                 assignmentObjectVariablesBuilder.append("\r\n\t\t").append(source, 0, returnStatementIndex).append("\r\n");
                 assignmentMapVariablesBuilder.append("\r\n\t\t").append(source, 0, returnStatementIndex).append("\r\n");
+                assignmentArrayVariables.append("\r\n\t\t").append(source, 0, returnStatementIndex).append("\r\n");
                 int len = source.length();
                 while (len > 0 && source.charAt(len - 1) == ';') {
                     --len;

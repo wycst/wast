@@ -4,7 +4,6 @@ import sun.misc.Unsafe;
 
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.AccessibleObject;
-import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -29,6 +28,7 @@ public final class UnsafeHelper {
     private static final long OVERRIDE_OFFSET;
 
     static final Unsafe UNSAFE;
+
     static {
         Field theUnsafeField;
         try {
@@ -324,33 +324,6 @@ public final class UnsafeHelper {
         int targetArrayBaseOffset = ReflectConsts.PrimitiveType.PrimitiveCharacter.arrayBaseOffset;
         int targetIndexScale = ReflectConsts.PrimitiveType.PrimitiveCharacter.arrayIndexScale;
         UNSAFE.copyMemory(bytes, arrayBaseOffset + arrayIndexScale * bOff, chars, targetArrayBaseOffset + targetIndexScale * cOff, bLen * arrayIndexScale);
-    }
-
-    /**
-     * 获取数组指定下标的元素
-     *
-     * @param arr
-     * @param index
-     * @return
-     */
-    public static Object arrayValueAt(Object arr, int index) {
-        if (UNSAFE != null) {
-            if (index == -1) throw new ArrayIndexOutOfBoundsException(-1);
-            Class<?> arrCls = arr.getClass();
-            if (!arrCls.isArray()) {
-                throw new UnsupportedOperationException("Non array object do not support get value by index");
-            }
-            Class<?> componentType = arrCls.getComponentType();
-            ReflectConsts.PrimitiveType primitiveType = ReflectConsts.PrimitiveType.typeOf(componentType);
-            if (primitiveType != null) {
-                return primitiveType.elementAt(arr, index);
-            } else {
-                Object[] objects = (Object[]) arr;
-                return objects[index];
-            }
-        } else {
-            return Array.get(arr, index);
-        }
     }
 
     public static TimeZone getDefaultTimeZone() {

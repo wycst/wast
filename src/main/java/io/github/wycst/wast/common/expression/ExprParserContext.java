@@ -13,8 +13,12 @@ final class ExprParserContext {
     // 非
     boolean logicalNot;
 
-    // 结束标志
-    boolean endFlag;
+    // 括号结束标志
+    boolean bracketMode;
+    boolean bracketEndFlag;
+    // ?结束
+    boolean questionMode;
+    boolean questionEndFlag;
 
     ExprParserContext() {
     }
@@ -64,26 +68,6 @@ final class ExprParserContext {
     }
 
     static String getKey(char[] buf, int offset, int len, long hash) {
-//        int index = (int) (hash & 31);
-//        EntryNode<String> entryNode = nodes[index];
-//        if (entryNode == null) {
-//            String value = new String(buf, offset, len);
-//            nodes[index] = new EntryNode<String>(hash, value);
-//            return value;
-//        } else {
-//            EntryNode<String> top = entryNode;
-//            do {
-//                if (entryNode.key == hash) {
-//                    return entryNode.value;
-//                }
-//                entryNode = entryNode.next;
-//            } while (entryNode != null);
-//            String value = new String(buf, offset, len);
-//            EntryNode<String> newNode = new EntryNode<String>(hash, value);
-//            newNode.next = top;
-//            nodes[index] = newNode;
-//            return value;
-//        }
         String value = getIndexedKey(hash); // KEYS.get(hash);
         if (value != null) {
             return value;

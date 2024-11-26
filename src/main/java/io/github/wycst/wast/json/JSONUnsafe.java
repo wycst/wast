@@ -1,6 +1,7 @@
 package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
+import io.github.wycst.wast.common.utils.EnvUtils;
 import sun.misc.Unsafe;
 
 import java.lang.reflect.Field;
@@ -12,7 +13,7 @@ final class JSONUnsafe {
     static final long BYTE_ARRAY_OFFSET = UnsafeHelper.BYTE_ARRAY_OFFSET;
     static final long CHAR_ARRAY_OFFSET = UnsafeHelper.CHAR_ARRAY_OFFSET;
     static final long STRING_VALUE_OFFSET = UnsafeHelper.STRING_VALUE_OFFSET;
-    
+
     static {
         Field theUnsafeField;
         try {
@@ -972,7 +973,7 @@ final class JSONUnsafe {
             return SIZE_INSTANCES[len].copyBytes(buf, offset, len);
         } else {
             byte[] bytes = new byte[len];
-            if(len < 72) {
+            if (len < 72) {
                 int rem = len & 7;
                 int t = len >> 3;
                 long sourceOff = BYTE_ARRAY_OFFSET + offset;
@@ -1036,6 +1037,16 @@ final class JSONUnsafe {
         } catch (InstantiationException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    static byte[] getStringUTF8Bytes(String value) {
+        if (EnvUtils.JDK_9_PLUS) {
+            byte[] bytes = (byte[]) getStringValue(value.toString());
+            if (bytes.length == value.length()) {
+                return bytes;
+            }
+        }
+        return value.getBytes(EnvUtils.CHARSET_UTF_8);
     }
 
     /**

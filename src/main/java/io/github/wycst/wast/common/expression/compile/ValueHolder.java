@@ -1,4 +1,4 @@
-package io.github.wycst.wast.common.expression.compile.javassist;
+package io.github.wycst.wast.common.expression.compile;
 
 /**
  * @Author: wangy
@@ -6,7 +6,7 @@ package io.github.wycst.wast.common.expression.compile.javassist;
  * @Description:
  */
 public class ValueHolder {
-    Object value;
+    public Object value;
 
     public void setValue() {
         this.value = "";

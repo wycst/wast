@@ -211,7 +211,11 @@ public class CompilerEnvironment extends EvaluateEnvironment {
         return skipParse;
     }
 
-    public CompilerEnvironment setSkipParse(boolean skipParse) {
+    public void setSkipParse(boolean skipParse) {
+        this.skipParse = skipParse;
+    }
+
+    public CompilerEnvironment skipParse(boolean skipParse) {
         this.skipParse = skipParse;
         return this;
     }
@@ -220,7 +224,7 @@ public class CompilerEnvironment extends EvaluateEnvironment {
         return enableSystem;
     }
 
-    public CompilerEnvironment setEnableSystem(boolean enableSystem) {
+    public CompilerEnvironment enableSystem(boolean enableSystem) {
         this.enableSystem = enableSystem;
         return this;
     }
@@ -229,7 +233,7 @@ public class CompilerEnvironment extends EvaluateEnvironment {
         return disableSecurityCheck;
     }
 
-    public CompilerEnvironment setDisableSecurityCheck(boolean disableSecurityCheck) {
+    public CompilerEnvironment disableSecurityCheck(boolean disableSecurityCheck) {
         this.disableSecurityCheck = disableSecurityCheck;
         return this;
     }

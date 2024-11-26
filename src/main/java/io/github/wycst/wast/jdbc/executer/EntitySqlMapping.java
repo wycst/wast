@@ -92,14 +92,6 @@ public class EntitySqlMapping {
     }
 
     private void appendQueryFieldColumn(FieldColumn fieldColumn, StringBuilder columnsBuilder) {
-//        String fieldName = fieldColumn.getField().getName();
-//        String columnName = fieldColumn.getColumnName();
-//        if (fieldColumn.isEqualName()) {
-//            columnsBuilder.append("t.").append(columnName).append(",");
-//        } else {
-//            columnsBuilder.append("t.").append(columnName).append(" as \"").append(fieldName).append("\",");
-//        }
-//
         columnsBuilder.append(fieldColumn.getQueryColumnSyntax());
     }
 
@@ -115,20 +107,28 @@ public class EntitySqlMapping {
         return getSelectSqlObject(oqlQuery, params, total);
     }
 
+    Sql getDeleteSqlObject(String deleteTemplate, OqlQuery oqlQuery, Object params) {
+        Sql sqlObject = new Sql();
+        // paramValues(where)
+        List<Object> paramValues = new ArrayList<Object>();
+        if (deleteTemplate == null) {
+            deleteTemplate = "DELETE t FROM %s t%s";
+        }
+        StringBuilder whereBuilder = new StringBuilder();
+        appendWhereClause(whereBuilder, oqlQuery, params, paramValues);
+
+        String sql = StringUtils.replacePlaceholder(deleteTemplate, "%s", tableName, whereBuilder.toString());
+        sqlObject.setFormalSql(sql);
+        sqlObject.setParamValues(paramValues.toArray());
+        return sqlObject;
+    }
+
     Sql getSelectSqlObject(OqlQuery oqlQuery, Object params) {
         return getSelectSqlObject(oqlQuery, params, false);
     }
 
-    Sql getSelectSqlObject(OqlQuery oqlQuery, Object params, boolean total) {
-        Sql sqlObject = new Sql();
-
-        // paramValues(where)
-        List<Object> paramValues = new ArrayList<Object>();
-
-        String selectTemplate = "SELECT %s FROM %s t%s%s%s";
-        StringBuilder columnsBuilder = new StringBuilder();
+    final void appendSelectColumns(OqlQuery oqlQuery, StringBuilder columnsBuilder, boolean disableJoin, StringBuilder onClause) {
         int deleteDotIndex = -1;
-
         Collection<String> selectFields = oqlQuery.getSelectFields();
         boolean selectAll = selectFields.size() == 0;
         if (selectAll) {
@@ -146,8 +146,6 @@ public class EntitySqlMapping {
             deleteDotIndex = columnsBuilder.length() - 1;
         }
 
-        StringBuilder onClause = new StringBuilder();
-        boolean disableJoin = oqlQuery.isDisableJoin();
         if (!disableJoin && joinEntityMappings != null && joinEntityMappings.size() > 0) {
             onClause.append(" ");
             handleJoinSql(columnsBuilder, onClause, deleteDotIndex);
@@ -156,6 +154,19 @@ public class EntitySqlMapping {
                 columnsBuilder.deleteCharAt(deleteDotIndex);
             }
         }
+    }
+
+    Sql getSelectSqlObject(OqlQuery oqlQuery, Object params, boolean total) {
+        Sql sqlObject = new Sql();
+
+        // paramValues(where)
+        List<Object> paramValues = new ArrayList<Object>();
+        String selectTemplate = "SELECT %s FROM %s t%s%s%s";
+
+        // append select
+        StringBuilder columnsBuilder = new StringBuilder();
+        StringBuilder onClause = new StringBuilder();
+        appendSelectColumns(oqlQuery, columnsBuilder, oqlQuery.isDisableJoin(), onClause);
 
         // append where conditions
         StringBuilder whereBuilder = new StringBuilder();
@@ -184,7 +195,7 @@ public class EntitySqlMapping {
         String sql = StringUtils.replacePlaceholder(selectTemplate, "%s", columnsBuilder.toString(), tableName, onClause.toString(),
                 whereBuilder.toString(), orderBuilder.toString());
 
-        if(total) {
+        if (total) {
             String totalSql = StringUtils.replacePlaceholder("SELECT count(*) FROM %s t %s", "%s", tableName, whereBuilder.toString());
             sqlObject.setTotalSql(totalSql);
         }
@@ -371,7 +382,7 @@ public class EntitySqlMapping {
 
             columnsNameBuilder.append(fieldColumn.getColumnName()).append(",");
 
-            if(fieldColumn.usePlaceholderOnWrite()) {
+            if (fieldColumn.usePlaceholderOnWrite()) {
                 this.usePlaceholderOnInsert = true;
                 columnsValueBuilder.append(fieldColumn.getPlaceholderOnWriteTemplate()).append(",");
                 placeholderColumns.put(field, fieldColumn);
@@ -413,7 +424,7 @@ public class EntitySqlMapping {
             if (fieldColumn.isDisabledOnUpdate()) {
                 continue;
             }
-            if(fieldColumn.usePlaceholderOnWrite()) {
+            if (fieldColumn.usePlaceholderOnWrite()) {
                 this.usePlaceholderOnUpdate = true;
                 columnsBuilder.append(fieldColumn.getColumnName()).append(" = ").append(fieldColumn.getPlaceholderOnWriteTemplate()).append(",");
                 placeholderColumns.put(fieldColumn.getField().getName(), fieldColumn);
@@ -550,11 +561,6 @@ public class EntitySqlMapping {
         return sqlObject;
     }
 
-    Sql getPageSqlObject(OqlQuery query, Object params) {
-        Sql sql = getSelectSqlObject(query, params);
-        return sql;
-    }
-
 //    private void appendWhereClause(StringBuilder whereBuilder, List<FieldCondition> fieldConditions) {
 //        boolean appendFlag = false;
 //        for (FieldCondition fieldCondition : fieldConditions) {
@@ -574,7 +580,7 @@ public class EntitySqlMapping {
 //        }
 //    }
 
-    private void appendWhereClause(StringBuilder whereBuilder, OqlQuery oqlQuery, Object params, List<Object> paramValues) {
+    void appendWhereClause(StringBuilder whereBuilder, OqlQuery oqlQuery, Object params, List<Object> paramValues) {
         boolean appendFlag = false;
         boolean isEntityInstance = entityClass.isInstance(params);
         List<FieldCondition> conditions = oqlQuery.getConditions();
@@ -612,7 +618,7 @@ public class EntitySqlMapping {
             String field = subQueryCondition.getField();
             String symbol = subQueryCondition.getSymbol();
             subBuilder.setLength(0);
-            if(field != null) {
+            if (field != null) {
                 FieldColumn fieldColumn = fieldColumnMapping.get(field);
                 if (fieldColumn == null) {
                     continue;
@@ -744,7 +750,7 @@ public class EntitySqlMapping {
     }
 
     <E> String getUpdateByPrimarySql(E entity) {
-        if(this.usePlaceholderOnUpdate) {
+        if (this.usePlaceholderOnUpdate) {
             return renderPlaceholder(updateByPrimarySql, entity);
         } else {
             return updateByPrimarySql;
@@ -756,7 +762,7 @@ public class EntitySqlMapping {
         Sql sqlObject = new Sql();
         List<Object> paramValues = new ArrayList<Object>();
 
-        if(sqlStringFormat == null) {
+        if (sqlStringFormat == null) {
             // default: UPDATE %s SET %s%s
             // (clickhouse : ALTER TABLE %s UPDATE %s %s)
             sqlStringFormat = "UPDATE %s t SET %s%s";
@@ -771,7 +777,7 @@ public class EntitySqlMapping {
                 continue;
             }
             Object value = isEntityInstance ? getFieldColumnValue(false, fieldColumn, params) : ObjectUtils.getAttrValue(params, field);
-            if(fieldColumn.usePlaceholderOnWrite()) {
+            if (fieldColumn.usePlaceholderOnWrite()) {
                 // append placeholder
                 String placeholderTemplate = fieldColumn.getPlaceholderOnWriteTemplate();
                 Map<String, Object> vars = new HashMap<String, Object>();
@@ -871,7 +877,7 @@ public class EntitySqlMapping {
                 paramValues[++index] = value;
             }
             // (),
-            if(this.usePlaceholderOnInsert) {
+            if (this.usePlaceholderOnInsert) {
                 columnsValueBuilder.append(renderPlaceholder(insertSqlSuffix, entity)).append(",");
             } else {
                 columnsValueBuilder.append(insertSqlSuffix).append(",");

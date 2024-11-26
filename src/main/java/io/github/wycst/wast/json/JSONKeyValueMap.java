@@ -326,7 +326,7 @@ class JSONKeyValueMap<T> {
             }
             this.remCharsValue = remValueForChars;
 
-            int byteLen = bytes.length, remBytes = charLen & 3;
+            int byteLen = bytes.length, remBytes = byteLen & 3;
             long remValueForBytes = 0;
             switch (remBytes) {
                 case 1: {

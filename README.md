@@ -1,6 +1,6 @@
-# wast
-
 ## 简介
+
+WAST是一个高性能Java工具集库包，包括JSON、YAML、CSV、HttpClient、JDBC和EL引擎.
 
 性能评测数据 <br>
 [https://github.com/wycst/wast-jmh-test](https://github.com/wycst/wast-jmh-test)
@@ -20,20 +20,21 @@
 <dependency>
     <groupId>io.github.wycst</groupId>
     <artifactId>wast</artifactId>
-    <version>0.0.18</version>
+    <version>0.0.19</version>
 </dependency>
 ```
 
 ## JSON
 
 > 1 java语言整体性能最快的json库之一；<br>
-> 2 功能全面，支持IO流文件读写，JSON节点树按需解析， 局部解析，序列化格式化，驼峰下划线自动转换；<br>
-> 3 源码实现简单易懂，阅读调试都很容易；<br>
-> 4 代码轻量，使用安全，没有漏洞风险；<br>
+> 2 支持IO流文件读写，JSON节点树按需解析，按需解析，序列化格式化，驼峰下划线自动转换；<br>
+> 3 支持自定义序列化和反序列化；<br>
+> 4 支持JSON的xpath提取功能；<br>
+> 5 没有漏洞风险；<br>
 
 ## YAML
 
-> 1 目前java语言解析yaml最快的库，性能大概是snakeyaml的5-20倍；<br>
+> 1 目前java语言解析yaml最快的库之一；<br>
 > 2 支持文件流，URL, 字符数组，字符串等解析；<br>
 > 3 支持常用yaml语法以及类型转换；<br>
 > 4 内置Yaml节点模型，支持路径查找(v0.0.4+)；<br>
@@ -41,28 +42,28 @@
 
 ## 表达式引擎
 
-> 1 java表达式引擎，以解析性能来说比现有开源的其他引擎都快，包括mvel, spel, fel等；<br>
+> 1 java表达式引擎性能最快之一；<br>
 > 2 支持java中所有的操作运算符（加减乘除余，位运算，逻辑运算，字符串+）；<br>
 > 3 支持**指数运算(java本身不支持)； <br>
 > 4 支持函数以及自定义函数实现,函数可以任意嵌套； <br>
 > 5 科学记数法支持，16进制，8进制等解析，支持大数运算(BigDecimal)；<br>
-> 6 支持简单的三目运算；<br>
-> 7 代码轻量，使用安全，没有漏洞风险；<br>
+> 6 支持三目运算；<br>
+> 7 没有漏洞风险；<br>
 > 8 支持超长文本表达式执行；<br>
 > 9 支持表达式编译模式运行；<br>
 
 ## JDBC
 
 > 1 集成了类似JdbcTemplate,Mybatis-Plus或者JPA等操作习惯的api; <br>
-> 2 代码轻量，没有任何代理，使用非常方便；<br>
+> 2 代码轻量，简单易用；<br>
 > 3 支持面向原始sql,sql模版,对象管理等三种操作模式用，后两种模式完全能避免SQL注入漏洞（根源解决）；<br>
 > 4 理论上支持所有提供JDBC协议的数据库；<br>
 
 ## HttpClient
 
 > 1 当前只支持http/1.1;<br>
-> 2 底层核心为URLConnection,封装了http客户端常用的API<br>
-> 3 支持文件上传(已封装API),文件下载也能轻松处理支持；<br>
+> 2 底层核心为URLConnection，封装了http客户端常用的API；<br>
+> 3 支持文件上传(已封装API)，文件下载也能轻松处理支持；<br>
 > 4 支持nacos和consul作为ServerZone提供源，可以通过服务实例来访问请求；<br>
 > 5 支持负载均衡(客户端)和高可用访问调用；<br>
 
@@ -92,7 +93,6 @@ map.put("name", "zhangsan");
 map.put("msg", "hello, wastjson !");
 JSON.toJsonString(map, WriteOption.FormatOut);
 
-output: 
 {
 	"msg":"hello, wastjson !",
 	"name":"zhangsan"
@@ -105,7 +105,6 @@ output:
 String json = "{\"msg\":\"hello, wastjson !\",\"name\":\"zhangsan\"}";
 Map map = (Map) JSON.parse(json);
 System.out.println(map);
-// 输出
 {msg=hello, wastjson !, name=zhangsan}
 ```
 
@@ -115,7 +114,6 @@ System.out.println(map);
     String json = "{\"msg\":\"hello, wastjson !\",\"name\":\"zhangsan\"}";
     Map map = JSON.parseObject(json, Map.class);
     System.out.println(map);
-    // 输出
     {msg=hello, wastjson !, name=zhangsan}
 ```
 
@@ -175,10 +173,10 @@ System.out.println(map);
 
 ### 强大的JSONNode功能
 
-> 1、支持对大文本json的懒加载解析功能，即访问时解析，当需要读取一个大文本json中一个或多个属性值时非常有用。<br>
+> 1、支持对大文本json的懒加载解析功能，按需解析，当需要读取一个大文本json中一个或多个属性值时非常有用；<br>
 > 2、支持按需解析；<br>
 > 3、支持上下文查找；<br>
-> 4、支持在大文本json中提取部分内容作为解析上下文结果,使用JSONNode.from(source, path)  <br>
+> 4、支持在大文本json中提取部分内容作为解析上下文结果，使用JSONNode.from(source, path)；<br>
 > 5、支持对节点的属性修改，删除等，节点的JSON反向序列化；<br>
 > 6、支持直接提取功能(v0.0.2+支持)，参考JSONPath；
 

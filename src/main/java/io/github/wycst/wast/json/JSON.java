@@ -164,7 +164,7 @@ public final class JSON extends JSONGeneral {
             if (!EnvUtils.hasNegatives(bytes, 0, bytes.length)) {
                 return JSONDefaultParser.parseInternal(AsciiStringSource.of(bytes), bytes, 0, bytes.length, null, readOptions);
             } else {
-                return JSONDefaultParser.parseInternal(ISO_8859_1CharSource.of(bytes), bytes, 0, bytes.length, null, readOptions);
+                return JSONDefaultParser.parseInternal(UTF8CharSource.of(bytes), bytes, 0, bytes.length, null, readOptions);
             }
         }
         return JSONDefaultParser.parseInternal(null, bytes, 0, bytes.length, null, readOptions);
@@ -286,7 +286,7 @@ public final class JSON extends JSONGeneral {
             if (!EnvUtils.hasNegatives(buf, 0, buf.length)) {
                 return parseObjectInternal(typeDeserializer, AsciiStringSource.of(buf), buf, actualType, readOptions);
             } else {
-                return parseObjectInternal(typeDeserializer, ISO_8859_1CharSource.of(buf), buf, actualType, readOptions);
+                return parseObjectInternal(typeDeserializer, UTF8CharSource.of(buf), buf, actualType, readOptions);
             }
         }
         return parseObjectInternal(typeDeserializer, null, buf, actualType, readOptions);
@@ -399,7 +399,7 @@ public final class JSON extends JSONGeneral {
             if (!EnvUtils.hasNegatives(buf, 0, buf.length)) {
                 return parseInternal(AsciiStringSource.of(buf), buf, genericParameterizedType, readOptions);
             } else {
-                return parseInternal(ISO_8859_1CharSource.of(buf), buf, genericParameterizedType, readOptions);
+                return parseInternal(UTF8CharSource.of(buf), buf, genericParameterizedType, readOptions);
             }
         }
         return parseInternal(null, buf, genericParameterizedType, readOptions);
@@ -510,7 +510,7 @@ public final class JSON extends JSONGeneral {
             if (!EnvUtils.hasNegatives(buf, 0, buf.length)) {
                 return parseInternal(AsciiStringSource.of(buf), buf, actualType, null, readOptions);
             } else {
-                return parseInternal(ISO_8859_1CharSource.of(buf), buf, actualType, null, readOptions);
+                return parseInternal(UTF8CharSource.of(buf), buf, actualType, null, readOptions);
             }
         }
         return parseInternal(null, buf, actualType, null, readOptions);
