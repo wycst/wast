@@ -458,7 +458,8 @@ public final class NumberUtils {
                 long bits = (e2 << 52) | (mantissa0 & MOD_DOUBLE_MANTISSA);
                 return Double.longBitsToDouble(bits);
             }
-            if ((h & mask) != mask || ((h >> sr - 1) & 1) == 0) {
+            // todo 先修复bug后续研究
+            if ((h & mask) != mask /*|| ((h >> sr - 1) & 1) == 0*/) {
                 return longBitsToIntegerDouble(h, e10 - leadingZeros + ed5.dfb + sr + 1140, sr);
             }
             long l = left * ed5.y;
@@ -505,7 +506,8 @@ public final class NumberUtils {
                 sr = 8;
                 mask = 0x7F;
             }
-            if ((h & mask) != mask || ((h >> sr - 1) & 1) == 0) {
+            // todo 先修复bug后续研究
+            if ((h & mask) != mask /*|| ((h >> sr - 1) & 1) == 0*/) {
                 return longBitsToDecimalDouble(h, 33 - scale - ed5.ob - leadingZeros + sr, sr);
             }
             long l = left * ed5.oy;
