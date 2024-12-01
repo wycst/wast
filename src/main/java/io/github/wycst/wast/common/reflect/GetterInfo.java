@@ -68,8 +68,8 @@ public class GetterInfo {
     void setField(Field field) {
         this.field = field;
         try {
-            this.fieldOffset = UnsafeHelper.objectFieldOffset(field);
             this.fieldPrimitive = field.getType().isPrimitive();
+            this.fieldOffset = UnsafeHelper.objectFieldOffset(field);
             if (this.fieldPrimitive) {
                 this.primitiveType = ReflectConsts.PrimitiveType.typeOf(field.getType());
             }

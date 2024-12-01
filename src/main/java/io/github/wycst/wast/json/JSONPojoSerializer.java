@@ -28,8 +28,9 @@ public class JSONPojoSerializer<T> extends JSONTypeSerializer {
     }
 
     @Override
-    final void initialize() {
+    final JSONTypeSerializer ensureInitialized() {
         pojoStructure.ensureInitializedFieldSerializers();
+        return this;
     }
 
     public void serializePojoCompact(T entity, JSONWriter writer, JSONConfig jsonConfig, int indentLevel) throws Exception {

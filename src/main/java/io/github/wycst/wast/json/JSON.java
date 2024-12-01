@@ -18,6 +18,7 @@ package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.utils.EnvUtils;
+import io.github.wycst.wast.common.utils.ObjectUtils;
 import io.github.wycst.wast.json.exceptions.JSONException;
 import io.github.wycst.wast.json.options.ReadOption;
 import io.github.wycst.wast.json.options.WriteOption;
@@ -27,10 +28,7 @@ import java.lang.reflect.Type;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * JSON serialization and deserialization tools
@@ -102,6 +100,36 @@ public final class JSON extends JSONGeneral {
     public static Object parse(String json, ReadOption... readOptions) {
         if (json == null) return null;
         return JSONDefaultParser.parse(json, readOptions);
+    }
+
+    /**
+     * <p> 在确定返回类型情况下可以省去一个强转声明例如: double val = JSON.parseAs("1234567.89E2");
+     * json -> Map(LinkHashMap)/List(ArrayList)/String/Number/Boolean/null
+     *
+     * @param json        source
+     * @param readOptions 解析配置项
+     * @return Map(LinkHashMap)/List(ArrayList)/String/Number/Boolean/null
+     * @throws java.lang.ClassCastException
+     */
+    public static <T> T parseAs(String json, ReadOption... readOptions) {
+        if (json == null) return null;
+        return (T) JSONDefaultParser.parse(json, readOptions);
+    }
+
+    /**
+     * <p> 在确定返回number类型的情况下可以转换为常用的number实例
+     * <p> 如果参数为double字符串，返回为int或者long可能出现精度丢失；
+     *
+     * @param json        source
+     * @param targetClass targetClass
+     * @param readOptions 解析配置项
+     * @return Number
+     * @throws java.lang.ClassCastException
+     */
+    public static <T> T parseNumberAs(String json, Class<T> targetClass, ReadOption... readOptions) {
+        if (json == null) return null;
+        Number value = parseAs(json, readOptions);
+        return (T) ObjectUtils.toTypeNumber(value, targetClass);
     }
 
     /**
@@ -230,10 +258,10 @@ public final class JSON extends JSONGeneral {
     /**
      * <p> 将json字符串（{}）转化为指定class的实例
      *
-     * @param json        源字符串
-     * @param actualType  类型
+     * @param json         源字符串
+     * @param actualType   类型
      * @param customMapper
-     * @param readOptions 解析配置项
+     * @param readOptions  解析配置项
      * @return T对象
      */
     public static <T> T parseObject(String json, Class<T> actualType, JSONCustomMapper customMapper, ReadOption... readOptions) {
@@ -681,8 +709,8 @@ public final class JSON extends JSONGeneral {
      */
     private static <T> List<T> parseArrayInternal(final CharSource charSource, byte[] buf, final Class<T> actualType, ReadOption... readOptions) {
         return (List<T>) deserialize(buf, new Deserializer() {
-            Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
-                return JSONTypeDeserializer.COLLECTION.deserialize(charSource, buf, fromIndex, toIndex, GenericParameterizedType.collectionType(ArrayList.class, actualType), null, '\0', jsonParseContext);
+            Object deserialize(byte[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
+                return JSONTypeDeserializer.COLLECTION.deserialize(charSource, buf, fromIndex, toIndex, GenericParameterizedType.collectionType(ArrayList.class, actualType), null, ZERO, jsonParseContext);
             }
         }, readOptions);
     }
@@ -725,7 +753,7 @@ public final class JSON extends JSONGeneral {
 
     private static <E> Object parseToListInternal(final CharSource charSource, byte[] buf, final Collection instance, final Class<E> actualType, ReadOption... readOptions) {
         return deserialize(buf, new Deserializer() {
-            Object deserialize(char[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
+            Object deserialize(byte[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception {
                 return JSONTypeDeserializer.COLLECTION.deserializeCollection(charSource, buf, fromIndex, toIndex, GenericParameterizedType.collectionType(instance.getClass(), actualType), instance, jsonParseContext);
             }
         }, readOptions);
@@ -1387,49 +1415,16 @@ public final class JSON extends JSONGeneral {
     }
 
     public static boolean validate(String json, ReadOption... readOptions) {
-        return validate(json, false, readOptions);
-    }
-
-    public static boolean validate(String json, boolean printIfException, ReadOption... readOptions) {
         if (json == null) return false;
-        return validate(getChars(json), printIfException, readOptions);
+        return JSONValidator.validate(json, readOptions);
     }
 
     public static boolean validate(char[] buf, ReadOption... readOptions) {
-        return validate(buf, false, readOptions);
+        return JSONValidator.validate(buf, readOptions);
     }
 
-    public static boolean validate(char[] buf, boolean printIfException, ReadOption... readOptions) {
-        JSONValidator jsonValidator = new JSONValidator(buf);
-        boolean result = jsonValidator.validate(readOptions);
-        if (printIfException) {
-        }
-        return result;
-    }
-
-    /**
-     * <p> 校验json字符串是否正确，
-     *
-     * @param json
-     * @param readOptions
-     * @return <p> 如果正确，返回null; 否则返回错误信息
-     */
-    public static String validateMessage(String json, ReadOption... readOptions) {
-        if (json == null) return "Exception: java.lang.NullPointerException";
-        return validateMessage(getChars(json), readOptions);
-    }
-
-    /**
-     * <p> 校验json字符串是否正确，
-     *
-     * @param buf
-     * @param readOptions
-     * @return <p> 如果正确，返回null; 否则返回错误信息
-     */
-    public static String validateMessage(char[] buf, ReadOption... readOptions) {
-        JSONValidator jsonValidator = new JSONValidator(buf);
-        jsonValidator.validate(true, readOptions);
-        return jsonValidator.getValidateMessage();
+    public static boolean validate(byte[] buf, ReadOption... readOptions) {
+        return JSONValidator.validate(buf, readOptions);
     }
 
     /**

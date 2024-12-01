@@ -225,6 +225,10 @@ public final class JSONPojoStructure {
         return classStrucWrap.isPrivate();
     }
 
+    public boolean isPublic() {
+        return classStrucWrap.isPublic();
+    }
+
     public boolean isForceUseFields() {
         return forceUseFields;
     }
@@ -244,6 +248,6 @@ public final class JSONPojoStructure {
      * @return
      */
     public boolean isSupportedJIT() {
-        return isSupportedJavaBeanConvention() && enableJIT;
+        return isSupportedJavaBeanConvention() && isPublic() && enableJIT;
     }
 }

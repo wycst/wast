@@ -22,10 +22,7 @@ import io.github.wycst.wast.json.exceptions.JSONException;
 import io.github.wycst.wast.json.options.ReadOption;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.*;
 
 /**
  * <p> 默认解析器，根据字符的开头前缀解析为Map、List、String
@@ -176,7 +173,30 @@ public final class JSONDefaultParser extends JSONGeneral {
                     result = JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(source, buf, fromIndex, toIndex, beginChar, null, jsonParseContext);
                     break;
                 default:
-                    throw new UnsupportedOperationException("Unsupported for begin character with '" + beginChar + "'");
+                    try {
+                        switch (beginChar) {
+                            case 't': {
+                                result = JSONTypeDeserializer.parseTrue(buf, fromIndex, toIndex, jsonParseContext);
+                                break;
+                            }
+                            case 'f': {
+                                result = JSONTypeDeserializer.parseFalse(buf, fromIndex, toIndex, jsonParseContext);
+                                break;
+                            }
+                            case 'n': {
+                                result = JSONTypeDeserializer.parseNull(buf, fromIndex, toIndex, jsonParseContext);
+                                break;
+                            }
+                            default: {
+                                char[] numBuf = Arrays.copyOfRange(buf, fromIndex, toIndex + 1);
+                                numBuf[numBuf.length - 1] = ',';
+                                toIndex = numBuf.length - 1;
+                                result = JSONTypeDeserializer.NUMBER.deserialize(source, numBuf, 0, toIndex, jsonParseContext.useBigDecimalAsDefault ? GenericParameterizedType.BigDecimalType : GenericParameterizedType.AnyType, null, ',', jsonParseContext);
+                            }
+                        }
+                    } catch (Throwable throwable) {
+                        throw throwable instanceof JSONException ? (JSONException) throwable : new UnsupportedOperationException("Unsupported for begin character with '" + beginChar + "'");
+                    }
             }
 
             int endIndex = jsonParseContext.endIndex;
@@ -245,17 +265,17 @@ public final class JSONDefaultParser extends JSONGeneral {
                     break;
                 }
                 case 'n':
-                    value = JSONTypeDeserializer.NULL.deserialize(null, buf, i, toIndex, null, null, '\0', jsonParseContext);
+                    value = JSONTypeDeserializer.parseNull(buf, i, toIndex, jsonParseContext);
                     i = jsonParseContext.endIndex;
                     list.add(value);
                     break;
                 case 't':
-                    value = JSONTypeDeserializer.BOOLEAN.parseTrue(buf, i, toIndex, jsonParseContext);
+                    value = JSONTypeDeserializer.parseTrue(buf, i, toIndex, jsonParseContext);
                     i = jsonParseContext.endIndex;
                     list.add(value);
                     break;
                 case 'f':
-                    value = JSONTypeDeserializer.BOOLEAN.parseFalse(buf, i, toIndex, jsonParseContext);
+                    value = JSONTypeDeserializer.parseFalse(buf, i, toIndex, jsonParseContext);
                     i = jsonParseContext.endIndex;
                     list.add(value);
                     break;
@@ -295,8 +315,7 @@ public final class JSONDefaultParser extends JSONGeneral {
         int i = fromIndex;
         char ch;
         boolean empty = true;
-        boolean allowomment = jsonParseContext.allowComment;
-        boolean disableCacheMapKey = jsonParseContext.disableCacheMapKey;
+        final boolean allowomment = jsonParseContext.allowComment, disableCacheMapKey = jsonParseContext.disableCacheMapKey;
         for (; ; ) {
             while ((ch = buf[++i]) <= ' ') ;
             if (allowomment) {
@@ -386,17 +405,17 @@ public final class JSONDefaultParser extends JSONGeneral {
                         break;
                     }
                     case 'n':
-                        value = JSONTypeDeserializer.NULL.deserialize(null, buf, i, toIndex, null, null, '\0', jsonParseContext);
+                        value = JSONTypeDeserializer.parseNull(buf, i, toIndex, jsonParseContext);
                         i = jsonParseContext.endIndex;
                         instance.put(key, value);
                         break;
                     case 't':
-                        value = JSONTypeDeserializer.BOOLEAN.parseTrue(buf, i, toIndex, jsonParseContext);
+                        value = JSONTypeDeserializer.parseTrue(buf, i, toIndex, jsonParseContext);
                         i = jsonParseContext.endIndex;
                         instance.put(key, value);
                         break;
                     case 'f':
-                        value = JSONTypeDeserializer.BOOLEAN.parseFalse(buf, i, toIndex, jsonParseContext);
+                        value = JSONTypeDeserializer.parseFalse(buf, i, toIndex, jsonParseContext);
                         i = jsonParseContext.endIndex;
                         instance.put(key, value);
                         break;
@@ -562,7 +581,30 @@ public final class JSONDefaultParser extends JSONGeneral {
                     result = JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(source, bytes, fromIndex, toIndex, beginByte, GenericParameterizedType.StringType, jsonParseContext);
                     break;
                 default:
-                    throw new UnsupportedOperationException("Unsupported for begin character with '" + beginByte + "'");
+                    try {
+                        switch (beginByte) {
+                            case 't': {
+                                result = JSONTypeDeserializer.parseTrue(bytes, fromIndex, toIndex, jsonParseContext);
+                                break;
+                            }
+                            case 'f': {
+                                result = JSONTypeDeserializer.parseFalse(bytes, fromIndex, toIndex, jsonParseContext);
+                                break;
+                            }
+                            case 'n': {
+                                result = JSONTypeDeserializer.parseNull(bytes, fromIndex, toIndex, jsonParseContext);
+                                break;
+                            }
+                            default: {
+                                byte[] numBuf = Arrays.copyOfRange(bytes, fromIndex, toIndex + 1);
+                                numBuf[numBuf.length - 1] = ',';
+                                result = JSONTypeDeserializer.NUMBER.deserialize(source, numBuf, 0, numBuf.length, jsonParseContext.useBigDecimalAsDefault ? GenericParameterizedType.BigDecimalType : GenericParameterizedType.AnyType, null, (byte) ',', jsonParseContext);
+                                toIndex = numBuf.length - 1;
+                            }
+                        }
+                    } catch (Throwable throwable) {
+                        throw throwable instanceof JSONException ? (JSONException) throwable : new UnsupportedOperationException("Unsupported for begin character with '" + (char) beginByte + "'");
+                    }
             }
 
             int endIndex = jsonParseContext.endIndex;

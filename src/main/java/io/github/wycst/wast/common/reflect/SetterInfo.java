@@ -8,7 +8,7 @@ import java.util.Map;
 public class SetterInfo {
 
     // field of class
-    private Field field;
+    Field field;
     // field memory offset
     long fieldOffset = -1;
     private String name;
@@ -40,7 +40,7 @@ public class SetterInfo {
 
     public static SetterInfo fromField(Field field) {
         boolean primitive = field.getType().isPrimitive();
-        SetterInfo setterInfo = primitive ? new SetterInfo.PrimitiveSetterInfo() : new SetterInfo();
+        SetterInfo setterInfo = primitive ? new PrimitiveImpl() : new SetterInfo();
         setterInfo.setField(field);
         return setterInfo;
     }
@@ -52,14 +52,14 @@ public class SetterInfo {
     public void invoke(Object target, Object value) {
         target.getClass();
         if ((parameterType.isInstance(value) || value == null) && isInstance(target)) {
-            UnsafeHelper.UNSAFE.putObject(target, fieldOffset, value);
+            invokeInternal(target, value);
         } else {
             throw new SecurityException("invoke error: parameter mismatch");
         }
     }
 
     void invokeInternal(Object target, Object value) {
-        UnsafeHelper.UNSAFE.putObject(target, fieldOffset, value); // UnsafeHelper.putObjectValue(target, fieldOffset, value);
+        UnsafeHelper.UNSAFE.putObject(target, fieldOffset, value);
     }
 
     public final String getName() {
@@ -93,10 +93,6 @@ public class SetterInfo {
     void setNonInstanceType(boolean nonInstanceType) {
         this.nonInstanceType = nonInstanceType;
     }
-
-//    Map<Class<? extends Annotation>, Annotation> getAnnotations() {
-//        return annotations;
-//    }
 
     void setAnnotations(Map<Class<? extends Annotation>, Annotation> annotations) {
         this.annotations = annotations;
@@ -135,7 +131,7 @@ public class SetterInfo {
         return null;
     }
 
-    Object getFieldValue(Object instance) {
+    Object getFieldValue(Object instance) throws IllegalAccessException {
         return UnsafeHelper.getObjectValue(instance, fieldOffset);
     }
 
@@ -167,11 +163,33 @@ public class SetterInfo {
         return fieldDisabled;
     }
 
-    static final class PrimitiveSetterInfo extends SetterInfo {
+    static final class FieldImpl extends SetterInfo {
+        void setField(Field field) {
+            this.field = field;
+        }
+
+        public void invoke(Object target, Object value) {
+            invokeInternal(target, value);
+        }
+
+        Object getFieldValue(Object instance) throws IllegalAccessException {
+            return field.get(instance);
+        }
+
+        void invokeInternal(Object target, Object value) {
+            try {
+                field.set(target, value);
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    static final class PrimitiveImpl extends SetterInfo {
         private ReflectConsts.PrimitiveType primitiveType;
 
         public void invoke(Object target, Object value) {
-            if(isInstance(target)) {
+            if (isInstance(target)) {
                 primitiveType.put(target, fieldOffset, value);
             } else {
                 throw new SecurityException("invoke error: parameter mismatch");

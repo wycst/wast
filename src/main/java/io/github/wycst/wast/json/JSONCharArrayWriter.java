@@ -144,9 +144,17 @@ class JSONCharArrayWriter extends JSONWriter {
         return expandCapacity(count + increment);
     }
 
-    char[] expandCapacity(int newCap) {
-        if (newCap > buf.length) {
-            buf = Arrays.copyOf(buf, newCap * 3 >> 1);
+    char[] expandCapacity(long minCap) {
+        if (minCap > buf.length) {
+            if (minCap >= MAX_ALLOW_ALLOCATION_SIZE) {
+                throw new UnsupportedOperationException("Expansion failed, data is too large : " + minCap);
+            }
+            long newCap = Math.min((minCap >> 1) * 3, MAX_ALLOW_ALLOCATION_SIZE);
+            buf = Arrays.copyOf(buf, (int) newCap);
+        } else {
+            if (minCap < 0) {
+                throw new UnsupportedOperationException("The data length is too large and has overflowed");
+            }
         }
         return buf;
     }

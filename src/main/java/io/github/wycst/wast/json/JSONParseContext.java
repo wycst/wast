@@ -13,13 +13,13 @@ public class JSONParseContext {
      * 解析上下文结束位置
      */
     public int endIndex;
-    public int endToken;
+    int endToken;
 
     /**
      * JSON写入器
      * （Character builder）
      */
-    public JSONCharArrayWriter writer;
+    JSONCharArrayWriter writer;
 
     /**
      * 从16进制字符串中转化为字节数组
@@ -62,12 +62,6 @@ public class JSONParseContext {
     public boolean useBigDecimalAsDefault;
 
     /**
-     * 使用Double.parse来处理声明为double类型的属性的解析操作
-     */
-    @Deprecated
-    public boolean useJDKDoubleParser;
-
-    /**
      * 禁用cache key
      */
     public boolean disableCacheMapKey;
@@ -83,7 +77,13 @@ public class JSONParseContext {
     private String[] strings;
     protected int elementSize;
 
-    public void setContextWriter(JSONCharArrayWriter writer) {
+    /**
+     * 开启校验模式（调用validate方法时）
+     */
+    boolean validate;
+    boolean validateFail;
+
+    void setContextWriter(JSONCharArrayWriter writer) {
         this.writer = writer;
     }
 

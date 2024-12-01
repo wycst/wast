@@ -18,23 +18,15 @@ public final class JSONNodeContext extends JSONParseContext {
         allowUnquotedFieldNames = true;
     }
 
-    /**
-     * 开启校验模式（调用validate方法时）
-     */
-    public boolean validate;
-
     /***
      * 提取模式（提取路径的根对象）
      */
     public boolean extract;
-
     /**
      * 提取数据列表
      */
     public List extractValues;
-
     JSONNodeCollector collector;
-
     private JSONKeyValueMap<String> KEY_32_TABLE;
     static final JSONKeyValueMap<String> GLOBAL_KEY_8_TABLE = new JSONKeyValueMap<String>(2048);
 

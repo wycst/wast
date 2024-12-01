@@ -334,7 +334,7 @@ public final class JSONConfig {
         }
     }
 
-    private Map<Integer, Integer> getOrSetIdentityHashCodes() {
+    private synchronized Map<Integer, Integer> getOrSetIdentityHashCodes() {
         if (identityHashCodes == null) {
             identityHashCodes = new HashMap<Integer, Integer>();
         }
@@ -350,8 +350,10 @@ public final class JSONConfig {
     }
 
     public void clear() {
-        if(skipCircularReference) {
-            identityHashCodes.clear();
+        if (skipCircularReference) {
+            if (identityHashCodes != null) {
+                identityHashCodes.clear();
+            }
         }
     }
 

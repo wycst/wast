@@ -49,6 +49,10 @@ final class GetterMethodInfo extends GetterInfo {
         return method.getReturnType();
     }
 
+    public boolean isPrimitive() {
+        return method.getReturnType().isPrimitive();
+    }
+
     @Override
     public String getMethodName() {
         return method.getName();

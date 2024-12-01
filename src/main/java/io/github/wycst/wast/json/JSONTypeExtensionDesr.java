@@ -51,7 +51,7 @@ final class JSONTypeExtensionDesr {
                     throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', deserialize UUID fail");
                 }
             } else if (beginChar == 'n') {
-                return NULL.deserialize(charSource, buf, fromIndex, toIndex, null, null, jsonParseContext);
+                return parseNull(buf, fromIndex, toIndex, jsonParseContext);
             }
 
             String errorContextTextAt = createErrorContextText(buf, fromIndex);
@@ -83,7 +83,7 @@ final class JSONTypeExtensionDesr {
                     throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', deserialize UUID fail");
                 }
             } else if (beginByte == 'n') {
-                return NULL.deserialize(charSource, bytes, fromIndex, toIndex, null, null, jsonParseContext);
+                return parseNull(bytes, fromIndex, toIndex, jsonParseContext);
             }
 
             String errorContextTextAt = createErrorContextText(bytes, fromIndex);

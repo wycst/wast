@@ -175,15 +175,15 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
     }
 
     // Quick search based on usage frequency, significant effect when serializing map objects
-    static JSONTypeSerializer getTypeSerializer(Class<?> cls) {
+    final static JSONTypeSerializer getTypeSerializer(Class<?> cls) {
         JSONTypeSerializer typeSerializer = classJSONTypeSerializerMap.get(cls);
         if (typeSerializer != null) {
-            return typeSerializer;
+            return typeSerializer.ensureInitialized();
         } else {
             synchronized (cls) {
                 typeSerializer = classJSONTypeSerializerMap.get(cls);
                 if (typeSerializer != null) {
-                    return typeSerializer;
+                    return typeSerializer.ensureInitialized();
                 }
                 ReflectConsts.ClassCategory classCategory = ReflectConsts.getClassCategory(cls);
                 if (classCategory == ReflectConsts.ClassCategory.ObjectCategory) {
@@ -213,13 +213,13 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                     }
                 }
                 classJSONTypeSerializerMap.put(cls, typeSerializer);
-                typeSerializer.initialize();
-                return typeSerializer;
+                return typeSerializer.ensureInitialized();
             }
         }
     }
 
-    void initialize() {
+    JSONTypeSerializer ensureInitialized() {
+        return this;
     }
 
     static JSONTypeSerializer getEnumSerializer(Class<?> enumClass) {
@@ -1089,8 +1089,9 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
             }
 
             @Override
-            void initialize() {
+            JSONTypeSerializer ensureInitialized() {
                 pojoStructure.ensureInitializedFieldSerializers();
+                return this;
             }
         }
     }

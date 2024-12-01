@@ -21,16 +21,16 @@ public abstract class JsonDeserializer<T> extends JSONTypeDeserializer {
     }
 
     @Override
-    protected final Object deserialize(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
-        Object value = JSONTypeDeserializer.doDeserialize(ANY, charSource, buf, fromIndex, toIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
-        int endIndex = jsonParseContext.endIndex;
+    protected final Object deserialize(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext parseContext) throws Exception {
+        Object value = JSONTypeDeserializer.doDeserialize(ANY, charSource, buf, fromIndex, toIndex, parameterizedType, defaultValue, endToken, parseContext);
+        int endIndex = parseContext.endIndex;
         return deserialize(value, useSource ? new String(buf, fromIndex, endIndex - fromIndex) : null, null);
     }
 
     @Override
-    protected final Object deserialize(CharSource charSource, byte[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext jsonParseContext) throws Exception {
-        Object value = JSONTypeDeserializer.doDeserialize(ANY, charSource, buf, fromIndex, toIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
-        int endIndex = jsonParseContext.endIndex;
+    protected final Object deserialize(CharSource charSource, byte[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext parseContext) throws Exception {
+        Object value = JSONTypeDeserializer.doDeserialize(ANY, charSource, buf, fromIndex, toIndex, parameterizedType, defaultValue, endToken, parseContext);
+        int endIndex = parseContext.endIndex;
         return deserialize(value, useSource ? new String(buf, fromIndex, endIndex - fromIndex) : null, null);
     }
 

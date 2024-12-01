@@ -106,7 +106,7 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
                     }
                 }
             case 'n':
-                return NULL.deserialize(null, buf, fromIndex, toIndex, null, null, jsonParseContext);
+                return parseNull(buf, fromIndex, toIndex, jsonParseContext);
             default: {
                 if(supportedTime()) {
                     try {

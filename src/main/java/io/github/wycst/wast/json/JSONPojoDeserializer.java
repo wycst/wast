@@ -20,7 +20,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
 
     public JSONPojoDeserializer(Class<T> pojoClass) {
         this(checkPojoStructure(pojoClass));
-        initialize();
+        ensureInitialized();
     }
     static <T> JSONPojoStructure checkPojoStructure(Class<T> pojoClass) {
         JSONPojoStructure pojoStructure = JSONPojoStructure.get(pojoClass);
@@ -37,8 +37,9 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
     }
 
     @Override
-    final void initialize() {
+    final JSONTypeDeserializer ensureInitialized() {
         pojoStructure.ensureInitializedFieldDeserializers();
+        return this;
     }
 
     protected final T deserialize(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object entity, char endToken, JSONParseContext jsonParseContext) throws Exception {
@@ -46,7 +47,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
         if (beginChar == '{') {
             return (T) deserializePojo(charSource, buf, fromIndex, toIndex, parameterizedType, entity, endToken, jsonParseContext);
         } else if (beginChar == 'n') {
-            NULL.deserialize(null, buf, fromIndex, toIndex, null, null, jsonParseContext);
+            parseNull(buf, fromIndex, toIndex, jsonParseContext);
             return null;
         } else {
             if (jsonParseContext.unMatchedEmptyAsNull && beginChar == '"' && buf[fromIndex + 1] == '"') {

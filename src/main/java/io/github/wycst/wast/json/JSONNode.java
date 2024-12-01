@@ -2276,13 +2276,13 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     }
 
     static JSONNode parseNullPathNode(CharSource charSource, char[] buf, int fromIndex, int toIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
-        JSONTypeDeserializer.NULL.deserialize(charSource, buf, fromIndex, toIndex, null, null, parseContext);
+        JSONTypeDeserializer.parseNull(buf, fromIndex, toIndex, parseContext);
         int endIndex = parseContext.endIndex;
         return new C(charSource, null, buf, fromIndex, endIndex + 1, NULL, parseContext, rootNode);
     }
 
     static JSONNode parseNullPathNode(CharSource charSource, byte[] buf, int fromIndex, int toIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
-        JSONTypeDeserializer.NULL.deserialize(charSource, buf, fromIndex, toIndex, null, null, parseContext);
+        JSONTypeDeserializer.parseNull(buf, fromIndex, toIndex, parseContext);
         int endIndex = parseContext.endIndex;
         return new B(charSource, null, buf, fromIndex, endIndex + 1, NULL, parseContext, rootNode);
     }

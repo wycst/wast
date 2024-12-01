@@ -45,7 +45,7 @@ public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implem
 
     final String pattern;
     final String timezone;
-    boolean initialized;
+    boolean flag;
 
     /**
      * 自定义反序列化器
@@ -80,7 +80,8 @@ public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implem
     }
 
     void initDeserializer() {
-        if (!initialized) {
+        if (!flag) {
+            flag = true;
             Class impl;
             boolean unfixedType = false;
             if (jsonProperty != null) {
@@ -105,7 +106,6 @@ public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implem
                     }
                 }
             }
-            initialized = true;
         }
     }
 

@@ -20,14 +20,14 @@ WAST是一个高性能Java工具集库包，包括JSON、YAML、CSV、HttpClient
 <dependency>
     <groupId>io.github.wycst</groupId>
     <artifactId>wast</artifactId>
-    <version>0.0.19</version>
+    <version>0.0.20</version>
 </dependency>
 ```
 
 ## JSON
 
 > 1 java语言整体性能最快的json库之一；<br>
-> 2 支持IO流文件读写，JSON节点树按需解析，按需解析，序列化格式化，驼峰下划线自动转换；<br>
+> 2 支持IO流文件读写，JSON节点树按需解析，序列化格式化，驼峰下划线自动转换,实体类解析绑定；<br>
 > 3 支持自定义序列化和反序列化；<br>
 > 4 支持JSON的xpath提取功能；<br>
 > 5 没有漏洞风险；<br>
@@ -45,7 +45,7 @@ WAST是一个高性能Java工具集库包，包括JSON、YAML、CSV、HttpClient
 > 1 java表达式引擎性能最快之一；<br>
 > 2 支持java中所有的操作运算符（加减乘除余，位运算，逻辑运算，字符串+）；<br>
 > 3 支持**指数运算(java本身不支持)； <br>
-> 4 支持函数以及自定义函数实现,函数可以任意嵌套； <br>
+> 4 支持函数以及自定义函数实现； <br>
 > 5 科学记数法支持，16进制，8进制等解析，支持大数运算(BigDecimal)；<br>
 > 6 支持三目运算；<br>
 > 7 没有漏洞风险；<br>
@@ -173,12 +173,11 @@ System.out.println(map);
 
 ### 强大的JSONNode功能
 
-> 1、支持对大文本json的懒加载解析功能，按需解析，当需要读取一个大文本json中一个或多个属性值时非常有用；<br>
-> 2、支持按需解析；<br>
-> 3、支持上下文查找；<br>
-> 4、支持在大文本json中提取部分内容作为解析上下文结果，使用JSONNode.from(source, path)；<br>
-> 5、支持对节点的属性修改，删除等，节点的JSON反向序列化；<br>
-> 6、支持直接提取功能(v0.0.2+支持)，参考JSONPath；
+> 1、支持对大文本json的懒加载按需解析功能，当需要读取一个大文本json中一个或多个属性值时非常有用；<br>
+> 2、支持上下文查找；<br>
+> 3、支持在大文本json中提取部分内容作为解析上下文结果，使用JSONNode.from(source, path)；<br>
+> 4、支持对节点的属性修改，删除等，节点的JSON反向序列化；<br>
+> 5、支持提取功能(v0.0.2+支持)，参考JSONPath；
 
 使用'/'作为路径的分隔符，数组下标使用n访问支持*, n+, n-,n等复合下标访问，例如/store/book/*/author
 
@@ -267,8 +266,10 @@ System.out.println(map);
   List authors = JSONNode.extract(json2, "/store/book/1-/author").get(1);
   
   // 提取从第2本书开始后面所有的作者使用下标n+（包含n）
-  List authors = JSONNode.extract(json2, "/store/book/1+/author");
+  List authors1 = JSONNode.extract(json2, "/store/book/1+/author");
   
+  // 使用collect可以支持递归过滤
+  List authors2 = JSONNode.collect(json2, "//book/1+/author");
   
 ```
 

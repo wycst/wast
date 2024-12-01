@@ -50,6 +50,7 @@ public final class ClassStrucWrap {
     private ClassStrucWrap(Class<?> sourceClass) {
         this.sourceClass = sourceClass;
         this.privateFlag = Modifier.isPrivate(sourceClass.getModifiers());
+        this.publicFlag = Modifier.isPublic(sourceClass.getModifiers());
         this.assignableFromMap = Map.class.isAssignableFrom(sourceClass);
 
         Map<Class<? extends Annotation>, Annotation> annotationMap = new HashMap<Class<? extends Annotation>, Annotation>();
@@ -65,6 +66,7 @@ public final class ClassStrucWrap {
     // jdk invoke
     private final Class<?> sourceClass;
     private final boolean privateFlag;
+    private final boolean publicFlag;
     private final boolean assignableFromMap;
     private final Map<Class<? extends Annotation>, Annotation> annotationMap;
 
@@ -300,6 +302,7 @@ public final class ClassStrucWrap {
         return wrapper;
     }
 
+    // record use getter method and parameters construction
     private static void wrapperWithRecordConstructor(ClassStrucWrap wrapper, Map<String, Class<?>> superGenericClassMap) {
         // sourceClass
         Class<?> sourceClass = wrapper.sourceClass;
@@ -351,15 +354,15 @@ public final class ClassStrucWrap {
                 fieldInfo.setIndex(i);
 
                 Field nameField = sourceClass.getDeclaredField(name);
-                Method nameMethod = sourceClass.getDeclaredMethod(name);
                 setAccessible(nameField);
+                clearFinalModifiers(nameField);
+                Method nameMethod = sourceClass.getDeclaredMethod(name);
                 setAccessible(nameMethod);
 
                 Class<?> fieldType = nameField.getType();
                 constructorArgs[i] = defaulTypeValue(fieldType);
 
-                // 构建getter
-                GetterInfo getterInfo = new GetterInfo();
+                GetterInfo getterInfo = new GetterMethodInfo(nameMethod);
                 getterInfo.setField(nameField);
                 getterInfo.setRecord(true);
 
@@ -373,7 +376,7 @@ public final class ClassStrucWrap {
                 getterInfoOfFields.add(getterInfo);
 
                 // 构建setter
-                SetterInfo setterInfo = SetterInfo.fromField(nameField);
+                SetterInfo setterInfo = new SetterInfo.FieldImpl();
                 setterInfo.setName(name);
                 setterInfo.setField(nameField);
                 setterInfo.setParameterType(fieldType);
@@ -628,7 +631,7 @@ public final class ClassStrucWrap {
 
         // jdk17 java.lang.Record
         Class<?> theSuperClass = sourceClass.getSuperclass();
-        if(theSuperClass == null) {
+        if (theSuperClass == null) {
             return;
         }
         if (theSuperClass.getName().equals("java.lang.Record")) {
@@ -855,6 +858,19 @@ public final class ClassStrucWrap {
             field = Field.class.getDeclaredField("modifiers");
             setAccessible(field);
         } catch (Exception e) {
+            try {
+                Method getDeclaredFields0 = Class.class.getDeclaredMethod("getDeclaredFields0", boolean.class);
+                setAccessible(getDeclaredFields0);
+                Field[] fields = (Field[]) getDeclaredFields0.invoke(Field.class, false);
+                for (Field target : fields) {
+                    if ("modifiers".equals(target.getName())) {
+                        field = target;
+                        setAccessible(field);
+                        break;
+                    }
+                }
+            } catch (Throwable throwable) {
+            }
         }
         modifierField = field;
 
@@ -992,6 +1008,10 @@ public final class ClassStrucWrap {
 
     public boolean isPrivate() {
         return privateFlag;
+    }
+
+    public boolean isPublic() {
+        return publicFlag;
     }
 
     public boolean isJavaBuiltInModule() {

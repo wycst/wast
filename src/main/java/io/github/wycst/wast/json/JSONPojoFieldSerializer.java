@@ -30,6 +30,7 @@ public class JSONPojoFieldSerializer extends JSONTypeSerializer {
     private int fieldNameTokenOffset;
     private long[] fieldNameCharLongs;
     private long[] fieldNameByteLongs;
+    private boolean flag;
     /**
      * 自定义序列化器
      */
@@ -45,7 +46,9 @@ public class JSONPojoFieldSerializer extends JSONTypeSerializer {
     }
 
     void initSerializer() {
+        if(flag) return;
         if (this.serializer == null) {
+            flag = true;
             this.serializer = createSerializer();
         }
     }

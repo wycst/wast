@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class JSONWriter extends Writer {
 
+    final static int MAX_ALLOW_ALLOCATION_SIZE = (1 << 30) + (1 << 29); // max 1.5GB
     final static int CACHE_BUFFER_SIZE;
     final static int MAX_CACHE_BUFFER_SIZE;
     final static int AVAILABLE_PROCESSORS = Runtime.getRuntime().availableProcessors();

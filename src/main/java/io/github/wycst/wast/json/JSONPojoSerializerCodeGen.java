@@ -2,6 +2,7 @@ package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.common.compiler.JavaSourceObject;
+import io.github.wycst.wast.common.idgenerate.providers.IdGenerator;
 import io.github.wycst.wast.common.reflect.GetterInfo;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import io.github.wycst.wast.common.utils.EnvUtils;
@@ -27,11 +28,11 @@ final class JSONPojoSerializerCodeGen {
     final static AtomicLong SEQ = new AtomicLong(1);
 
     static JavaSourceObject generateJavaCodeSource(JSONPojoStructure jsonPojoStructure, boolean printSource, boolean runtime) {
-        Class<?> pojoClass = jsonPojoStructure.getSourceClass();
-        String simpleName = pojoClass.getSimpleName();
-        String canonicalName = pojoClass.getCanonicalName();
-        String genClassName = "__JPS_" + simpleName + "_" + SEQ.getAndIncrement();
-        String packageName = pojoClass.getPackage().getName();
+        final Class<?> pojoClass = jsonPojoStructure.getSourceClass();
+        final String simpleName = pojoClass.getSimpleName();
+        final String canonicalName = pojoClass.getCanonicalName();
+        final String genClassName = "__JPS_" + simpleName + "_" + IdGenerator.hex();
+        final String packageName = pojoClass.getPackage().getName();
         StringBuilder codeBuilder = new StringBuilder(2048);
         codeBuilder.append("package ").append(packageName).append(";\n\n");
         codeBuilder.append(IMPORT_CODE_TEXT);
@@ -96,7 +97,7 @@ final class JSONPojoSerializerCodeGen {
                 boolean isBoolean = returnType == boolean.class;
 
                 String fieldSerializerName = name + "UseMethodSerializer";
-                String valueVar = fieldSerializer.getName();
+                String valueVar = "__" + fieldSerializer.getName();
                 byte[] bytes = valueVar.getBytes();
                 boolean isFieldNameAscii = bytes.length == valueVar.length();
                 long[] longs = null, longsWithComma = null, longsWithCommaBoolFalse = null;
