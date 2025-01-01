@@ -42,9 +42,9 @@ public class DefaultConnectionManager extends AbstractConnectionManager implemen
 
         try {
             if (wraper != null && (physicalConn = wraper.getConnection()) != null) {
-                    if (!physicalConn.isClosed()) {
-                        return wraper;
-                    }
+                if (!physicalConn.isClosed()) {
+                    return wraper;
+                }
 
             }
         } catch (SQLException e) {

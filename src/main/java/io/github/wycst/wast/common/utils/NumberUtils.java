@@ -463,12 +463,12 @@ public final class NumberUtils {
                 return longBitsToIntegerDouble(h, e10 - leadingZeros + ed5.dfb + sr + 1140, sr);
             }
             long l = left * ed5.y;
-            if (!checkLowCarry(l, left, ed5.f + 1)) {
-                // tail h like 01111111
-                return longBitsToIntegerDouble(h, e10 - leadingZeros + ed5.dfb + sr + 1140, sr);
-            } else if (checkLowCarry(l, left, ed5.f)) {
+            if (checkLowCarry(l, left, ed5.f)) {
                 // tail h like 10000000
                 return longBitsToIntegerDouble(h + 1, e10 - leadingZeros + ed5.dfb + sr + 1140, sr);
+            } else if (!checkLowCarry(l, left, ed5.f + 1)) {
+                // tail h like 01111111
+                return longBitsToIntegerDouble(h, e10 - leadingZeros + ed5.dfb + sr + 1140, sr);
             } else {
                 // This is a scenario that is extremely rare or unlikely to occur, although the low bit is only 32 bits.
                 // If it occurs, use the difference method for carry detection
@@ -512,12 +512,12 @@ public final class NumberUtils {
             }
             long l = left * ed5.oy;
             int e52 = 33 - scale - ed5.ob - leadingZeros + sr;
-            if (!checkLowCarry(l, left, ed5.of + 1)) {
-                // tail h like 01111111
-                return longBitsToDecimalDouble(h, e52, sr);
-            } else if (checkLowCarry(l, left, ed5.of)) {
+            if (checkLowCarry(l, left, ed5.of)) {
                 // tail h like 10000000
                 return longBitsToDecimalDouble(h + 1, e52, sr);
+            } else if (!checkLowCarry(l, left, ed5.of + 1)) {
+                // tail h like 01111111
+                return longBitsToDecimalDouble(h, e52, sr);
             } else if (scale < POW5_LONG_VALUES.length) {
                 // if reach here, there is a high probability that val can be evenly divided by p5sv
                 long p5sv = POW5_LONG_VALUES[scale];
@@ -563,9 +563,10 @@ public final class NumberUtils {
     }
 
     private static boolean checkLowCarry(long l, long x, long y32) {
-        long h1 = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(x, y32), l1 = x * y32, carry = (h1 << 32) + (l1 >>> 32);
-        long l2 = l + carry;
-        return (l | carry) < 0 && ((l & carry) < 0 || l2 >= 0);
+        return l < 0 && l + ((EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(x, y32) << 32) + ((x * y32) >>> 32)) >= 0;
+        //        long h1 = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(x, y32), l1 = x * y32, carry = (h1 << 32) + (l1 >>> 32);
+        //        long l2 = l + carry;
+        //        return (l | carry) < 0 && ((l & carry) < 0 || l2 >= 0);
     }
 
     static double longBitsToDecimalDouble(long l62, int e52, int sr) {

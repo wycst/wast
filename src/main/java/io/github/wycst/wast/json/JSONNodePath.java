@@ -147,6 +147,7 @@ public final class JSONNodePath {
                     if (ch == '[') {
                         try {
                             JSONParseContext parseContext = new JSONNodeContext();
+                            parseContext.toIndex = len;
                             Integer[] values = JSONTypeDeserializer.INTEGER_ARRAY.deserialize(chars, offset, parseContext);
                             if (values.length == 1) {
                                 pathCollector = JSONNodePathCollector.exact(values[0]);

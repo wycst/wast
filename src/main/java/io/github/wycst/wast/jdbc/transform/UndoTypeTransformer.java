@@ -1,7 +1,7 @@
 package io.github.wycst.wast.jdbc.transform;
 
 /**
- * 
+ *
  */
 public class UndoTypeTransformer extends TypeTransformer {
 

@@ -82,9 +82,13 @@ public class ExprParser extends Expression {
     private Map<String, ElVariableInvoker> invokes;
     private Map<String, ElVariableInvoker> tailInvokes;
 
+    // 变量计数(不去重)
+    int variableCount;
+    boolean existChain;
+    // 去重后的变量个数
+    protected int variableSize;
     protected ElInvoker tailChainInvoker;
-    protected int variableCount;
-    protected EvaluatorContext evaluatorContext;
+    protected EvaluatorContextBuilder evaluatorContextBuilder = EvaluatorContextBuilder.EMPTY;
 
     // 标记类型
     private int prevTokenType;
@@ -343,41 +347,67 @@ public class ExprParser extends Expression {
     protected void compressVariables() {
         // invokes
         if (tailInvokes != null) {
-            variableCount = invokes.size();
-            if (tailInvokes.size() == 1) {
-                // single value
-                evaluatorContext = new EvaluatorContext.SingleVariableImpl();
+            variableSize = invokes.size();
+            final int tailSize = tailInvokes.size();
+            if (variableCount == tailSize || !existChain) {
+                // all root and once vars without reusable
+                if (tailSize == 1) {
+                    evaluatorContextBuilder = new EvaluatorContextBuilder.SingleReusableRootImpl((ElVariableInvoker) tailChainInvoker);
+                } else if(tailSize == 2) {
+                    Iterator<ElVariableInvoker> iterator = invokes.values().iterator();
+                    evaluatorContextBuilder = new EvaluatorContextBuilder.SibbingTwinsRootReusableImpl(iterator.next(), iterator.next());
+                } else {
+                    if(variableCount == tailSize) {
+                        evaluatorContextBuilder = new EvaluatorContextBuilder.ReusablelessRootImpl();
+                    } else {
+                        ElVariableInvoker[] arr = new ElVariableInvoker[tailSize];
+                        int len = 0;
+                        for (ElVariableInvoker variableInvoker : invokes.values()) {
+                            arr[len++] = variableInvoker;
+                        }
+                        evaluatorContextBuilder = new EvaluatorContextBuilder.SibbingRootReusableImpl(arr);
+                    }
+                }
             } else {
-                //            int index = 0;
-                boolean sibbingMode = true;
-                ElVariableInvoker tailParent = null;
-                for (ElVariableInvoker variableInvoker : invokes.values()) {
-                    if (variableInvoker.isTail()) {
-                        if (sibbingMode) {
-                            if (variableInvoker.parent == null) {
-                                sibbingMode = false;
-                            } else {
-                                if (tailParent == null) {
-                                    tailParent = variableInvoker.parent;
+                if (tailSize == 1) {
+                    evaluatorContextBuilder = new EvaluatorContextBuilder.SingleReusableImpl(tailChainInvoker);
+                } else {
+                    Collection<ElVariableInvoker> values = tailInvokes.values();
+                    if(tailSize == 2) {
+                        Iterator<ElVariableInvoker> iterator = values.iterator();
+                        ElVariableInvoker one = iterator.next(), next = iterator.next();
+                        if(one.parent == next.parent) {
+                            // parent + child1 + child2
+                            evaluatorContextBuilder = new EvaluatorContextBuilder.SibbingTwinsReusableImpl(one.parent, one, next);
+                        } else {
+                            evaluatorContextBuilder = new EvaluatorContextBuilder.GeneralReusableImpl(ElChainVariableInvoker.buildTailChainInvoker(tailInvokes), variableSize);
+                        }
+                    } else {
+                        ElVariableInvoker tailParent = null;
+                        boolean sibbingMode = true;
+                        for (ElVariableInvoker variableInvoker : values) {
+                            if (sibbingMode) {
+                                if (variableInvoker.parent == null) {
+                                    sibbingMode = false;
                                 } else {
-                                    if (tailParent != variableInvoker.parent) {
-                                        sibbingMode = false;
+                                    if (tailParent == null) {
+                                        tailParent = variableInvoker.parent;
+                                    } else {
+                                        if (tailParent != variableInvoker.parent) {
+                                            sibbingMode = false;
+                                        }
                                     }
                                 }
                             }
                         }
+                        if (sibbingMode) {
+                            // parent + children
+                            evaluatorContextBuilder = new EvaluatorContextBuilder.SibbingReusableImpl(tailParent, ElChainVariableInvoker.buildTailChainInvoker(tailInvokes), variableSize);
+                        } else {
+                            // default
+                            evaluatorContextBuilder = new EvaluatorContextBuilder.GeneralReusableImpl(ElChainVariableInvoker.buildTailChainInvoker(tailInvokes), variableSize);
+                        }
                     }
-                }
-                tailChainInvoker = ElChainVariableInvoker.buildTailChainInvoker(tailInvokes);
-                if (sibbingMode) {
-                    if (tailChainInvoker.size() == 2) {
-                        ElChainVariableInvoker chainVariableInvoker = (ElChainVariableInvoker) tailChainInvoker;
-                        evaluatorContext = new EvaluatorContext.TwinsImpl(tailParent, chainVariableInvoker.variableInvoke, chainVariableInvoker.next.variableInvoke);
-                    } else {
-                        evaluatorContext = new EvaluatorContext.SibbingVariablesImpl(tailParent);
-                    }
-                } else {
-                    evaluatorContext = new EvaluatorContext();
                 }
             }
         }
@@ -389,7 +419,7 @@ public class ExprParser extends Expression {
 
     @Override
     public final List<String> getVariables() {
-        if (variableCount > 0) {
+        if (variableSize > 0) {
             return new ArrayList<String>(tailInvokes.keySet());
         } else {
             return new ArrayList<String>();
@@ -398,7 +428,7 @@ public class ExprParser extends Expression {
 
     @Override
     public final List<String> getRootVariables() {
-        if (variableCount > 0) {
+        if (variableSize > 0) {
             List<String> variables = new ArrayList<String>();
             Set<Map.Entry<String, ElVariableInvoker>> entrySet = invokes.entrySet();
             for (Map.Entry<String, ElVariableInvoker> entry : entrySet) {
@@ -428,7 +458,8 @@ public class ExprParser extends Expression {
         exprParserContext.setContext(right, negate, logicalNot);
     }
 
-    private void parseVarToken(ExprParserContext exprParserContext, char startChar, String identifierValue, List<String> variableKeys) {
+    private void parseVarToken(ExprParserContext exprParserContext, char startChar, String
+            identifierValue, List<String> variableKeys) {
         ExprEvaluator evaluator = exprParserContext.exprEvaluator;
         boolean negate = exprParserContext.negate;
         boolean logicalNot = exprParserContext.logicalNot;
@@ -467,7 +498,15 @@ public class ExprParser extends Expression {
         left.negate = negate;
         left.logicalNot = logicalNot;
 
-        ElVariableInvoker variableInvoker = identifierValue == null ? ElVariableUtils.build(variableKeys, getInvokes(), getTailInvokes()) : ElVariableUtils.buildRoot(identifierValue, getInvokes(), getTailInvokes());
+        ElVariableInvoker variableInvoker;
+        if (identifierValue == null) {
+            variableInvoker = ElVariableUtils.build(variableKeys, getInvokes(), getTailInvokes());
+            global().variableCount += variableKeys.size();
+            global().existChain = true;
+        } else {
+            variableInvoker = ElVariableUtils.buildRoot(identifierValue, getInvokes(), getTailInvokes());
+            ++global().variableCount;
+        }
         global().tailChainInvoker = variableInvoker;
         left.variableInvoker = variableInvoker;
         evaluator.left = left;
@@ -607,7 +646,8 @@ public class ExprParser extends Expression {
         exprParserContext.setContext(evaluator, false, false);
     }
 
-    final void parseMethodToken(ExprParserContext exprParserContext, List<String> variableKeys, String methodName, String args) {
+    final void parseMethodToken(ExprParserContext exprParserContext, List<String> variableKeys, String
+            methodName, String args) {
         ExprEvaluator evaluator = exprParserContext.exprEvaluator;
         boolean negate = exprParserContext.negate;
         boolean logicalNot = exprParserContext.logicalNot;
@@ -619,6 +659,11 @@ public class ExprParser extends Expression {
 
         ElVariableInvoker variableInvoker = ElVariableUtils.build(variableKeys, getInvokes(), getTailInvokes());
         global().tailChainInvoker = variableInvoker;
+        int kl = variableKeys.size();
+        global().variableCount += kl;
+        if (kl > 1) {
+            global().existChain = true;
+        }
 
         left.setMethod(variableInvoker, methodName, args, global());
         evaluator.left = left;
@@ -1082,7 +1127,6 @@ public class ExprParser extends Expression {
                 int start = this.readIndex;
                 char startChar = currentChar;
                 ++this.readIndex;
-
                 int localOffset = start;
                 List<String> variableKeys = getLocalVariableKeys(); // localVariableKeys.get();
                 try {
@@ -1672,11 +1716,8 @@ public class ExprParser extends Expression {
         if (context instanceof EvaluateEnvironment) {
             return evaluate((EvaluateEnvironment) context);
         }
-        if (context instanceof Map) {
-            return evaluate((Map) context);
-        }
         // from pojo entity
-        return doEvaluate(variableCount == 0 ? EvaluatorContext.EMPTY : evaluatorContext.cloneContext().invokeVariables(tailChainInvoker, context, variableCount), EvaluateEnvironment.DEFAULT); // evaluate(context, EvaluateEnvironment.DEFAULT);
+        return doEvaluate(evaluatorContextBuilder.createEvaluatorContext(context), EvaluateEnvironment.DEFAULT); // evaluate(context, EvaluateEnvironment.DEFAULT);
     }
 
     @Override
@@ -1690,42 +1731,42 @@ public class ExprParser extends Expression {
     }
 
     public final Object evaluate(Map context) {
-        return doEvaluate(variableCount == 0 ? EvaluatorContext.EMPTY : evaluatorContext.cloneContext().invokeVariables(tailChainInvoker, context, variableCount), EvaluateEnvironment.DEFAULT);
+        return doEvaluate(evaluatorContextBuilder.createEvaluatorContext(context), EvaluateEnvironment.DEFAULT);
     }
 
     @Override
     public final Object evaluate(Map context, EvaluateEnvironment evaluateEnvironment) {
-        if (variableCount == 0) {
+        if (variableSize == 0) {
             return doEvaluate(EvaluatorContext.EMPTY, evaluateEnvironment);
         } else {
             if (evaluateEnvironment.computable) {
-                return doEvaluate(evaluatorContext.cloneContext().invokeVariables(tailChainInvoker, evaluateEnvironment.computedVariables(context), variableCount), evaluateEnvironment);
+                return doEvaluate(evaluatorContextBuilder.createEvaluatorContext(evaluateEnvironment.computedVariables(context)), evaluateEnvironment);
             }
-            return doEvaluate(evaluatorContext.cloneContext().invokeVariables(tailChainInvoker, context, variableCount), evaluateEnvironment);
+            return doEvaluate(evaluatorContextBuilder.createEvaluatorContext(context), evaluateEnvironment);
         }
     }
 
     final Object evaluateInternal(Map context, EvaluateEnvironment evaluateEnvironment) {
-        return doEvaluate(evaluatorContext.cloneContext().invokeVariables(tailChainInvoker, context, variableCount), evaluateEnvironment);
+        return doEvaluate(evaluatorContextBuilder.createEvaluatorContext(context), evaluateEnvironment);
     }
 
     @Override
     public final Object evaluate(Object context, EvaluateEnvironment evaluateEnvironment) {
-        if (variableCount > 0 && evaluateEnvironment.computable) {
+        if (variableSize > 0 && evaluateEnvironment.computable) {
             context = evaluateEnvironment.computedVariables(context);
         }
-        return doEvaluate(variableCount == 0 ? EvaluatorContext.EMPTY : evaluatorContext.cloneContext().invokeVariables(tailChainInvoker, context, variableCount), evaluateEnvironment);
+        return doEvaluate(evaluatorContextBuilder.createEvaluatorContext(context), evaluateEnvironment);
     }
 
     @Override
     public final Object evaluate(EvaluateEnvironment evaluateEnvironment) {
-        if (variableCount == 0 || evaluateEnvironment == null) {
+        if (variableSize == 0 || evaluateEnvironment == null) {
             return exprEvaluator.evaluate(EvaluatorContext.EMPTY, evaluateEnvironment);
         }
         if (evaluateEnvironment.isMapContext()) {
-            return doEvaluate(evaluatorContext.cloneContext().invokeVariables(tailChainInvoker, (Map) evaluateEnvironment.computedVariables(), variableCount), evaluateEnvironment);
+            return doEvaluate(evaluatorContextBuilder.createEvaluatorContext((Map) evaluateEnvironment.computedVariables()), evaluateEnvironment);
         } else {
-            return doEvaluate(evaluatorContext.cloneContext().invokeVariables(tailChainInvoker, evaluateEnvironment.computedVariables(), variableCount), evaluateEnvironment);
+            return doEvaluate(evaluatorContextBuilder.createEvaluatorContext(evaluateEnvironment.computedVariables()), evaluateEnvironment);
         }
     }
 

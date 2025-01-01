@@ -29,6 +29,6 @@ public final class CompilerExprParser extends ExprParser {
     }
 
     int getVariableCount() {
-        return variableCount;
+        return variableSize;
     }
 }

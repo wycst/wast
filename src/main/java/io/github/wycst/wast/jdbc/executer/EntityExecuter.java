@@ -83,9 +83,8 @@ public final class EntityExecuter implements OqlExecuter {
     public <E> long queryCount(Class<E> cls, OqlQuery query, Object params) {
         checkEntityClass(cls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(cls);
-
         Sql countSqlObject = entitySqlMapping.getCountSqlObject(query, params);
-        return sqlExecuter.queryValue(countSqlObject.getFormalSql(), long.class, countSqlObject.getParamValues());
+        return sqlExecuter.queryValueWithContext(countSqlObject.getFormalSql(), long.class, entitySqlMapping.createContext("EntityExecuter#queryCount"), countSqlObject.getParamValues());
     }
 
     @Override
@@ -104,12 +103,12 @@ public final class EntityExecuter implements OqlExecuter {
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
 
         Sql sqlObject = entitySqlMapping.getSelectSqlObject(query, params);
-        return sqlExecuter.queryList(sqlObject.getFormalSql(), entityCls, sqlObject.getParamValues());
+        return sqlExecuter.queryListWithContext(sqlObject.getFormalSql(), entityCls, entitySqlMapping.createContext("EntityExecuter#queryList"), sqlObject.getParamValues());
     }
 
     @Override
     public <E> List<E> queryList(Class<E> cls, OqlQuery query) {
-        return queryList(cls, query, new HashMap<String,Object>());
+        return queryList(cls, query, new HashMap<String, Object>());
     }
 
     @Override
@@ -128,7 +127,7 @@ public final class EntityExecuter implements OqlExecuter {
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
 
         Sql sqlObject = entitySqlMapping.getSelectSqlObject(query, params);
-        return sqlExecuter.queryStream(sqlObject.getFormalSql(), entityCls, sqlObject.getParamValues());
+        return sqlExecuter.queryStreamWithContext(sqlObject.getFormalSql(), entityCls, entitySqlMapping.createContext("EntityExecuter#queryStream"), sqlObject.getParamValues());
     }
 
     @Override
@@ -150,7 +149,7 @@ public final class EntityExecuter implements OqlExecuter {
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
         // select * from t where id in(?, ?, ?)
         String selectInSql = entitySqlMapping.getSelectSqlByIds(ids);
-        return sqlExecuter.queryList(selectInSql, entityCls, ids.toArray());
+        return sqlExecuter.queryListWithContext(selectInSql, entityCls, entitySqlMapping.createContext("EntityExecuter#queryByIds"), ids.toArray());
     }
 
     @Override
@@ -163,7 +162,7 @@ public final class EntityExecuter implements OqlExecuter {
         // select * from t where id in(?, ?, ?)
         Collection list = Arrays.asList(ids);
         String selectInSql = entitySqlMapping.getSelectSqlByIds(list);
-        return sqlExecuter.queryList(selectInSql, entityCls, ids);
+        return sqlExecuter.queryListWithContext(selectInSql, entityCls, entitySqlMapping.createContext("EntityExecuter#queryByIds"), ids);
     }
 
     @Override
@@ -173,7 +172,7 @@ public final class EntityExecuter implements OqlExecuter {
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
 
         Sql sqlObject = entitySqlMapping.getSelectSqlObject(query, params, true);
-        this.executeQueryPage(page, entityCls, sqlObject);
+        this.executeQueryPage(page, entityCls, sqlObject, entitySqlMapping);
         return page;
     }
 
@@ -199,7 +198,7 @@ public final class EntityExecuter implements OqlExecuter {
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
 
         Sql sqlObject = entitySqlMapping.getInsertSqlObject(entity);
-        return sqlExecuter.insert(sqlObject.getFormalSql(), true, sqlObject.getParamValues());
+        return sqlExecuter.insertWithContext(sqlObject.getFormalSql(), true, entitySqlMapping.createContext("EntityExecuter#insert"), sqlObject.getParamValues());
     }
 
     @Override
@@ -210,27 +209,27 @@ public final class EntityExecuter implements OqlExecuter {
         Class entityCls = entityList.get(0).getClass();
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-
-        if(entitySqlMapping.isUsePlaceholderOnInsert()) {
-            if(isSupportBatchInsert()) {
+        SqlExecuteContext context = entitySqlMapping.createContext("EntityExecuter#insertList");
+        if (entitySqlMapping.isUsePlaceholderOnInsert()) {
+            if (isSupportBatchInsert()) {
                 Sql batchInsertSqlObject = entitySqlMapping.getBatchInsertSqlObject(entityList);
-                sqlExecuter.update(batchInsertSqlObject.getFormalSql(), batchInsertSqlObject.getParamValues());
+                sqlExecuter.updateWithContext(batchInsertSqlObject.getFormalSql(), context, batchInsertSqlObject.getParamValues());
             } else {
                 for (E e : entityList) {
                     Sql sqlObject = entitySqlMapping.getInsertSqlObject(e);
-                    sqlExecuter.insert(sqlObject.getFormalSql(), true, sqlObject.getParamValues());
+                    sqlExecuter.insertWithContext(sqlObject.getFormalSql(), true, context, sqlObject.getParamValues());
                 }
             }
         } else {
             Sql sqlObject = entitySqlMapping.getInsertSqlObjectList(entityList);
-            sqlExecuter.updateCollection(sqlObject.getFormalSql(), sqlObject.getParamValuesList());
+            sqlExecuter.updateCollectionWithContext(sqlObject.getFormalSql(), sqlObject.getParamValuesList(), context);
         }
     }
 
     @Override
     public <E> int mysqlBatchInsert(List<E> entityList) {
         if (!isSupportBatchInsert()) {
-            throw new SqlExecuteException("当前数据库不支持批量插入");
+            throw new SqlExecuteException("the current database does not support batchInsert");
         }
         if (entityList.size() == 0) {
             return 0;
@@ -240,7 +239,7 @@ public final class EntityExecuter implements OqlExecuter {
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
 
         Sql batchInsertSqlObject = entitySqlMapping.getBatchInsertSqlObject(entityList);
-        return sqlExecuter.update(batchInsertSqlObject.getFormalSql(), batchInsertSqlObject.getParamValues());
+        return sqlExecuter.updateWithContext(batchInsertSqlObject.getFormalSql(), entitySqlMapping.createContext("EntityExecuter#mysqlBatchInsert"), batchInsertSqlObject.getParamValues());
     }
 
     @Override
@@ -257,13 +256,13 @@ public final class EntityExecuter implements OqlExecuter {
     }
 
     @Override
-    public <E> int updateBy(Class<E> entityCls, OqlQuery query, Map<String,Object> params, String... fields) {
+    public <E> int updateBy(Class<E> entityCls, OqlQuery query, Map<String, Object> params, String... fields) {
         return handleUpdateByParams(entityCls, query, params, fields);
     }
 
     <E> int handleUpdateByParams(Class<E> entityCls, OqlQuery query, Object params, String... fields) {
-        if(fields.length == 0) return 0;
-        if(params == null) {
+        if (fields.length == 0) return 0;
+        if (params == null) {
             throw new SqlExecuteException("params is null");
         }
 
@@ -272,7 +271,7 @@ public final class EntityExecuter implements OqlExecuter {
 
         String sqlStringFormat = getSqlStringFormat(SqlFunctionType.UPDATE_BY_PARAMS);
         Sql sqlObject = entitySqlMapping.getUpdateSqlObject(sqlStringFormat, query, params, fields);
-        return sqlExecuter.update(sqlObject.getFormalSql(), sqlObject.getParamValues());
+        return sqlExecuter.updateWithContext(sqlObject.getFormalSql(), entitySqlMapping.createContext("EntityExecuter#updateBy"), sqlObject.getParamValues());
     }
 
     @Override
@@ -299,10 +298,10 @@ public final class EntityExecuter implements OqlExecuter {
 
         Sql sqlObject = entitySqlMapping.getUpdateSqlObject(sqlStringFormat, entity, fields, isExclude);
         if (sqlObject == null) {
-            throw new OqlParematerException("配置错误：" + entityCls + "可能没有定义@Id,请检查配置");
+            throw new OqlParematerException("configuration error: " + entityCls + " may not have a column defined @Id, please check the annotation configuration");
         }
         try {
-            return sqlExecuter.update(sqlObject.getFormalSql(), sqlObject.getParamValues());
+            return sqlExecuter.updateWithContext(sqlObject.getFormalSql(), entitySqlMapping.createContext("EntityExecuter#updateFields"), sqlObject.getParamValues());
         } finally {
             entitySqlMapping.entityHandler.afterUpdate(sqlExecuter, entity);
         }
@@ -342,11 +341,12 @@ public final class EntityExecuter implements OqlExecuter {
         String sqlStringFormat = getSqlStringFormat(SqlFunctionType.DELETE_BY_ID);
         String deleteSql = entitySqlMapping.getDeleteSql(sqlStringFormat);
         if (deleteSql == null) {
-            throw new OqlParematerException("配置错误：" + entityCls + "可能没有定义@Id,请检查配置");
+            throw new OqlParematerException("configuration error: " + entityCls + " may not have a column defined @Id, please check the annotation configuration");
         }
+        SqlExecuteContext context = entitySqlMapping.createContext("EntityExecuter#deleteById");
         for (Object entity : entityList) {
             Serializable id = entitySqlMapping.getId(entity);
-            influenceRows += sqlExecuter.update(deleteSql, id);
+            influenceRows += sqlExecuter.updateWithContext(deleteSql, context, id);
         }
         if (influenceRows > 0) {
             entitySqlMapping.entityHandler.afterBatchDelete();
@@ -364,13 +364,13 @@ public final class EntityExecuter implements OqlExecuter {
         String sqlStringFormat = getSqlStringFormat(SqlFunctionType.DELETE_BY_ID);
         String deleteSql = entitySqlMapping.getDeleteSql(sqlStringFormat);
         if (deleteSql == null) {
-            throw new OqlParematerException("配置错误：" + entityCls + "可能没有定义@Id,请检查配置");
+            throw new OqlParematerException("configuration error: " + entityCls + " may not have a column defined @Id, please check the annotation configuration");
         }
         List<Object[]> dataList = new ArrayList<Object[]>();
         for (Serializable id : ids) {
             dataList.add(new Object[]{id});
         }
-        sqlExecuter.updateCollection(deleteSql, dataList);
+        sqlExecuter.updateCollectionWithContext(deleteSql, dataList, entitySqlMapping.createContext("EntityExecuter#deleteByIds"));
         return ids.size();
     }
 
@@ -396,7 +396,7 @@ public final class EntityExecuter implements OqlExecuter {
         String sqlTemplate = getSqlStringFormat(SqlFunctionType.DELETE_BY_PARAMS);
         Sql sqlObject = entitySqlMapping.getDeleteSqlObjectByParams(sqlTemplate, params);
         try {
-            return sqlExecuter.update(sqlObject.getFormalSql(), sqlObject.getParamValues());
+            return sqlExecuter.updateWithContext(sqlObject.getFormalSql(), entitySqlMapping.createContext("EntityExecuter#deleteBy"), sqlObject.getParamValues());
         } finally {
             entitySqlMapping.entityHandler.afterBatchDelete();
         }
@@ -409,7 +409,7 @@ public final class EntityExecuter implements OqlExecuter {
         String sqlTemplate = getSqlStringFormat(SqlFunctionType.DELETE_BY_PARAMS);
         Sql sqlObject = entitySqlMapping.getDeleteSqlObject(sqlTemplate, query, params);
         try {
-            return sqlExecuter.update(sqlObject.getFormalSql(), sqlObject.getParamValues());
+            return sqlExecuter.updateWithContext(sqlObject.getFormalSql(), entitySqlMapping.createContext("EntityExecuter#deleteBy"), sqlObject.getParamValues());
         } finally {
             entitySqlMapping.entityHandler.afterBatchDelete();
         }
@@ -470,7 +470,7 @@ public final class EntityExecuter implements OqlExecuter {
         if (fieldColumn == null) {
             Field fetchField = cascadeFetchMapping.getCascadeFetchField();
             Class<?> clazz = entitySqlMapping.getEntityClass();
-            throw new EntityException(" Entity Class " + clazz + " and field[" + fetchField.getName() + "] is AnnotationPresent @CascadeFetch, but field '" + fieldName + "' is not exist");
+            throw new EntityException("Entity Class " + clazz + " and field[" + fetchField.getName() + "] is AnnotationPresent @CascadeFetch, but field '" + fieldName + "' is not exist");
         }
         Map<String, Object> params = null;
         Object val = entitySqlMapping.getFieldColumnValue(false, fieldColumn, result);
@@ -488,7 +488,7 @@ public final class EntityExecuter implements OqlExecuter {
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
 
         Sql sqlObject = entitySqlMapping.getSelectSqlObject(params);
-        return sqlExecuter.queryObject(sqlObject.getFormalSql(), entityCls, sqlObject.getParamValues());
+        return sqlExecuter.queryObjectWithContext(sqlObject.getFormalSql(), entityCls, entitySqlMapping.createContext("EntityExecuter#queryOne"), sqlObject.getParamValues());
     }
 
     long executeQueryCount(Class<?> entityCls, Object params) {
@@ -496,7 +496,7 @@ public final class EntityExecuter implements OqlExecuter {
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
 
         Sql countSqlObject = entitySqlMapping.getCountSqlObject(params);
-        return sqlExecuter.queryValue(countSqlObject.getFormalSql(), long.class, countSqlObject.getParamValues());
+        return sqlExecuter.queryValueWithContext(countSqlObject.getFormalSql(), long.class, entitySqlMapping.createContext("EntityExecuter#queryCount"), countSqlObject.getParamValues());
     }
 
     <E> E executeQueryUnique(Class<E> entityCls, Object params) {
@@ -504,21 +504,19 @@ public final class EntityExecuter implements OqlExecuter {
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
 
         Sql sqlObject = entitySqlMapping.getSelectSqlObject(params);
-        return sqlExecuter.queryUniqueObject(sqlObject.getFormalSql(), entityCls, sqlObject.getParamValues());
+        return sqlExecuter.queryUniqueObjectWithContext(sqlObject.getFormalSql(), entityCls, entitySqlMapping.createContext("EntityExecuter#queryUnique"), sqlObject.getParamValues());
     }
 
     <E> StreamCursor<E> executeQueryStreamBy(Class<E> entityCls, Object params) {
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-
         Sql sqlObject = entitySqlMapping.getSelectSqlObject(params);
-        return sqlExecuter.queryStream(sqlObject.getFormalSql(), entityCls, sqlObject.getParamValues());
+        return sqlExecuter.queryStreamWithContext(sqlObject.getFormalSql(), entityCls, entitySqlMapping.createContext("EntityExecuter#queryStreamBy"), sqlObject.getParamValues());
     }
 
     <E> List<E> executeQueryBy(Class<E> entityCls, Object params) {
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
-
         return entitySqlMapping.entityHandler.executeQueryBy(sqlExecuter, entityCls, params);
     }
 
@@ -528,11 +526,11 @@ public final class EntityExecuter implements OqlExecuter {
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
 
         Sql sqlObject = entitySqlMapping.getSelectSqlObject(params, true);
-        executeQueryPage(page, entityCls, sqlObject);
+        executeQueryPage(page, entityCls, sqlObject, entitySqlMapping);
         return page;
     }
 
-    <E> void executeQueryPage(Page<E> page, Class<E> entityCls, Sql sqlObject) {
+    <E> void executeQueryPage(Page<E> page, Class<E> entityCls, Sql sqlObject, EntitySqlMapping entitySqlMapping) {
         String totalSql = sqlObject.getTotalSql();
         String formalSql = sqlObject.getFormalSql();
         Object[] paramValues = sqlObject.getParamValues();
@@ -540,13 +538,13 @@ public final class EntityExecuter implements OqlExecuter {
         // 分页的sql
         final String limitSql = sqlExecuter.getLimitSql(formalSql, page.getOffset(), page.getPageSize());
         // 列表
-        List<E> rows = sqlExecuter.queryList(limitSql, entityCls, paramValues);
+        List<E> rows = sqlExecuter.queryListWithContext(limitSql, entityCls, entitySqlMapping.createContext("EntityExecuter#queryPage#rows"), paramValues);
         page.setRows(rows);
 
-        long total = sqlExecuter.queryValue(totalSql, long.class, paramValues);
+        long total = sqlExecuter.queryValueWithContext(totalSql, long.class, entitySqlMapping.createContext("EntityExecuter#queryPage#total"), paramValues);
         page.setTotal(total);
     }
-    
+
 
     String getSqlStringFormat(SqlFunctionType sqlFunctionType) {
         return sqlExecuter.sqlTemplates[sqlFunctionType.ordinal()];
@@ -648,6 +646,10 @@ public final class EntityExecuter implements OqlExecuter {
         if (entitySqlMapping.isCacheable()) {
             entitySqlMapping.getCacheableEntityHandler().resetCaches();
         }
+    }
+
+    SqlExecuteContext contextOf(String apiName, EntitySqlMapping entitySqlMapping) {
+        return SqlExecuteContext.of(apiName, entitySqlMapping.disableLog);
     }
 
     public <E> void clearAllCache() {

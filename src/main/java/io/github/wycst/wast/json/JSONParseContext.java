@@ -9,6 +9,8 @@ package io.github.wycst.wast.json;
  */
 public class JSONParseContext {
 
+    JSONParseContext() {}
+
     /***
      * 解析上下文结束位置
      */
@@ -67,26 +69,22 @@ public class JSONParseContext {
     public boolean disableCacheMapKey;
     public boolean unMatchedEmptyAsNull;
     public boolean strictMode;
-
-    void setIgnoreEscapeCheck() {
-        escape = false;
-    }
-
+    int toIndex;
+    boolean multiple;
     boolean escape = true;
     int escapeOffset = -1;
     private String[] strings;
     protected int elementSize;
 
-    /**
-     * 开启校验模式（调用validate方法时）
-     */
+    // 开启校验模式（调用validate方法时）
     boolean validate;
     boolean validateFail;
-
+    void setIgnoreEscapeCheck() {
+        escape = false;
+    }
     void setContextWriter(JSONCharArrayWriter writer) {
         this.writer = writer;
     }
-
     JSONCharArrayWriter getContextWriter() {
         if (writer != null) {
             writer.clear();

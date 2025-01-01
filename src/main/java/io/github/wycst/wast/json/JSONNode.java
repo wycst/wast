@@ -277,10 +277,10 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     final static RootContext buildRootContext(char[] buf, int beginIndex, int endIndex) {
         char start = '\0';
         char end = '\0';
-        while ((beginIndex < endIndex) && ((start = buf[beginIndex]) <= ' ')) {
+        while (/*(beginIndex < endIndex) &&*/ ((start = buf[beginIndex]) <= ' ')) {
             beginIndex++;
         }
-        while ((endIndex > beginIndex) && ((end = buf[endIndex - 1]) <= ' ')) {
+        while (/*(endIndex > beginIndex) &&*/ ((end = buf[endIndex - 1]) <= ' ')) {
             endIndex--;
         }
         int type;
@@ -352,10 +352,10 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     final static RootContext buildRootContext(byte[] buf, int beginIndex, int endIndex) {
         byte start = '\0';
         byte end = '\0';
-        while ((beginIndex < endIndex) && ((start = buf[beginIndex]) <= ' ')) {
+        while (/*(beginIndex < endIndex) && */((start = buf[beginIndex]) <= ' ')) {
             beginIndex++;
         }
-        while ((endIndex > beginIndex) && ((end = buf[endIndex - 1]) <= ' ')) {
+        while (/*(endIndex > beginIndex) && */((end = buf[endIndex - 1]) <= ' ')) {
             endIndex--;
         }
         int type;
@@ -471,7 +471,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         public String getText() {
             if (text == null) {
                 if (type == STRING) {
-                    text = (String) JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(charSource, buf, beginIndex, endIndex, '"', GenericParameterizedType.StringType, parseContext);
+                    text = (String) JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(charSource, buf, beginIndex, '"', GenericParameterizedType.StringType, parseContext);
                     value = text;
                 } else {
                     return source();
@@ -517,14 +517,14 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 if (allowComment) {
                     if (ch == '/') {
-                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, endIndex, parseContext)];
+                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                     }
                 }
                 int fieldKeyFrom = i;
                 String key;
                 boolean matchedField;
                 if (ch == '"') {
-                    key = JSONDefaultParser.parseMapKeyByCache(buf, i, endIndex, '"', parseContext);
+                    key = JSONDefaultParser.parseMapKeyByCache(buf, i, '"', parseContext);
                     i = parseContext.endIndex + 1;
                 } else {
                     if (ch == '}') {
@@ -549,7 +549,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 if (allowComment) {
                     if (ch == '/') {
-                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, endIndex, parseContext)];
+                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                     }
                 }
                 if (ch == ':') {
@@ -557,7 +557,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     while ((ch = buf[++i]) <= ' ') ;
                     if (allowComment) {
                         if (ch == '/') {
-                            ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, endIndex, parseContext)];
+                            ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                         }
                     }
                     JSONNode node;
@@ -573,7 +573,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     while ((ch = buf[++i]) <= ' ') ;
                     if (allowComment) {
                         if (ch == '/') {
-                            ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, endIndex, parseContext)];
+                            ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                         }
                     }
                     offset = i;
@@ -615,11 +615,11 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 if (allowComment) {
                     if (ch == '/') {
-                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                     }
                 }
                 if (ch == '"') {
-                    key = JSONDefaultParser.parseMapKeyByCache(buf, i, toIndex, '"', parseContext);
+                    key = JSONDefaultParser.parseMapKeyByCache(buf, i, '"', parseContext);
                     i = parseContext.endIndex + 1;
                 } else {
                     if (ch == '}') {
@@ -630,7 +630,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     }
                     if (ch == '\'') {
                         // parseContext.allowSingleQuotes
-                        key = JSONDefaultParser.parseMapKeyByCache(buf, i, toIndex, '\'', parseContext);
+                        key = JSONDefaultParser.parseMapKeyByCache(buf, i, '\'', parseContext);
                         i = parseContext.endIndex + 1;
                     } else {
                         // parseContext.allowUnquotedFieldNames
@@ -644,14 +644,14 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 if (allowComment) {
                     if (ch == '/') {
-                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                     }
                 }
                 if (ch == ':') {
                     while ((ch = buf[++i]) <= ' ') ;
                     if (allowComment) {
                         if (ch == '/') {
-                            ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                            ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                         }
                     }
                     JSONNode node;
@@ -673,7 +673,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     if (allowComment) {
                         // clearComment and append whiteSpaces
                         if (ch == '/') {
-                            ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                            ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                         }
                     }
                     boolean isClosingSymbol = ch == '}';
@@ -711,7 +711,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 if (allowComment) {
                     if (ch == '/') {
-                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                     }
                 }
                 if (ch == ']') {
@@ -743,7 +743,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 while (i + 1 < toIndex && (ch = buf[++i]) <= ' ') ;
                 if (allowComment) {
                     if (ch == '/') {
-                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                     }
                 }
                 boolean isEnd = ch == ']';
@@ -767,7 +767,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             switch (ch) {
                 case '{': {
                     if (lazy) {
-                        JSONTypeDeserializer.MAP.skip(charSource, buf, beginIndex, endIndex, parseContext);
+                        JSONTypeDeserializer.MAP.skip(charSource, buf, beginIndex, parseContext);
                         node = new C(charSource, buf, beginIndex, parseContext.endIndex + 1, OBJECT, parseContext, root);
                     } else {
                         node = completeObjectNode(charSource, buf, beginIndex, createObj);
@@ -776,7 +776,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 case '[': {
                     if (lazy) {
-                        JSONTypeDeserializer.COLLECTION.skip(charSource, buf, beginIndex, endIndex, parseContext);
+                        JSONTypeDeserializer.COLLECTION.skip(charSource, buf, beginIndex, parseContext);
                         node = new C(charSource, buf, beginIndex, parseContext.endIndex + 1, ARRAY, parseContext, root);
                     } else {
                         node = completeArrayNode(charSource, buf, beginIndex, createObj);
@@ -791,20 +791,20 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 case 'n': {
                     // null
-                    node = parseNullPathNode(charSource, buf, beginIndex, endIndex, parseContext, root);
+                    node = parseNullPathNode(charSource, buf, beginIndex, parseContext, root);
                     break;
                 }
                 case 't': {
-                    node = parseBoolTruePathNode(charSource, buf, beginIndex, endIndex, parseContext, root);
+                    node = parseBoolTruePathNode(charSource, buf, beginIndex, parseContext, root);
                     break;
                 }
                 case 'f': {
-                    node = parseBoolFalsePathNode(charSource, buf, beginIndex, endIndex, parseContext, root);
+                    node = parseBoolFalsePathNode(charSource, buf, beginIndex, parseContext, root);
                     break;
                 }
                 default: {
                     // number
-                    node = parseNumberPathNode(charSource, buf, beginIndex, endIndex, endChar, false, parseContext, root);
+                    node = parseNumberPathNode(charSource, buf, beginIndex, endChar, false, parseContext, root);
                     break;
                 }
             }
@@ -821,7 +821,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 if (allowComment) {
                     if (ch == '/') {
-                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, endIndex, parseContext)];
+                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                     }
                 }
                 if (ch == ']') {
@@ -844,7 +844,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 while ((ch = buf[++i]) <= ' ') ;
                 if (allowComment) {
                     if (ch == '/') {
-                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, endIndex, parseContext)];
+                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                     }
                 }
                 offset = i;
@@ -917,7 +917,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         public String getText() {
             if (text == null) {
                 if (type == STRING) {
-                    text = (String) JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(charSource, buf, beginIndex, endIndex, '"', GenericParameterizedType.StringType, parseContext);
+                    text = (String) JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(charSource, buf, beginIndex, '"', GenericParameterizedType.StringType, parseContext);
                     value = text;
                 } else {
                     return source();
@@ -966,7 +966,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 if (allowComment) {
                     if (b == '/') {
-                        b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, endIndex, parseContext)];
+                        b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                     }
                 }
                 int fieldKeyFrom = i;
@@ -974,7 +974,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 boolean matched, skipValue;
                 if (b == '"') {
                     if (stored) {
-                        key = JSONTypeDeserializer.parseMapKeyByCache(buf, i, endIndex, '"', parseContext);
+                        key = JSONTypeDeserializer.parseMapKeyByCache(buf, i, '"', parseContext);
                         matched = fieldName != null && fieldName.equals(key);
                         skipValue = false;
                     } else {
@@ -1009,20 +1009,20 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 if (allowComment) {
                     if (b == '/') {
-                        b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, endIndex, parseContext)];
+                        b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                     }
                 }
                 if (b == ':') {
                     while ((b = buf[++i]) <= ' ') ;
                     if (allowComment) {
                         if (b == '/') {
-                            i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, endIndex, parseContext);
+                            i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext);
                         }
                     }
                     JSONNode node = null;
                     try {
                         if (skipValue) {
-                            JSONTypeDeserializer.ANY.skip(charSource, buf, i, endIndex, (byte) '}', parseContext);
+                            JSONTypeDeserializer.ANY.skip(charSource, buf, i, (byte) '}', parseContext);
                         } else {
                             node = parseValueNode(i, '}', lazy, createObj);
                         }
@@ -1036,7 +1036,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     while ((b = buf[++i]) <= ' ') ;
                     if (allowComment) {
                         if (b == '/') {
-                            b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, endIndex, parseContext)];
+                            b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                         }
                     }
                     boolean isClosingSymbol = b == '}';
@@ -1079,11 +1079,11 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 if (allowComment) {
                     if (b == '/') {
-                        b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                        b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                     }
                 }
                 if (b == '"') {
-                    key = JSONTypeDeserializer.parseMapKeyByCache(buf, i, toIndex, '"', parseContext);
+                    key = JSONTypeDeserializer.parseMapKeyByCache(buf, i, '"', parseContext);
                     i = parseContext.endIndex + 1;
                 } else {
                     if (b == '}') {
@@ -1094,7 +1094,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     }
                     if (b == '\'') {
                         // parseContext.allowSingleQuotes
-                        key = JSONTypeDeserializer.parseMapKeyByCache(buf, i, toIndex, '\'', parseContext);
+                        key = JSONTypeDeserializer.parseMapKeyByCache(buf, i, '\'', parseContext);
                         i = parseContext.endIndex + 1;
                     } else {
                         // parseContext.allowUnquotedFieldNames
@@ -1108,14 +1108,14 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 if (allowComment) {
                     if (b == '/') {
-                        b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                        b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                     }
                 }
                 if (b == ':') {
                     while ((b = buf[++i]) <= ' ') ;
                     if (allowComment) {
                         if (b == '/') {
-                            b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                            b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                         }
                     }
                     JSONNode node;
@@ -1137,7 +1137,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     if (allowComment) {
                         // clearComment and append whiteSpaces
                         if (b == '/') {
-                            b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                            b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                         }
                     }
                     boolean isClosingSymbol = b == '}';
@@ -1177,7 +1177,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 if (allowComment) {
                     if (b == '/') {
-                        b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                        b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                     }
                 }
                 if (b == ']') {
@@ -1209,7 +1209,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 while (i + 1 < toIndex && (b = buf[++i]) <= ' ') ;
                 if (allowComment) {
                     if (b == '/') {
-                        b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                        b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                     }
                 }
                 boolean isEnd = b == ']';
@@ -1233,7 +1233,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             switch (ch) {
                 case '{': {
                     if (lazy) {
-                        JSONTypeDeserializer.MAP.skip(charSource, buf, beginIndex, endIndex, parseContext);
+                        JSONTypeDeserializer.MAP.skip(charSource, buf, beginIndex, parseContext);
                         node = new B(charSource, buf, beginIndex, parseContext.endIndex + 1, OBJECT, parseContext, root);
                     } else {
                         node = completeObjectNode(charSource, buf, beginIndex, createObj);
@@ -1242,7 +1242,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 case '[': {
                     if (lazy) {
-                        JSONTypeDeserializer.COLLECTION.skip(charSource, buf, beginIndex, endIndex, parseContext);
+                        JSONTypeDeserializer.COLLECTION.skip(charSource, buf, beginIndex, parseContext);
                         node = new B(charSource, buf, beginIndex, parseContext.endIndex + 1, ARRAY, parseContext, root);
                     } else {
                         node = completeArrayNode(charSource, buf, beginIndex, createObj);
@@ -1252,25 +1252,25 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 case '\'':
                 case '"': {
                     // 3 string
-                    node = parseStringPathNode(charSource, buf, beginIndex, endIndex, ch, false, parseContext, root);
+                    node = parseStringPathNode(charSource, buf, beginIndex, ch, false, parseContext, root);
                     break;
                 }
                 case 'n': {
                     // null
-                    node = parseNullPathNode(charSource, buf, beginIndex, endIndex, parseContext, root);
+                    node = parseNullPathNode(charSource, buf, beginIndex, parseContext, root);
                     break;
                 }
                 case 't': {
-                    node = parseBoolTruePathNode(charSource, buf, beginIndex, endIndex, parseContext, root);
+                    node = parseBoolTruePathNode(charSource, buf, beginIndex, parseContext, root);
                     break;
                 }
                 case 'f': {
-                    node = parseBoolFalsePathNode(charSource, buf, beginIndex, endIndex, parseContext, root);
+                    node = parseBoolFalsePathNode(charSource, buf, beginIndex, parseContext, root);
                     break;
                 }
                 default: {
                     // number
-                    node = parseNumberPathNode(charSource, buf, beginIndex, endIndex, (byte) endChar, false, parseContext, root);
+                    node = parseNumberPathNode(charSource, buf, beginIndex, (byte) endChar, false, parseContext, root);
                     break;
                 }
             }
@@ -1287,7 +1287,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 if (allowComment) {
                     if (ch == '/') {
-                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, endIndex, parseContext)];
+                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                     }
                 }
                 if (ch == ']') {
@@ -1311,7 +1311,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 while ((ch = buf[++i]) <= ' ') ;
                 if (allowComment) {
                     if (ch == '/') {
-                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, endIndex, parseContext)];
+                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                     }
                 }
                 offset = i;
@@ -1396,12 +1396,13 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         try {
             JSONNodeContext parseContext = new JSONNodeContext();
             JSONOptions.readOptions(readOptions, parseContext);
+            parseContext.toIndex = bytes.length;
             JSONNode root;
             if (EnvUtils.JDK_9_PLUS) {
                 if (!EnvUtils.hasNegatives(bytes, 0, bytes.length)) {
-                    root = new B(AsciiStringSource.of(bytes), bytes, 0, bytes.length, parseContext);
+                    root = new B(AsciiStringSource.of(JSONUnsafe.createAsciiString(bytes)), bytes, 0, bytes.length, parseContext);
                 } else {
-                    root = new B(UTF8CharSource.of(bytes), bytes, 0, bytes.length, parseContext);
+                    root = new B(UTF8CharSource.of(JSONUnsafe.createAsciiString(bytes)), bytes, 0, bytes.length, parseContext);
                 }
             } else {
                 root = new B(null, bytes, 0, bytes.length, parseContext);
@@ -1425,11 +1426,12 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         try {
             JSONNodeContext parseContext = new JSONNodeContext();
             JSONOptions.readOptions(readOptions, parseContext);
+            parseContext.toIndex = source.length();
             JSONNode root;
             if (EnvUtils.JDK_9_PLUS) {
                 byte[] bytes = (byte[]) JSONUnsafe.getStringValue(source);
                 if (bytes.length == source.length()) {
-                    root = new B(AsciiStringSource.of(source, bytes), bytes, 0, bytes.length, parseContext);
+                    root = new B(AsciiStringSource.of(source), bytes, 0, bytes.length, parseContext);
                 } else {
                     char[] chars = source.toCharArray();
                     root = new C(UTF16ByteArraySource.of(source), chars, 0, chars.length, parseContext);
@@ -1453,22 +1455,22 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     /**
      * Generate JSON root node (local root) based on specified path
      *
-     * @param source
+     * @param json
      * @param path        the exact path
      * @param readOptions
      * @return
      */
-    public final static JSONNode from(String source, String path, ReadOption... readOptions) {
+    public final static JSONNode from(String json, String path, ReadOption... readOptions) {
         if (EnvUtils.JDK_9_PLUS) {
-            byte[] bytes = (byte[]) JSONUnsafe.getStringValue(source.toString());
-            if (bytes.length == source.length()) {
-                return parseInternal(AsciiStringSource.of(source, bytes), bytes, JSONNodePath.parse(path), readOptions);
+            byte[] bytes = (byte[]) JSONUnsafe.getStringValue(json.toString());
+            if (bytes.length == json.length()) {
+                return parseInternal(AsciiStringSource.of(json), bytes, JSONNodePath.parse(path), readOptions);
             } else {
-                char[] chars = source.toCharArray();
-                return parseInternal(UTF16ByteArraySource.of(source), chars, JSONNodePath.parse(path), readOptions);
+                char[] chars = json.toCharArray();
+                return parseInternal(UTF16ByteArraySource.of(json), chars, JSONNodePath.parse(path), readOptions);
             }
         } else {
-            return parseInternal(null, (char[]) JSONUnsafe.getStringValue(source.toString()), JSONNodePath.parse(path), readOptions);
+            return parseInternal(null, (char[]) JSONUnsafe.getStringValue(json.toString()), JSONNodePath.parse(path), readOptions);
         }
     }
 
@@ -1483,9 +1485,9 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     public final static JSONNode from(byte[] bytes, String path, ReadOption... readOptions) {
         if (EnvUtils.JDK_9_PLUS) {
             if (!EnvUtils.hasNegatives(bytes, 0, bytes.length)) {
-                return parseInternal(AsciiStringSource.of(bytes), bytes, JSONNodePath.parse(path), readOptions);
+                return parseInternal(AsciiStringSource.of(JSONUnsafe.createAsciiString(bytes)), bytes, JSONNodePath.parse(path), readOptions);
             } else {
-                return parseInternal(UTF8CharSource.of(bytes), bytes, JSONNodePath.parse(path), readOptions);
+                return parseInternal(UTF8CharSource.of(JSONUnsafe.createAsciiString(bytes)), bytes, JSONNodePath.parse(path), readOptions);
             }
         } else {
             return parseInternal(null, bytes, JSONNodePath.parse(path), readOptions);
@@ -1506,9 +1508,10 @@ public abstract class JSONNode implements Comparable<JSONNode> {
      * @return
      */
     final static JSONNode parseInternal(CharSource charSource, char[] buf, JSONNodePath path, ReadOption... readOptions) {
+        int toIndex = buf.length;
         JSONNodeContext parseContext = new JSONNodeContext();
         JSONOptions.readOptions(readOptions, parseContext);
-        int toIndex = buf.length;
+        parseContext.toIndex = toIndex;
         if (path == null) {
             return new C(charSource, buf, 0, toIndex, parseContext);
         }
@@ -1516,9 +1519,10 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     }
 
     final static JSONNode parseInternal(CharSource charSource, byte[] buf, JSONNodePath path, ReadOption... readOptions) {
+        int toIndex = buf.length;
         JSONNodeContext parseContext = new JSONNodeContext();
         JSONOptions.readOptions(readOptions, parseContext);
-        int toIndex = buf.length;
+        parseContext.toIndex = toIndex;
         if (path == null) {
             return new B(charSource, buf, 0, toIndex, parseContext);
         }
@@ -1574,7 +1578,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         if (EnvUtils.JDK_9_PLUS) {
             byte[] bytes = (byte[]) JSONUnsafe.getStringValue(json.toString());
             if (bytes.length == json.length()) {
-                return extractInternal(AsciiStringSource.of(json, bytes), bytes, path, nodeCollector, readOptions);
+                return extractInternal(AsciiStringSource.of(json), bytes, path, nodeCollector, readOptions);
             } else {
                 // utf16
                 char[] chars = json.toCharArray();
@@ -1601,9 +1605,9 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     public final static <T> List<T> extract(byte[] bytes, JSONNodePath path, JSONNodeCollector<T> nodeCollector, ReadOption... readOptions) {
         if (EnvUtils.JDK_9_PLUS) {
             if (!EnvUtils.hasNegatives(bytes, 0, bytes.length)) {
-                return extractInternal(AsciiStringSource.of(bytes), bytes, path, nodeCollector, readOptions);
+                return extractInternal(AsciiStringSource.of(JSONUnsafe.createAsciiString(bytes)), bytes, path, nodeCollector, readOptions);
             } else {
-                return extractInternal(UTF8CharSource.of(bytes), bytes, path, nodeCollector, readOptions);
+                return extractInternal(UTF8CharSource.of(JSONUnsafe.createAsciiString(bytes)), bytes, path, nodeCollector, readOptions);
             }
         } else {
             return extractInternal(null, bytes, path, nodeCollector, readOptions);
@@ -1613,6 +1617,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     static List extractInternal(CharSource charSource, char[] buf, JSONNodePath path, JSONNodeCollector nodeCollector, ReadOption... readOptions) {
         JSONNodeContext parseContext = new JSONNodeContext();
         JSONOptions.readOptions(readOptions, parseContext);
+        parseContext.toIndex = buf.length;
         parseContext.enableExtract(nodeCollector.self());
         parseNode(charSource, buf, path, parseContext);
         return parseContext.extractValues;
@@ -1621,6 +1626,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     static List extractInternal(CharSource charSource, byte[] buf, JSONNodePath path, JSONNodeCollector nodeCollector, ReadOption... readOptions) {
         JSONNodeContext parseContext = new JSONNodeContext();
         JSONOptions.readOptions(readOptions, parseContext);
+        parseContext.toIndex = buf.length;
         parseContext.enableExtract(nodeCollector.self());
         parseNode(charSource, buf, path, parseContext);
         return parseContext.extractValues;
@@ -1642,7 +1648,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             boolean allowComment = parseContext.allowComment;
             if (allowComment && beginChar == '/') {
                 /** 去除声明在头部的注释*/
-                fromIndex = JSONGeneral.clearCommentAndWhiteSpaces(buf, fromIndex + 1, toIndex, parseContext);
+                fromIndex = JSONGeneral.clearCommentAndWhiteSpaces(buf, fromIndex + 1, parseContext);
                 beginChar = buf[fromIndex];
             }
 
@@ -1692,7 +1698,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             }
             if (parseContext.allowComment && beginByte == '/') {
                 /** 去除声明在头部的注释*/
-                fromIndex = JSONGeneral.clearCommentAndWhiteSpaces(buf, fromIndex + 1, toIndex, parseContext);
+                fromIndex = JSONGeneral.clearCommentAndWhiteSpaces(buf, fromIndex + 1, parseContext);
                 beginByte = buf[fromIndex];
             }
 
@@ -1706,7 +1712,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     break;
                 case '\'':
                 case '"':
-                    result = parseStringPathNode(charSource, buf, fromIndex, toIndex, beginByte, false, parseContext, null);
+                    result = parseStringPathNode(charSource, buf, fromIndex, beginByte, false, parseContext, null);
                     break;
                 default:
                     throw new UnsupportedOperationException("unsupported for begin character with '" + beginByte + "'");
@@ -1740,11 +1746,11 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             }
             if (allowComment) {
                 if (ch == '/') {
-                    ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                    ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                 }
             }
             if (ch == '"') {
-                key = JSONDefaultParser.parseMapKeyByCache(buf, i, toIndex, '"', parseContext);
+                key = JSONDefaultParser.parseMapKeyByCache(buf, i, '"', parseContext);
                 i = parseContext.endIndex + 1;
             } else {
                 if (ch == '}') {
@@ -1754,7 +1760,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 if (ch == '\'') {
                     // parseContext.allowSingleQuotes
-                    key = JSONDefaultParser.parseMapKeyByCache(buf, i, toIndex, '\'', parseContext);
+                    key = JSONDefaultParser.parseMapKeyByCache(buf, i, '\'', parseContext);
                     i = parseContext.endIndex + 1;
                 } else {
                     // parseContext.allowUnquotedFieldNames
@@ -1768,7 +1774,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             }
             if (allowComment) {
                 if (ch == '/') {
-                    ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                    ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                 }
             }
             if (ch == ':') {
@@ -1778,7 +1784,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 while ((ch = buf[++i]) <= ' ') ;
                 if (allowComment) {
                     if (ch == '/') {
-                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                     }
                 }
                 JSONNode node;
@@ -1786,7 +1792,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 switch (ch) {
                     case '{': {
                         if (isSkipValue || isLastPathLevel) {
-                            JSONTypeDeserializer.MAP.skip(charSource, buf, i, toIndex, parseContext);
+                            JSONTypeDeserializer.MAP.skip(charSource, buf, i, parseContext);
                             node = isSkipValue ? null : new C(charSource, buf, i, parseContext.endIndex + 1, OBJECT, parseContext, null);
                         } else {
                             node = parseObjectPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
@@ -1795,7 +1801,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     }
                     case '[': {
                         if (isSkipValue || isLastPathLevel) {
-                            JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, toIndex, parseContext);
+                            JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, parseContext);
                             node = isSkipValue ? null : new C(charSource, buf, i, parseContext.endIndex + 1, ARRAY, parseContext, null);
                         } else {
                             node = parseArrayPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
@@ -1810,20 +1816,20 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     }
                     case 'n': {
                         // null
-                        node = parseNullPathNode(charSource, buf, i, toIndex, parseContext, null);
+                        node = parseNullPathNode(charSource, buf, i, parseContext, null);
                         break;
                     }
                     case 't': {
-                        node = parseBoolTruePathNode(charSource, buf, i, toIndex, parseContext, null);
+                        node = parseBoolTruePathNode(charSource, buf, i, parseContext, null);
                         break;
                     }
                     case 'f': {
-                        node = parseBoolFalsePathNode(charSource, buf, i, toIndex, parseContext, null);
+                        node = parseBoolFalsePathNode(charSource, buf, i, parseContext, null);
                         break;
                     }
                     default: {
                         // number
-                        node = parseNumberPathNode(charSource, buf, i, toIndex, '}', isSkipValue, parseContext, null);
+                        node = parseNumberPathNode(charSource, buf, i, '}', isSkipValue, parseContext, null);
                         break;
                     }
                 }
@@ -1832,7 +1838,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 if (allowComment) {
                     // clearComment and append whiteSpaces
                     if (ch == '/') {
-                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                     }
                 }
                 parseContext.endIndex = i;
@@ -1859,7 +1865,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                         return null;
                     } else {
                         if (skipNext) {
-                            JSONTypeDeserializer.MAP.skip(charSource, buf, i, toIndex, parseContext);
+                            JSONTypeDeserializer.MAP.skip(charSource, buf, i, parseContext);
                             return null;
                         }
                     }
@@ -1886,11 +1892,11 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             }
             if (allowComment) {
                 if (b == '/') {
-                    b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                    b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                 }
             }
             if (b == '"') {
-                key = JSONTypeDeserializer.parseMapKeyByCache(buf, i, toIndex, '"', parseContext);
+                key = JSONTypeDeserializer.parseMapKeyByCache(buf, i, '"', parseContext);
                 i = parseContext.endIndex + 1;
             } else {
                 if (b == '}') {
@@ -1900,7 +1906,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 if (b == '\'') {
                     // parseContext.allowSingleQuotes
-                    key = JSONTypeDeserializer.parseMapKeyByCache(buf, i, toIndex, '\'', parseContext);
+                    key = JSONTypeDeserializer.parseMapKeyByCache(buf, i, '\'', parseContext);
                     i = parseContext.endIndex + 1;
                 } else {
                     // parseContext.allowUnquotedFieldNames
@@ -1914,7 +1920,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             }
             if (allowComment) {
                 if (b == '/') {
-                    b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                    b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                 }
             }
             if (b == ':') {
@@ -1924,7 +1930,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 while ((b = buf[++i]) <= ' ') ;
                 if (allowComment) {
                     if (b == '/') {
-                        b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                        b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                     }
                 }
                 JSONNode node;
@@ -1932,7 +1938,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 switch (b) {
                     case '{': {
                         if (isSkipValue || isLastPathLevel) {
-                            JSONTypeDeserializer.MAP.skip(charSource, buf, i, toIndex, parseContext);
+                            JSONTypeDeserializer.MAP.skip(charSource, buf, i, parseContext);
                             node = isSkipValue ? null : new B(charSource, buf, i, parseContext.endIndex + 1, OBJECT, parseContext, null);
                         } else {
                             node = parseObjectPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
@@ -1941,7 +1947,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     }
                     case '[': {
                         if (isSkipValue || isLastPathLevel) {
-                            JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, toIndex, parseContext);
+                            JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, parseContext);
                             node = isSkipValue ? null : new B(charSource, buf, i, parseContext.endIndex + 1, ARRAY, parseContext, null);
                         } else {
                             node = parseArrayPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
@@ -1951,25 +1957,25 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     case '\'':
                     case '"': {
                         // 3 string
-                        node = parseStringPathNode(charSource, buf, i, toIndex, b, isSkipValue, parseContext, null);
+                        node = parseStringPathNode(charSource, buf, i, b, isSkipValue, parseContext, null);
                         break;
                     }
                     case 'n': {
                         // null
-                        node = parseNullPathNode(charSource, buf, i, toIndex, parseContext, null);
+                        node = parseNullPathNode(charSource, buf, i, parseContext, null);
                         break;
                     }
                     case 't': {
-                        node = parseBoolTruePathNode(charSource, buf, i, toIndex, parseContext, null);
+                        node = parseBoolTruePathNode(charSource, buf, i, parseContext, null);
                         break;
                     }
                     case 'f': {
-                        node = parseBoolFalsePathNode(charSource, buf, i, toIndex, parseContext, null);
+                        node = parseBoolFalsePathNode(charSource, buf, i, parseContext, null);
                         break;
                     }
                     default: {
                         // number
-                        node = parseNumberPathNode(charSource, buf, i, toIndex, (byte) '}', isSkipValue, parseContext, null);
+                        node = parseNumberPathNode(charSource, buf, i, (byte) '}', isSkipValue, parseContext, null);
                         break;
                     }
                 }
@@ -1978,7 +1984,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 if (allowComment) {
                     // clearComment and append whiteSpaces
                     if (b == '/') {
-                        b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                        b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                     }
                 }
                 parseContext.endIndex = i;
@@ -2005,7 +2011,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                         return null;
                     } else {
                         if (skipNext) {
-                            JSONTypeDeserializer.MAP.skip(charSource, buf, i, toIndex, parseContext);
+                            JSONTypeDeserializer.MAP.skip(charSource, buf, i, parseContext);
                             return null;
                         }
                     }
@@ -2029,7 +2035,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         boolean isLastPathLevel = pathCollector.next == null;
         boolean matched;
         if (pathCollector.preparedSize()) {
-            JSONTypeDeserializer.COLLECTION.skip(charSource, buf, fromIndex, toIndex, parseContext);
+            JSONTypeDeserializer.COLLECTION.skip(charSource, buf, fromIndex, parseContext);
             size = parseContext.elementSize;
         }
         for (int i = beginIndex; i < toIndex; ++i) {
@@ -2041,7 +2047,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             }
             if (allowComment) {
                 if (ch == '/') {
-                    ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                    ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                 }
             }
             if (ch == ']') {
@@ -2054,7 +2060,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             switch (ch) {
                 case '{': {
                     if (isSkipValue || isLastPathLevel) {
-                        JSONTypeDeserializer.MAP.skip(charSource, buf, i, toIndex, parseContext);
+                        JSONTypeDeserializer.MAP.skip(charSource, buf, i, parseContext);
                         node = isSkipValue ? null : new C(charSource, buf, i, parseContext.endIndex + 1, OBJECT, parseContext, null);
                     } else {
                         node = parseObjectPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
@@ -2063,7 +2069,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 case '[': {
                     if (isSkipValue || isLastPathLevel) {
-                        JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, toIndex, parseContext);
+                        JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, parseContext);
                         node = isSkipValue ? null : new C(charSource, buf, i, parseContext.endIndex + 1, ARRAY, parseContext, null);
                     } else {
                         node = parseArrayPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
@@ -2078,20 +2084,20 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 case 'n': {
                     // null
-                    node = parseNullPathNode(charSource, buf, i, toIndex, parseContext, null);
+                    node = parseNullPathNode(charSource, buf, i, parseContext, null);
                     break;
                 }
                 case 't': {
-                    node = parseBoolTruePathNode(charSource, buf, i, toIndex, parseContext, null);
+                    node = parseBoolTruePathNode(charSource, buf, i, parseContext, null);
                     break;
                 }
                 case 'f': {
-                    node = parseBoolFalsePathNode(charSource, buf, i, toIndex, parseContext, null);
+                    node = parseBoolFalsePathNode(charSource, buf, i, parseContext, null);
                     break;
                 }
                 default: {
                     // number
-                    node = parseNumberPathNode(charSource, buf, i, toIndex, ']', isSkipValue, parseContext, null);
+                    node = parseNumberPathNode(charSource, buf, i, ']', isSkipValue, parseContext, null);
                     break;
                 }
             }
@@ -2099,7 +2105,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             while (i + 1 < toIndex && (ch = buf[++i]) <= ' ') ;
             if (allowComment) {
                 if (ch == '/') {
-                    ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                    ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                 }
             }
             parseContext.endIndex = i;
@@ -2126,7 +2132,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     return null;
                 } else {
                     if (skipNext) {
-                        JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, toIndex, parseContext);
+                        JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, parseContext);
                         return null;
                     }
                 }
@@ -2147,7 +2153,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         boolean isLastPathLevel = pathCollector.next == null;
         boolean matched;
         if (pathCollector.preparedSize()) {
-            JSONTypeDeserializer.COLLECTION.skip(charSource, buf, fromIndex, toIndex, parseContext);
+            JSONTypeDeserializer.COLLECTION.skip(charSource, buf, fromIndex, parseContext);
             size = parseContext.elementSize;
         }
         for (int i = beginIndex; i < toIndex; ++i) {
@@ -2159,7 +2165,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             }
             if (allowComment) {
                 if (ch == '/') {
-                    ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                    ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                 }
             }
             if (ch == ']') {
@@ -2172,7 +2178,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             switch (ch) {
                 case '{': {
                     if (isSkipValue || isLastPathLevel) {
-                        JSONTypeDeserializer.MAP.skip(charSource, buf, i, toIndex, parseContext);
+                        JSONTypeDeserializer.MAP.skip(charSource, buf, i, parseContext);
                         node = isSkipValue ? null : new B(charSource, buf, i, parseContext.endIndex + 1, OBJECT, parseContext, null);
                     } else {
                         node = parseObjectPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
@@ -2181,7 +2187,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 case '[': {
                     if (isSkipValue || isLastPathLevel) {
-                        JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, toIndex, parseContext);
+                        JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, parseContext);
                         node = isSkipValue ? null : new B(charSource, buf, i, parseContext.endIndex + 1, ARRAY, parseContext, null);
                     } else {
                         node = parseArrayPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
@@ -2191,25 +2197,25 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 case '\'':
                 case '"': {
                     // 3 string
-                    node = parseStringPathNode(charSource, buf, i, toIndex, ch, isSkipValue, parseContext, null);
+                    node = parseStringPathNode(charSource, buf, i, ch, isSkipValue, parseContext, null);
                     break;
                 }
                 case 'n': {
                     // null
-                    node = parseNullPathNode(charSource, buf, i, toIndex, parseContext, null);
+                    node = parseNullPathNode(charSource, buf, i, parseContext, null);
                     break;
                 }
                 case 't': {
-                    node = parseBoolTruePathNode(charSource, buf, i, toIndex, parseContext, null);
+                    node = parseBoolTruePathNode(charSource, buf, i, parseContext, null);
                     break;
                 }
                 case 'f': {
-                    node = parseBoolFalsePathNode(charSource, buf, i, toIndex, parseContext, null);
+                    node = parseBoolFalsePathNode(charSource, buf, i, parseContext, null);
                     break;
                 }
                 default: {
                     // number
-                    node = parseNumberPathNode(charSource, buf, i, toIndex, (byte) ']', isSkipValue, parseContext, null);
+                    node = parseNumberPathNode(charSource, buf, i, (byte) ']', isSkipValue, parseContext, null);
                     break;
                 }
             }
@@ -2217,7 +2223,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             while (i + 1 < toIndex && (ch = buf[++i]) <= ' ') ;
             if (allowComment) {
                 if (ch == '/') {
-                    ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, toIndex, parseContext)];
+                    ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                 }
             }
             parseContext.endIndex = i;
@@ -2244,7 +2250,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     return null;
                 } else {
                     if (skipNext) {
-                        JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, toIndex, parseContext);
+                        JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, parseContext);
                         return null;
                     }
                 }
@@ -2260,73 +2266,73 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             JSONTypeDeserializer.CHAR_SEQUENCE_STRING.skip(charSource, buf, fromIndex, endToken, parseContext);
             return null;
         }
-        String value = (String) JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(charSource, buf, fromIndex, toIndex, endToken, GenericParameterizedType.StringType, parseContext);
+        String value = (String) JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(charSource, buf, fromIndex, endToken, GenericParameterizedType.StringType, parseContext);
         int endIndex = parseContext.endIndex;
         return new C(charSource, value, buf, fromIndex, endIndex + 1, STRING, parseContext, rootNode);
     }
 
-    private static JSONNode parseStringPathNode(CharSource charSource, byte[] buf, int fromIndex, int toIndex, int endToken, boolean skipValue, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
+    private static JSONNode parseStringPathNode(CharSource charSource, byte[] buf, int fromIndex, byte endToken, boolean skipValue, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
         if (skipValue) {
             JSONTypeDeserializer.CHAR_SEQUENCE_STRING.skip(charSource, buf, fromIndex, endToken, parseContext);
             return null;
         }
-        String value = (String) JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(charSource, buf, fromIndex, toIndex, endToken, GenericParameterizedType.StringType, parseContext);
+        String value = (String) JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(charSource, buf, fromIndex, endToken, GenericParameterizedType.StringType, parseContext);
         int endIndex = parseContext.endIndex;
         return new B(charSource, value, buf, fromIndex, endIndex + 1, STRING, parseContext, rootNode);
     }
 
-    static JSONNode parseNullPathNode(CharSource charSource, char[] buf, int fromIndex, int toIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
-        JSONTypeDeserializer.parseNull(buf, fromIndex, toIndex, parseContext);
+    static JSONNode parseNullPathNode(CharSource charSource, char[] buf, int fromIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
+        JSONTypeDeserializer.parseNull(buf, fromIndex, parseContext);
         int endIndex = parseContext.endIndex;
         return new C(charSource, null, buf, fromIndex, endIndex + 1, NULL, parseContext, rootNode);
     }
 
-    static JSONNode parseNullPathNode(CharSource charSource, byte[] buf, int fromIndex, int toIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
-        JSONTypeDeserializer.parseNull(buf, fromIndex, toIndex, parseContext);
+    static JSONNode parseNullPathNode(CharSource charSource, byte[] buf, int fromIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
+        JSONTypeDeserializer.parseNull(buf, fromIndex, parseContext);
         int endIndex = parseContext.endIndex;
         return new B(charSource, null, buf, fromIndex, endIndex + 1, NULL, parseContext, rootNode);
     }
 
-    static JSONNode parseBoolTruePathNode(CharSource charSource, char[] buf, int fromIndex, int toIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
-        JSONTypeDeserializer.parseTrue(buf, fromIndex, toIndex, parseContext);
+    static JSONNode parseBoolTruePathNode(CharSource charSource, char[] buf, int fromIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
+        JSONTypeDeserializer.parseTrue(buf, fromIndex, parseContext);
         int endIndex = parseContext.endIndex;
         return new C(charSource, true, buf, fromIndex, endIndex + 1, BOOLEAN, parseContext, rootNode);
     }
 
-    static JSONNode parseBoolTruePathNode(CharSource charSource, byte[] buf, int fromIndex, int toIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
-        JSONTypeDeserializer.parseTrue(buf, fromIndex, toIndex, parseContext);
+    static JSONNode parseBoolTruePathNode(CharSource charSource, byte[] buf, int fromIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
+        JSONTypeDeserializer.parseTrue(buf, fromIndex, parseContext);
         int endIndex = parseContext.endIndex;
         return new B(charSource, true, buf, fromIndex, endIndex + 1, BOOLEAN, parseContext, rootNode);
     }
 
-    static JSONNode parseBoolFalsePathNode(CharSource charSource, char[] buf, int fromIndex, int toIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
-        JSONTypeDeserializer.parseFalse(buf, fromIndex, toIndex, parseContext);
+    static JSONNode parseBoolFalsePathNode(CharSource charSource, char[] buf, int fromIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
+        JSONTypeDeserializer.parseFalse(buf, fromIndex, parseContext);
         int endIndex = parseContext.endIndex;
         return new C(charSource, false, buf, fromIndex, endIndex + 1, BOOLEAN, parseContext, rootNode);
     }
 
-    static JSONNode parseBoolFalsePathNode(CharSource charSource, byte[] buf, int fromIndex, int toIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
-        JSONTypeDeserializer.parseFalse(buf, fromIndex, toIndex, parseContext);
+    static JSONNode parseBoolFalsePathNode(CharSource charSource, byte[] buf, int fromIndex, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
+        JSONTypeDeserializer.parseFalse(buf, fromIndex, parseContext);
         int endIndex = parseContext.endIndex;
         return new B(charSource, false, buf, fromIndex, endIndex + 1, BOOLEAN, parseContext, rootNode);
     }
 
-    static JSONNode parseNumberPathNode(CharSource charSource, char[] buf, int fromIndex, int toIndex, char endToken, boolean skipValue, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
+    static JSONNode parseNumberPathNode(CharSource charSource, char[] buf, int fromIndex, char endToken, boolean skipValue, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
         if (skipValue) {
-            JSONTypeDeserializer.NUMBER_SKIPPER.deserialize(charSource, buf, fromIndex, toIndex, null, null, endToken, parseContext);
+            JSONTypeDeserializer.NUMBER_SKIPPER.deserialize(charSource, buf, fromIndex, null, null, endToken, parseContext);
             return null;
         }
-        Number value = (Number) JSONTypeDeserializer.NUMBER.deserialize(charSource, buf, fromIndex, toIndex, parseContext.useBigDecimalAsDefault ? GenericParameterizedType.BigDecimalType : GenericParameterizedType.AnyType, null, endToken, parseContext);
+        Number value = (Number) JSONTypeDeserializer.NUMBER.deserialize(charSource, buf, fromIndex, parseContext.useBigDecimalAsDefault ? GenericParameterizedType.BigDecimalType : GenericParameterizedType.AnyType, null, endToken, parseContext);
         int endIndex = parseContext.endIndex;
         return new C(charSource, value, buf, fromIndex, endIndex + 1, NUMBER, parseContext, rootNode);
     }
 
-    static JSONNode parseNumberPathNode(CharSource charSource, byte[] buf, int fromIndex, int toIndex, byte endToken, boolean skipValue, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
+    static JSONNode parseNumberPathNode(CharSource charSource, byte[] buf, int fromIndex, byte endToken, boolean skipValue, JSONNodeContext parseContext, JSONNode rootNode) throws Exception {
         if (skipValue) {
-            JSONTypeDeserializer.NUMBER_SKIPPER.deserialize(charSource, buf, fromIndex, toIndex, null, null, endToken, parseContext);
+            JSONTypeDeserializer.NUMBER_SKIPPER.deserialize(charSource, buf, fromIndex, null, null, endToken, parseContext);
             return null;
         }
-        Number value = (Number) JSONTypeDeserializer.NUMBER.deserialize(charSource, buf, fromIndex, toIndex, parseContext.useBigDecimalAsDefault ? GenericParameterizedType.BigDecimalType : GenericParameterizedType.AnyType, null, endToken, parseContext);
+        Number value = (Number) JSONTypeDeserializer.NUMBER.deserialize(charSource, buf, fromIndex, parseContext.useBigDecimalAsDefault ? GenericParameterizedType.BigDecimalType : GenericParameterizedType.AnyType, null, endToken, parseContext);
         int endIndex = parseContext.endIndex;
         return new B(charSource, value, buf, fromIndex, endIndex + 1, NUMBER, parseContext, rootNode);
     }

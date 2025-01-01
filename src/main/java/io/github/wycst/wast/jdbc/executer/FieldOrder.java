@@ -32,6 +32,6 @@ public class FieldOrder {
     }
 
     public enum Order {
-        ASC,DESC
+        ASC, DESC
     }
 }

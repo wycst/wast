@@ -3,7 +3,6 @@ package io.github.wycst.wast.jdbc.executer;
 import io.github.wycst.wast.jdbc.annotations.JoinField;
 
 /**
- *
  * @Author: wangy
  * @Date: 2021/7/25 21:35
  * @Description:
@@ -16,7 +15,7 @@ public class JoinColumn {
     private final JoinField joinField;
 
     /**
-     *  属性名称（as）
+     * 属性名称（as）
      */
     private String fieldName;
 

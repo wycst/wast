@@ -4,7 +4,6 @@ import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 
 /**
  * 类型转化器
- *
  */
 public abstract class TypeTransformer<E> {
 

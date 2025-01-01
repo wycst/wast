@@ -94,22 +94,18 @@ class JSONCharArrayWriter extends JSONWriter {
     }
 
     JSONCharArrayWriter() {
-//        CharBufCache charBufCache = LOCAL_BUF.get();
-//        if (charBufCache.inUse) {
-//            buf = new char[256];
-//        } else {
-//            charBufCache.inUse = true;
-//            this.charBufCache = charBufCache;
-//            buf = charBufCache.cacheBuffers;
-//        }
         // use pool
-        BufCache bufCache = getCharBufCache(); // getOrReturnCache(null);
+        BufCache bufCache = getCharBufCache();
         if (bufCache != null) {
             buf = bufCache.cacheChars;
             this.bufCache = bufCache;
         } else {
             buf = new char[512];
         }
+    }
+
+    JSONCharArrayWriter(int cap) {
+        buf = new char[cap];
     }
 
     @Override

@@ -230,6 +230,26 @@ public final class BuiltInFunction {
     }
 
     /**
+     * 判断变量是否为null
+     *
+     * @param value
+     * @return
+     */
+    public static Object isNull(Object value) {
+        return value == null;
+    }
+
+    /**
+     * 判断变量是否不为null
+     *
+     * @param value
+     * @return
+     */
+    public static Object isNotNull(Object value) {
+        return value != null;
+    }
+
+    /**
      * 当前时间
      *
      * @return

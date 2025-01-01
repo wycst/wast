@@ -13,7 +13,6 @@ public final class JSONConfig {
     private static boolean defaultFormatIndentUseSpace;
     private static int defaultFormatIndentSpaceNum = 4;
     private static boolean defaultWriteEnumAsOrdinal;
-//    private boolean disableHotspotCache;
 
     public static void setDefaultFullProperty(boolean defaultFullProperty) {
         JSONConfig.defaultFullProperty = defaultFullProperty;
@@ -365,12 +364,4 @@ public final class JSONConfig {
     public boolean isWriteDecimalUseToString() {
         return writeDecimalUseToString;
     }
-
-//    public void setDisableHotspotCache(boolean disableHotspotCache) {
-//        this.disableHotspotCache = disableHotspotCache;
-//    }
-//
-//    public boolean isDisableHotspotCache() {
-//        return disableHotspotCache;
-//    }
 }

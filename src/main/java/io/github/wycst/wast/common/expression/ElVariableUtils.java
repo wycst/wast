@@ -68,9 +68,6 @@ public final class ElVariableUtils {
                     variableInvoke = isChildEL ? new ElVariableInvoker.ChildElImpl(new String(key.substring(1, key.length() - 1)), prev) : new ElVariableInvoker(key, prev);
                 }
                 variableInvokes.put(path, variableInvoke.index(variableInvokes.size()));
-                if(prev != null) {
-                    prev.hasChildren = true;
-                }
             }
             prev = variableInvoke;
         }
@@ -97,9 +94,6 @@ public final class ElVariableUtils {
         if (variableInvoke == null) {
             variableInvoke = isChildEL ? new ElVariableInvoker.ChildElImpl(new String(key.substring(1, key.length() - 1))) : new ElVariableInvoker.RootImpl(key);
             variableInvokes.put(key, variableInvoke.index(variableInvokes.size()));
-        }
-        // add or replace
-        if(!tailNodeInvokes.containsKey(key)) {
             tailNodeInvokes.put(key, variableInvoke.tailIndex(tailNodeInvokes.size()));
         }
         variableInvoke.setTail(true);

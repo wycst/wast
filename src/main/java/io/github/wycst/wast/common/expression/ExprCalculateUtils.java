@@ -153,12 +153,22 @@ final class ExprCalculateUtils {
                 return leftValue.longValue() + rightValue.longValue();
             }
         }
-        // 字符串加法
-        return left + String.valueOf(right);
+        if (environment.isAllowVariableNull()) {
+            return left + String.valueOf(right);
+        } else {
+            if (left instanceof CharSequence) {
+                return left.toString() + right;
+            } else if (right instanceof CharSequence) {
+                return left + right.toString();
+            } else {
+                return left.toString() + right.toString();
+            }
+        }
     }
 
     /**
      * 减法(/)
+     *
      * @param left
      * @param right
      * @param environment

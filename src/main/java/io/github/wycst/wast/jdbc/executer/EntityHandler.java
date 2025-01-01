@@ -26,9 +26,9 @@ class EntityHandler {
     <E> E getById(DefaultSqlExecuter sqlExecuter, Class<E> entityCls, Serializable id) {
         String selectSql = entitySqlMapping.getSelectSql();
         if (selectSql == null) {
-            throw new OqlParematerException("配置错误：" + entityCls + "可能没有定义@Id,请检查配置");
+            throw new OqlParematerException("configuration error: " + entityCls + " may not have a column defined @Id, please check the annotation configuration");
         }
-        return sqlExecuter.queryObject(selectSql, entityCls, id);
+        return sqlExecuter.queryObjectWithContext(selectSql, entityCls, entitySqlMapping.createContext("EntityExecuter#getById"), id);
     }
 
     /**
@@ -42,12 +42,11 @@ class EntityHandler {
      */
     <E> int deleteById(DefaultSqlExecuter sqlExecuter, Class<E> entityCls, Serializable id) {
         String sqlStringFormat = sqlExecuter.sqlTemplates[SqlType.DELETE.ordinal()];
-
         Sql sqlObject = entitySqlMapping.getDeleteSqlObject(sqlStringFormat, id);
         if (sqlObject == null) {
-            throw new OqlParematerException("配置错误：" + entitySqlMapping.getEntityClass() + "可能没有定义@Id,请检查配置");
+            throw new OqlParematerException("configuration error: " + entityCls + " may not have a column defined @Id, please check the annotation configuration");
         }
-        return sqlExecuter.update(sqlObject.getFormalSql(), sqlObject.getParamValues());
+        return sqlExecuter.updateWithContext(sqlObject.getFormalSql(), entitySqlMapping.createContext("EntityExecuter#deleteById"), sqlObject.getParamValues());
     }
 
     <E> int updateEntity(DefaultSqlExecuter sqlExecuter, E entity) {
@@ -55,9 +54,9 @@ class EntityHandler {
 
         Sql sqlObject = entitySqlMapping.getUpdateSqlObject(sqlStringFormat, entity);
         if (sqlObject == null) {
-            throw new OqlParematerException("配置错误：" + entitySqlMapping.getEntityClass() + "可能没有定义@Id,请检查配置");
+            throw new OqlParematerException("configuration error: " + entitySqlMapping.getEntityClass() + " may not have a column defined @Id, please check the annotation configuration");
         }
-        return sqlExecuter.update(sqlObject.getFormalSql(), sqlObject.getParamValues());
+        return sqlExecuter.updateWithContext(sqlObject.getFormalSql(), entitySqlMapping.createContext("EntityExecuter#update"), sqlObject.getParamValues());
     }
 
     <E> void afterUpdate(DefaultSqlExecuter sqlExecuter, E entity) {
@@ -68,6 +67,6 @@ class EntityHandler {
 
     <E> List<E> executeQueryBy(DefaultSqlExecuter sqlExecuter, Class<E> entityCls, Object params) {
         Sql sqlObject = entitySqlMapping.getSelectSqlObject(params);
-        return sqlExecuter.queryList(sqlObject.getFormalSql(), entityCls, sqlObject.getParamValues());
+        return sqlExecuter.queryListWithContext(sqlObject.getFormalSql(), entityCls, entitySqlMapping.createContext("EntityExecuter#queryBy"), sqlObject.getParamValues());
     }
 }

@@ -45,6 +45,7 @@ public final class EnvUtils {
     public final static Charset CHARSET_ISO_8859_1 = forCharsetName("ISO_8859_1");
     public final static Charset CHARSET_UTF_8 = forCharsetName("UTF-8");
     public static final Method SC_HAS_NEGATIVES_METHOD;
+
     static {
         float jdkVersion = 1.8f;
         try {
@@ -82,7 +83,7 @@ public final class EnvUtils {
         SC_HAS_NEGATIVES_METHOD = scHasNegatives;
 
         boolean supportedVector = false;
-        if(JDK_VERSION >= 17f) {
+        if (JDK_VERSION >= 17f) {
 //            try {
 //                List<String> inputArguments = ManagementFactory.getRuntimeMXBean().getInputArguments();
 //                supportedVector = inputArguments.contains("--add-modules=jdk.incubator.vector");
@@ -118,8 +119,6 @@ public final class EnvUtils {
         }
     }
 
-//    public static final long NEGATIVE_MASK = 0x8080808080808080L;
-
     // only supported on JDK9+
     public static boolean hasNegatives(byte[] bytes, int offset, int len) {
         try {
@@ -127,20 +126,5 @@ public final class EnvUtils {
         } catch (Exception e) {
             throw new UnsupportedOperationException();
         }
-//        if (len > 7) {
-//            do {
-//                long val = UnsafeHelper.getLong(bytes, offset);
-//                if ((val & NEGATIVE_MASK) != 0) return true;
-//                offset += 8;
-//                len -= 8;
-//            } while (len > 7);
-//            if (len == 0) return false;
-//            return (UnsafeHelper.getLong(bytes, offset + len - 8) & NEGATIVE_MASK) != 0;
-//        } else {
-//            for (int i = offset, end = offset + len; i < end; ++i) {
-//                if (bytes[i] < 0) return true;
-//            }
-//            return false;
-//        }
     }
 }

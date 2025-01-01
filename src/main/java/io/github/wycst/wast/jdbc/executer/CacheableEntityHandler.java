@@ -6,7 +6,7 @@ import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-class CacheableEntityHandler extends EntityHandler {
+final class CacheableEntityHandler extends EntityHandler {
 
     CacheableEntityHandler(EntitySqlMapping entitySqlMapping) {
         super(entitySqlMapping);
@@ -50,15 +50,15 @@ class CacheableEntityHandler extends EntityHandler {
         boolean emptyParams = (params == null || ObjectUtils.getNonEmptyFields(params).isEmpty());
         if (cachedAllFlag && emptyParams) {
             synchronized (lock) {
-                if(cachedFullEntityList == null) {
+                if (cachedFullEntityList == null) {
                     result = new ArrayList<E>();
                     Collection<CacheableEntity> cacheableEntities = cachedEntityMap.values();
                     for (CacheableEntity cacheableEntity : cacheableEntities) {
-                         result.add((E) cacheableEntity.getEntity());
+                        result.add((E) cacheableEntity.getEntity());
                     }
                     cachedFullEntityList = result;
                 } else {
-                    result = new ArrayList<E>((List<E>)cachedFullEntityList);
+                    result = new ArrayList<E>((List<E>) cachedFullEntityList);
                 }
                 return result;
             }
@@ -163,7 +163,7 @@ class CacheableEntityHandler extends EntityHandler {
                 }
             }
 
-            if(removeCnt > 0) {
+            if (removeCnt > 0) {
                 cachedAllFlag = false;
                 cachedFullEntityList = null;
             }

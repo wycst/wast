@@ -29,7 +29,7 @@ public class ClickHouseDialect extends MySqlDialect {
             ps.setTimestamp(index, (Timestamp) param);
         } else if (param instanceof Date) {
             ps.setDate(index, new java.sql.Date(((Date) param).getTime()));
-        } else if(param instanceof Enum) {
+        } else if (param instanceof Enum) {
             ps.setString(index, param.toString());
         } else {
             ps.setObject(index, param);

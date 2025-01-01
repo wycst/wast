@@ -1,5 +1,6 @@
 package io.github.wycst.wast.jdbc.executer;
 
+import io.github.wycst.wast.common.idgenerate.providers.IdGenerator;
 import io.github.wycst.wast.jdbc.commands.OperationSqlExecuteCommand;
 import io.github.wycst.wast.jdbc.commands.SqlExecuteCall;
 import io.github.wycst.wast.jdbc.connection.ConnectionManager;
@@ -21,15 +22,18 @@ import java.io.InputStream;
 import java.io.Serializable;
 import java.lang.reflect.Constructor;
 import java.sql.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class DefaultSqlExecuter {
 
-    private static Log log = LogFactory.getLog(DefaultSqlExecuter.class);
+    final static Log log = LogFactory.getLog(DefaultSqlExecuter.class);
 
     /*唯一id*/
-    private final String uid = UUID.randomUUID().toString();
+    final String uid = IdGenerator.hex();
 
     /**
      * sql执行器属性
@@ -331,8 +335,10 @@ public class DefaultSqlExecuter {
         executerProperties.setShowParameters(showSqlParameters);
     }
 
+    final static ThreadLocal<Boolean> DISABLE_LOG_FLAG_TL = new ThreadLocal<Boolean>();
+
     private <E> E execute(
-            OperationSqlExecuteCommand<E> command, String sql, Object params, String methodName) {
+            OperationSqlExecuteCommand<E> command, String sql, Object params, SqlExecuteContext executeContext) {
 
         ConnectionWraper wraper = getConnectionWraper();
         E entity = null;
@@ -340,14 +346,16 @@ public class DefaultSqlExecuter {
         boolean success = false;
         try {
             if (sqlInterceptor != null) {
-                sqlInterceptor.before(sql, params, methodName);
+                sqlInterceptor.before(sql, params, executeContext);
             }
-            if (isShowSql() && sql != null) {
-                log.info("Sql: {}", sql);
-            }
-            if (isShowParameters() && params != null) {
-                List paramList = getParamList(params);
-                log.info("Parameters: {}", paramList);
+            if (!executeContext.disableLog) {
+                if (isShowSql() && sql != null) {
+                    log.info("sql: {}", sql);
+                }
+                if (isShowParameters() && params != null) {
+                    List paramList = getParamList(params);
+                    log.info("parameters: {}", paramList);
+                }
             }
             // 拦截器设计实现
             entity = command.doExecute(wraper);
@@ -357,11 +365,11 @@ public class DefaultSqlExecuter {
             throw e instanceof RuntimeException ? (RuntimeException) e : new SqlExecuteException(e.getMessage(), e);
         } finally {
             if (sqlInterceptor != null) {
-                sqlInterceptor.after(sql, params, methodName, entity);
+                sqlInterceptor.after(sql, params, executeContext.result(entity));
             }
             if (isDevelopment()) {
                 long endMillis = System.currentTimeMillis();
-                log.info("- api:[{}], exec: {}ms, success: {}", methodName, endMillis - beginMillis, success);
+                log.info("api:[{}], exec: {}ms, success: {}", executeContext.apiName, endMillis - beginMillis, success);
             }
             // handler close
             if (wraper != null && wraper.autoClose() && command.closeable()) {
@@ -433,6 +441,10 @@ public class DefaultSqlExecuter {
     }
 
     public Serializable insert(final String sql, final boolean returnGeneratedKeys, final Object... params) {
+        return insert(sql, returnGeneratedKeys, SqlExecuteContext.of("insert"), params);
+    }
+
+    final Serializable insertWithContext(final String sql, final boolean returnGeneratedKeys, SqlExecuteContext context, final Object... params) {
 
         return execute(new OperationSqlExecuteCommand<Serializable>() {
 
@@ -460,7 +472,7 @@ public class DefaultSqlExecuter {
                     }
                 }
             }
-        }, sql, params, "insert");
+        }, sql, params, context);
     }
 
     /**
@@ -471,6 +483,18 @@ public class DefaultSqlExecuter {
      * @return
      */
     public int update(final String sql, final Object... params) {
+        return updateWithContext(sql, SqlExecuteContext.of("update"), params);
+    }
+
+    /**
+     * do update
+     *
+     * @param sql
+     * @param context
+     * @param params
+     * @return
+     */
+    final int updateWithContext(final String sql, SqlExecuteContext context, final Object... params) {
 
         return execute(new OperationSqlExecuteCommand<Integer>() {
 
@@ -489,7 +513,11 @@ public class DefaultSqlExecuter {
                     }
                 }
             }
-        }, sql, params, "update");
+        }, sql, params, context);
+    }
+
+    public void updateCollection(final String sql, final List<Object[]> dataList) {
+        updateCollectionWithContext(sql, dataList, SqlExecuteContext.of("updateCollection"));
     }
 
     /**
@@ -499,7 +527,7 @@ public class DefaultSqlExecuter {
      * @param dataList
      * @return
      */
-    public void updateCollection(final String sql, final List<Object[]> dataList) {
+    final void updateCollectionWithContext(final String sql, final List<Object[]> dataList, SqlExecuteContext context) {
 
         execute(new OperationSqlExecuteCommand<Integer>() {
 
@@ -546,7 +574,7 @@ public class DefaultSqlExecuter {
                 }
                 return 0;
             }
-        }, sql, dataList, "updateCollection");
+        }, sql, dataList, context);
     }
 
 
@@ -570,6 +598,10 @@ public class DefaultSqlExecuter {
      * @return
      */
     public <E> E queryValue(final String sql, final Class<E> valueClass, final Object... params) {
+        return queryValueWithContext(sql, valueClass, SqlExecuteContext.of("queryValue"), params);
+    }
+
+    <E> E queryValueWithContext(final String sql, final Class<E> valueClass, final SqlExecuteContext context, final Object... params) {
         return execute(new OperationSqlExecuteCommand<E>() {
 
             public E doExecute(ConnectionWraper wraper) throws SQLException {
@@ -577,7 +609,7 @@ public class DefaultSqlExecuter {
                 PreparedStatement statement = prepareStatement(conn, sql, params, ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
                 return queryExecutor.queryValue(valueClass, statement);
             }
-        }, sql, params, "queryValue");
+        }, sql, params, context);
     }
 
     /**
@@ -591,22 +623,33 @@ public class DefaultSqlExecuter {
      * query Object
      */
     public <E> E queryObject(final String sql, final Class<E> cls, final Object... params) {
+        return queryObjectWithContext(sql, cls, SqlExecuteContext.of("queryObject"), params);
+    }
 
+    /**
+     * query Object
+     */
+    final <E> E queryObjectWithContext(final String sql, final Class<E> cls, SqlExecuteContext executeContext, final Object... params) {
         return execute(new OperationSqlExecuteCommand<E>() {
-
             public E doExecute(ConnectionWraper wraper) throws SQLException {
                 Connection conn = wraper.getConnection();
                 PreparedStatement statement = prepareStatement(conn, sql, params, ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
                 return queryExecutor.queryObject(cls, statement);
             }
-        }, sql, params, "queryObject");
+        }, sql, params, executeContext);
     }
 
     /**
      * query Unique Object
      */
     public <E> E queryUniqueObject(final String sql, final Class<E> cls, final Object... params) {
+        return queryUniqueObjectWithContext(sql, cls, SqlExecuteContext.of("queryUniqueObject"), params);
+    }
 
+    /**
+     * query Unique Object
+     */
+    final <E> E queryUniqueObjectWithContext(final String sql, final Class<E> cls, SqlExecuteContext context, final Object... params) {
         return execute(new OperationSqlExecuteCommand<E>() {
 
             public E doExecute(ConnectionWraper wraper) throws SQLException {
@@ -614,7 +657,7 @@ public class DefaultSqlExecuter {
                 PreparedStatement statement = prepareStatement(conn, sql, params, ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
                 return queryExecutor.queryUniqueObject(cls, statement);
             }
-        }, sql, params, "queryUniqueObject");
+        }, sql, params, context);
     }
 
     /**
@@ -626,7 +669,19 @@ public class DefaultSqlExecuter {
      * @return
      */
     public <E> List<E> queryList(final String sql, final Class<E> cls, final Object... params) {
+        return queryListWithContext(sql, cls, SqlExecuteContext.of("queryList"), params);
+    }
 
+    /**
+     * query Collection
+     *
+     * @param cls     集合元素类型
+     * @param sql
+     * @param context
+     * @param params
+     * @return
+     */
+    <E> List<E> queryListWithContext(final String sql, final Class<E> cls, final SqlExecuteContext context, final Object... params) {
         return execute(new OperationSqlExecuteCommand<List<E>>() {
 
             public List<E> doExecute(ConnectionWraper wraper) throws SQLException {
@@ -634,10 +689,14 @@ public class DefaultSqlExecuter {
                 PreparedStatement statement = prepareStatement(conn, sql, params, ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
                 return queryExecutor.queryList(cls, statement);
             }
-        }, sql, params, "queryList");
+        }, sql, params, context);
     }
 
     public <E> StreamCursor<E> queryStream(final String sql, final Class<E> cls, final Object... params) {
+        return queryStreamWithContext(sql, cls, SqlExecuteContext.of("queryStream"), params);
+    }
+
+    final <E> StreamCursor<E> queryStreamWithContext(final String sql, final Class<E> cls, final SqlExecuteContext context, final Object... params) {
         return execute(new OperationSqlExecuteCommand<StreamCursor<E>>() {
             public StreamCursor<E> doExecute(ConnectionWraper wraper) throws SQLException {
                 Connection conn = wraper.getConnection();
@@ -649,7 +708,7 @@ public class DefaultSqlExecuter {
             public boolean closeable() {
                 return false;
             }
-        }, sql, params, "queryStream");
+        }, sql, params, context);
     }
 
 
@@ -665,7 +724,6 @@ public class DefaultSqlExecuter {
     }
 
     /**
-     *
      * @param sql
      * @param offset
      * @param pageSize
@@ -771,7 +829,7 @@ public class DefaultSqlExecuter {
                     }
                 }
             }
-        }, sql, null, "executeUpdate");
+        }, sql, null, SqlExecuteContext.of("executeUpdate"));
     }
 
     /**
@@ -789,7 +847,7 @@ public class DefaultSqlExecuter {
                     statement = conn.createStatement();
                     for (String sql : sqlList) {
                         if (isShowSql()) {
-                            log.info("-\n{}", sql);
+                            log.info("\n{}", sql);
                         }
                         statement.addBatch(sql);
                     }
@@ -801,9 +859,7 @@ public class DefaultSqlExecuter {
                     }
                 }
             }
-        }, null, null, "executeScript");
-
-
+        }, null, null, SqlExecuteContext.of("executeScript"));
     }
 
     public boolean isClickHouse() {

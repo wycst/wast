@@ -226,97 +226,100 @@ public class ExprEvaluator {
                     rightValue = Double.parseDouble(rightValue.toString());
                 }
             }
-
             this.constant = left.constant && right.constant;
             // use for debug
             // System.out.println("leftValue: " + leftValue + " rightValue: " + rightValue + " opsType: " + opsType);
-            switch (operator) {
-                case MULTI:
-                    // *乘法
-                    return result = ExprCalculateUtils.multiply(leftValue, rightValue, evaluateEnvironment);
-                case DIVISION:
-                    // /除法
-                    return result = ExprCalculateUtils.divide(leftValue, rightValue, evaluateEnvironment);
-                case MOD:
-                    // %取余数
-                    return result = ExprCalculateUtils.mod(leftValue, rightValue, evaluateEnvironment);
-                case EXP:
-                    // **指数，平方/根
-                    return result = ExprCalculateUtils.pow(leftValue, rightValue, evaluateEnvironment);
-                case PLUS:
-                    // +加法
-                    return result = ExprCalculateUtils.plus(leftValue, rightValue, evaluateEnvironment);
-                case MINUS:
-                    // -减法（理论上代码不可达） 因为'-'统一转化为了'+'(负)
-                    return result = ExprCalculateUtils.subtract(leftValue, rightValue, evaluateEnvironment);
-                case BIT_RIGHT:
-                    // >> 位运算右移
-                    return result = ((Number) leftValue).longValue() >> ((Number) rightValue).longValue();
-                case BIT_LEFT:
-                    // << 位运算左移
-                    return result = ((Number) leftValue).longValue() << ((Number) rightValue).longValue();
-                case AND:
-                    // &
-                    return result = ((Number) leftValue).longValue() & ((Number) rightValue).longValue();
-                case XOR:
-                    // ^
-                    if (leftValue instanceof Boolean) {
-                        return result = ((Boolean) leftValue) ^ ((Boolean) rightValue);
-                    } else {
-                        return result = ((Number) leftValue).longValue() ^ ((Number) rightValue).longValue();
-                    }
-                case OR:
-                    // |
-                    return result = ((Number) leftValue).longValue() | ((Number) rightValue).longValue();
-                case GT:
-                    // >
-                    return result = ((Number) leftValue).doubleValue() > ((Number) rightValue).doubleValue();
-                case LT:
-                    // <
-                    return result = ((Number) leftValue).doubleValue() < ((Number) rightValue).doubleValue();
-                case EQ:
-                    // ==
-                    if (leftValue instanceof Number && rightValue instanceof Number) {
-                        return result = ((Number) leftValue).doubleValue() == ((Number) rightValue).doubleValue();
-                    }
-                    if (leftValue == rightValue) {
-                        return result = true;
-                    }
-                    return result = leftValue != null && leftValue.equals(rightValue);
-                case GE:
-                    // >=
-                    return result = ((Number) leftValue).doubleValue() >= ((Number) rightValue).doubleValue();
-                case LE:
-                    // <=
-                    return result = ((Number) leftValue).doubleValue() <= ((Number) rightValue).doubleValue();
-                case NE:
-                    // !=
-                    if (leftValue instanceof Number && rightValue instanceof Number) {
-                        // 基础类型double直接比较值
-                        return result = ((Number) leftValue).doubleValue() != ((Number) rightValue).doubleValue();
-                    }
-                    if (leftValue == rightValue) {
-                        return result = false;
-                    }
-                    return result = leftValue == null || !leftValue.equals(rightValue);
-                case LOGICAL_AND:
-                    // &&
-                    return result = (Boolean) leftValue && (Boolean) rightValue;
-                case LOGICAL_OR:
-                    // ||
-                    return result = (Boolean) leftValue || (Boolean) rightValue;
-                case IN:
-                    /// in
-                    return result = this.evaluateIn(leftValue, rightValue);
-                case OUT:
-                    /// out
-                    return result = !this.evaluateIn(leftValue, rightValue);
+            try {
+                switch (operator) {
+                    case MULTI:
+                        // *乘法
+                        return result = ExprCalculateUtils.multiply(leftValue, rightValue, evaluateEnvironment);
+                    case DIVISION:
+                        // /除法
+                        return result = ExprCalculateUtils.divide(leftValue, rightValue, evaluateEnvironment);
+                    case MOD:
+                        // %取余数
+                        return result = ExprCalculateUtils.mod(leftValue, rightValue, evaluateEnvironment);
+                    case EXP:
+                        // **指数，平方/根
+                        return result = ExprCalculateUtils.pow(leftValue, rightValue, evaluateEnvironment);
+                    case PLUS:
+                        // +加法
+                        return result = ExprCalculateUtils.plus(leftValue, rightValue, evaluateEnvironment);
+                    case MINUS:
+                        // -减法（理论上代码不可达） 因为'-'统一转化为了'+'(负)
+                        return result = ExprCalculateUtils.subtract(leftValue, rightValue, evaluateEnvironment);
+                    case BIT_RIGHT:
+                        // >> 位运算右移
+                        return result = ((Number) leftValue).longValue() >> ((Number) rightValue).longValue();
+                    case BIT_LEFT:
+                        // << 位运算左移
+                        return result = ((Number) leftValue).longValue() << ((Number) rightValue).longValue();
+                    case AND:
+                        // &
+                        return result = ((Number) leftValue).longValue() & ((Number) rightValue).longValue();
+                    case XOR:
+                        // ^
+                        if (leftValue instanceof Boolean) {
+                            return result = ((Boolean) leftValue) ^ ((Boolean) rightValue);
+                        } else {
+                            return result = ((Number) leftValue).longValue() ^ ((Number) rightValue).longValue();
+                        }
+                    case OR:
+                        // |
+                        return result = ((Number) leftValue).longValue() | ((Number) rightValue).longValue();
+                    case GT:
+                        // >
+                        return result = ((Number) leftValue).doubleValue() > ((Number) rightValue).doubleValue();
+                    case LT:
+                        // <
+                        return result = ((Number) leftValue).doubleValue() < ((Number) rightValue).doubleValue();
+                    case EQ:
+                        // ==
+                        if (leftValue instanceof Number && rightValue instanceof Number) {
+                            return result = ((Number) leftValue).doubleValue() == ((Number) rightValue).doubleValue();
+                        }
+                        if (leftValue == rightValue) {
+                            return result = true;
+                        }
+                        return result = leftValue != null && leftValue.equals(rightValue);
+                    case GE:
+                        // >=
+                        return result = ((Number) leftValue).doubleValue() >= ((Number) rightValue).doubleValue();
+                    case LE:
+                        // <=
+                        return result = ((Number) leftValue).doubleValue() <= ((Number) rightValue).doubleValue();
+                    case NE:
+                        // !=
+                        if (leftValue instanceof Number && rightValue instanceof Number) {
+                            // 基础类型double直接比较值
+                            return result = ((Number) leftValue).doubleValue() != ((Number) rightValue).doubleValue();
+                        }
+                        if (leftValue == rightValue) {
+                            return result = false;
+                        }
+                        return result = leftValue == null || !leftValue.equals(rightValue);
+                    case LOGICAL_AND:
+                        // &&
+                        return result = (Boolean) leftValue && (Boolean) rightValue;
+                    case LOGICAL_OR:
+                        // ||
+                        return result = (Boolean) leftValue || (Boolean) rightValue;
+                    case IN:
+                        /// in
+                        return result = this.evaluateIn(leftValue, rightValue);
+                    case OUT:
+                        /// out
+                        return result = !this.evaluateIn(leftValue, rightValue);
 //                case COLON:
 //                    // : 三目运算结果, 不支持单独运算
 //                    throw new ExpressionException("cannot use colon operator alone: ':'");
 //                case QUESTION:
 //                    // ? 三目运算条件
 //                    return right.evaluateTernary(context, evaluateEnvironment, (Boolean) leftValue, left.constant);
+                }
+            } catch (RuntimeException exception) {
+                throwEvalOperatorException(exception, leftValue, rightValue, left, right);
             }
             // 默认返回null
         } else if (evalType == EVAL_TYPE_BRACKET) {
@@ -346,6 +349,21 @@ public class ExprEvaluator {
             return result;
         }
         return null;
+    }
+
+    private void throwEvalOperatorException(RuntimeException exception, Object leftValue, Object rightValue, ExprEvaluator left, ExprEvaluator right) {
+        if (exception instanceof NullPointerException) {
+            if (leftValue == null) {
+                left.throwNotAllowNullException();
+            } else if (rightValue == null) {
+                right.throwNotAllowNullException();
+            }
+        } else {
+            throw exception;
+        }
+    }
+
+    void throwNotAllowNullException() {
     }
 
     /**
@@ -456,13 +474,18 @@ public class ExprEvaluator {
             return new NormalVariableImpl(variableInvoker);
         }
 
+        @Override
+        final void throwNotAllowNullException() {
+            throw new ExpressionException("unresolved property or variable '" + variableInvoker + "' from context");
+        }
+
         public final Object getVariableValue(EvaluatorContext evaluatorContext, EvaluateEnvironment evaluateEnvironment) {
             Object obj = null;
             try {
                 obj = evaluatorContext.getContextValue(variableInvoker); // context.variableValues[variableInvoke.index];
-                if (obj == null && !evaluateEnvironment.isAllowVariableNull()) {
-                    throw new ExpressionException("unresolved property or variable '" + variableInvoker + "' from context");
-                }
+//                if (obj == null && !evaluateEnvironment.isAllowVariableNull()) {
+//                    throw new ExpressionException("unresolved property or variable '" + variableInvoker + "' from context");
+//                }
                 if (evaluateEnvironment.isAutoParseStringAsDouble() && obj instanceof String) {
                     obj = Double.parseDouble((String) obj);
                 }
@@ -827,7 +850,7 @@ public class ExprEvaluator {
         public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
             Object leftValue = left.evaluate(context, evaluateEnvironment);
             Object rightValue = right.evaluate(context, evaluateEnvironment);
-            if(leftValue instanceof Boolean) {
+            if (leftValue instanceof Boolean) {
                 return ((Boolean) leftValue) ^ ((Boolean) rightValue);
             }
             // ^ 异或运算

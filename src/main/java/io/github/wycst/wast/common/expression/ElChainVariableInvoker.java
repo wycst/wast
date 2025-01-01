@@ -1,6 +1,5 @@
 package io.github.wycst.wast.common.expression;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
 
@@ -78,10 +77,10 @@ public class ElChainVariableInvoker implements ElInvoker {
         }
     }
 
-    @Override
-    public int size() {
-        return next == null ? 1 : 1 + next.size();
-    }
+//    @Override
+//    public int size() {
+//        return next == null ? 1 : 1 + next.size();
+//    }
 
     /**
      * tail
@@ -158,19 +157,20 @@ public class ElChainVariableInvoker implements ElInvoker {
 
     public final static ElInvoker buildTailChainInvoker(Map<String, ElVariableInvoker> tailInvokerMap) {
         Collection<ElVariableInvoker> tailInvokerValues = tailInvokerMap.values();
-        ArrayList<ElVariableInvoker> leafTailValues = new ArrayList<ElVariableInvoker>();
-        for (ElVariableInvoker variableInvoke : tailInvokerValues) {
-            if (!variableInvoke.hasChildren) {
-                leafTailValues.add(variableInvoke);
-            }
-        }
-        int length = leafTailValues.size();
-        if (length == 1) {
-            return leafTailValues.get(0);
-        }
+        int length = tailInvokerValues.size();
+//        ArrayList<ElVariableInvoker> leafTailValues = new ArrayList<ElVariableInvoker>();
+//        for (ElVariableInvoker variableInvoke : tailInvokerValues) {
+//            if (!variableInvoke.hasChildren) {
+//                leafTailValues.add(variableInvoke);
+//            }
+//        }
+//        int length = leafTailValues.size();
+//        if (length == 1) {
+//            return leafTailValues.get(0);
+//        }
         int index = 0;
         ElChainVariableInvoker head = null, prev = null;
-        for (ElVariableInvoker variableInvoke : leafTailValues) {
+        for (ElVariableInvoker variableInvoke : tailInvokerValues) {
             boolean tail = ++index == length;
             ElChainVariableInvoker node = tail ? new TailImpl(variableInvoke) : new ElChainVariableInvoker(variableInvoke);
             if (head == null) {

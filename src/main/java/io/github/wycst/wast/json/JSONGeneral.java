@@ -455,38 +455,6 @@ class JSONGeneral {
         return beginIndex;
     }
 
-//    /**
-//     * 解析处理字符串中转义字符，如果不存在转义字符，返回原字符串
-//     *
-//     * @param str
-//     * @return
-//     */
-//    public static final String parseEscapeString(String str) {
-//        str.getClass();
-//        int beginIndex = str.indexOf('\\');
-//        // none Escape
-//        if (beginIndex == -1) return str;
-//
-//        JSONParseContext jsonParseContext = new JSONParseContext();
-//        JSONCharArrayWriter writer = getContextWriter(jsonParseContext);
-//        try {
-//            char[] chars = getChars(str);
-//            char next = chars[beginIndex + 1];
-//            beginIndex = escapeNext(chars, next, beginIndex, 0, writer, jsonParseContext);
-//            int max = chars.length;
-//            for (int i = beginIndex + 1; i < max; i++) {
-//                if (chars[i] != '\\') continue;
-//                next = chars[i + 1];
-//                beginIndex = escapeNext(chars, next, i, beginIndex, writer, jsonParseContext);
-//                i = jsonParseContext.endIndex;
-//            }
-//            writer.write(chars, beginIndex, max - beginIndex);
-//            return writer.toString();
-//        } finally {
-//            jsonParseContext.clear();
-//        }
-//    }
-
     /**
      * 将\\u后面的4个16进制字符转化为int值
      *
@@ -679,6 +647,20 @@ class JSONGeneral {
                 return null;
             }
             default:
+                if (len > 28) {
+                    // yyyy-MM-ddTHH:mm:ss.000000000 -> yyyy-MM-ddTHH:mm:ss.000
+                    try {
+                        int year = parseInt4(buf, from);
+                        int month = parseInt2(buf, from + 5);
+                        int day = parseInt2(buf, from + 8);
+                        int hour = parseInt2(buf, from + 11);
+                        int minute = parseInt2(buf, from + 14);
+                        int second = parseInt2(buf, from + 17);
+                        int millsecond = NumberUtils.parseIntWithin5(buf, from + 20, 3);
+                        return parseDate(year, month, day, hour, minute, second, millsecond, timezoneIdAt, dateCls);
+                    } catch (Throwable throwable) {
+                    }
+                }
                 return null;
         }
     }
@@ -875,6 +857,20 @@ class JSONGeneral {
                 return null;
             }
             default:
+                if (len > 28) {
+                    // yyyy-MM-ddTHH:mm:ss.000000000 -> yyyy-MM-ddTHH:mm:ss.000
+                    try {
+                        int year = NumberUtils.parseInt4(buf, from);
+                        int month = NumberUtils.parseInt2(buf, from + 5);
+                        int day = NumberUtils.parseInt2(buf, from + 8);
+                        int hour = NumberUtils.parseInt2(buf, from + 11);
+                        int minute = NumberUtils.parseInt2(buf, from + 14);
+                        int second = NumberUtils.parseInt2(buf, from + 17);
+                        int millsecond = NumberUtils.parseIntWithin5(buf, from + 20, 3);
+                        return parseDate(year, month, day, hour, minute, second, millsecond, timezoneIdAt, dateCls);
+                    } catch (Throwable throwable) {
+                    }
+                }
                 return null;
         }
     }
@@ -947,57 +943,18 @@ class JSONGeneral {
         }
     }
 
-//    /***
-//     * 反序列化日期（Deserialization date）
-//     *
-//     * @param buf  字符数组
-//     * @param from     开始位置（双引号或者数字首位置）
-//     * @param to       结束位置(逗号或者括号位置)
-//     * @param pattern  日期格式
-//     * @param timezone 时区
-//     * @param dateCls  日期类型
-//     * @return 日期对象
-//     */
-//    protected static Date parseDateValue(char[] buf, int from, int to, String pattern, String timezone,
-//                                         Class<? extends Date> dateCls) {
-//        int realFrom = from;
-//        int realTo = to;
-//        // 去除前后空格
-//        char start = '"';
-//        while ((from < to) && ((start = buf[from]) <= ' ')) {
-//            from++;
-//        }
-//        char end = '"';
-//        while ((to > from) && ((end = buf[to - 1]) <= ' ')) {
-//            to--;
-//        }
-//        if (start == '"' && end == '"') {
-//            return parseDateValueOfString(buf, from, to, pattern, pattern == null ? 0 : 4, pattern == null ? null : new DateTemplate(pattern), timezone, dateCls);
-//        } else {
-//            // If it is a long time rub, it has nothing to do with the time zone
-//            try {
-//                long timestamp = Long.parseLong(new String(buf, from, to - from));
-//                return parseDate(timestamp, dateCls);
-//            } catch (Exception e) {
-//                String timestampStr = new String(buf, from, to - from);
-//                throw new JSONException("fromIndex " + realFrom + ", toIndex " + realTo + " str " + timestampStr + " error !");
-//            }
-//        }
-//    }
-
     /**
      * 清除注释和空白,返回第一个非空字符 （Clear comments and whitespace and return the first non empty character）
      * 开启注释支持后，支持//.*\n 和 /* *\/ （After enabling comment support, support / /* \N and / **\/）
      *
      * @param buf
      * @param beginIndex       开始位置
-     * @param toIndex          最大允许结束位置
      * @param jsonParseContext 上下文配置
      * @return 去掉注释后的第一个非空字符位置（Non empty character position after removing comments）
      * @see ReadOption#AllowComment
      */
-    protected final static int clearCommentAndWhiteSpaces(char[] buf, int beginIndex, int toIndex, JSONParseContext jsonParseContext) {
-        int i = beginIndex;
+    protected final static int clearCommentAndWhiteSpaces(char[] buf, int beginIndex, JSONParseContext jsonParseContext) {
+        int i = beginIndex, toIndex = jsonParseContext.toIndex;
         if (i >= toIndex) {
             throw new JSONException("Syntax error, unexpected '/', position " + (beginIndex - 1));
         }
@@ -1014,7 +971,7 @@ class JSONGeneral {
             while (i + 1 < toIndex && (ch = buf[++i]) <= ' ') ;
             if (ch == '/') {
                 // 递归清除
-                i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext);
+                i = clearCommentAndWhiteSpaces(buf, i + 1, jsonParseContext);
             }
         } else if (ch == '*') {
             // End with */
@@ -1036,7 +993,7 @@ class JSONGeneral {
             while (i + 1 < toIndex && (ch = buf[++i]) <= ' ') ;
             if (ch == '/') {
                 // 递归清除
-                i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext);
+                i = clearCommentAndWhiteSpaces(buf, i + 1, jsonParseContext);
             }
         } else {
             throw new JSONException("Syntax error, unexpected '" + ch + "', position " + beginIndex);
@@ -1049,13 +1006,12 @@ class JSONGeneral {
      *
      * @param bytes
      * @param beginIndex       开始位置
-     * @param toIndex          最大允许结束位置
      * @param jsonParseContext 上下文配置
      * @return 去掉注释后的第一个非空字节位置（Non empty character position after removing comments）
      * @see ReadOption#AllowComment
      */
-    protected static int clearCommentAndWhiteSpaces(byte[] bytes, int beginIndex, int toIndex, JSONParseContext jsonParseContext) {
-        int i = beginIndex;
+    protected static int clearCommentAndWhiteSpaces(byte[] bytes, int beginIndex, JSONParseContext jsonParseContext) {
+        int i = beginIndex, toIndex = jsonParseContext.toIndex;
         if (i >= toIndex) {
             throw new JSONException("Syntax error, unexpected '/', position " + (beginIndex - 1));
         }
@@ -1072,7 +1028,7 @@ class JSONGeneral {
             while (i + 1 < toIndex && (b = bytes[++i]) <= ' ') ;
             if (b == '/') {
                 // 递归清除
-                i = clearCommentAndWhiteSpaces(bytes, i + 1, toIndex, jsonParseContext);
+                i = clearCommentAndWhiteSpaces(bytes, i + 1, jsonParseContext);
             }
         } else if (b == '*') {
             // End with */
@@ -1094,7 +1050,7 @@ class JSONGeneral {
             while (i + 1 < toIndex && (b = bytes[++i]) <= ' ') ;
             if (b == '/') {
                 // 递归清除
-                i = clearCommentAndWhiteSpaces(bytes, i + 1, toIndex, jsonParseContext);
+                i = clearCommentAndWhiteSpaces(bytes, i + 1, jsonParseContext);
             }
         } else {
             throw new JSONException("Syntax error, unexpected '" + (char) b + "', position " + beginIndex);

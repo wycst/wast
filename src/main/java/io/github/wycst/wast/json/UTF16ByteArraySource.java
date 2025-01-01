@@ -12,22 +12,12 @@ final class UTF16ByteArraySource implements CharSource {
     }
 
     @Override
-    public byte[] byteArray() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public String input() {
         return input;
     }
 
     @Override
-    public int indexOf(int ch, int beginIndex) {
-        return input.indexOf(ch, beginIndex);
-    }
-
-    @Override
-    public String substring(int beginIndex, int endIndex) {
+    public String substring(byte[] bytes, int beginIndex, int endIndex) {
         return input.substring(beginIndex, endIndex);
     }
 }

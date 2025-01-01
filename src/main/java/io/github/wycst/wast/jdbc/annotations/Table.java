@@ -43,4 +43,11 @@ public @interface Table {
      * @return
      */
     long expires() default 8 * 3600 * 1000;
+
+    /**
+     * 禁用日志
+     *
+     * @return
+     */
+    boolean disableLog() default false;
 }

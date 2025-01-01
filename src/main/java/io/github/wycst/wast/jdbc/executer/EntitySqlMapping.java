@@ -19,7 +19,7 @@ import java.util.*;
  * @Date: 2021/2/15 12:26
  * @Description:
  */
-public class EntitySqlMapping {
+public final class EntitySqlMapping {
 
     // 实体class
     private final Class<?> entityClass;
@@ -31,6 +31,7 @@ public class EntitySqlMapping {
     // 主键
     private final FieldColumn primary;
     final EntityHandler entityHandler;
+    final boolean disableLog;
 
     /**
      * 生成join语句映射配置
@@ -65,7 +66,8 @@ public class EntitySqlMapping {
         this.joinEntityMappings = joinEntityMappings;
         this.cascadeFetchMappings = cascadeFetchMappings;
         this.table = table;
-        this.entityHandler = table.cacheable() ? new CacheableEntityHandler(this) : new EntityHandler(this);
+        this.entityHandler = (table != null && table.cacheable()) ? new CacheableEntityHandler(this) : new EntityHandler(this);
+        this.disableLog = (table != null && table.disableLog());
         // 初始化
         this.init();
     }
@@ -976,5 +978,9 @@ public class EntitySqlMapping {
 
     boolean isUsePlaceholderOnInsert() {
         return usePlaceholderOnInsert;
+    }
+
+    SqlExecuteContext createContext(String apiName) {
+        return SqlExecuteContext.of(apiName, disableLog);
     }
 }

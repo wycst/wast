@@ -23,9 +23,9 @@ import java.io.*;
 /**
  * 1,JSON parsing based on stream (character stream):
  * <p>
- *  Large file JSON file parsing (unlimited file size reading), no need to read stream content into memory for parsing. <br>
- *  Can be terminated as needed. <br>
- *  Supports asynchronous. <br>
+ * Large file JSON file parsing (unlimited file size reading), no need to read stream content into memory for parsing. <br>
+ * Can be terminated as needed. <br>
+ * Supports asynchronous. <br>
  * </p>
  * <br>
  * 2, The streaming content needs to strictly adhere to the JSON specification.
@@ -196,6 +196,36 @@ public class JSONReader extends JSONAbstractReader {
         return this;
     }
 
+    /**
+     * 直接从流中提取数据
+     *
+     * @param is
+     * @param path
+     * @return
+     */
+    public final static Object exactPath(InputStream is, String path) {
+        JSONReader jsonReader = from(is);
+        JSONReaderHook readerHook = JSONReaderHook.exactPath(path);
+        jsonReader.read(readerHook);
+        return readerHook.first();
+    }
+
+    /**
+     * 直接从流中提取数据并转化为指定类型
+     *
+     * @param is
+     * @param path
+     * @param resultClass
+     * @param <T>
+     * @return
+     */
+    public final static <T> T exactPathAs(InputStream is, String path, Class<T> resultClass) {
+        JSONReader jsonReader = from(is);
+        JSONReaderHook readerHook = JSONReaderHook.exactPathAs(path, resultClass);
+        jsonReader.read(readerHook);
+        return readerHook.first();
+    }
+
     public final Object read() {
         try {
             this.readBuffer();
@@ -229,7 +259,7 @@ public class JSONReader extends JSONAbstractReader {
             int n, remSize = bufferSize;
             while ((n = reader.read(buf, count, remSize)) != -1) {
                 count += n;
-                if(remSize == n) {
+                if (remSize == n) {
                     return;
                 }
                 remSize -= n;

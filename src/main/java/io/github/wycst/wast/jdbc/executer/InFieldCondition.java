@@ -13,7 +13,7 @@ public class InFieldCondition extends FieldCondition {
     public InFieldCondition(String field, List<? extends Serializable> values) {
         super(field, null);
         field.getClass();
-        if(values == null || values.size() == 1) {
+        if (values == null || values.size() == 1) {
             throw new SqlExecuteException("IN(...) syntax must not provide empty values");
         }
         this.values = values;

@@ -1,9 +1,6 @@
 package io.github.wycst.wast.json;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * @Date 2024/10/9 14:04
@@ -15,12 +12,13 @@ public class JSONReaderHookDefault extends JSONReaderHook {
     }
 
     @Override
-    protected Object created(String path, int type) throws Exception {
-        if (type == 1) {
-            return new LinkedHashMap();
-        } else {
-            return new ArrayList();
-        }
+    protected Map createdMap(String path) {
+        return new LinkedHashMap();
+    }
+
+    @Override
+    protected Collection createdCollection(String path) {
+        return new ArrayList();
     }
 
     @Override

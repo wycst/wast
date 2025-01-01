@@ -84,6 +84,7 @@ public @interface Column {
      * 读取字段时使用的占位声明（比如空间函数），默认空，
      * <p>如果需要配置必须包含占位关键字${value}，运行态生成sql时动态替换</p>
      * example: ST_AsText(${value})
+     *
      * @return
      */
     public String placeholderOnRead() default "";
@@ -92,6 +93,7 @@ public @interface Column {
      * 写入字段时使用的占位声明（比如空间函数），默认空:
      * <p>如果需要配置必须包含占位关键字${value}，运行态生成sql时动态替换</p>
      * example: GeomFromText(${value})
+     *
      * @return
      */
     public String placeholderOnWrite() default "";

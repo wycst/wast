@@ -62,25 +62,25 @@ public class FieldColumn {
 
         String placeholderOnReadTemplate = null;
         String placeholderOnWriteTemplate = null;
-        if(column != null) {
+        if (column != null) {
             String placeholderOnRead = column.placeholderOnRead().trim();
-            if(StringUtils.isNotEmpty(placeholderOnRead)) {
+            if (StringUtils.isNotEmpty(placeholderOnRead)) {
                 Map<String, String> context = new HashMap<String, String>();
                 context.put("value", "${alias}." + columnName);
 
                 placeholderOnReadTemplate = Expression.renderTemplate(placeholderOnRead, context);
-                if(placeholderOnReadTemplate.equals(placeholderOnRead)) {
+                if (placeholderOnReadTemplate.equals(placeholderOnRead)) {
                     placeholderOnReadTemplate = null;
                 }
             }
 
             String placeholderOnWrite = column.placeholderOnWrite().trim();
-            if(StringUtils.isNotEmpty(placeholderOnWrite)) {
+            if (StringUtils.isNotEmpty(placeholderOnWrite)) {
                 Map<String, String> context = new HashMap<String, String>();
                 context.put("value", "${" + field.getName() + "}");
 
                 placeholderOnWriteTemplate = Expression.renderTemplate(placeholderOnWrite, context);
-                if(placeholderOnWriteTemplate.equals(placeholderOnWrite)) {
+                if (placeholderOnWriteTemplate.equals(placeholderOnWrite)) {
                     placeholderOnWriteTemplate = null;
                 }
             }
@@ -90,7 +90,7 @@ public class FieldColumn {
         this.placeholderOnWriteTemplate = placeholderOnWriteTemplate;
 
         String queryColumnSyntax;
-        if(placeholderOnReadTemplate == null) {
+        if (placeholderOnReadTemplate == null) {
             queryColumnSyntax = equalName ? "t." + columnName + "," : "t." + columnName + " as \"" + field.getName() + "\",";
         } else {
             Map<String, String> context = new HashMap<String, String>();
@@ -166,7 +166,7 @@ public class FieldColumn {
     }
 
     String getQueryColumnSyntax(String tableAlias) {
-        if(placeholderOnReadTemplate == null) {
+        if (placeholderOnReadTemplate == null) {
             return tableAlias + "." + getColumnName();
         } else {
             Map<String, String> context = new HashMap<String, String>();

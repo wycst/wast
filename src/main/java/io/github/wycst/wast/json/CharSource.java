@@ -17,27 +17,12 @@ public interface CharSource {
     String input();
 
     /**
-     * 获取字节源
-     *
-     * @return
-     */
-    byte[] byteArray();
-
-    /**
-     * 查找字符索引
-     *
-     * @param ch
-     * @param beginIndex
-     * @return
-     */
-    int indexOf(int ch, int beginIndex);
-
-    /**
      * 构建子串
      *
+     * @param bytes
      * @param beginIndex
      * @param endIndex
      * @return
      */
-    String substring(int beginIndex, int endIndex);
+    String substring(byte[] bytes, int beginIndex, int endIndex);
 }

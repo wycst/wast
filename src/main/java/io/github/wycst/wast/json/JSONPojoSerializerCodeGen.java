@@ -97,7 +97,8 @@ final class JSONPojoSerializerCodeGen {
                 boolean isBoolean = returnType == boolean.class;
 
                 String fieldSerializerName = name + "UseMethodSerializer";
-                String valueVar = "__" + fieldSerializer.getName();
+                final String fieldKey = fieldSerializer.getName();
+                final String valueVar = "__" + fieldKey;
                 byte[] bytes = valueVar.getBytes();
                 boolean isFieldNameAscii = bytes.length == valueVar.length();
                 long[] longs = null, longsWithComma = null, longsWithCommaBoolFalse = null;
@@ -111,7 +112,7 @@ final class JSONPojoSerializerCodeGen {
                 boolean useUnsafe = runtime && isFieldNameAscii /*&& bytes.length <= 16*/;
                 if (useUnsafe) {
                     fieldNameTempBuilder.setLength(0);
-                    fieldNameTempBuilder.append(",\"").append(valueVar).append("\":");
+                    fieldNameTempBuilder.append(",\"").append(fieldKey).append("\":");
                     longsFormatOut = UnsafeHelper.getCharLongs(fieldNameTempBuilder.substring(1));
                     intsFormatOut = UnsafeHelper.getByteInts(fieldNameTempBuilder.substring(1));
                     fieldNameFormatOutTokenLength = fieldNameTempBuilder.length() - 1;
@@ -138,7 +139,7 @@ final class JSONPojoSerializerCodeGen {
                     fmatOutBodyBuilder.append("\t\t" + returnType.getCanonicalName() + " " + valueVar + " = entity." + getterInfo.generateCode() + ";\n");
 
                     // generate format code
-                    generateSerializeFieldFormatOutCode(ensureNotEmptyFlag, primitive, fieldSerializerName, valueVar, nameEqualUnderlineName, underlineName, useUnsafe, longsFormatOut, intsFormatOut, fieldNameFormatOutTokenLength, returnType, fieldSerializer, runtime, fmatOutBodyBuilder);
+                    generateSerializeFieldFormatOutCode(ensureNotEmptyFlag, primitive, fieldSerializerName, fieldKey, valueVar, nameEqualUnderlineName, underlineName, useUnsafe, longsFormatOut, intsFormatOut, fieldNameFormatOutTokenLength, returnType, fieldSerializer, runtime, fmatOutBodyBuilder);
 
                     if (primitive) {
                         if (firstFlag) {
@@ -146,20 +147,20 @@ final class JSONPojoSerializerCodeGen {
                                 // bool
                                 compactBodyBuilder.append("\t\tif(" + valueVar + ") {\n");
                                 if (nameEqualUnderlineName) {
-                                    compactBodyBuilder.append("\t\t\twriter.write(\"\\\"" + valueVar + "\\\":true\");\n");
+                                    compactBodyBuilder.append("\t\t\twriter.write(\"\\\"" + fieldKey + "\\\":true\");\n");
                                 } else {
                                     compactBodyBuilder.append("\t\t\tif (unCamelCaseToUnderline) {\n");
-                                    compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":true\");\n");
+                                    compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + fieldKey + "\\\":true\");\n");
                                     compactBodyBuilder.append("\t\t\t} else {\n");
                                     compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + underlineName + "\\\":true\");\n");
                                     compactBodyBuilder.append("\t\t\t}\n");
                                 }
                                 compactBodyBuilder.append("\t\t} else {\n");
                                 if (nameEqualUnderlineName) {
-                                    compactBodyBuilder.append("\t\t\twriter.write(\"\\\"" + valueVar + "\\\":false\");\n");
+                                    compactBodyBuilder.append("\t\t\twriter.write(\"\\\"" + fieldKey + "\\\":false\");\n");
                                 } else {
                                     compactBodyBuilder.append("\t\t\tif (unCamelCaseToUnderline) {\n");
-                                    compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":false\");\n");
+                                    compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + fieldKey + "\\\":false\");\n");
                                     compactBodyBuilder.append("\t\t\t} else {\n");
                                     compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + underlineName + "\\\":false\");\n");
                                     compactBodyBuilder.append("\t\t\t}\n");
@@ -194,11 +195,11 @@ final class JSONPojoSerializerCodeGen {
                                             compactBodyBuilder.append("\t\twriter.writeJSONToken(':');\n");
                                         }
                                     } else {
-                                        compactBodyBuilder.append("\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
+                                        compactBodyBuilder.append("\t\twriter.write(\"\\\"" + fieldKey + "\\\":\");\n");
                                     }
                                 } else {
                                     compactBodyBuilder.append("\t\tif (unCamelCaseToUnderline) {\n");
-                                    compactBodyBuilder.append("\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
+                                    compactBodyBuilder.append("\t\t\twriter.write(\"\\\"" + fieldKey + "\\\":\");\n");
                                     compactBodyBuilder.append("\t\t} else {\n");
                                     compactBodyBuilder.append("\t\t\twriter.write(\"\\\"" + underlineName + "\\\":\");\n");
                                     compactBodyBuilder.append("\t\t}\n");
@@ -245,7 +246,7 @@ final class JSONPojoSerializerCodeGen {
                                                 compactBodyBuilder.append("\t\t\twriter.writeJSONToken('e');\n");
                                             }
                                         } else {
-                                            compactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + valueVar + "\\\":true\");\n");
+                                            compactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + fieldKey + "\\\":true\");\n");
                                         }
                                     } else {
                                         compactBodyBuilder.append("\t\t\tif (unCamelCaseToUnderline) {\n");
@@ -275,7 +276,7 @@ final class JSONPojoSerializerCodeGen {
                                                 compactBodyBuilder.append("\t\t\t\twriter.writeJSONToken('e');\n");
                                             }
                                         } else {
-                                            compactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":true\");\n");
+                                            compactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + fieldKey + "\\\":true\");\n");
                                         }
                                         compactBodyBuilder.append("\t\t\t} else {\n");
                                         compactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + underlineName + "\\\":true\");\n");
@@ -309,7 +310,7 @@ final class JSONPojoSerializerCodeGen {
                                                 compactBodyBuilder.append("\t\t\twriter.writeJSONToken('e');\n");
                                             }
                                         } else {
-                                            compactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + valueVar + "\\\":false\");\n");
+                                            compactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + fieldKey + "\\\":false\");\n");
                                         }
                                     } else {
                                         compactBodyBuilder.append("\t\t\tif (unCamelCaseToUnderline) {\n");
@@ -339,7 +340,7 @@ final class JSONPojoSerializerCodeGen {
                                                 compactBodyBuilder.append("\t\t\t\twriter.writeJSONToken('e');\n");
                                             }
                                         } else {
-                                            compactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":false\");\n");
+                                            compactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + fieldKey + "\\\":false\");\n");
                                         }
                                         compactBodyBuilder.append("\t\t\t} else {\n");
                                         compactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + underlineName + "\\\":false\");\n");
@@ -376,21 +377,21 @@ final class JSONPojoSerializerCodeGen {
                                                 compactBodyBuilder.append("\t\t\t\twriter.writeJSONToken('e');\n");
                                             }
                                         } else {
-                                            compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":true\");\n");
+                                            compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + fieldKey + "\\\":true\");\n");
                                         }
                                     } else {
                                         compactBodyBuilder.append("\t\t\t\tif (unCamelCaseToUnderline) {\n");
-                                        compactBodyBuilder.append("\t\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":true\");\n");
+                                        compactBodyBuilder.append("\t\t\t\t\twriter.write(\"\\\"" + fieldKey + "\\\":true\");\n");
                                         compactBodyBuilder.append("\t\t\t\t} else {\n");
                                         compactBodyBuilder.append("\t\t\t\t\twriter.write(\"\\\"" + underlineName + "\\\":true\");\n");
                                         compactBodyBuilder.append("\t\t\t\t}\n");
                                     }
                                     compactBodyBuilder.append("\t\t\t} else {\n");
                                     if (nameEqualUnderlineName) {
-                                        compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":false\");\n");
+                                        compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + fieldKey + "\\\":false\");\n");
                                     } else {
                                         compactBodyBuilder.append("\t\t\t\tif (unCamelCaseToUnderline) {\n");
-                                        compactBodyBuilder.append("\t\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":false\");\n");
+                                        compactBodyBuilder.append("\t\t\t\t\twriter.write(\"\\\"" + fieldKey + "\\\":false\");\n");
                                         compactBodyBuilder.append("\t\t\t\t} else {\n");
                                         compactBodyBuilder.append("\t\t\t\t\twriter.write(\"\\\"" + underlineName + "\\\":false\");\n");
                                         compactBodyBuilder.append("\t\t\t\t}\n");
@@ -425,21 +426,21 @@ final class JSONPojoSerializerCodeGen {
                                                 compactBodyBuilder.append("\t\t\t\twriter.writeJSONToken('e');\n");
                                             }
                                         } else {
-                                            compactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":true\");\n");
+                                            compactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + fieldKey + "\\\":true\");\n");
                                         }
                                     } else {
                                         compactBodyBuilder.append("\t\t\t\tif (unCamelCaseToUnderline) {\n");
-                                        compactBodyBuilder.append("\t\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":true\");\n");
+                                        compactBodyBuilder.append("\t\t\t\t\twriter.write(\",\\\"" + fieldKey + "\\\":true\");\n");
                                         compactBodyBuilder.append("\t\t\t\t} else {\n");
                                         compactBodyBuilder.append("\t\t\t\t\twriter.write(\",\\\"" + underlineName + "\\\":true\");\n");
                                         compactBodyBuilder.append("\t\t\t\t}\n");
                                     }
                                     compactBodyBuilder.append("\t\t\t} else {\n");
                                     if (nameEqualUnderlineName) {
-                                        compactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":false\");\n");
+                                        compactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + fieldKey + "\\\":false\");\n");
                                     } else {
                                         compactBodyBuilder.append("\t\t\t\tif (unCamelCaseToUnderline) {\n");
-                                        compactBodyBuilder.append("\t\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":false\");\n");
+                                        compactBodyBuilder.append("\t\t\t\t\twriter.write(\",\\\"" + fieldKey + "\\\":false\");\n");
                                         compactBodyBuilder.append("\t\t\t\t} else {\n");
                                         compactBodyBuilder.append("\t\t\t\t\twriter.write(\",\\\"" + underlineName + "\\\":false\");\n");
                                         compactBodyBuilder.append("\t\t\t\t}\n");
@@ -476,7 +477,7 @@ final class JSONPojoSerializerCodeGen {
                                                 compactBodyBuilder.append("\t\twriter.writeJSONToken(':');\n");
                                             }
                                         } else {
-                                            compactBodyBuilder.append("\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
+                                            compactBodyBuilder.append("\t\twriter.write(\",\\\"" + fieldKey + "\\\":\");\n");
                                         }
                                     } else {
                                         compactBodyBuilder.append("\t\tif (unCamelCaseToUnderline) {\n");
@@ -506,7 +507,7 @@ final class JSONPojoSerializerCodeGen {
                                                 compactBodyBuilder.append("\t\t\twriter.writeJSONToken(':');\n");
                                             }
                                         } else {
-                                            compactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
+                                            compactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + fieldKey + "\\\":\");\n");
                                         }
                                         compactBodyBuilder.append("\t\t} else {\n");
                                         compactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + underlineName + "\\\":\");\n");
@@ -541,7 +542,7 @@ final class JSONPojoSerializerCodeGen {
                                                 compactBodyBuilder.append("\t\t\twriter.writeJSONToken(':');\n");
                                             }
                                         } else {
-                                            compactBodyBuilder.append("\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
+                                            compactBodyBuilder.append("\t\t\twriter.write(\"\\\"" + fieldKey + "\\\":\");\n");
                                         }
                                     } else {
                                         compactBodyBuilder.append("\t\t\tif (unCamelCaseToUnderline) {\n");
@@ -571,7 +572,7 @@ final class JSONPojoSerializerCodeGen {
                                                 compactBodyBuilder.append("\t\t\t\twriter.writeJSONToken(':');\n");
                                             }
                                         } else {
-                                            compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
+                                            compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + fieldKey + "\\\":\");\n");
                                         }
                                         compactBodyBuilder.append("\t\t\t} else {\n");
                                         compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + underlineName + "\\\":\");\n");
@@ -605,7 +606,7 @@ final class JSONPojoSerializerCodeGen {
                                                 compactBodyBuilder.append("\t\t\twriter.writeJSONToken(':');\n");
                                             }
                                         } else {
-                                            compactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
+                                            compactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + fieldKey + "\\\":\");\n");
                                         }
                                     } else {
                                         compactBodyBuilder.append("\t\t\tif (unCamelCaseToUnderline) {\n");
@@ -635,7 +636,7 @@ final class JSONPojoSerializerCodeGen {
                                                 compactBodyBuilder.append("\t\t\t\twriter.writeJSONToken(':');\n");
                                             }
                                         } else {
-                                            compactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
+                                            compactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + fieldKey + "\\\":\");\n");
                                         }
                                         compactBodyBuilder.append("\t\t\t} else {\n");
                                         compactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + underlineName + "\\\":\");\n");
@@ -686,7 +687,7 @@ final class JSONPojoSerializerCodeGen {
                                         compactBodyBuilder.append("\t\t\twriter.writeJSONToken(':');\n");
                                     }
                                 } else {
-                                    compactBodyBuilder.append("\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
+                                    compactBodyBuilder.append("\t\t\twriter.write(\"\\\"" + fieldKey + "\\\":\");\n");
                                 }
                             } else {
                                 compactBodyBuilder.append("\t\t\tif (unCamelCaseToUnderline) {\n");
@@ -716,7 +717,7 @@ final class JSONPojoSerializerCodeGen {
                                         compactBodyBuilder.append("\t\t\t\twriter.writeJSONToken(':');\n");
                                     }
                                 } else {
-                                    compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
+                                    compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + fieldKey + "\\\":\");\n");
                                 }
                                 compactBodyBuilder.append("\t\t\t} else {\n");
                                 compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + underlineName + "\\\":\");\n");
@@ -752,7 +753,7 @@ final class JSONPojoSerializerCodeGen {
                                             compactBodyBuilder.append("\t\t\twriter.writeJSONToken(':');\n");
                                         }
                                     } else {
-                                        compactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
+                                        compactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + fieldKey + "\\\":\");\n");
                                     }
                                 } else {
                                     compactBodyBuilder.append("\t\t\tif (unCamelCaseToUnderline) {\n");
@@ -782,7 +783,7 @@ final class JSONPojoSerializerCodeGen {
                                             compactBodyBuilder.append("\t\t\t\twriter.writeJSONToken(':');\n");
                                         }
                                     } else {
-                                        compactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
+                                        compactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + fieldKey + "\\\":\");\n");
                                     }
                                     compactBodyBuilder.append("\t\t\t} else {\n");
                                     compactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + underlineName + "\\\":\");\n");
@@ -818,7 +819,7 @@ final class JSONPojoSerializerCodeGen {
                                             compactBodyBuilder.append("\t\t\t\twriter.writeJSONToken(':');\n");
                                         }
                                     } else {
-                                        compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
+                                        compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + fieldKey + "\\\":\");\n");
                                     }
                                 } else {
                                     compactBodyBuilder.append("\t\t\t\tif (unCamelCaseToUnderline) {\n");
@@ -848,7 +849,7 @@ final class JSONPojoSerializerCodeGen {
                                             compactBodyBuilder.append("\t\t\t\t\twriter.writeJSONToken(':');\n");
                                         }
                                     } else {
-                                        compactBodyBuilder.append("\t\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
+                                        compactBodyBuilder.append("\t\t\t\t\twriter.write(\"\\\"" + fieldKey + "\\\":\");\n");
                                     }
                                     compactBodyBuilder.append("\t\t\t\t} else {\n");
                                     compactBodyBuilder.append("\t\t\t\t\twriter.write(\"\\\"" + underlineName + "\\\":\");\n");
@@ -882,7 +883,7 @@ final class JSONPojoSerializerCodeGen {
                                             compactBodyBuilder.append("\t\t\t\twriter.writeJSONToken(':');\n");
                                         }
                                     } else {
-                                        compactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
+                                        compactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + fieldKey + "\\\":\");\n");
                                     }
                                 } else {
                                     compactBodyBuilder.append("\t\t\t\tif (unCamelCaseToUnderline) {\n");
@@ -912,7 +913,7 @@ final class JSONPojoSerializerCodeGen {
                                             compactBodyBuilder.append("\t\t\t\t\twriter.writeJSONToken(':');\n");
                                         }
                                     } else {
-                                        compactBodyBuilder.append("\t\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
+                                        compactBodyBuilder.append("\t\t\t\t\twriter.write(\",\\\"" + fieldKey + "\\\":\");\n");
                                     }
                                     compactBodyBuilder.append("\t\t\t\t} else {\n");
                                     compactBodyBuilder.append("\t\t\t\t\twriter.write(\",\\\"" + underlineName + "\\\":\");\n");
@@ -1029,15 +1030,15 @@ final class JSONPojoSerializerCodeGen {
                     } else {
                         fmatOutBodyBuilder.append("\t\tObject " + valueVar + " = invokeValue(" + fieldSerializerName + ", entity);\n");
                     }
-                    generateSerializeFieldFormatOutCode(ensureNotEmptyFlag, primitive, fieldSerializerName, valueVar, nameEqualUnderlineName, underlineName, useUnsafe, longsFormatOut, intsFormatOut, fieldNameFormatOutTokenLength, returnType, fieldSerializer, runtime, fmatOutBodyBuilder);
+                    generateSerializeFieldFormatOutCode(ensureNotEmptyFlag, primitive, fieldSerializerName, fieldKey, valueVar, nameEqualUnderlineName, underlineName, useUnsafe, longsFormatOut, intsFormatOut, fieldNameFormatOutTokenLength, returnType, fieldSerializer, runtime, fmatOutBodyBuilder);
 
                     compactBodyBuilder.append("\t\tif(" + valueVar + " != null) {\n");
                     if (firstFlag) {
                         if (nameEqualUnderlineName) {
-                            compactBodyBuilder.append("\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
+                            compactBodyBuilder.append("\t\t\twriter.write(\"\\\"" + fieldKey + "\\\":\");\n");
                         } else {
                             compactBodyBuilder.append("\t\t\tif (unCamelCaseToUnderline) {\n");
-                            compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
+                            compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + fieldKey + "\\\":\");\n");
                             compactBodyBuilder.append("\t\t\t} else {\n");
                             compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + underlineName + "\\\":\");\n");
                             compactBodyBuilder.append("\t\t\t}\n");
@@ -1046,10 +1047,10 @@ final class JSONPojoSerializerCodeGen {
                     } else {
                         if (ensureNotEmptyFlag) {
                             if (nameEqualUnderlineName) {
-                                compactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
+                                compactBodyBuilder.append("\t\t\twriter.write(\",\\\"" + fieldKey + "\\\":\");\n");
                             } else {
                                 compactBodyBuilder.append("\t\t\tif (unCamelCaseToUnderline) {\n");
-                                compactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
+                                compactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + fieldKey + "\\\":\");\n");
                                 compactBodyBuilder.append("\t\t\t} else {\n");
                                 compactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + underlineName + "\\\":\");\n");
                                 compactBodyBuilder.append("\t\t\t}\n");
@@ -1058,23 +1059,23 @@ final class JSONPojoSerializerCodeGen {
                             if (nameEqualUnderlineName) {
                                 compactBodyBuilder.append("\t\t\tif(isEmptyFlag) {\n");
                                 compactBodyBuilder.append("\t\t\t\tisEmptyFlag = false;\n");
-                                compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
+                                compactBodyBuilder.append("\t\t\t\twriter.write(\"\\\"" + fieldKey + "\\\":\");\n");
                                 compactBodyBuilder.append("\t\t\t} else {\n");
-                                compactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
+                                compactBodyBuilder.append("\t\t\t\twriter.write(\",\\\"" + fieldKey + "\\\":\");\n");
                                 compactBodyBuilder.append("\t\t\t}\n");
                             } else {
                                 compactBodyBuilder.append("\t\t\tif(isEmptyFlag) {\n");
                                 compactBodyBuilder.append("\t\t\t\tisEmptyFlag = false;\n");
 
                                 compactBodyBuilder.append("\t\t\t\tif (unCamelCaseToUnderline) {\n");
-                                compactBodyBuilder.append("\t\t\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
+                                compactBodyBuilder.append("\t\t\t\t\twriter.write(\"\\\"" + fieldKey + "\\\":\");\n");
                                 compactBodyBuilder.append("\t\t\t\t} else {\n");
                                 compactBodyBuilder.append("\t\t\t\t\twriter.write(\"\\\"" + underlineName + "\\\":\");\n");
                                 compactBodyBuilder.append("\t\t\t\t}\n");
 
                                 compactBodyBuilder.append("\t\t\t} else {\n");
                                 compactBodyBuilder.append("\t\t\t\tif (unCamelCaseToUnderline) {\n");
-                                compactBodyBuilder.append("\t\t\t\t\twriter.write(\",\\\"" + valueVar + "\\\":\");\n");
+                                compactBodyBuilder.append("\t\t\t\t\twriter.write(\",\\\"" + fieldKey + "\\\":\");\n");
                                 compactBodyBuilder.append("\t\t\t\t} else {\n");
                                 compactBodyBuilder.append("\t\t\t\t\twriter.write(\",\\\"" + underlineName + "\\\":\");\n");
                                 compactBodyBuilder.append("\t\t\t\t}\n");
@@ -1148,7 +1149,7 @@ final class JSONPojoSerializerCodeGen {
         return new JavaSourceObject(packageName, genClassName, code);
     }
 
-    private static void generateSerializeFieldFormatOutCode(boolean ensureNotEmptyFlag, boolean primitive, String fieldSerializerName, String valueVar, boolean nameEqualUnderlineName, String underlineName, boolean useUnsafe, long[] longsFormatOut, int[] intsFormatOut, int fieldNameFormatOutTokenLength, Class<?> returnType, JSONPojoFieldSerializer fieldSerializer, boolean runtime, StringBuilder fmatOutBodyBuilder) {
+    private static void generateSerializeFieldFormatOutCode(boolean ensureNotEmptyFlag, boolean primitive, String fieldSerializerName, String fieldKey, String valueVar, boolean nameEqualUnderlineName, String underlineName, boolean useUnsafe, long[] longsFormatOut, int[] intsFormatOut, int fieldNameFormatOutTokenLength, Class<?> returnType, JSONPojoFieldSerializer fieldSerializer, boolean runtime, StringBuilder fmatOutBodyBuilder) {
         boolean checkNullFlag = !primitive;
         String tabFlag = checkNullFlag ? "\t" : "";
         if (checkNullFlag) {
@@ -1194,7 +1195,7 @@ final class JSONPojoSerializerCodeGen {
                     fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeJSONToken(':');\n");
                 }
             } else {
-                fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
+                fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.write(\"\\\"" + fieldKey + "\\\":\");\n");
             }
         } else {
             fmatOutBodyBuilder.append(tabFlag).append("\t\tif(unCamelCaseToUnderline) {\n");
@@ -1224,7 +1225,7 @@ final class JSONPojoSerializerCodeGen {
                     fmatOutBodyBuilder.append(tabFlag).append("\t\t\twriter.writeJSONToken(':');\n");
                 }
             } else {
-                fmatOutBodyBuilder.append(tabFlag).append("\t\t\twriter.write(\"\\\"" + valueVar + "\\\":\");\n");
+                fmatOutBodyBuilder.append(tabFlag).append("\t\t\twriter.write(\"\\\"" + fieldKey + "\\\":\");\n");
             }
             fmatOutBodyBuilder.append(tabFlag).append("\t\t} else {\n");
             fmatOutBodyBuilder.append(tabFlag).append("\t\t\twriter.write(\"\\\"" + underlineName + "\\\":\");\n");

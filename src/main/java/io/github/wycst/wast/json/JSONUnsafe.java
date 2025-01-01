@@ -1039,6 +1039,16 @@ final class JSONUnsafe {
         }
     }
 
+    static String createAsciiString(byte[] asciiBytes) {
+        try {
+            String result = (String) UNSAFE.allocateInstance(String.class);
+            UNSAFE.putObject(result, STRING_VALUE_OFFSET, asciiBytes);
+            return result;
+        } catch (InstantiationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     static byte[] getStringUTF8Bytes(String value) {
         if (EnvUtils.JDK_9_PLUS) {
             byte[] bytes = (byte[]) getStringValue(value.toString());

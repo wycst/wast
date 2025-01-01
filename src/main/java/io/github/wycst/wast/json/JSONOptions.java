@@ -49,9 +49,6 @@ final class JSONOptions {
                 case WriteNumberAsString:
                     jsonConfig.setWriteNumberAsString(true);
                     break;
-//                case WriteDecimalUseToString:
-//                    jsonConfig.setWriteDecimalUseToString(true);
-//                    break;
                 case SkipCircularReference:
                     jsonConfig.setSkipCircularReference(true);
                     break;
@@ -113,9 +110,6 @@ final class JSONOptions {
                 case UseBigDecimalAsDefault:
                     parseContext.useBigDecimalAsDefault = true;
                     break;
-//                case UseJDKDoubleParser:
-//                    parseContext.useJDKDoubleParser = true;
-//                    break;
                 case UnMatchedEmptyAsNull:
                     parseContext.unMatchedEmptyAsNull = true;
                     break;

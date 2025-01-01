@@ -26,13 +26,12 @@ public class ElVariableInvoker implements ElInvoker {
     // index pos
     int index;
     int tailIndex;
-
+//    int usages = 1;
     // Parent or Up one level
     ElVariableInvoker parent;
     // is last or not ?
     boolean tail;
-    boolean hasChildren;
-
+//    boolean hasChildren;
     ElVariableInvoker(String key) {
         this.key = key;
     }
@@ -109,9 +108,9 @@ public class ElVariableInvoker implements ElInvoker {
         Object target;
         try {
             Class<?> contextClass = context.getClass();
-            ValueInvokeHolder localHoder = this.invokeHolder;
-            if (contextClass == localHoder.targetClass) {
-                target = localHoder.valueInvoke.getValue(context);
+            ValueInvokeHolder localHolder = this.invokeHolder;
+            if (contextClass == localHolder.targetClass) {
+                target = localHolder.valueInvoke.getValue(context);
             } else {
                 // create
                 ValueInvoke valueInvoke;
@@ -145,37 +144,9 @@ public class ElVariableInvoker implements ElInvoker {
             if (context == null) {
                 throw new IllegalArgumentException(String.format("Unresolved field '%s' for target obj is null or not exist in the context ", key));
             }
-            throw new IllegalArgumentException(String.format("Unresolved field '%s' from %s, resion: %s", key, context.getClass(), throwable.getMessage()), throwable);
+            throw new IllegalArgumentException(String.format("Unresolved field '%s' from %s", key, context.getClass(), throwable));
         }
     }
-
-//    /**
-//     * <p> 获取上下文的值,暂时支持pojo对象和map
-//     * <p> 此方法没有安全问题；
-//     *
-//     * @param context
-//     * @return
-//     */
-//    final Object invokeValueSafely(Object context) {
-//        if (context == null) return null;
-//        Object target;
-//        if (context instanceof Map) {
-//            target = ((Map) context).get(key);
-//        } else {
-//            Class<?> contextClass = context.getClass();
-//            GetterInfo getterInfo = null;
-//            try {
-//                getterInfo = ClassStrucWrap.get(contextClass).getGetterInfo(key);
-//                target = getterInfo.invoke(context);
-//            } catch (RuntimeException throwable) {
-//                if (getterInfo == null) {
-//                    throw new IllegalArgumentException(String.format("Unresolved field '%s' %s", key, contextClass.toString()));
-//                }
-//                throw throwable;
-//            }
-//        }
-//        return target;
-//    }
 
     ElVariableInvoker index(int index) {
         this.index = index;
@@ -211,10 +182,10 @@ public class ElVariableInvoker implements ElInvoker {
         return false;
     }
 
-    @Override
-    public int size() {
-        return 1;
-    }
+//    @Override
+//    public int size() {
+//        return 1;
+//    }
 
     /**
      * Variable root node
@@ -424,7 +395,7 @@ public class ElVariableInvoker implements ElInvoker {
         Object getValue(T context);
     }
 
-    static class MapImpl implements ValueInvoke<Map<String, Object>> {
+    final static class MapImpl implements ValueInvoke<Map<String, Object>> {
         private final String key;
 
         MapImpl(String key) {

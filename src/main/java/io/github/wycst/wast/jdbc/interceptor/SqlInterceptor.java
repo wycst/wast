@@ -1,5 +1,7 @@
 package io.github.wycst.wast.jdbc.interceptor;
 
+import io.github.wycst.wast.jdbc.executer.SqlExecuteContext;
+
 /**
  * @Author: wangy
  * @Date: 2021/8/7 10:52
@@ -12,18 +14,17 @@ public abstract class SqlInterceptor {
      *
      * @param sql
      * @param params
-     * @param methodName
+     * @param executeContext
      */
-    public abstract void before(String sql, Object params, String methodName);
+    public abstract void before(String sql, Object params, SqlExecuteContext executeContext);
 
     /**
      * sql执行之后
      *
      * @param sql
      * @param params
-     * @param methodName
-     * @param result     sql结果
+     * @param executeContext
      * @return
      */
-    public abstract Object after(String sql, Object params, String methodName, Object result);
+    public abstract Object after(String sql, Object params, SqlExecuteContext executeContext);
 }

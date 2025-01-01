@@ -75,8 +75,8 @@ public interface OqlExecuter {
      * 查询总数
      *
      * @param entityCls
-     * @return
      * @param <E>
+     * @return
      */
     public <E> long queryCount(Class<E> entityCls);
 
@@ -106,8 +106,8 @@ public interface OqlExecuter {
      * @param cls
      * @param query
      * @param params
-     * @return
      * @param <E>
+     * @return
      */
     public <E> long queryCount(Class<E> cls, OqlQuery query, Object params);
 
@@ -229,8 +229,8 @@ public interface OqlExecuter {
      * 查询分页
      *
      * @param page
-     * @return
      * @param <E>
+     * @return
      */
     public <E> Page<E> queryPage(Page<E> page);
 
@@ -305,8 +305,8 @@ public interface OqlExecuter {
      * @param query
      * @param entity
      * @param fields
-     * @return
      * @param <E>
+     * @return
      */
     <E> int updateBy(Class<E> entityCls, OqlQuery query, E entity, String... fields);
 
@@ -317,10 +317,10 @@ public interface OqlExecuter {
      * @param query
      * @param params
      * @param fields
-     * @return
      * @param <E>
+     * @return
      */
-    <E> int updateBy(Class<E> entityCls, OqlQuery query, Map<String,Object> params, String... fields);
+    <E> int updateBy(Class<E> entityCls, OqlQuery query, Map<String, Object> params, String... fields);
 
     /**
      * 更新对象（排除字段）
@@ -328,8 +328,8 @@ public interface OqlExecuter {
      * @param e
      * @param isExclude
      * @param fields
-     * @return
      * @param <E>
+     * @return
      */
     <E> int updateFields(E e, boolean isExclude, String... fields);
 

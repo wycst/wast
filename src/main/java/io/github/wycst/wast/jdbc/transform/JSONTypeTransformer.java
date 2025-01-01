@@ -4,7 +4,6 @@ import io.github.wycst.wast.json.JSON;
 
 /**
  * JSON转换器
- *
  */
 public class JSONTypeTransformer extends TypeTransformer {
 

@@ -27,7 +27,7 @@ final class JSONTypeExtensionDesr {
         }
 
         @Override
-        protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
+        protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
             final char beginChar = buf[fromIndex], next;
             int offset = fromIndex + 1;
             if (beginChar == DOUBLE_QUOTATION || beginChar == '\'') {
@@ -51,7 +51,7 @@ final class JSONTypeExtensionDesr {
                     throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', deserialize UUID fail");
                 }
             } else if (beginChar == 'n') {
-                return parseNull(buf, fromIndex, toIndex, jsonParseContext);
+                return parseNull(buf, fromIndex, jsonParseContext);
             }
 
             String errorContextTextAt = createErrorContextText(buf, fromIndex);
@@ -59,7 +59,7 @@ final class JSONTypeExtensionDesr {
         }
 
         @Override
-        protected Object deserialize(CharSource charSource, byte[] bytes, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext jsonParseContext) throws Exception {
+        protected Object deserialize(CharSource charSource, byte[] bytes, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext jsonParseContext) throws Exception {
             final byte beginByte = bytes[fromIndex], next;
             int offset = fromIndex + 1;
             if (beginByte == DOUBLE_QUOTATION || beginByte == '\'') {
@@ -83,7 +83,7 @@ final class JSONTypeExtensionDesr {
                     throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', deserialize UUID fail");
                 }
             } else if (beginByte == 'n') {
-                return parseNull(bytes, fromIndex, toIndex, jsonParseContext);
+                return parseNull(bytes, fromIndex, jsonParseContext);
             }
 
             String errorContextTextAt = createErrorContextText(bytes, fromIndex);
@@ -99,14 +99,14 @@ final class JSONTypeExtensionDesr {
         }
 
         @Override
-        protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
-            String urlString = (String) CHAR_SEQUENCE_STRING.deserialize(charSource, buf, fromIndex, toIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
+        protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
+            String urlString = (String) CHAR_SEQUENCE_STRING.deserialize(charSource, buf, fromIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
             return new URL(urlString);
         }
 
         @Override
-        protected Object deserialize(CharSource charSource, byte[] bytes, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext jsonParseContext) throws Exception {
-            String urlString = (String) CHAR_SEQUENCE_STRING.deserialize(charSource, bytes, fromIndex, toIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
+        protected Object deserialize(CharSource charSource, byte[] bytes, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext jsonParseContext) throws Exception {
+            String urlString = (String) CHAR_SEQUENCE_STRING.deserialize(charSource, bytes, fromIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
             return new URL(urlString);
         }
     }
@@ -118,14 +118,14 @@ final class JSONTypeExtensionDesr {
         }
 
         @Override
-        protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
-            String urlString = (String) CHAR_SEQUENCE_STRING.deserialize(charSource, buf, fromIndex, toIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
+        protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
+            String urlString = (String) CHAR_SEQUENCE_STRING.deserialize(charSource, buf, fromIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
             return new URI(urlString);
         }
 
         @Override
-        protected Object deserialize(CharSource charSource, byte[] bytes, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext jsonParseContext) throws Exception {
-            String urlString = (String) CHAR_SEQUENCE_STRING.deserialize(charSource, bytes, fromIndex, toIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
+        protected Object deserialize(CharSource charSource, byte[] bytes, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext jsonParseContext) throws Exception {
+            String urlString = (String) CHAR_SEQUENCE_STRING.deserialize(charSource, bytes, fromIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
             return new URI(urlString);
         }
     }

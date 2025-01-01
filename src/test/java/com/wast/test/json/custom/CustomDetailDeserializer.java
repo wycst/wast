@@ -14,7 +14,7 @@ import java.util.Map;
 public class CustomDetailDeserializer extends JsonDeserializer<Map> {
 
     @Override
-    public Map deserialize(Object value, String source, JSONParseContext parseContext) throws Exception {
+    public Map deserialize(Object value, String source) throws Exception {
         System.out.println(value);
 
         Map map = new HashMap();

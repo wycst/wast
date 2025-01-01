@@ -20,7 +20,7 @@ final class JSONValidator extends JSONGeneral {
         if (EnvUtils.JDK_9_PLUS) {
             byte[] bytes = (byte[]) JSONUnsafe.getStringValue(json);
             if (bytes.length == json.length()) {
-                return validate(AsciiStringSource.of(json, bytes), bytes, readOptions);
+                return validate(AsciiStringSource.of(json), bytes, readOptions);
             } else {
                 char[] chars = json.toCharArray();
                 return validate(UTF16ByteArraySource.of(json), chars, readOptions);
@@ -35,7 +35,7 @@ final class JSONValidator extends JSONGeneral {
             String json = new String(buf);
             byte[] bytes = (byte[]) JSONUnsafe.getStringValue(json);
             if (bytes.length == json.length()) {
-                return validate(AsciiStringSource.of(json, bytes), bytes, readOptions);
+                return validate(AsciiStringSource.of(json), bytes, readOptions);
             } else {
                 return validate(UTF16ByteArraySource.of(json), buf, readOptions);
             }
@@ -45,7 +45,7 @@ final class JSONValidator extends JSONGeneral {
 
     public static boolean validate(byte[] buf, ReadOption[] readOptions) {
         if (EnvUtils.JDK_9_PLUS) {
-            return validate(AsciiStringSource.of(buf), buf, readOptions);
+            return validate(AsciiStringSource.of(JSONUnsafe.createAsciiString(buf)), buf, readOptions);
         }
         return validate(null, buf, readOptions);
     }
@@ -59,50 +59,50 @@ final class JSONValidator extends JSONGeneral {
         while ((toIndex > fromIndex) && chars[toIndex - 1] <= ' ') {
             toIndex--;
         }
-        JSONParseContext jsonParseContext = new JSONParseContext();
-        JSONOptions.readOptions(readOptions, jsonParseContext);
-        jsonParseContext.validate = true;
+        JSONParseContext parseContext = new JSONParseContext();
+        JSONOptions.readOptions(readOptions, parseContext);
+        parseContext.validate = true;
         try {
-            final boolean allowComment = jsonParseContext.allowComment;
+            final boolean allowComment = parseContext.allowComment;
             if (allowComment && beginChar == '/') {
-                fromIndex = clearCommentAndWhiteSpaces(chars, fromIndex + 1, toIndex, jsonParseContext);
+                fromIndex = clearCommentAndWhiteSpaces(chars, fromIndex + 1, parseContext);
                 beginChar = chars[fromIndex];
             }
             boolean validate = true;
             switch (beginChar) {
                 case '{':
-                    validate = JSONTypeDeserializer.MAP.validate(source, chars, fromIndex, toIndex, (char) 0, jsonParseContext);
+                    validate = JSONTypeDeserializer.MAP.validate(source, chars, fromIndex, toIndex, (char) 0, parseContext);
                     break;
                 case '[':
-                    validate = JSONTypeDeserializer.COLLECTION.validate(source, chars, fromIndex, toIndex, (char) 0, jsonParseContext);
+                    validate = JSONTypeDeserializer.COLLECTION.validate(source, chars, fromIndex, toIndex, (char) 0, parseContext);
                     break;
                 case '\'':
                 case '"':
-                    JSONTypeDeserializer.CHAR_SEQUENCE_STRING.skip(source, chars, fromIndex, beginChar, jsonParseContext);
+                    JSONTypeDeserializer.CHAR_SEQUENCE_STRING.skip(source, chars, fromIndex, beginChar, parseContext);
                     break;
                 default:
                     try {
                         switch (beginChar) {
                             case 't': {
-                                JSONTypeDeserializer.parseTrue(chars, fromIndex, toIndex, jsonParseContext);
+                                JSONTypeDeserializer.parseTrue(chars, fromIndex, parseContext);
                                 break;
                             }
                             case 'f': {
-                                JSONTypeDeserializer.parseFalse(chars, fromIndex, toIndex, jsonParseContext);
+                                JSONTypeDeserializer.parseFalse(chars, fromIndex, parseContext);
                                 break;
                             }
                             case 'n': {
-                                JSONTypeDeserializer.parseNull(chars, fromIndex, toIndex, jsonParseContext);
+                                JSONTypeDeserializer.parseNull(chars, fromIndex, parseContext);
                                 break;
                             }
                             default: {
                                 char[] numBuf = Arrays.copyOfRange(chars, fromIndex, toIndex + 1);
                                 numBuf[numBuf.length - 1] = ',';
-                                JSONTypeDeserializer.NUMBER_SKIPPER.deserialize(source, numBuf, 0, numBuf.length, jsonParseContext.useBigDecimalAsDefault ? GenericParameterizedType.BigDecimalType : GenericParameterizedType.AnyType, null, ',', jsonParseContext);
+                                JSONTypeDeserializer.NUMBER_SKIPPER.deserialize(source, numBuf, 0, parseContext.useBigDecimalAsDefault ? GenericParameterizedType.BigDecimalType : GenericParameterizedType.AnyType, null, ',', parseContext);
                                 toIndex = numBuf.length - 1;
                             }
                         }
-                        if (jsonParseContext.validateFail) {
+                        if (parseContext.validateFail) {
                             return false;
                         }
                     } catch (Throwable throwable) {
@@ -112,13 +112,13 @@ final class JSONValidator extends JSONGeneral {
             if (!validate) {
                 return false;
             }
-            int endIndex = jsonParseContext.endIndex;
+            int endIndex = parseContext.endIndex;
             if (allowComment) {
                 if (endIndex < toIndex - 1) {
                     char commentStart = '\0';
                     while (endIndex + 1 < toIndex && (commentStart = (char) chars[++endIndex]) <= ' ') ;
                     if (commentStart == '/') {
-                        endIndex = clearCommentAndWhiteSpaces(chars, endIndex + 1, toIndex, jsonParseContext);
+                        endIndex = clearCommentAndWhiteSpaces(chars, endIndex + 1, parseContext);
                     }
                 }
             }
@@ -126,7 +126,7 @@ final class JSONValidator extends JSONGeneral {
         } catch (Exception ex) {
             return false;
         } finally {
-            jsonParseContext.clear();
+            parseContext.clear();
         }
     }
 
@@ -139,50 +139,50 @@ final class JSONValidator extends JSONGeneral {
         while ((toIndex > fromIndex) && bytes[toIndex - 1] <= ' ') {
             toIndex--;
         }
-        JSONParseContext jsonParseContext = new JSONParseContext();
-        JSONOptions.readOptions(readOptions, jsonParseContext);
-        jsonParseContext.validate = true;
+        JSONParseContext parseContext = new JSONParseContext();
+        JSONOptions.readOptions(readOptions, parseContext);
+        parseContext.validate = true;
         try {
-            boolean allowComment = jsonParseContext.allowComment;
+            boolean allowComment = parseContext.allowComment;
             if (allowComment && beginByte == '/') {
-                fromIndex = clearCommentAndWhiteSpaces(bytes, fromIndex + 1, toIndex, jsonParseContext);
+                fromIndex = clearCommentAndWhiteSpaces(bytes, fromIndex + 1, parseContext);
                 beginByte = bytes[fromIndex];
             }
             boolean validate = true;
             switch (beginByte) {
                 case '{':
-                    validate = JSONTypeDeserializer.MAP.validate(source, bytes, fromIndex, toIndex, JSONGeneral.ZERO, jsonParseContext);
+                    validate = JSONTypeDeserializer.MAP.validate(source, bytes, fromIndex, toIndex, JSONGeneral.ZERO, parseContext);
                     break;
                 case '[':
-                    validate = JSONTypeDeserializer.COLLECTION.validate(source, bytes, fromIndex, toIndex, JSONGeneral.ZERO, jsonParseContext);
+                    validate = JSONTypeDeserializer.COLLECTION.validate(source, bytes, fromIndex, toIndex, JSONGeneral.ZERO, parseContext);
                     break;
                 case '\'':
                 case '"':
-                    JSONTypeDeserializer.CHAR_SEQUENCE_STRING.skip(source, bytes, fromIndex, beginByte, jsonParseContext);
+                    JSONTypeDeserializer.CHAR_SEQUENCE_STRING.skip(source, bytes, fromIndex, beginByte, parseContext);
                     break;
                 default:
                     try {
                         switch (beginByte) {
                             case 't': {
-                                JSONTypeDeserializer.parseTrue(bytes, fromIndex, toIndex, jsonParseContext);
+                                JSONTypeDeserializer.parseTrue(bytes, fromIndex, parseContext);
                                 break;
                             }
                             case 'f': {
-                                JSONTypeDeserializer.parseFalse(bytes, fromIndex, toIndex, jsonParseContext);
+                                JSONTypeDeserializer.parseFalse(bytes, fromIndex, parseContext);
                                 break;
                             }
                             case 'n': {
-                                JSONTypeDeserializer.parseNull(bytes, fromIndex, toIndex, jsonParseContext);
+                                JSONTypeDeserializer.parseNull(bytes, fromIndex, parseContext);
                                 break;
                             }
                             default: {
                                 byte[] numBuf = Arrays.copyOfRange(bytes, fromIndex, toIndex + 1);
                                 numBuf[numBuf.length - 1] = ',';
-                                JSONTypeDeserializer.NUMBER_SKIPPER.deserialize(source, numBuf, 0, numBuf.length, jsonParseContext.useBigDecimalAsDefault ? GenericParameterizedType.BigDecimalType : GenericParameterizedType.AnyType, null, (byte) ',', jsonParseContext);
+                                JSONTypeDeserializer.NUMBER_SKIPPER.deserialize(source, numBuf, 0, parseContext.useBigDecimalAsDefault ? GenericParameterizedType.BigDecimalType : GenericParameterizedType.AnyType, null, (byte) ',', parseContext);
                                 toIndex = numBuf.length - 1;
                             }
                         }
-                        if (jsonParseContext.validateFail) {
+                        if (parseContext.validateFail) {
                             return false;
                         }
                     } catch (Throwable throwable) {
@@ -192,13 +192,13 @@ final class JSONValidator extends JSONGeneral {
             if (!validate) {
                 return false;
             }
-            int endIndex = jsonParseContext.endIndex;
+            int endIndex = parseContext.endIndex;
             if (allowComment) {
                 if (endIndex < toIndex - 1) {
                     char commentStart = '\0';
                     while (endIndex + 1 < toIndex && (commentStart = (char) bytes[++endIndex]) <= ' ') ;
                     if (commentStart == '/') {
-                        endIndex = clearCommentAndWhiteSpaces(bytes, endIndex + 1, toIndex, jsonParseContext);
+                        endIndex = clearCommentAndWhiteSpaces(bytes, endIndex + 1, parseContext);
                     }
                 }
             }
@@ -206,7 +206,7 @@ final class JSONValidator extends JSONGeneral {
         } catch (Exception ex) {
             return false;
         } finally {
-            jsonParseContext.clear();
+            parseContext.clear();
         }
     }
 }

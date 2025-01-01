@@ -30,6 +30,17 @@ public final class JSONNodeContext extends JSONParseContext {
     private JSONKeyValueMap<String> KEY_32_TABLE;
     static final JSONKeyValueMap<String> GLOBAL_KEY_8_TABLE = new JSONKeyValueMap<String>(2048);
 
+    // Using an independent writer does not interfere with the impact on concurrent serialization
+    @Override
+    JSONCharArrayWriter getContextWriter() {
+        if (writer == null) {
+            writer = new JSONCharArrayWriter(256);
+        } else {
+            writer.clear();
+        }
+        return writer;
+    }
+
     static String getString(char[] chars, int offset, int len) {
         if (len <= 8) {
             long h = 0;

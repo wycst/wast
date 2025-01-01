@@ -74,7 +74,6 @@ abstract class JSONAbstractReader extends JSONGeneral {
     final JSONParseContext parseContext = new JSONParseContext();
     final StringBuilder writer = new StringBuilder();
     ReadOption[] readOptions = new ReadOption[0];
-    GenericParameterizedType genericType;
     Object result;
     boolean reading;
     boolean closed;
@@ -85,7 +84,6 @@ abstract class JSONAbstractReader extends JSONGeneral {
     boolean async;
     long timeout = 60000;
     long currentThreadId;
-
     boolean multiple;
 
     public void setOptions(ReadOption... readOptions) {
@@ -116,8 +114,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
     }
 
     public <T> T readAsResult(GenericParameterizedType<T> genericType) {
-        this.genericType = genericType;
-        this.executeReadStream();
+        this.executeReadStream(genericType);
         return (T) result;
     }
 
@@ -136,14 +133,14 @@ abstract class JSONAbstractReader extends JSONGeneral {
         this.reading = true;
         if (!async) {
             // sync
-            this.executeReadStream();
+            this.executeReadStream(null);
         } else {
             // async
             this.async = true;
             this.currentThreadId = Thread.currentThread().getId();
             new Thread(new Runnable() {
                 public void run() {
-                    executeReadStream();
+                    executeReadStream(null);
                 }
             }).start();
         }
@@ -170,7 +167,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
                     break;
                 }
                 default:
-                    throw new UnsupportedOperationException("Character stream start character error. Only object({) or array([) parsing is supported");
+                    throw new JSONException("character stream start character error for '" + (char) current + "'. the start token is only supported  '{' or '[' on multiple mode");
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -194,18 +191,15 @@ abstract class JSONAbstractReader extends JSONGeneral {
     }
 
     private void checkReadState() {
-        if (this.closed) {
-            throw new UnsupportedOperationException("is closed");
-        }
-        if (this.aborted) {
-            throw new UnsupportedOperationException("is aborted");
+        if (this.closed || this.aborted) {
+            throw new UnsupportedOperationException("reader is closed or aborted");
         }
     }
 
-    private void executeReadStream() {
+    private void executeReadStream(GenericParameterizedType genericType) {
         try {
             this.readBuffer();
-            this.beginReadWithType();
+            this.beginReadWithType(genericType);
         } catch (Exception e) {
             throw new JSONException(e);
         } finally {
@@ -236,7 +230,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
                 return;
             }
             default:
-                throw new UnsupportedOperationException("Character stream start character error. Only object({) or array([) parsing is supported");
+                throw new JSONException("character stream start character error for '" + (char) current + "'. the start token is only supported  '{' or '[' on multiple mode");
         }
         // clear white space characters
         if (!multiple) {
@@ -247,15 +241,13 @@ abstract class JSONAbstractReader extends JSONGeneral {
         }
     }
 
-    private void beginReadWithType() throws Exception {
+    private void beginReadWithType(GenericParameterizedType genericType) throws Exception {
         clearWhitespaces();
         switch (current) {
             case '{':
-                this.checkAutoGenericObjectType();
                 this.result = this.readObject("", genericType);
                 break;
             case '[':
-                this.checkAutoGenericCollectionType();
                 this.result = this.readArray("", genericType);
                 break;
             case -1: {
@@ -278,60 +270,34 @@ abstract class JSONAbstractReader extends JSONGeneral {
         }
     }
 
-    private void checkAutoGenericCollectionType() {
-        if (this.genericType == null) {
-            this.genericType = GenericParameterizedType.collectionType(ArrayList.class, LinkedHashMap.class);
-        } else {
-            Class<?> actualType = genericType.getActualType();
-            if (!Collection.class.isAssignableFrom(actualType)) {
-                if (!actualType.isArray()) {
-                    this.genericType = GenericParameterizedType.collectionType(ArrayList.class, actualType);
-                }
-            }
-        }
-    }
-
-    private void checkAutoGenericObjectType() {
-        if (this.genericType == null) {
-            this.genericType = GenericParameterizedType.actualType(LinkedHashMap.class);
-        }
-    }
-
     private Object readObject() throws Exception {
         Map instance = new LinkedHashMap();
-        boolean empty = true;
         for (; ; ) {
             clearWhitespaces();
             if (current == '}') {
-                if (!empty && !parseContext.allowLastEndComma) {
-                    throw new JSONException("Syntax error, not allowed ',' followed by '}', pos " + pos);
-                }
+                // always supported last ','
                 return instance;
             }
             String key;
-            if (current == '"') {
-                empty = false;
+            if (current == '"' || current == '\'') {
+                final int token = current;
                 // find next "
                 this.beginReading(0);
                 // todo The reading logic is not rigorous enough and needs to be escaped
-                while (readNext() > -1 && current != '"') ;
+                while (readNext() > -1 && current != token) ;
                 key = endReadingAsString(-1);
                 clearWhitespaces();
                 if (current == ':') {
                     clearWhitespaces();
-                    Object value;
                     switch (current) {
                         case '{':
-                            value = this.readObject();
-                            instance.put(key, value);
+                            instance.put(key, readObject());
                             break;
                         case '[':
-                            value = this.readArray();
-                            instance.put(key, value);
+                            instance.put(key, readArray());
                             break;
                         case '"':
-                            value = this.readString();
-                            instance.put(key, value);
+                            instance.put(key, readString());
                             break;
                         case 'n':
                             this.readNull();
@@ -346,8 +312,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
                             instance.put(key, false);
                             break;
                         default:
-                            value = this.readNumber('}');
-                            instance.put(key, value);
+                            instance.put(key, this.readNumber('}'));
                             if (current == '}') {
                                 return instance;
                             } else {
@@ -543,64 +508,64 @@ abstract class JSONAbstractReader extends JSONGeneral {
     }
 
     private Object readArray() throws Exception {
-        Collection arrInstance = new ArrayList();
-        int elementIndex = 0;
+        Collection arrayList = new ArrayList();
+//        int elementIndex = 0;
         for (; ; ) {
             clearWhitespaces();
             if (current == ']') {
-                if (elementIndex > 0 && !parseContext.allowLastEndComma) {
-                    throw new JSONException("Syntax error, not allowed ',' followed by ']', pos " + pos);
-                }
-                return arrInstance;
+                // always supported  ',]'
+//                if (elementIndex > 0 && !parseContext.allowLastEndComma) {
+//                    throw new JSONException("Syntax error, not allowed ',' followed by ']', pos " + pos);
+//                }
+                return arrayList;
             }
             switch (current) {
                 case '{': {
                     Object value = this.readObject();
-                    arrInstance.add(value);
+                    arrayList.add(value);
                     break;
                 }
                 case '[': {
                     // 2 [ array
                     Object value = this.readArray();
-                    arrInstance.add(value);
+                    arrayList.add(value);
                     break;
                 }
                 case '"': {
                     String value = this.readString();
-                    arrInstance.add(value);
+                    arrayList.add(value);
                     break;
                 }
                 case 'n':
                     this.readNull();
-                    arrInstance.add(null);
+                    arrayList.add(null);
                     break;
                 case 't':
                     this.readTrue();
-                    arrInstance.add(true);
+                    arrayList.add(true);
                     break;
                 case 'f':
                     this.readFalse();
-                    arrInstance.add(false);
+                    arrayList.add(false);
                     break;
                 default: {
                     Number value = readNumber(']');
-                    arrInstance.add(value);
+                    arrayList.add(value);
                     if (current == ']') {
-                        return arrInstance;
+                        return arrayList;
                     } else {
                         continue;
                     }
                 }
             }
-
-            elementIndex++;
+            // elementIndex++;
             clearWhitespaces();
             // , or ]
             if (current == ',') {
                 continue;
             }
             if (current == ']') {
-                return arrInstance;
+                return arrayList;
             }
             if (current == -1) {
                 throw new JSONException("Syntax error, the closing symbol ']' is not found, end pos: " + pos);
@@ -615,116 +580,114 @@ abstract class JSONAbstractReader extends JSONGeneral {
      * @throws Exception
      */
     Object readObject(String path, GenericParameterizedType genericType) throws Exception {
-
         Object instance;
         Map map = null;
-        boolean assignableFromMap = true;
         ClassStrucWrap classStrucWrap = null;
-        boolean externalImpl = readerHook != null;
-        GenericParameterizedType ofValueType = null;
-        if (!externalImpl) {
-            if (genericType != null) {
-                Class<?> actualType = genericType.getActualType();
-                ReflectConsts.ClassCategory classCategory = genericType.getActualClassCategory();
-                if (classCategory == ReflectConsts.ClassCategory.MapCategory || classCategory == ReflectConsts.ClassCategory.ANY) {
-                    assignableFromMap = true;
-                    instance = map = createMapInstance(genericType);
-                    ofValueType = genericType.getValueType();
-                } else if (classCategory == ReflectConsts.ClassCategory.ObjectCategory) {
-                    assignableFromMap = false;
-                    classStrucWrap = ClassStrucWrap.get(actualType);
-                    if (classStrucWrap == null) {
-                        throw new UnsupportedOperationException(actualType + " is not supported ");
+        final boolean useHook = readerHook != null;
+        GenericParameterizedType valueType = null;
+        boolean useHookValueParse = useHook && genericType == null;
+        do {
+            if (genericType == null) {
+                if (useHook) {
+                    if (!readerHook.filter(path, 1)) {
+                        skipObject();
+                        return null;
                     }
-                    instance = classStrucWrap.newInstance();
+                    genericType = readerHook.getParameterizedType(path);
+                    if (genericType == null) {
+                        instance = readerHook.createdMap(path);
+                        break;
+                    }
+                    useHookValueParse = false;
                 } else {
-                    throw new UnsupportedOperationException(actualType + " is not supported ");
+                    instance = map = new LinkedHashMap();
+                    break;
                 }
-            } else {
+            }
+            Class<?> actualType = genericType.getActualType();
+            ReflectConsts.ClassCategory classCategory = genericType.getActualClassCategory();
+            if (classCategory == ReflectConsts.ClassCategory.ObjectCategory) {
+                classStrucWrap = ClassStrucWrap.get(actualType);
+                if (classStrucWrap == null) {
+                    throw new UnsupportedOperationException(actualType + " is not supported the path: " + path);
+                }
+                instance = classStrucWrap.newInstance();
+            } else if (classCategory == ReflectConsts.ClassCategory.MapCategory) {
+                instance = map = createMapInstance(genericType);
+                valueType = genericType.getValueType();
+            } else if(classCategory == ReflectConsts.ClassCategory.ANY) {
                 instance = map = new LinkedHashMap();
+                valueType = genericType.getValueType();
+            } else {
+                throw new UnsupportedOperationException(actualType + " is not supported the path: " + path);
             }
-        } else {
-            if (!readerHook.filter(path, 1)) {
-                skipObject();
-                return null;
-            }
-            instance = readerHook.created(path, 1);
-        }
-
-        boolean empty = true;
+        } while (false);
         for (; ; ) {
             clearWhitespaces();
             if (current == '}') {
-                if (!empty && !parseContext.allowLastEndComma) {
-                    throw new JSONException("Syntax error, not allowed ',' followed by '}', pos " + pos);
-                }
+                // always supported last ','
                 return instance;
             }
             String key;
-            if (current == '"') {
-                empty = false;
-                // find next "
+            if (current == '"' || current == '\'') {
+                final int token = current;
                 this.beginReading(0);
-                while (readNext() > -1 && current != '"') ;
+                while (readNext() > -1 && current != token) ;
                 key = endReadingAsString(-1);
-                // 解析value
                 clearWhitespaces();
                 if (current == ':') {
                     clearWhitespaces();
                     Object value;
                     boolean toBreakOrContinue = false;
-
-                    GenericParameterizedType valueType = ofValueType == null ? null : ofValueType;
                     SetterInfo setterInfo = null;
                     JsonProperty jsonProperty = null;
                     // if skip value
                     boolean isSkipValue = false;
-                    if (!externalImpl && !assignableFromMap) {
+                    if (classStrucWrap != null) {
                         setterInfo = classStrucWrap.getSetterInfo(key);
                         isSkipValue = setterInfo == null;
                         if (!isSkipValue) {
                             jsonProperty = (JsonProperty) setterInfo.getAnnotation(JsonProperty.class);
                             valueType = setterInfo.getGenericParameterizedType();
                         }
-                    } else {
-
                     }
                     if (isSkipValue) {
                         this.skipValue('}');
                     } else {
-                        String nextPath = externalImpl ? path + "/" + key : null;
+                        String nextPath = useHook ? path + "/" + key : null;
+                        // boolean useHookValueParse = useHook && setterInfo == null;
                         switch (current) {
                             case '{':
                                 value = this.readObject(nextPath, valueType);
-                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, map, instance, setterInfo, JSONNode.OBJECT);
+                                invokeValueOfObject(useHookValueParse, key, value, map, instance, setterInfo, nextPath, JSONNode.OBJECT);
                                 break;
                             case '[':
                                 value = this.readArray(nextPath, valueType);
-                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, map, instance, setterInfo, JSONNode.ARRAY);
+                                invokeValueOfObject(useHookValueParse, key, value, map, instance, setterInfo, nextPath, JSONNode.ARRAY);
                                 break;
                             case '"':
                                 value = parseStringTo(this.readString(), valueType, jsonProperty);
-                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, map, instance, setterInfo, JSONNode.STRING);
+                                invokeValueOfObject(useHookValueParse, key, value, map, instance, setterInfo, nextPath, JSONNode.STRING);
                                 break;
                             case 'n':
                                 readNull();
-                                invokeValueOfObject(key, null, nextPath, externalImpl, assignableFromMap, map, instance, setterInfo, JSONNode.NULL);
+                                invokeValueOfObject(useHookValueParse, key, null, map, instance, setterInfo, nextPath, JSONNode.NULL);
                                 break;
                             case 't':
                                 readTrue();
                                 value = toBoolType(true, valueType);
-                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, map, instance, setterInfo, JSONNode.BOOLEAN);
+                                invokeValueOfObject(useHookValueParse, key, value, map, instance, setterInfo, nextPath, JSONNode.BOOLEAN);
                                 break;
                             case 'f':
                                 readFalse();
                                 value = toBoolType(false, valueType);
-                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, map, instance, setterInfo, JSONNode.BOOLEAN);
+                                invokeValueOfObject(useHookValueParse, key, value, map, instance, setterInfo, nextPath, JSONNode.BOOLEAN);
                                 break;
                             default:
                                 // number
                                 value = parseNumberTo(this.readNumber('}'), valueType);
                                 toBreakOrContinue = true;
-                                invokeValueOfObject(key, value, nextPath, externalImpl, assignableFromMap, map, instance, setterInfo, JSONNode.NUMBER);
+                                invokeValueOfObject(useHookValueParse, key, value, map, instance, setterInfo, nextPath, JSONNode.NUMBER);
                                 break;
                         }
 
@@ -764,6 +727,144 @@ abstract class JSONAbstractReader extends JSONGeneral {
         return instance;
     }
 
+    final Object readArray(String path, GenericParameterizedType genericType) throws Exception {
+
+        Object instance = null;
+        Collection collection = null;
+        Class<?> collectionCls = null;
+        GenericParameterizedType valueType = null;
+        Class actualType = null;
+        boolean isArrayCls = false;
+        boolean useHook = readerHook != null;
+        boolean useHookValueParse = useHook && genericType == null;
+        do {
+            if (genericType == null) {
+                if (useHook) {
+                    if (!readerHook.filter(path, 2)) {
+                        skipArray();
+                        return null;
+                    }
+                    genericType = readerHook.getParameterizedType(path);
+                    if (genericType == null) {
+                        collection = readerHook.createdCollection(path);
+                        instance = collection;
+                        break;
+                    }
+                    useHookValueParse = false;
+                } else {
+                    if (collectionCls == null || collectionCls == ArrayList.class) {
+                        collection = new ArrayList<Object>();
+                    } else {
+                        isArrayCls = collectionCls.isArray();
+                        if (isArrayCls) {
+                            // arr用list先封装数据再转化为数组
+                            collection = new ArrayList<Object>();
+                            actualType = collectionCls.getComponentType();
+                            if (valueType == null) {
+                                valueType = GenericParameterizedType.actualType(actualType);
+                            }
+                        } else {
+                            collection = createCollectionInstance(collectionCls);
+                        }
+                    }
+                    instance = collection;
+                    break;
+                }
+            }
+
+            collectionCls = genericType.getActualType();
+            isArrayCls = collectionCls.isArray();
+            valueType = genericType.getValueType();
+            if(valueType == null) {
+                valueType = GenericParameterizedType.AnyType;
+            }
+            actualType = valueType.getActualType();
+            instance = collection = createCollectionInstance(collectionCls);
+        } while (false);
+
+        int elementIndex = 0;
+        for (; ; ) {
+            clearWhitespaces();
+            if (current == ']') {
+                // always supported ','
+                return isArrayCls ? CollectionUtils.toArray(collection, actualType == null ? Object.class : actualType) : collection;
+            }
+            boolean toBreakOrContinue = false;
+            String nextPath = useHook ? path + "/" + elementIndex : null;
+            // boolean useHookParse = useHook && genericType == null;
+            switch (current) {
+                case '{': {
+                    Object value = this.readObject(nextPath, valueType);
+                    this.parseCollectionElement(useHookValueParse, value, collection, instance, elementIndex, nextPath, JSONNode.OBJECT);
+                    break;
+                }
+                case '[': {
+                    // 2 [ array
+                    Object value = this.readArray(nextPath, valueType);
+                    this.parseCollectionElement(useHookValueParse, value, collection, instance, elementIndex, nextPath, JSONNode.ARRAY);
+                    break;
+                }
+                case '"': {
+                    // 3 string
+                    Object value = parseStringTo(this.readString(), valueType, null);
+                    this.parseCollectionElement(useHookValueParse, value, collection, instance, elementIndex, nextPath, JSONNode.STRING);
+                    break;
+                }
+                case 'n':
+                    readNull();
+                    this.parseCollectionElement(useHookValueParse, null, collection, instance, elementIndex, nextPath, JSONNode.NULL);
+                    break;
+                case 't': {
+                    readTrue();
+                    Object value = toBoolType(true, valueType);
+                    this.parseCollectionElement(useHookValueParse, value, collection, instance, elementIndex, nextPath, JSONNode.BOOLEAN);
+                    break;
+                }
+                case 'f': {
+                    readFalse();
+                    Object value = toBoolType(false, valueType);
+                    this.parseCollectionElement(useHookValueParse, value, collection, instance, elementIndex, nextPath, JSONNode.BOOLEAN);
+                    break;
+                }
+                default: {
+                    // null, boolean, number
+                    Object value = parseNumberTo(this.readNumber(']'), valueType);
+                    toBreakOrContinue = true;
+                    this.parseCollectionElement(useHookValueParse, value, collection, instance, elementIndex, nextPath, JSONNode.NUMBER);
+                    break;
+                }
+            }
+            // if aborted
+            if (isAborted()) {
+                return isArrayCls ? CollectionUtils.toArray(collection, actualType == null ? Object.class : actualType) : collection;
+            }
+            // supported abort
+            if (readerHook != null && readerHook.isAbored()) {
+                abortRead();
+                return isArrayCls ? CollectionUtils.toArray(collection, actualType == null ? Object.class : actualType) : collection;
+            }
+            elementIndex++;
+            if (!toBreakOrContinue) {
+                clearWhitespaces();
+            }
+            // , or ]
+            if (current == ']') {
+                break;
+            }
+            if (current == ',') {
+                continue;
+            }
+            if (current == -1) {
+                throw new JSONException("Syntax error, the closing symbol ']' is not found, end pos: " + pos);
+            }
+            throwUnexpectedException();
+        }
+        if (readerHook != null && readerHook.isAboredOnParsed(instance, path, 2)) {
+            abortRead();
+        }
+        return isArrayCls ? CollectionUtils.toArray(collection, actualType == null ? Object.class : actualType) : collection;
+    }
+
     private Object toBoolType(boolean b, GenericParameterizedType valueType) {
         if (valueType == null) return b;
         if (valueType.getActualClassCategory() == ReflectConsts.ClassCategory.BoolCategory) {
@@ -799,17 +900,13 @@ abstract class JSONAbstractReader extends JSONGeneral {
     }
 
     private void skipObject() throws Exception {
-        boolean empty = true;
         for (; ; ) {
             clearWhitespaces();
             if (current == '}') {
-                if (!empty && !parseContext.allowLastEndComma) {
-                    throw new JSONException("Syntax error, not allowed ',' followed by '}', pos " + pos);
-                }
+                // always supported ','
                 return;
             }
             if (current == '"') {
-                empty = false;
                 while (readNext() > -1 && current != '"') ;
                 clearWhitespaces();
                 if (current == ':') {
@@ -836,17 +933,13 @@ abstract class JSONAbstractReader extends JSONGeneral {
     }
 
     private void skipArray() throws Exception {
-        int elementIndex = 0;
         for (; ; ) {
             clearWhitespaces();
             if (current == ']') {
-                if (elementIndex > 0 && !parseContext.allowLastEndComma) {
-                    throw new JSONException("Syntax error, not allowed ',' followed by ']', pos " + pos);
-                }
+                // always supported ','
                 return;
             }
             this.skipValue(']');
-            elementIndex++;
             // , or ]
             if (current == ']') {
                 return;
@@ -880,7 +973,6 @@ abstract class JSONAbstractReader extends JSONGeneral {
                 return;
             }
         }
-        // maybe throw an exception
         throwUnexpectedException();
     }
 
@@ -921,7 +1013,6 @@ abstract class JSONAbstractReader extends JSONGeneral {
                 return values[ordinal];
             throw new JSONException("value " + numValue + " is mismatch enum " + actualType);
         }
-
         throw new JSONException("read simple value " + numValue + " is mismatch " + actualType);
     }
 
@@ -938,25 +1029,25 @@ abstract class JSONAbstractReader extends JSONGeneral {
         return deserializer.valueOf(value, actualType);
     }
 
-    private void invokeValueOfObject(String key, Object value, String nextPath, boolean externalImpl, boolean assignableFromMap, Map mapInstane, Object instance, SetterInfo setterInfo, int type) throws Exception {
-        if (!externalImpl) {
-            if (assignableFromMap) {
-                mapInstane.put(key, value);
+    private void invokeValueOfObject(boolean useHookParse, String key, Object value, Map map, Object instance, SetterInfo setterInfo, String nextPath, int type) throws Exception {
+        if (useHookParse) {
+            readerHook.parseValue(key, value, instance, -1, nextPath, type);
+        } else {
+            if (setterInfo != null) {
+                JSON_SECURE_TRUSTED_ACCESS.set(setterInfo, instance, value);
             } else {
-                if (setterInfo != null) {
-                    JSON_SECURE_TRUSTED_ACCESS.set(setterInfo, instance, value); // setterInfo.invoke(instance, value);
+                if (map != null) {
+                    map.put(key, value);
                 }
             }
-        } else {
-            readerHook.parseValue(key, value, instance, -1, nextPath, type);
         }
     }
 
-    private void parseCollectionElement(boolean externalImpl, Object value, Collection arrInstance, Object instance, int elementIndex, String nextPath, int type) throws Exception {
-        if (!externalImpl) {
-            arrInstance.add(value);
-        } else {
+    private void parseCollectionElement(boolean useHookParse, Object value, Collection collection, Object instance, int elementIndex, String nextPath, int type) throws Exception {
+        if (useHookParse) {
             readerHook.parseValue(null, value, instance, elementIndex, nextPath, type);
+        } else {
+            collection.add(value);
         }
     }
 
@@ -968,146 +1059,12 @@ abstract class JSONAbstractReader extends JSONGeneral {
         return aborted;
     }
 
-    final Object readArray(String path, GenericParameterizedType genericType) throws Exception {
-
-        Object instance;
-        Collection collection = null;
-        Class<?> collectionCls = null;
-        GenericParameterizedType valueType = null;
-        Class actualType = null;
-        boolean isArrayCls = false;
-        if (genericType != null) {
-            collectionCls = genericType.getActualType();
-            valueType = genericType.getValueType();
-            actualType = valueType == null ? null : valueType.getActualType();
-        }
-        boolean externalImpl = readerHook != null;
-        if (!externalImpl) {
-            if (collectionCls == null || collectionCls == ArrayList.class) {
-                collection = new ArrayList<Object>();
-            } else {
-                isArrayCls = collectionCls.isArray();
-                if (isArrayCls) {
-                    // arr用list先封装数据再转化为数组
-                    collection = new ArrayList<Object>();
-                    actualType = collectionCls.getComponentType();
-                    if (valueType == null) {
-                        valueType = GenericParameterizedType.actualType(actualType);
-                    }
-                } else {
-                    collection = createCollectionInstance(collectionCls);
-                }
-            }
-            instance = collection;
-        } else {
-            if (!readerHook.filter(path, 2)) {
-                skipArray();
-                return null;
-            }
-            instance = readerHook.created(path, 2);
-            collection = (Collection) instance;
-        }
-
-        int elementIndex = 0;
-        for (; ; ) {
-            clearWhitespaces();
-            if (current == ']') {
-                if (elementIndex > 0 && !parseContext.allowLastEndComma) {
-                    throw new JSONException("Syntax error, not allowed ',' followed by ']', pos " + pos);
-                }
-                return isArrayCls ? CollectionUtils.toArray(collection, actualType == null ? Object.class : actualType) : collection;
-            }
-
-            boolean toBreakOrContinue = false;
-            String nextPath = externalImpl ? path + "/" + elementIndex : null;
-
-            switch (current) {
-                case '{': {
-                    Object value = this.readObject(nextPath, valueType);
-                    this.parseCollectionElement(externalImpl, value, collection, instance, elementIndex, nextPath, JSONNode.OBJECT);
-                    break;
-                }
-                case '[': {
-                    // 2 [ array
-                    Object value = this.readArray(nextPath, valueType);
-                    this.parseCollectionElement(externalImpl, value, collection, instance, elementIndex, nextPath, JSONNode.ARRAY);
-                    break;
-                }
-                case '"': {
-                    // 3 string
-                    Object value = parseStringTo(this.readString(), valueType, null);
-                    this.parseCollectionElement(externalImpl, value, collection, instance, elementIndex, nextPath, JSONNode.STRING);
-                    break;
-                }
-                case 'n':
-                    readNull();
-                    this.parseCollectionElement(externalImpl, null, collection, instance, elementIndex, nextPath, JSONNode.NULL);
-                    break;
-                case 't': {
-                    readTrue();
-                    Object value = toBoolType(true, valueType);
-                    this.parseCollectionElement(externalImpl, value, collection, instance, elementIndex, nextPath, JSONNode.BOOLEAN);
-                    break;
-                }
-                case 'f': {
-                    readFalse();
-                    Object value = toBoolType(false, valueType);
-                    this.parseCollectionElement(externalImpl, value, collection, instance, elementIndex, nextPath, JSONNode.BOOLEAN);
-                    break;
-                }
-                default: {
-                    // null, boolean, number
-                    Object value = parseNumberTo(this.readNumber(']'), valueType);
-                    toBreakOrContinue = true;
-                    this.parseCollectionElement(externalImpl, value, collection, instance, elementIndex, nextPath, JSONNode.NUMBER);
-                    break;
-                }
-            }
-            // if aborted
-            if (isAborted()) {
-                return isArrayCls ? CollectionUtils.toArray(collection, actualType == null ? Object.class : actualType) : collection;
-            }
-            // supported abort
-            if (readerHook != null && readerHook.isAbored()) {
-                abortRead();
-                return isArrayCls ? CollectionUtils.toArray(collection, actualType == null ? Object.class : actualType) : collection;
-            }
-            elementIndex++;
-            if (!toBreakOrContinue) {
-                clearWhitespaces();
-            }
-            // , or ]
-            if (current == ']') {
-                break;
-            }
-            if (current == ',') {
-                continue;
-            }
-            if (current == -1) {
-                throw new JSONException("Syntax error, the closing symbol ']' is not found, end pos: " + pos);
-            }
-            throwUnexpectedException();
-        }
-        if (readerHook != null && readerHook.isAboredOnParsed(instance, path, 2)) {
-            abortRead();
-        }
-        return isArrayCls ? CollectionUtils.toArray(collection, actualType == null ? Object.class : actualType) : collection;
-    }
-
     /**
      * throw unexpected exception
      */
     final void throwUnexpectedException() {
         throw new JSONException("Syntax error, unexpected '" + (char) current + "', position " + pos);
     }
-
-//    /**
-//     * Starting from the current character (including the current character)
-//     */
-//    void beginCurrent() {
-//        // Every time a character is read, the offset will be+1, and the actual position of the current is offset -1
-//        this.beginReading(-1);
-//    }
 
     final String readString() throws Exception {
         // reset StringBuilder

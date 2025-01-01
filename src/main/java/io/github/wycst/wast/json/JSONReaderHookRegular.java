@@ -1,9 +1,6 @@
 package io.github.wycst.wast.json;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Pattern;
 
 /**
@@ -25,13 +22,15 @@ final class JSONReaderHookRegular extends JSONReaderHook {
     }
 
     @Override
-    protected Object created(String path, int type) throws Exception {
+    protected Map createdMap(String path) {
         if (onlyLeaf || !pattern.matcher(path).matches()) return null;
-        if ((type == 1)) {
-            return new LinkedHashMap();
-        } else {
-            return new ArrayList();
-        }
+        return new LinkedHashMap();
+    }
+
+    @Override
+    protected Collection createdCollection(String path) {
+        if (onlyLeaf || !pattern.matcher(path).matches()) return null;
+        return new ArrayList();
     }
 
     @Override

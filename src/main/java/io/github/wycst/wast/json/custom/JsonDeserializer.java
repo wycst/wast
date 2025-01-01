@@ -21,17 +21,17 @@ public abstract class JsonDeserializer<T> extends JSONTypeDeserializer {
     }
 
     @Override
-    protected final Object deserialize(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext parseContext) throws Exception {
-        Object value = JSONTypeDeserializer.doDeserialize(ANY, charSource, buf, fromIndex, toIndex, parameterizedType, defaultValue, endToken, parseContext);
+    protected final Object deserialize(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext parseContext) throws Exception {
+        Object value = doDeserialize(ANY, charSource, buf, fromIndex, parameterizedType, defaultValue, endToken, parseContext);
         int endIndex = parseContext.endIndex;
-        return deserialize(value, useSource ? new String(buf, fromIndex, endIndex - fromIndex) : null, null);
+        return deserialize(value, useSource ? new String(buf, fromIndex, endIndex - fromIndex) : null);
     }
 
     @Override
-    protected final Object deserialize(CharSource charSource, byte[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext parseContext) throws Exception {
-        Object value = JSONTypeDeserializer.doDeserialize(ANY, charSource, buf, fromIndex, toIndex, parameterizedType, defaultValue, endToken, parseContext);
+    protected final Object deserialize(CharSource charSource, byte[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext parseContext) throws Exception {
+        Object value = doDeserialize(ANY, charSource, buf, fromIndex, parameterizedType, defaultValue, endToken, parseContext);
         int endIndex = parseContext.endIndex;
-        return deserialize(value, useSource ? new String(buf, fromIndex, endIndex - fromIndex) : null, null);
+        return deserialize(value, useSource ? new String(buf, fromIndex, endIndex - fromIndex) : null);
     }
 
     /**
@@ -39,9 +39,8 @@ public abstract class JsonDeserializer<T> extends JSONTypeDeserializer {
      *
      * @param value
      * @param source
-     * @param parseContext
      * @return
      */
-    public abstract T deserialize(Object value, String source, JSONParseContext parseContext) throws Exception;
+    public abstract T deserialize(Object value, String source) throws Exception;
 
 }

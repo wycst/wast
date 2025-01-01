@@ -1,7 +1,6 @@
 package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
-import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import io.github.wycst.wast.common.utils.EnvUtils;
 import io.github.wycst.wast.json.exceptions.JSONException;
 import io.github.wycst.wast.json.options.ReadOption;
@@ -42,12 +41,12 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
         return this;
     }
 
-    protected final T deserialize(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object entity, char endToken, JSONParseContext jsonParseContext) throws Exception {
+    protected final T deserialize(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object entity, char endToken, JSONParseContext jsonParseContext) throws Exception {
         char beginChar = buf[fromIndex];
         if (beginChar == '{') {
-            return (T) deserializePojo(charSource, buf, fromIndex, toIndex, parameterizedType, entity, endToken, jsonParseContext);
+            return (T) deserializePojo(charSource, buf, fromIndex, parameterizedType, entity, jsonParseContext);
         } else if (beginChar == 'n') {
-            parseNull(buf, fromIndex, toIndex, jsonParseContext);
+            parseNull(buf, fromIndex, jsonParseContext);
             return null;
         } else {
             if (jsonParseContext.unMatchedEmptyAsNull && beginChar == '"' && buf[fromIndex + 1] == '"') {
@@ -60,12 +59,12 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
         }
     }
 
-    protected final T deserialize(CharSource charSource, byte[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object entity, byte endToken, JSONParseContext jsonParseContext) throws Exception {
+    protected final T deserialize(CharSource charSource, byte[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object entity, byte endToken, JSONParseContext jsonParseContext) throws Exception {
         byte beginByte = buf[fromIndex];
         if(beginByte == '{') {
-            return (T) deserializePojo(charSource, buf, fromIndex, toIndex, parameterizedType, entity, beginByte, jsonParseContext);
+            return (T) deserializePojo(charSource, buf, fromIndex, parameterizedType, entity, jsonParseContext);
         } else if(beginByte == 'n') {
-            parseNull(buf, fromIndex, toIndex, jsonParseContext);
+            parseNull(buf, fromIndex, jsonParseContext);
             return null;
         } else {
             if (jsonParseContext.unMatchedEmptyAsNull && beginByte == DOUBLE_QUOTATION && buf[fromIndex + 1] == DOUBLE_QUOTATION) {
@@ -82,7 +81,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
         return value;
     }
 
-    final Object deserializePojo(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object entity, char endToken, JSONParseContext jsonParseContext) throws Exception {
+    final Object deserializePojo(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object entity, JSONParseContext jsonParseContext) throws Exception {
         if (entity == null) {
             entity = createPojo();
         }
@@ -94,10 +93,9 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
             while ((ch = buf[++i]) <= ' ') ;
             if (allowComment) {
                 if (ch == '/') {
-                    ch = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext)];
+                    ch = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, jsonParseContext)];
                 }
             }
-            int fieldKeyFrom = i;
             JSONPojoFieldDeserializer fieldDeserializer;
             if (ch == '"') {
                 fieldDeserializer = fieldDeserializerMatcher.matchValue(charSource, buf, i + 1, '"', jsonParseContext);
@@ -159,13 +157,14 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                     }
                 } else {
                     if (jsonParseContext.allowUnquotedFieldNames) {
+                        final int from = i;
                         long hashValue = 0;
-                        while (i + 1 < toIndex && (ch = buf[++i]) != ':') {
+                        while (i + 1 < jsonParseContext.toIndex && (ch = buf[++i]) != ':') {
                             if (ch > ' ') {
                                 hashValue = fieldDeserializerMatcher.hash(hashValue, ch);
                             }
                         }
-                        fieldDeserializer = fieldDeserializerMatcher.getValue(buf, fieldKeyFrom, i, hashValue);
+                        fieldDeserializer = fieldDeserializerMatcher.getValue(buf, from, i, hashValue);
                         empty = false;
                     } else {
                         String errorContextTextAt = createErrorContextText(buf, i);
@@ -175,19 +174,17 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
             }
             if (allowComment) {
                 if (ch == '/') {
-                    ch = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext)];
+                    ch = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, jsonParseContext)];
                 }
             }
             if (ch == ':') {
-                // buf fieldKeyFrom fieldKeyTo
                 while ((buf[++i]) <= ' ') ;
                 if (allowComment) {
                     ch = buf[i];
                     if (ch == '/') {
-                        i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext);
+                        i = clearCommentAndWhiteSpaces(buf, i + 1, jsonParseContext);
                     }
                 }
-                // FieldDeserializer fieldDeserializer = getFieldDeserializer(buf, fieldKeyFrom, fieldKeyTo, isUnquotedFieldName, hashValue);
                 boolean isDeserialize = fieldDeserializer != null;
                 Object defaultFieldValue = null;
                 GenericParameterizedType valueType = null;
@@ -213,7 +210,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                             if (ch == '{') {
                                 // object
                                 // read first field if key is '@c' and value as the implClass
-                                String className = parseObjectClassName(charSource, buf, i, toIndex, jsonParseContext);
+                                String className = parseObjectClassName(charSource, buf, i, jsonParseContext);
                                 if (className == null) {
                                     // use DefaultFieldInstance
                                     if (jsonParseContext.useDefaultFieldInstance) {
@@ -238,7 +235,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                                             while ((ch = buf[++i]) <= ' ') ;
                                             Object value;
                                             if (ch == ',') {
-                                                value = fieldPojoDeserializer.deserializePojo(charSource, buf, i, toIndex, valueType, null, '}', jsonParseContext);
+                                                value = fieldPojoDeserializer.deserializePojo(charSource, buf, i, valueType, null, jsonParseContext);
                                                 i = jsonParseContext.endIndex;
                                             } else if (ch == '}') {
                                                 value = pojo(fieldPojoDeserializer.createPojo());
@@ -265,7 +262,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                                     }
                                 }
                             } else {
-                                Object value = ANY.deserialize(charSource, buf, i, toIndex, null, null, '}', jsonParseContext);
+                                Object value = ANY.deserialize(charSource, buf, i, null, null, '}', jsonParseContext);
                                 if (fieldDeserializer.isInstance(value)) {
                                     setFieldValue((T) entity, fieldDeserializer, value);
                                     i = jsonParseContext.endIndex;
@@ -286,10 +283,10 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                 }
 
                 if (isDeserialize) {
-                    Object value = deserializer.deserialize(charSource, buf, i, toIndex, valueType, defaultFieldValue, '}', jsonParseContext);
+                    Object value = deserializer.deserialize(charSource, buf, i, valueType, defaultFieldValue, '}', jsonParseContext);
                     setFieldValue((T) entity, fieldDeserializer, value);
                 } else {
-                    JSONTypeDeserializer.ANY.skip(charSource, buf, i, toIndex, '}', jsonParseContext);
+                    JSONTypeDeserializer.ANY.skip(charSource, buf, i, '}', jsonParseContext);
                 }
                 i = jsonParseContext.endIndex;
                 int endChar = jsonParseContext.endToken;
@@ -297,7 +294,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                     while ((ch = buf[++i]) <= ' ') ;
                     if (allowComment) {
                         if (ch == '/') {
-                            ch = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext)];
+                            ch = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, jsonParseContext)];
                         }
                     }
                 } else {
@@ -320,7 +317,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
         }
     }
 
-    final Object deserializePojo(CharSource charSource, byte[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object entity, byte endToken, JSONParseContext jsonParseContext) throws Exception {
+    final Object deserializePojo(CharSource charSource, byte[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object entity, JSONParseContext jsonParseContext) throws Exception {
         if (entity == null) {
             entity = createPojo();
         }
@@ -332,10 +329,9 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
             while ((b = buf[++i]) <= WHITE_SPACE) ;
             if (allowComment) {
                 if (b == '/') {
-                    b = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext)];
+                    b = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, jsonParseContext)];
                 }
             }
-            int fieldKeyFrom = i;
             JSONPojoFieldDeserializer fieldDeserializer = null;
             if (b == DOUBLE_QUOTATION) {
                 fieldDeserializer = fieldDeserializerMatcher.matchValue(charSource, buf, ++i, DOUBLE_QUOTATION, jsonParseContext);
@@ -397,13 +393,14 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                     }
                 } else {
                     if (jsonParseContext.allowUnquotedFieldNames) {
+                        final int from = i;
                         long hashValue = 0;
-                        while (i + 1 < toIndex && buf[++i] != ':') {
+                        while (i + 1 < jsonParseContext.toIndex && buf[++i] != ':') {
                             if (b > ' ') {
                                 hashValue = fieldDeserializerMatcher.hash(hashValue, b);
                             }
                         }
-                        fieldDeserializer = fieldDeserializerMatcher.getValue(buf, fieldKeyFrom, i, hashValue);
+                        fieldDeserializer = fieldDeserializerMatcher.getValue(buf, from, i, hashValue);
                         empty = false;
                     }
                 }
@@ -413,19 +410,17 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
             }
             if (allowComment) {
                 if (b == '/') {
-                    b = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext)];
+                    b = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, jsonParseContext)];
                 }
             }
             if (b == COLON_SIGN) {
-                // buf fieldKeyFrom fieldKeyTo
                 while ((buf[++i]) <= WHITE_SPACE) ;
                 if (allowComment) {
                     b = buf[i];
                     if (b == '/') {
-                        i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext);
+                        i = clearCommentAndWhiteSpaces(buf, i + 1, jsonParseContext);
                     }
                 }
-                // FieldDeserializer fieldDeserializer = getFieldDeserializer(buf, fieldKeyFrom, fieldKeyTo, isUnquotedFieldName, hashValue);
                 boolean isDeserialize = fieldDeserializer != null;
                 Object defaultFieldValue = null;
                 GenericParameterizedType valueType = null;
@@ -450,7 +445,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                             if (b == '{') {
                                 // object
                                 // read first field if key is '@c' and value as the implClass
-                                String className = parseObjectClassName(charSource, buf, i, toIndex, jsonParseContext);
+                                String className = parseObjectClassName(charSource, buf, i, jsonParseContext);
                                 if (className == null) {
                                     // use DefaultFieldInstance
                                     if (jsonParseContext.useDefaultFieldInstance) {
@@ -475,7 +470,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                                             while ((b = buf[++i]) <= ' ') ;
                                             Object value;
                                             if (b == ',') {
-                                                value = fieldPojoDeserializer.deserializePojo(charSource, buf, i, toIndex, valueType, null, (byte) '}', jsonParseContext);
+                                                value = fieldPojoDeserializer.deserializePojo(charSource, buf, i, valueType, null, jsonParseContext);
                                                 i = jsonParseContext.endIndex;
                                             } else if (b == '}') {
                                                 value = pojo(fieldPojoDeserializer.createPojo());
@@ -502,7 +497,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                                     }
                                 }
                             } else {
-                                Object value = ANY.deserialize(charSource, buf, i, toIndex, null, null, (byte) '}', jsonParseContext);
+                                Object value = ANY.deserialize(charSource, buf, i, null, null, (byte) '}', jsonParseContext);
                                 if (fieldDeserializer.isInstance(value)) {
                                     setFieldValue((T) entity, fieldDeserializer, value);
                                     i = jsonParseContext.endIndex;
@@ -522,10 +517,10 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                     }
                 }
                 if (isDeserialize) {
-                    Object value = deserializer.deserialize(charSource, buf, i, toIndex, valueType, defaultFieldValue, END_OBJECT, jsonParseContext);
+                    Object value = deserializer.deserialize(charSource, buf, i, valueType, defaultFieldValue, END_OBJECT, jsonParseContext);
                     setFieldValue((T) entity, fieldDeserializer, value);
                 } else {
-                    JSONTypeDeserializer.ANY.skip(charSource, buf, i, toIndex, END_OBJECT, jsonParseContext);
+                    JSONTypeDeserializer.ANY.skip(charSource, buf, i, END_OBJECT, jsonParseContext);
                 }
                 i = jsonParseContext.endIndex;
                 int endChar = jsonParseContext.endToken;
@@ -533,7 +528,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                     while ((b = buf[++i]) <= WHITE_SPACE);
                     if (allowComment) {
                         if (b == '/') {
-                            b = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, toIndex, jsonParseContext)];
+                            b = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, jsonParseContext)];
                         }
                     }
                 } else {
@@ -566,10 +561,10 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
 
     public final T deserialize(String json, ReadOption... options) {
         if (EnvUtils.JDK_9_PLUS) {
-            byte coder = UnsafeHelper.getStringCoder(json);
-            if (coder == 0) {
+            byte[] bytes = (byte[]) JSONUnsafe.getStringValue(json.toString());
+            if (bytes.length == json.length()) {
                 CharSource charSource = AsciiStringSource.of(json);
-                return deserialize(charSource, charSource.byteArray(), options);
+                return deserialize(charSource, bytes, options);
             } else {
                 char[] chars = getChars(json);
                 return deserialize(UTF16ByteArraySource.of(json), chars, options);
@@ -595,12 +590,13 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
         if (beginChar != '{') {
             throw new JSONException("The first non empty character is not '{'");
         }
-        JSONParseContext jsonParseContext = new JSONNodeContext();
-        JSONOptions.readOptions(options, jsonParseContext);
+        JSONParseContext parseContext = new JSONParseContext();
+        parseContext.toIndex = toIndex;
+        JSONOptions.readOptions(options, parseContext);
         T entity;
         try {
             entity = createPojo();
-            deserializePojo(charSource, buf, fromIndex, toIndex, genericType, entity, '}', jsonParseContext);
+            deserializePojo(charSource, buf, fromIndex, genericType, entity, parseContext);
         } catch (Throwable throwable) {
             handleCatchException(throwable, buf, toIndex);
             throw new JSONException(throwable.getMessage(), throwable);
@@ -626,12 +622,13 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
         if (beginByte != '{') {
             throw new JSONException("The first non empty character is not '{'");
         }
-        JSONParseContext jsonParseContext = new JSONNodeContext();
-        JSONOptions.readOptions(options, jsonParseContext);
+        JSONParseContext parseContext = new JSONNodeContext();
+        parseContext.toIndex = toIndex;
+        JSONOptions.readOptions(options, parseContext);
         T entity;
         try {
             entity = createPojo();
-            deserializePojo(charSource, buf, fromIndex, toIndex, genericType, entity, END_OBJECT, jsonParseContext);
+            deserializePojo(charSource, buf, fromIndex, genericType, entity, parseContext);
         } catch (Throwable throwable) {
             handleCatchException(throwable, buf, toIndex);
             throw new JSONException(throwable.getMessage(), throwable);

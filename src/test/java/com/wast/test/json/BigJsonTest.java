@@ -17,7 +17,7 @@ public class BigJsonTest {
     public static void main(String[] args) throws IOException {
 
         // download addr: https://codeload.github.com/zemirco/sf-city-lots-json/zip/refs/heads/master
-        File file = new File("D:\\sf-city-lots-json-master\\citylots.json");
+        File file = new File("e:\\tmp\\sf-city-lots-json-master\\citylots.json");
         BufferedReader reader = new BufferedReader(new FileReader(file));
 
         String line = null;

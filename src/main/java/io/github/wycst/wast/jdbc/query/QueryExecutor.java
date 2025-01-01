@@ -184,7 +184,8 @@ public final class QueryExecutor {
                             try {
                                 // fieldName.matches("(\\w|[$¥])+([.](\\w|[$¥])+)+")
                                 parseObjectField(fieldName, fieldValue, instance, classStrucWrap);
-                            } catch (Throwable throwable) {}
+                            } catch (Throwable throwable) {
+                            }
                         }
                     }
                 }

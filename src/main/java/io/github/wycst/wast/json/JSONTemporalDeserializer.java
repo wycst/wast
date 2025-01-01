@@ -75,7 +75,6 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
      *
      * @param buf
      * @param fromIndex
-     * @param toIndex
      * @param parameterizedType
      * @param defaultValue
      * @param endToken
@@ -84,7 +83,7 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
      * @throws Exception
      */
     @Override
-    protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
+    protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
         char beginChar = buf[fromIndex];
         switch (beginChar) {
             case '\'':
@@ -106,11 +105,11 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
                     }
                 }
             case 'n':
-                return parseNull(buf, fromIndex, toIndex, jsonParseContext);
+                return parseNull(buf, fromIndex, jsonParseContext);
             default: {
                 if(supportedTime()) {
                     try {
-                        long timestamp = (Long) NUMBER_LONG.deserialize(charSource, buf, fromIndex, toIndex, GenericParameterizedType.LongType, null, endToken, jsonParseContext);
+                        long timestamp = (Long) NUMBER_LONG.deserialize(charSource, buf, fromIndex, GenericParameterizedType.LongType, null, endToken, jsonParseContext);
                         return fromTime(timestamp);
                     } catch (Throwable throwable) {
                     }
@@ -127,7 +126,6 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
      *
      * @param buf
      * @param fromIndex
-     * @param toIndex
      * @param parameterizedType
      * @param defaultValue
      * @param endToken
@@ -136,7 +134,7 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
      * @throws Exception
      */
     @Override
-    protected Object deserialize(CharSource charSource, byte[] buf, int fromIndex, int toIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext jsonParseContext) throws Exception {
+    protected Object deserialize(CharSource charSource, byte[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext jsonParseContext) throws Exception {
         byte beginByte = buf[fromIndex];
         char beginChar = (char) beginByte;
         switch (beginChar) {
@@ -145,7 +143,7 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
                 if(patternType == 0) {
                     return deserializeDefaultTemporal(buf, fromIndex + 1, beginChar, jsonParseContext);
                 } else {
-                    CHAR_SEQUENCE_STRING.skip(charSource, buf, fromIndex, beginChar, jsonParseContext);
+                    CHAR_SEQUENCE_STRING.skip(charSource, buf, fromIndex, beginByte, jsonParseContext);
                     int endIndex = jsonParseContext.endIndex;
                     try {
                         return deserializeTemporal(buf, fromIndex, endIndex, jsonParseContext);
@@ -159,12 +157,12 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
                     }
                 }
             case 'n':
-                return parseNull(buf, fromIndex, toIndex, jsonParseContext);
+                return parseNull(buf, fromIndex, jsonParseContext);
             default: {
                 if(supportedTime()) {
                     try {
                         // long
-                        long timestamp = (Long) NUMBER_LONG.deserialize(charSource, buf, fromIndex, toIndex, GenericParameterizedType.LongType, null, endToken, jsonParseContext);
+                        long timestamp = (Long) NUMBER_LONG.deserialize(charSource, buf, fromIndex, GenericParameterizedType.LongType, null, endToken, jsonParseContext);
                         return fromTime(timestamp);
                     } catch (Throwable throwable) {
                     }

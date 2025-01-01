@@ -37,5 +37,5 @@ public interface ElInvoker {
 
     void internKey();
 
-    int size();
+//    int size();
 }

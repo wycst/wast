@@ -1,9 +1,6 @@
 package io.github.wycst.wast.json;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * @Date 2024/10/9 14:04
@@ -18,15 +15,13 @@ final class JSONReaderHookExact extends JSONReaderHook {
     }
 
     @Override
-    protected Object created(String path, int type) throws Exception {
-        if (path.startsWith(exactPath)) {
-            if ((type == 1)) {
-                return new LinkedHashMap();
-            } else {
-                return new ArrayList();
-            }
-        }
-        return null;
+    protected Map createdMap(String path) {
+        return path.equals(exactPath) ? new LinkedHashMap() : null;
+    }
+
+    @Override
+    protected Collection createdCollection(String path) {
+        return path.equals(exactPath) ? new ArrayList() : null;
     }
 
     @Override

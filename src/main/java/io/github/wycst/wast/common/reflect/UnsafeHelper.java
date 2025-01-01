@@ -488,4 +488,27 @@ public final class UnsafeHelper {
         }
         return -1;
     }
+
+    public static final long NEGATIVE_MASK = 0x8080808080808080L;
+
+    public static boolean hasNegativesUnsafe(byte[] bytes, int offset, int len) {
+        if (offset > -1 && offset + len <= bytes.length) {
+            if (len > 7) {
+                do {
+                    long val = UNSAFE.getLong(bytes, BYTE_ARRAY_OFFSET + offset);
+                    if ((val & NEGATIVE_MASK) != 0) return true;
+                    offset += 8;
+                    len -= 8;
+                } while (len > 7);
+                if (len == 0) return false;
+                return (UNSAFE.getLong(bytes, BYTE_ARRAY_OFFSET + offset + len - 8) & NEGATIVE_MASK) != 0;
+            } else {
+                for (int i = offset, end = offset + len; i < end; ++i) {
+                    if (bytes[i] < 0) return true;
+                }
+                return false;
+            }
+        }
+        throw new IndexOutOfBoundsException("offset " + offset);
+    }
 }

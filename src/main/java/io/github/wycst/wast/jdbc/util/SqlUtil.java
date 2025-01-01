@@ -170,20 +170,20 @@ public class SqlUtil {
             while ((line = bufferedReader.readLine()) != null) {
                 builder.append(line).append("\r\n");
                 String trimLine = line.trim();
-                if(!trimLine.startsWith("--") && trimLine.endsWith(";")) {
+                if (!trimLine.startsWith("--") && trimLine.endsWith(";")) {
                     scriptList.add(builder.toString());
                     builder.setLength(0);
                 }
             }
-            if(builder.length() > 0) {
+            if (builder.length() > 0) {
                 scriptList.add(builder.toString());
             }
             return scriptList;
         } finally {
-            if(is != null) {
+            if (is != null) {
                 is.close();
             }
-            if(bufferedReader != null) {
+            if (bufferedReader != null) {
                 bufferedReader.close();
             }
         }
