@@ -126,7 +126,8 @@ class JSONGeneral {
     // Default interface or abstract class implementation class configuration
     static final Map<Class<?>, JSONImplInstCreator> DEFAULT_IMPL_INST_CREATOR_MAP = new ConcurrentHashMap<Class<?>, JSONImplInstCreator>();
     protected final static JSONSecureTrustedAccess JSON_SECURE_TRUSTED_ACCESS = new JSONSecureTrustedAccess();
-
+    final static int[] TWO_DIGITS_VALUES = new int[256];
+    protected final static int[] THREE_DIGITS_MUL10 = new int[10 << 8];  // 2560
     static {
         for (int i = 0; i < ESCAPE_VALUES.length; ++i) {
             switch (i) {
@@ -175,6 +176,23 @@ class JSONGeneral {
         } catch (Throwable throwable) {
         }
 
+        // 注: 主流小端模式存储（各位在前，十位在后）
+        // i（十位） j（个位） k = (i | 0x30) ^ j << 4
+        for (int i = 0; i < 16; i++) {
+            for (int j = 0; j < 16; j++) {
+                TWO_DIGITS_VALUES[(i | 0x30) ^ j << 4] = (i < 10 && j < 10) ? i * 10 + j : -1;
+            }
+        }
+
+        // THREE_DIGITS_MUL10(与大小端无关)
+        for (int i = 0; i < 10; ++i) {
+            for (int j = 0; j < 10; ++j) {
+                for (int k = 0; k < 10; ++k) {
+                    THREE_DIGITS_MUL10[i << 8 | j << 4 | k] = i * 1000 + j * 100 + k * 10 - 48;
+                }
+            }
+        }
+
         registerImplCreator(EnumSet.class, new JSONImplInstCreator<EnumSet>() {
             @Override
             public EnumSet create(GenericParameterizedType<EnumSet> parameterizedType) {
@@ -189,6 +207,30 @@ class JSONGeneral {
                 return new EnumMap(mapKeyClass);
             }
         });
+    }
+
+    /**
+     * 获取2个字节组成的两位数
+     *
+     * @param h （48-57）
+     * @param l （48-57）
+     * @return
+     */
+    protected static final int twoDigitsValue(int h, int l) {
+        return TWO_DIGITS_VALUES[h ^ (l & 0xf) << 4];
+    }
+
+    /**
+     * 获取4个字节组成的4位数
+     *
+     * @param i （0-9）
+     * @param j （0-9）
+     * @param k （0-9）
+     * @param l （48-57） The cache has been reduced by 48
+     * @return
+     */
+    protected static final int fourDigitsValue(int i, int j, int k, int l) {
+        return THREE_DIGITS_MUL10[i << 8 | j << 4 | k] + l;
     }
 
     public static String toEscapeString(int ch) {
@@ -288,6 +330,45 @@ class JSONGeneral {
                 && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff];
     }
 
+    /**
+     * 通过unsafe一次性判断4个字节是否需要转义
+     * @param value 限于ascii字节编码（所有字节的高位都为0）
+     * @return
+     */
+    final static boolean isNoEscapeBytesUnsafeWith32Bits(int value) {
+        return ((value + 0x60606060) & 0x80808080) == 0x80808080  // all >= 32
+                && ((value ^ 0xDDDDDDDD) + 0x01010101 & 0x80808080) == 0x80808080   // != 34
+                &&  ((value ^ 0xA3A3A3A3) + 0x01010101 & 0x80808080) == 0x80808080;  // all != 92
+    }
+
+    /**
+     * 通过unsafe获取的8个字节值一次性判断是否需要转义(包含'"'或者‘\\’或者存在小于32的字节)，如果需要转义返回false,否则返回true
+     *
+     * @param value 限于ascii字节编码（所有字节的高位都为0）
+     * @return
+     */
+    final static boolean isNoEscapeBytesUnsafeWith64Bits(long value) {
+        return ((value + 0x6060606060606060L) & 0x8080808080808080L) == 0x8080808080808080L // all >= 32
+                && ((value ^ 0xDDDDDDDDDDDDDDDDL) + 0x0101010101010101L & 0x8080808080808080L) == 0x8080808080808080L // != 34
+                &&  ((value ^ 0xA3A3A3A3A3A3A3A3L) + 0x0101010101010101L & 0x8080808080808080L) == 0x8080808080808080L; // all != 92
+    }
+
+    /**
+     * 通过unsafe获取的4个字符一次性判断是否需要转义(包含'"'或者‘\\’)，如果需要转义返回false,否则返回true
+     *
+     * @param buf
+     * @param offset
+     * @return
+     */
+    final static boolean isNotExistQuoteOrEscapeCharsUseUnsafe(char[] buf, int offset, char quote) {
+        // 注意这里缺少安全越界检查
+        long value = JSONUnsafe.getLong(buf, offset);
+        // "(34) 0x0022 -> 0xFFDDL | '\''(39) 0x0027 -> 0xFFD8
+        final long quoteMask = quote == '"' ? 0xFFDDFFDDFFDDFFDDL : 0xFFD8FFD8FFD8FFD8L;
+        return  ((value ^ quoteMask) + 0x0001000100010001L & 0x8000800080008000L) == 0x8000800080008000L // != quote
+                &&  ((value ^ 0xFFA3FFA3FFA3FFA3L) + 0x0001000100010001L & 0x8000800080008000L) == 0x8000800080008000L; // all != 92
+    }
+    
     /**
      * escape next
      *
@@ -1352,6 +1433,10 @@ class JSONGeneral {
         return buffer;
     }
 
+    protected final static int digits2Bytes(byte[] buf, int offset) {
+        return JSONUnsafe.UNSAFE_ENDIAN.digits2Bytes(buf, offset);
+    }
+
     // 读取流中的最大限度（maxLen）的字符数组(只读取一次)
     protected final static char[] readOnceInputStream(InputStream is, int maxLen) throws IOException {
         try {
@@ -1558,5 +1643,6 @@ class JSONGeneral {
     protected final static Object getStringValue(String value) {
         return JSONUnsafe.getStringValue(value.toString());
     }
+
 
 }

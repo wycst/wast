@@ -179,7 +179,7 @@ public final class JSONPojoStructure {
      * @param pojoClass
      * @return
      */
-    public static JSONPojoStructure get(Class<?> pojoClass) {
+    static JSONPojoStructure get(Class<?> pojoClass) {
         if (pojoClass == null) {
             throw new IllegalArgumentException("pojoClass is null");
         }

@@ -13,6 +13,114 @@ final class JSONUnsafe {
     static final long BYTE_ARRAY_OFFSET = UnsafeHelper.BYTE_ARRAY_OFFSET;
     static final long CHAR_ARRAY_OFFSET = UnsafeHelper.CHAR_ARRAY_OFFSET;
     static final long STRING_VALUE_OFFSET = UnsafeHelper.STRING_VALUE_OFFSET;
+    static final Endian UNSAFE_ENDIAN;
+
+    static abstract class Endian {
+        abstract int digits2Bytes(byte[] buf, int offset);
+
+        //        abstract int digits2Chars(char[] buf, int offset);
+        abstract int mergeInt32(short shortVal, char pre, char suff);
+
+        abstract long mergeInt64(long val, long pre, long suff);
+
+        abstract long mergeInt64(long h32, long l32);
+
+        abstract long mergeInt64(long s1, long c, long s2, long c1, long s3);
+    }
+
+    final static class BigEndian extends Endian {
+
+        @Override
+        int digits2Bytes(byte[] buf, int offset) {
+            int bigShortVal = UNSAFE.getShort(buf, BYTE_ARRAY_OFFSET + offset);
+            if ((bigShortVal & 0xFFFFF030) == 0x3030) {
+                int l = bigShortVal & 0xf, h = (bigShortVal >> 8) & 0xf;
+                if (h > 9 || l > 9) return -1;
+                return (h << 3) + (h << 1) + l;
+            } else {
+                return -1;
+            }
+        }
+
+        @Override
+        int mergeInt32(short shortVal, char pre, char suff) {
+            return (pre << 24) | (shortVal << 8) | suff;
+        }
+
+        @Override
+        long mergeInt64(long val, long pre, long suff) {
+            return pre << 48 | val << 16 | suff;
+        }
+
+        @Override
+        long mergeInt64(long h32, long l32) {
+            return h32 << 32 | l32;
+        }
+
+        @Override
+        long mergeInt64(long s1, long c, long s2, long c1, long s3) {
+            return s1 << 48 | c << 40 | s2 << 24 | c1 << 16 | s3;
+        }
+//        @Override
+//        int digits2Chars(char[] buf, int offset) {
+//            // 0-9 (0000000000110000 ~ 0000000000111001)
+//            // 00000000 00110001 00000000 00110001 & 11111111 11110000 11111111 11110000 (0xFFF0FFF0)
+//            // 00000000 00110000 00000000 00110000 （0x300030）
+//            int bigIntVal = UNSAFE.getInt(buf, CHAR_ARRAY_OFFSET + (offset << 1));
+//            if ((bigIntVal & 0xFFF0FFF0) == 0x300030) {
+//                int l = bigIntVal & 0xf, h = (bigIntVal >> 16) & 0xf;
+//                if (h > 9 || l > 9) return -1;
+//                return (h << 3) + (h << 1) + l;
+//            } else {
+//                return -1;
+//            }
+//        }
+    }
+
+    final static class LittleEndian extends Endian {
+        @Override
+        int digits2Bytes(byte[] buf, int offset) {
+            int littleShortVal = UNSAFE.getShort(buf, BYTE_ARRAY_OFFSET + offset);
+            if ((littleShortVal & 0xFFFFF030) == 0x3030) {
+                int h = littleShortVal & 0x3f, l8 = (littleShortVal >> 4) & 0xF0;
+                return JSONGeneral.TWO_DIGITS_VALUES[h ^ l8];
+            } else {
+                return -1;
+            }
+        }
+
+        @Override
+        int mergeInt32(short shortVal, char pre, char suff) {
+            return (suff << 24) | (shortVal << 8) | pre;
+        }
+
+        @Override
+        long mergeInt64(long val, long pre, long suff) {
+            return suff << 48 | val << 16 | pre;
+        }
+
+        @Override
+        long mergeInt64(long h32, long l32) {
+            return l32 << 32 | h32;
+        }
+
+        @Override
+        long mergeInt64(long s1, long c, long s2, long c1, long s3) {
+            return s3 << 48 | c1 << 40 | s2 << 24 | c << 16 | s1;
+        }
+//        @Override
+//        int digits2Chars(char[] buf, int offset) {
+//            int littleIntVal = UNSAFE.getInt(buf, CHAR_ARRAY_OFFSET + (offset << 1));
+//            // 11 0101 00000000 0011 0001 (eg: 15)
+//            if ((littleIntVal & 0xFFF0FFF0) == 0x300030) {
+//                int h = littleIntVal & 0xf, l = (littleIntVal >> 16) & 0xf;
+//                if (h > 9 || l > 9) return -1;
+//                return (h << 3) + (h << 1) + l;
+//            } else {
+//                return -1;
+//            }
+//        }
+    }
 
     static {
         Field theUnsafeField;
@@ -31,6 +139,7 @@ final class JSONUnsafe {
             }
         }
         UNSAFE = instance;
+        UNSAFE_ENDIAN = EnvUtils.BIG_ENDIAN ? new BigEndian() : new LittleEndian();
     }
 
     static abstract class Optimizer {
@@ -96,8 +205,6 @@ final class JSONUnsafe {
             s20(),
     };
     final static int SIZE_LEN = SIZE_INSTANCES.length;
-    final static Optimizer SIZE_INSTANCE_8 = SIZE_INSTANCES[8];
-
     static Optimizer s0() {
         return new Optimizer() {
             @Override

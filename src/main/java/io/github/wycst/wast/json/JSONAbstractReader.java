@@ -615,9 +615,12 @@ abstract class JSONAbstractReader extends JSONGeneral {
             } else if (classCategory == ReflectConsts.ClassCategory.MapCategory) {
                 instance = map = createMapInstance(genericType);
                 valueType = genericType.getValueType();
+                if(valueType == null) {
+                    valueType = GenericParameterizedType.AnyType;
+                }
             } else if(classCategory == ReflectConsts.ClassCategory.ANY) {
                 instance = map = new LinkedHashMap();
-                valueType = genericType.getValueType();
+                valueType = GenericParameterizedType.AnyType;
             } else {
                 throw new UnsupportedOperationException(actualType + " is not supported the path: " + path);
             }

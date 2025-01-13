@@ -89,7 +89,7 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
             case '\'':
             case '"':
                 if (patternType == 0) {
-                    return deserializeDefaultTemporal(buf, fromIndex + 1, beginChar, jsonParseContext);
+                    return deserializeDefault(buf, fromIndex + 1, beginChar, jsonParseContext);
                 } else {
                     CHAR_SEQUENCE_STRING.skip(charSource, buf, fromIndex, beginChar, jsonParseContext);
                     int endIndex = jsonParseContext.endIndex;
@@ -141,7 +141,7 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
             case '\'':
             case '"':
                 if(patternType == 0) {
-                    return deserializeDefaultTemporal(buf, fromIndex + 1, beginChar, jsonParseContext);
+                    return deserializeDefault(buf, fromIndex + 1, beginChar, jsonParseContext);
                 } else {
                     CHAR_SEQUENCE_STRING.skip(charSource, buf, fromIndex, beginByte, jsonParseContext);
                     int endIndex = jsonParseContext.endIndex;
@@ -186,7 +186,7 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
 
     protected abstract Object deserializeTemporal(byte[] buf, int fromIndex, int toIndex, JSONParseContext jsonParseContext) throws Exception;
 
-    protected abstract Object deserializeDefaultTemporal(char[] buf, int offset, char endChar, JSONParseContext jsonParseContext) throws Exception;
-    protected abstract Object deserializeDefaultTemporal(byte[] buf, int offset, char endChar, JSONParseContext jsonParseContext) throws Exception;
+    protected abstract Object deserializeDefault(char[] buf, int offset, char endChar, JSONParseContext jsonParseContext) throws Exception;
+    protected abstract Object deserializeDefault(byte[] buf, int offset, char endChar, JSONParseContext jsonParseContext) throws Exception;
 
 }

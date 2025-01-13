@@ -41,102 +41,106 @@ public class TemporalLocalDateDeserializer extends JSONTemporalDeserializer {
 
     // default supported yyyy?MM?dd
     @Override
-    protected Object deserializeDefaultTemporal(char[] buf, int offset, char endToken, JSONParseContext jsonParseContext) throws Exception {
+    protected LocalDate deserializeDefault(char[] buf, int offset, char endToken, JSONParseContext jsonParseContext) throws Exception {
         int i = offset;
         int year, month, day;
         char c1, c2, c3, c4;
         if (isDigit(c1 = buf[i]) && isDigit(c2 = buf[++i]) && isDigit(c3 = buf[++i]) && isDigit(c4 = buf[++i])) {
-            year = c1 * 1000 + c2 * 100 + c3 * 10 + c4 - 53328;
+            year = fourDigitsValue(c1 & 0xf, c2 & 0xf, c3 & 0xf, c4);
         } else {
             if (c1 == '-' && isDigit(c1 = buf[++i]) && isDigit(c2 = buf[++i]) && isDigit(c3 = buf[++i]) && isDigit(c4 = buf[++i])) {
-                year = c1 * 1000 + c2 * 100 + c3 * 10 + c4 - 53328;
-                year = -year;
+                year = -fourDigitsValue(c1 & 0xf, c2 & 0xf, c3 & 0xf, c4);
             } else {
-                String errorContextTextAt = createErrorContextText(buf, offset);
-                throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', year field error ");
+                String errorContextTextAt = createErrorContextText(buf, i);
+                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', year field error ");
             }
         }
         while (isDigit(c1 = buf[++i])) {
-            year = year * 10 + c1 - 48;
+            year = year * 10 + (c1 & 0xf);
         }
-        if (isDigit(c1 = buf[++i])) {
-            month = c1 - 48;
+        boolean isDigitFlag;
+        if ((isDigitFlag = isDigit(c1 = buf[++i])) && isDigit(c2 = buf[++i])) {
+            month = twoDigitsValue(c1, c2);
+            ++i;
         } else {
-            String errorContextTextAt = createErrorContextText(buf, offset);
-            throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', month field error ");
+            if(isDigitFlag) {
+                month = c1 & 0xf;
+            } else {
+                String errorContextTextAt = createErrorContextText(buf, i);
+                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', month field error ");
+            }
         }
-        if (isDigit(c1 = buf[++i])) {
-            month = (month << 3) + (month << 1) + c1 - 48;
-        }
-        ++i;
-        if (isDigit(c1 = buf[++i])) {
-            day = c1 - 48;
+        if ((isDigitFlag = isDigit(c1 = buf[++i])) && isDigit(c2 = buf[++i])) {
+            day = twoDigitsValue(c1, c2);
+            ++i;
         } else {
-            String errorContextTextAt = createErrorContextText(buf, offset);
-            throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', day field error ");
+            if(isDigitFlag) {
+                day = c1 & 0xf;
+            } else {
+                String errorContextTextAt = createErrorContextText(buf, i);
+                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', day field error ");
+            }
         }
-        if (isDigit(c1 = buf[++i])) {
-            day = (day << 3) + (day << 1) + c1 - 48;
-            c1 = buf[++i];
-        }
-        if (c1 == endToken) {
+        if (buf[i] == endToken) {
             jsonParseContext.endIndex = i;
             return LocalDate.of(year, month, day);
         }
-        String errorContextTextAt = createErrorContextText(buf, offset);
-        throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', unexpected token '" + buf[offset] + "', expected '" + endToken + "'");
+        String errorContextTextAt = createErrorContextText(buf, i);
+        throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token '" + buf[i] + "', expected '" + endToken + "'");
     }
 
-    // default yyyy-MM-dd
+    // default yyyy-MM-dd compatible yyyy.MM?.dd?
     @Override
-    protected Object deserializeDefaultTemporal(byte[] buf, int offset, char endToken, JSONParseContext jsonParseContext) throws Exception {
+    protected LocalDate deserializeDefault(byte[] buf, int offset, char endToken, JSONParseContext jsonParseContext) throws Exception {
         int i = offset;
         int year, month, day;
         byte b1, b2, b3, b4;
         if (isDigit(b1 = buf[i]) && isDigit(b2 = buf[++i]) && isDigit(b3 = buf[++i]) && isDigit(b4 = buf[++i])) {
-            year = b1 * 1000 + b2 * 100 + b3 * 10 + b4 - 53328;
+            year = fourDigitsValue(b1 & 0xf, b2 & 0xf, b3 & 0xf, b4);
         } else {
             if (b1 == '-' && isDigit(b1 = buf[++i]) && isDigit(b2 = buf[++i]) && isDigit(b3 = buf[++i]) && isDigit(b4 = buf[++i])) {
-                year = b1 * 1000 + b2 * 100 + b3 * 10 + b4 - 53328;
-                year = -year;
+                year = -fourDigitsValue(b1 & 0xf, b2 & 0xf, b3 & 0xf, b4);
             } else {
-                String errorContextTextAt = createErrorContextText(buf, offset);
-                throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', year field error ");
+                String errorContextTextAt = createErrorContextText(buf, i);
+                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', year field error ");
             }
         }
         while (isDigit(b1 = buf[++i])) {
-            year = year * 10 + b1 - 48;
+            year = year * 10 + (b1 & 0xf);
         }
-        if (isDigit(b1 = buf[++i])) {
-            month = b1 - 48;
+        boolean isDigitFlag;
+        if ((isDigitFlag = isDigit(b1 = buf[++i])) && isDigit(b2 = buf[++i])) {
+            month = twoDigitsValue(b1, b2);
+            ++i;
         } else {
-            String errorContextTextAt = createErrorContextText(buf, offset);
-            throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', month field error ");
+            if(isDigitFlag) {
+                month = b1 & 0xf;
+            } else {
+                String errorContextTextAt = createErrorContextText(buf, i);
+                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', month field error ");
+            }
         }
-        if (isDigit(b1 = buf[++i])) {
-            month = (month << 3) + (month << 1) + b1 - 48;
-        }
-        ++i;
-        if (isDigit(b1 = buf[++i])) {
-            day = b1 - 48;
+        if ((isDigitFlag = isDigit(b1 = buf[++i])) && isDigit(b2 = buf[++i])) {
+            day = twoDigitsValue(b1, b2);
+            ++i;
         } else {
-            String errorContextTextAt = createErrorContextText(buf, offset);
-            throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', day field error ");
+            if(isDigitFlag) {
+                day = b1 & 0xf;
+            } else {
+                String errorContextTextAt = createErrorContextText(buf, i);
+                throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', day field error ");
+            }
         }
-        if (isDigit(b1 = buf[++i])) {
-            day = (day << 3) + (day << 1) + b1 - 48;
-            b1 = buf[++i];
-        }
-        if (b1 == endToken) {
+        if (buf[i] == endToken) {
             jsonParseContext.endIndex = i;
             return LocalDate.of(year, month, day);
         }
-        String errorContextTextAt = createErrorContextText(buf, offset);
-        throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', unexpected token '" + (char) buf[offset] + "', expected '" + endToken + "'");
+        String errorContextTextAt = createErrorContextText(buf, i);
+        throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token '" + (char) buf[i] + "', expected '" + endToken + "'");
     }
 
     @Override
-    protected Object valueOf(String value, Class<?> actualType) throws Exception {
+    protected LocalDate valueOf(String value, Class<?> actualType) throws Exception {
         return LocalDate.parse(value);
     }
 }

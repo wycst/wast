@@ -2367,22 +2367,22 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     }
 
     // todo Short circuit optimization is possible
-    public static <T> T first(String source, String xpath, Class<T> doubleClass, ReadOption... options) {
+    public static <T> T first(String source, String xpath, Class<T> targetClass, ReadOption... options) {
         List<JSONNode> nodes = collect(source, xpath, options);
-        return nodes.get(0).getValue(doubleClass);
+        return nodes.get(0).getValue(targetClass);
     }
 
-    public static <T> T firstIfEmpty(String source, String xpath, Class<T> doubleClass, T defaultVal, ReadOption... options) {
+    public static <T> T firstIfEmpty(String source, String xpath, Class<T> targetClass, T defaultVal, ReadOption... options) {
         List<JSONNode> nodes = collect(source, xpath, options);
         if (nodes.size() > 0) {
-            return nodes.get(0).getValue(doubleClass);
+            return nodes.get(0).getValue(targetClass);
         }
         return defaultVal;
     }
 
-    public static <T> T last(String source, String xpath, Class<T> doubleClass, ReadOption... options) {
+    public static <T> T last(String source, String xpath, Class<T> targetClass, ReadOption... options) {
         List<JSONNode> nodes = collect(source, xpath, options);
-        return nodes.get(nodes.size() - 1).getValue(doubleClass);
+        return nodes.get(nodes.size() - 1).getValue(targetClass);
     }
 
     /**

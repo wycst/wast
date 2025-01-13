@@ -1264,16 +1264,19 @@ public abstract class JSONWriter extends Writer {
 
     final static long mergeInt64(int val, char pre, char suff) {
         return EnvUtils.BIG_ENDIAN ? ((long) pre) << 48 | ((long) TWO_DIGITS_32_BITS[val]) << 16 | suff : ((long) suff) << 48 | ((long) TWO_DIGITS_32_BITS[val]) << 16 | pre;
+        // return JSONUnsafe.UNSAFE_ENDIAN.mergeInt64(TWO_DIGITS_32_BITS[val], pre, suff);
     }
 
     final static int mergeInt32(int val, char pre, char suff) {
         return EnvUtils.BIG_ENDIAN ? (pre << 24) | (TWO_DIGITS_16_BITS[val] << 8) | suff : (suff << 24) | (TWO_DIGITS_16_BITS[val] << 8) | pre;
+        // return JSONUnsafe.UNSAFE_ENDIAN.mergeInt32(TWO_DIGITS_16_BITS[val], pre, suff);
     }
 
     final static long mergeInt64(int t, int r) {
         long top32 = FOUR_DIGITS_32_BITS[t];
         long rem32 = FOUR_DIGITS_32_BITS[r];
         return EnvUtils.BIG_ENDIAN ? top32 << 32 | rem32 : rem32 << 32 | top32;
+        // return JSONUnsafe.UNSAFE_ENDIAN.mergeInt64(FOUR_DIGITS_32_BITS[t], FOUR_DIGITS_32_BITS[r]);
     }
 
     // yyyy-MM-
@@ -1289,6 +1292,7 @@ public abstract class JSONWriter extends Writer {
         return EnvUtils.BIG_ENDIAN
                 ? (long) TWO_DIGITS_16_BITS[s1] << 48 | (long) c << 40 | (long) TWO_DIGITS_16_BITS[s2] << 24 | c1 << 16 | TWO_DIGITS_16_BITS[s3]
                 : (long) TWO_DIGITS_16_BITS[s3] << 48 | (long) c1 << 40 | (long) TWO_DIGITS_16_BITS[s2] << 24 | c << 16 | TWO_DIGITS_16_BITS[s1];
+        // return JSONUnsafe.UNSAFE_ENDIAN.mergeInt64(TWO_DIGITS_16_BITS[s1], c, TWO_DIGITS_16_BITS[s2], c1, TWO_DIGITS_16_BITS[s3]);
     }
 
     /**

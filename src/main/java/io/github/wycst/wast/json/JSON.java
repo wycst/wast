@@ -28,10 +28,7 @@ import java.lang.reflect.Type;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * JSON serialization and deserialization tools
@@ -149,6 +146,17 @@ public final class JSON extends JSONGeneral {
     }
 
     /**
+     * json -> map
+     *
+     * @param json
+     * @param readOptions
+     * @return map instance
+     */
+    public static Map parseObject(String json, ReadOption... readOptions) {
+        return JSONDefaultParser.parseMap(json, LinkedHashMap.class, readOptions);
+    }
+
+    /**
      * === > JSONNode.parse
      *
      * @param json
@@ -208,8 +216,8 @@ public final class JSON extends JSONGeneral {
      * @param bytes 字节数组（ascii/utf8）
      * @param ascii 指定参数为单字节数组（JDK9+）以减少一次扫描检测
      * @param readOptions
-     * @return  
-     * @see #parse(byte[], ReadOption...) 
+     * @return
+     * @see #parse(byte[], ReadOption...)
      */
     public static Object parse(byte[] bytes, boolean ascii, ReadOption... readOptions) {
         if (bytes == null) return null;
@@ -256,8 +264,8 @@ public final class JSON extends JSONGeneral {
     /**
      * <p> 将json字符串（{}）转化为指定class的实例
      *
-     * @param json        源字符串
-     * @param actualType  类型
+     * @param json       源字符串
+     * @param actualType 类型
      * @return T对象
      * @see #parseObject(String, Class, ReadOption...)
      */
@@ -353,11 +361,11 @@ public final class JSON extends JSONGeneral {
     /**
      * <p> 将字节数组转化为指定class的实例
      *
-     * @param buf         字节数组
-     * @param actualType  类型
-     * @param <T>         泛型
+     * @param buf        字节数组
+     * @param actualType 类型
+     * @param <T>        泛型
      * @return 类型对象
-     * @see #parseObject(byte[], Class, ReadOption...) 
+     * @see #parseObject(byte[], Class, ReadOption...)
      */
     public static <T> T parseObject(byte[] buf, final Class<T> actualType) {
         JSONTypeDeserializer deserializer = JSONTypeDeserializer.getTypeDeserializer(actualType);
@@ -402,7 +410,7 @@ public final class JSON extends JSONGeneral {
      * @param readOptions 读取配置
      * @param <T>         泛型
      * @return 类型对象
-     * @see #parseObject(byte[], Class, ReadOption...) 
+     * @see #parseObject(byte[], Class, ReadOption...)
      */
     public static <T> T parseObject(byte[] buf, boolean ascii, final Class<T> actualType, ReadOption... readOptions) {
         JSONTypeDeserializer typeDeserializer = JSONTypeDeserializer.getTypeDeserializer(actualType);
@@ -436,6 +444,30 @@ public final class JSON extends JSONGeneral {
         return (T) parse(json, genericParameterizedType, readOptions);
     }
 
+    /**
+     * 将source序列化为字符串然后解析为指定类型
+     *
+     * @param source
+     * @param actualType
+     * @param readOptions
+     * @param <T>
+     * @return
+     */
+    public static <T> T translateTo(Object source, Class<T> actualType, ReadOption... readOptions) {
+        return parseObject(toJsonString(source), actualType, readOptions);
+    }
+
+    /**
+     * 使用json深度克隆一个对象
+     *
+     * @param source
+     * @param <T>
+     * @return
+     */
+    public static <T> T cloneObject(Object source, ReadOption... readOptions) {
+        return (T) parseObject(toJsonString(source), source.getClass(), readOptions);
+    }
+
     private static <T> T parseObjectInternalWithoutOptions(final JSONTypeDeserializer deserializer, final CharSource charSource, char[] buf, final Class<T> actualType) {
         int fromIndex = 0;
         int toIndex = buf.length;
@@ -455,7 +487,7 @@ public final class JSON extends JSONGeneral {
         }
     }
 
-    private static <T> T parseObjectInternal(final JSONTypeDeserializer deserializer, final CharSource charSource, char[] buf, final Class<T> actualType, ReadOption...readOptions) {
+    private static <T> T parseObjectInternal(final JSONTypeDeserializer deserializer, final CharSource charSource, char[] buf, final Class<T> actualType, ReadOption... readOptions) {
         return (T) deserialize(buf, 0, buf.length, new Deserializer() {
             Object deserialize(char[] buf, int fromIndex, JSONParseContext jsonParseContext) throws Exception {
                 GenericParameterizedType<T> genericParameterizedType = deserializer.getGenericParameterizedType(actualType);
@@ -483,7 +515,7 @@ public final class JSON extends JSONGeneral {
         }
     }
 
-    private static <T> T parseObjectInternal(final JSONTypeDeserializer deserializer, final CharSource charSource, byte[] buf, final Class<T> actualType, ReadOption...readOptions) {
+    private static <T> T parseObjectInternal(final JSONTypeDeserializer deserializer, final CharSource charSource, byte[] buf, final Class<T> actualType, ReadOption... readOptions) {
         return (T) deserialize(buf, 0, buf.length, new Deserializer() {
             Object deserialize(byte[] buf, int fromIndex, JSONParseContext jsonParseContext) throws Exception {
                 GenericParameterizedType<T> genericParameterizedType = deserializer.getGenericParameterizedType(actualType);
@@ -878,7 +910,7 @@ public final class JSON extends JSONGeneral {
     }
 
     private static <E> Object parseToListInternal(final CharSource charSource, byte[] buf, final Collection instance, final Class<E> actualType, ReadOption... readOptions) {
-        return deserialize(buf,0, buf.length, new Deserializer() {
+        return deserialize(buf, 0, buf.length, new Deserializer() {
             Object deserialize(byte[] buf, int fromIndex, JSONParseContext jsonParseContext) throws Exception {
                 return JSONTypeDeserializer.COLLECTION.deserializeCollection(charSource, buf, fromIndex, GenericParameterizedType.collectionType(instance.getClass(), actualType), instance, jsonParseContext);
             }
@@ -942,7 +974,7 @@ public final class JSON extends JSONGeneral {
             parseContext.clear();
         }
     }
-    
+
     /***
      * 提取重复代码
      *
@@ -1655,4 +1687,12 @@ public final class JSON extends JSONGeneral {
         };
     }
 
+    static {
+        if (EnvUtils.JDK_8_PLUS) {
+            try {
+                Class.forName("io.github.wycst.wast.json.JSONTemporalExtension");
+            } catch (ClassNotFoundException e) {
+            }
+        }
+    }
 }

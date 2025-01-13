@@ -855,7 +855,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                 case '7':
                 case '8':
                 case '9': {
-                    return deserializeNumber(beginChar - '0', false, 1, buf, fromIndex, ++fromIndex, parameterizedType, endToken, parseContext);
+                    return deserializeNumber(beginChar & 0xf, false, 1, buf, fromIndex, ++fromIndex, parameterizedType, endToken, parseContext);
                 }
                 default: {
                     switch (beginChar) {
@@ -923,7 +923,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                 case 55:
                 case 56:
                 case 57:
-                    return deserializeNumber(beginByte - 48, false, 1, buf, fromIndex, ++fromIndex, parameterizedType, endToken, parseContext);
+                    return deserializeNumber(beginByte & 0xF, false, 1, buf, fromIndex, ++fromIndex, parameterizedType, endToken, parseContext);
                 case '0':
                 case '+':
                     return deserializeNumber(0, false, 0, buf, fromIndex, ++fromIndex, parameterizedType, endToken, parseContext);
@@ -981,7 +981,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             char ch;
             do {
                 while (isDigit((ch = buf[i]))) {
-                    value = (value << 3) + (value << 1) + ch - 48;
+                    value = (value << 3) + (value << 1) + (ch & 0xf);
                     ++cnt;
                     ++i;
                 }
@@ -990,7 +990,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     mode = 1;
                     // direct scan numbers
                     while (isDigit((ch = buf[++i]))) {
-                        value = (value << 3) + (value << 1) + ch - 48;
+                        value = (value << 3) + (value << 1) + (ch & 0xf);
                         ++decimalCount;
                         ++cnt;
                     }
@@ -1009,9 +1009,9 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                         ch = buf[++i];
                     }
                     if (isDigit(ch)) {
-                        expValue = ch - 48;
+                        expValue = (ch & 0xf);
                         while (isDigit(ch = buf[++i])) {
-                            expValue = (expValue << 3) + (expValue << 1) + ch - 48;
+                            expValue = (expValue << 3) + (expValue << 1) + (ch & 0xf);
                         }
                     }
                     if (ch <= ' ') {
@@ -1074,7 +1074,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     for (; j < i; ++j) {
                         if (isDigit(ch = buf[j])) {
                             if (cnt++ < 18) {
-                                value = value * 10 + ch - 48;
+                                value = value * 10 + (ch & 0xf);
                             }
                             if (j > decimalPointIndex) {
                                 ++decimalCount;
@@ -1181,38 +1181,34 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             int mode = 0;
             // number suffix
             int specifySuffix = 0;
-
             int i = offset;
-            byte b, b1 = 0;
+            byte b;
             do {
-                boolean isDigit;
-                while ((isDigit = isDigit((b = buf[i]))) && isDigit(b1 = buf[++i])) {
-                    value = value * 100 + b * 10 + b1 - 528;
-                    cnt = cnt + 2;
-                    ++i;
+                int v;
+                while ((v = JSONUnsafe.UNSAFE_ENDIAN.digits2Bytes(buf, i)) != -1) {
+                    value = value * 100 + v;
+                    cnt += 2;
+                    i += 2;
                 }
-                if (isDigit) {
-                    value = (value << 3) + (value << 1) + b - 48;
-                    b = b1;
+                if (isDigit(b = buf[i])) {
+                    value = (value << 3) + (value << 1) + (b & 0xF);
+                    b = buf[++i];
                     ++cnt;
                 }
                 if (b == '.') {
                     // 小数点模式
                     mode = 1;
+                    ++i;
                     // direct scan numbers
-//                    while (isDigit((b = buf[++i]))) {
-//                        value = (value << 3) + (value << 1) + b - 48;
-//                        ++decimalCount;
-//                        ++cnt;
-//                    }
-                    while ((isDigit = isDigit((b = buf[++i]))) && isDigit(b1 = buf[++i])) {
-                        value = value * 100 + b * 10 + b1 - 528;
-                        cnt = cnt + 2;
-                        decimalCount = decimalCount + 2;
+                    while ((v = JSONUnsafe.UNSAFE_ENDIAN.digits2Bytes(buf, i)) != -1) {
+                        value = value * 100 + v;
+                        cnt += 2;
+                        decimalCount += 2;
+                        i += 2;
                     }
-                    if (isDigit) {
-                        value = (value << 3) + (value << 1) + b - 48;
-                        b = b1;
+                    if (isDigit(b = buf[i])) {
+                        value = (value << 3) + (value << 1) + (b & 0xF);
+                        b = buf[++i];
                         ++cnt;
                         ++decimalCount;
                     }
@@ -1231,9 +1227,9 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                         b = buf[++i];
                     }
                     if (isDigit(b)) {
-                        expValue = b - 48;
+                        expValue = (b & 0xF);
                         while (isDigit(b = buf[++i])) {
-                            expValue = (expValue << 3) + (expValue << 1) + b - 48;
+                            expValue = (expValue << 3) + (expValue << 1) + (b & 0xF);
                         }
                     }
                     if (b <= ' ') {
@@ -1296,7 +1292,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     for (; j < i; ++j) {
                         if (isDigit(b = buf[j])) {
                             if (cnt++ < 18) {
-                                value = value * 10 + b - 48;
+                                value = value * 10 + (b & 0xF);
                             }
                             if (j > decimalPointIndex) {
                                 ++decimalCount;
@@ -1399,11 +1395,11 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             char ch, ch1 = 0;
             boolean isDigit;
             while ((isDigit = isDigit((ch = buf[i]))) && isDigit(ch1 = buf[++i])) {
-                value = value * 100 + ch * 10 + ch1 - 528;
+                value = value * 100 + twoDigitsValue(ch, ch1);
                 ++i;
             }
             if (isDigit) {
-                value = (value << 3) + (value << 1) + ch - 48;
+                value = (value << 3) + (value << 1) + (ch & 0xf);
                 ch = ch1;
             }
             if (ch == COMMA || ch == endToken) {
@@ -1426,16 +1422,15 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
         }
 
         protected final static long deserializeInteger(long value, boolean negative, int cnt, byte[] buf, int fromIndex, byte endToken, JSONParseContext parseContext) throws Exception {
-            int i = fromIndex;
-            byte b, b1 = 0;
-            boolean isDigit;
-            while ((isDigit = isDigit((b = buf[i]))) && isDigit(b1 = buf[++i])) {
-                value = value * 100 + b * 10 + b1 - 528;
-                ++i;
+            int i = fromIndex, val;
+            byte b;
+            while ((val = JSONUnsafe.UNSAFE_ENDIAN.digits2Bytes(buf, i)) != -1) {
+                value = value * 100 + val;
+                i += 2;
             }
-            if (isDigit) {
-                value = (value << 3) + (value << 1) + b - 48;
-                b = b1;
+            if (isDigit(b = buf[i])) {
+                value = (value << 3) + (value << 1) + (b & 0xF);
+                b = buf[++i];
             }
             if (b == COMMA || b == endToken) {
                 parseContext.endIndex = i;
@@ -3834,7 +3829,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
 
         JSONTypeDeserializer getValueDeserializer(GenericParameterizedType parameterizedType) {
             GenericParameterizedType valueType = parameterizedType.getValueType();
-            return valueType == null ? ANY : JSONTypeDeserializer.getTypeDeserializer(valueType.getActualType());
+            return valueType == null ? ANY : getTypeDeserializer(valueType.getActualType());
         }
 
         Object deserializeMap(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object obj, JSONParseContext parseContext) throws Exception {
@@ -4102,7 +4097,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
 
         protected JSONTypeDeserializer getValueDeserializer(GenericParameterizedType valueGenType) {
             if (valueDeserializer == null) {
-                valueDeserializer = JSONTypeDeserializer.getTypeDeserializer(valueParameterizedType.getActualType());
+                valueDeserializer = valueParameterizedType == null ? ANY : getTypeDeserializer(valueParameterizedType.getActualType());
             }
             return valueDeserializer;
         }
@@ -4141,7 +4136,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                         return null;
                     }
                     String errorContextTextAt = createErrorContextText(buf, fromIndex);
-                    throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected '" + beginChar + "' for Object Type, expected '{' ");
+                    throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected '" + beginChar + "' , expected '{' ");
                 }
             }
         }
@@ -4160,7 +4155,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                         return null;
                     }
                     String errorContextTextAt = createErrorContextText(buf, fromIndex);
-                    throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected '" + beginChar + "' for Object Type, expected '{' ");
+                    throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected '" + beginChar + "' , expected '{' ");
                 }
             }
         }

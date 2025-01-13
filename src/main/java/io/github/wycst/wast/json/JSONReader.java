@@ -16,6 +16,7 @@
  */
 package io.github.wycst.wast.json;
 
+import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.json.exceptions.JSONException;
 
 import java.io.*;
@@ -220,8 +221,21 @@ public class JSONReader extends JSONAbstractReader {
      * @return
      */
     public final static <T> T exactPathAs(InputStream is, String path, Class<T> resultClass) {
+        return exactPathAs(is, path, GenericParameterizedType.actualType(resultClass));
+    }
+
+    /**
+     * 直接从流中提取数据并转化为指定类型
+     *
+     * @param is
+     * @param path
+     * @param parameterizedType
+     * @param <T>
+     * @return
+     */
+    public final static <T> T exactPathAs(InputStream is, String path, GenericParameterizedType<T> parameterizedType) {
         JSONReader jsonReader = from(is);
-        JSONReaderHook readerHook = JSONReaderHook.exactPathAs(path, resultClass);
+        JSONReaderHook readerHook = JSONReaderHook.exactPathAs(path, parameterizedType);
         jsonReader.read(readerHook);
         return readerHook.first();
     }

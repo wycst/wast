@@ -319,9 +319,31 @@ class JSONByteArrayWriter extends JSONWriter {
         if (len <= 23) {
             int i = 0;
             do {
+//                if (len >= 8) { // i <= len - 8
+//                    if (JSONGeneral.isNoEscape64Bits(bytes, i)) {
+//                        JSONUnsafe.putLong(buf, count, JSONUnsafe.getLong(bytes, i));
+//                        count += 8;
+//                        i += 8;
+//                    } else {
+//                        count = escapeBytesToBytes(bytes, i, buf, count);
+//                        break;
+//                    }
+//
+//                    if (i <= len - 8) { // i <= len - 8
+//                        if (JSONGeneral.isNoEscape64Bits(bytes, i)) {
+//                            JSONUnsafe.putLong(buf, count, JSONUnsafe.getLong(bytes, i));
+//                            count += 8;
+//                            i += 8;
+//                        } else {
+//                            count = escapeBytesToBytes(bytes, i, buf, count);
+//                            break;
+//                        }
+//                    }
+//                }
                 if (len >= 8) { // i <= len - 8
-                    if (JSONGeneral.isNoEscape64Bits(bytes, i)) {
-                        JSONUnsafe.putLong(buf, count, JSONUnsafe.getLong(bytes, i));
+                    long value64 = JSONUnsafe.getLong(bytes, i);
+                    if (JSONGeneral.isNoEscapeBytesUnsafeWith64Bits(value64)) {
+                        JSONUnsafe.putLong(buf, count, value64);
                         count += 8;
                         i += 8;
                     } else {
@@ -330,8 +352,9 @@ class JSONByteArrayWriter extends JSONWriter {
                     }
 
                     if (i <= len - 8) { // i <= len - 8
-                        if (JSONGeneral.isNoEscape64Bits(bytes, i)) {
-                            JSONUnsafe.putLong(buf, count, JSONUnsafe.getLong(bytes, i));
+                        value64 = JSONUnsafe.getLong(bytes, i);
+                        if (JSONGeneral.isNoEscapeBytesUnsafeWith64Bits(value64)) {
+                            JSONUnsafe.putLong(buf, count, value64);
                             count += 8;
                             i += 8;
                         } else {
@@ -341,8 +364,9 @@ class JSONByteArrayWriter extends JSONWriter {
                     }
                 }
                 if (i <= len - 4) {
-                    if (JSONGeneral.isNoEscape32Bits(bytes, i)) {
-                        JSONUnsafe.putInt(buf, count, JSONUnsafe.getInt(bytes, i));
+                    int value32 = JSONUnsafe.getInt(bytes, i);
+                    if (JSONGeneral.isNoEscapeBytesUnsafeWith32Bits(value32)) {
+                        JSONUnsafe.putInt(buf, count, value32);
                         count += 4;
                         i += 4;
                     } else {
@@ -376,8 +400,14 @@ class JSONByteArrayWriter extends JSONWriter {
                 }
             } while (false);
         } else {
-            int beginIndex = 0;
-            for (int i = 0; i < len; ++i) {
+            int beginIndex = 0, i = 0;
+            if (JSONGeneral.isNoEscapeBytesUnsafeWith64Bits(JSONUnsafe.getLong(bytes, i))
+                    && JSONGeneral.isNoEscapeBytesUnsafeWith64Bits(JSONUnsafe.getLong(bytes, i = i + 8))
+                    && JSONGeneral.isNoEscapeBytesUnsafeWith64Bits(JSONUnsafe.getLong(bytes, i = i + 8))
+            ) {
+                i += 8;
+            }
+            for (; i < len; ++i) {
                 byte b = bytes[i];
                 String escapeStr;
                 if ((escapeStr = JSONGeneral.ESCAPE_VALUES[b & 0xFF]) != null) {

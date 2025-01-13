@@ -55,7 +55,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
             }
             // not support or custom handle ?
             String errorContextTextAt = createErrorContextText(buf, fromIndex);
-            throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected '" + beginChar + "' for Object Type, expected '{' ");
+            throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected '" + beginChar + "' , expected '{' ");
         }
     }
 
@@ -73,7 +73,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
             }
             // not support or custom handle ?
             String errorContextTextAt = createErrorContextText(buf, fromIndex);
-            throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected '" + (char) beginByte + "' for Object Type, expected '{' ");
+            throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unexpected '" + (char) beginByte + "' , expected '{' ");
         }
     }
 

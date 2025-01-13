@@ -12,6 +12,7 @@ public final class EnvUtils {
     public static final float JDK_VERSION;
 
     public static final boolean JDK_7_BELOW;
+    public static final boolean JDK_8_PLUS;
     public static final boolean JDK_16_PLUS;
     public static final boolean JDK_9_PLUS;
     public static final boolean JDK_20_PLUS;
@@ -58,6 +59,7 @@ public final class EnvUtils {
         }
         JDK_VERSION = jdkVersion;
         JDK_7_BELOW = JDK_VERSION < 1.7f;
+        JDK_8_PLUS = JDK_VERSION >= 1.8f;
         JDK_9_PLUS = JDK_VERSION >= 9;
         JDK_16_PLUS = JDK_VERSION >= 16;
         JDK_20_PLUS = JDK_VERSION >= 20;

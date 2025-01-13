@@ -594,8 +594,12 @@ class JSONCharArrayWriter extends JSONWriter {
         int count = this.count;
         buf[count++] = '"';
         if (len > 15) {
-            int beginIndex = 0;
-            for (int i = 0; i < len; ++i) {
+            int beginIndex = 0, i = 0;
+            if(JSONGeneral.isNoEscapeBytesUnsafeWith64Bits(JSONUnsafe.getLong(bytes, i))
+                    && JSONGeneral.isNoEscapeBytesUnsafeWith64Bits(JSONUnsafe.getLong(bytes, i = i + 8))) {
+                i += 8;
+            }
+            for (; i < len; ++i) {
                 int b = bytes[i] & 0xFF;
                 if (JSONGeneral.NO_ESCAPE_FLAGS[b]) continue;
                 String escapeStr = JSONGeneral.ESCAPE_VALUES[b];
@@ -619,7 +623,7 @@ class JSONCharArrayWriter extends JSONWriter {
             int i = 0, b, b1, b2, b3, b4, b5, b6, b7;
             do {
                 if (i <= len - 8) {
-                    if (JSONGeneral.isNoEscape64Bits(bytes, i)) {
+                    if (JSONGeneral.isNoEscapeBytesUnsafeWith64Bits(JSONUnsafe.getLong(bytes, i))) {
                         buf[count++] = (char) bytes[i];
                         buf[count++] = (char) bytes[i + 1];
                         buf[count++] = (char) bytes[i + 2];

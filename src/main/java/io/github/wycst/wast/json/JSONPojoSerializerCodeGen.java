@@ -1112,9 +1112,9 @@ final class JSONPojoSerializerCodeGen {
             fmatOutHeaderBuilder.append("\n");
         }
         if (!runtime) {
-            codeBuilder.append("\tpublic ").append(genClassName).append("() {\n");
-            codeBuilder.append("\t\tthis(JSONPojoStructure.get(" + canonicalName + ".class));\n");
-            codeBuilder.append("\t}\n\n");
+//            codeBuilder.append("\tpublic ").append(genClassName).append("() {\n");
+//            codeBuilder.append("\t\tthis(JSONPojoStructure.get(" + canonicalName + ".class));\n");
+//            codeBuilder.append("\t}\n\n");
         }
 
         // create fun
