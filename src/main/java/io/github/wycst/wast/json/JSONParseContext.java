@@ -1,5 +1,7 @@
 package io.github.wycst.wast.json;
 
+import io.github.wycst.wast.json.options.ReadOption;
+
 /**
  * json解析上下文配置
  *
@@ -79,6 +81,13 @@ public class JSONParseContext {
     // 开启校验模式（调用validate方法时）
     boolean validate;
     boolean validateFail;
+
+    static JSONParseContext of(ReadOption[] readOptions) {
+        JSONParseContext parseContext = new JSONParseContext();
+        JSONOptions.readOptions(readOptions, parseContext);
+        return parseContext;
+    }
+
     void setIgnoreEscapeCheck() {
         escape = false;
     }

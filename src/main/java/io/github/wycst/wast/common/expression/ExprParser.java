@@ -711,7 +711,7 @@ public class ExprParser extends Expression {
         ElOperator elOperator;
         // Is it a minus sign operator
         boolean isMinusSymbol = false;
-        if ((isDigit(currentChar) || (isMinusSymbol = currentChar == '-')) && prevTokenType < NUM_TOKEN) {
+        if ((NumberUtils.isDigit(currentChar) || (isMinusSymbol = currentChar == '-')) && prevTokenType < NUM_TOKEN) {
             final int begin = this.readIndex;
             int cnt = 0;
             int readIndex = ++this.readIndex;
@@ -751,7 +751,7 @@ public class ExprParser extends Expression {
                         ++this.readIndex;
                     }
                 } else {
-                    if (Character.isDigit(secondeDigitChar)) {
+                    if (NumberUtils.isDigit(secondeDigitChar)) {
                         numberRadix = 8;
                         this.readIndex = readIndex;
                         hexOrOctVal = digit(secondeDigitChar, 8);
@@ -771,7 +771,6 @@ public class ExprParser extends Expression {
                             case 'd':
                             case '.': {
                                 numberRadix = 10;
-                                // decimalVal = Integer.parseInt(Long.toString(hexOrOctVal, 8));
                                 decimalVal = hexOrOctVal;
                                 valInitSet = true;
                                 break;
@@ -801,11 +800,11 @@ public class ExprParser extends Expression {
             if (numberRadix == 10) {
                 if (!isMinusSymbol && !valInitSet) {
                     ++cnt;
-                    decimalVal = currentChar - 48;
+                    decimalVal = currentChar & 0xf;
                 }
                 // 10进制
-                while (readable() && isDigit(currentChar = read())) {
-                    decimalVal = decimalVal * 10 + (currentChar - 48);
+                while (readable() && NumberUtils.isDigit(currentChar = read())) {
+                    decimalVal = decimalVal * 10 + (currentChar & 0xf);
                     ++this.readIndex;
                     ++cnt;
                 }
@@ -815,8 +814,8 @@ public class ExprParser extends Expression {
                     // 小数点模式
                     mode = 1;
                     // direct scan numbers
-                    while (readable() && isDigit(currentChar = read())) {
-                        decimalVal = decimalVal * 10 + currentChar - 48;
+                    while (readable() && NumberUtils.isDigit(currentChar = read())) {
+                        decimalVal = decimalVal * 10 + (currentChar & 0xf);
                         ++decimalCount;
                         ++cnt;
                         ++this.readIndex;
@@ -831,11 +830,11 @@ public class ExprParser extends Expression {
                             ++this.readIndex;
                             currentChar = read();
                         }
-                        if (isDigit(currentChar)) {
-                            expValue = currentChar - 48;
+                        if (NumberUtils.isDigit(currentChar)) {
+                            expValue = currentChar & 0xf;
                             ++this.readIndex;
-                            while (readable() && isDigit(currentChar = read())) {
-                                expValue = (expValue << 3) + (expValue << 1) + currentChar - 48;
+                            while (readable() && NumberUtils.isDigit(currentChar = read())) {
+                                expValue = (expValue << 3) + (expValue << 1) + (currentChar & 0xf);
                                 ++this.readIndex;
                             }
                         }
@@ -935,9 +934,9 @@ public class ExprParser extends Expression {
                             char c;
                             decimalCount = 0;
                             for (; j < this.readIndex; ++j) {
-                                if (isDigit(c = sourceChars[offset + j])) {
+                                if (NumberUtils.isDigit(c = sourceChars[offset + j])) {
                                     if (cnt++ < 18) {
-                                        decimalVal = decimalVal * 10 + c - 48;
+                                        decimalVal = decimalVal * 10 + (c & 0xf);
                                     }
                                     if (j > decimalPointIndex) {
                                         ++decimalCount;
@@ -1599,14 +1598,14 @@ public class ExprParser extends Expression {
 
     // 解析模式下支持 _ $ . 字母,数字等
     final static boolean isIdentifierAppend(char c) {
-        return c == '_' || c == '$' || c == '.' /*|| c == '#'*/ || Character.isLetter(c) || isDigit(c);
+        return c == '_' || c == '$' || c == '.' /*|| c == '#'*/ || Character.isLetter(c) || NumberUtils.isDigit(c);
     }
 
     // 是否变量表达式字符
     final static boolean isVariableAppend(char c) {
         if (Character.isLetter(c)) return true;
         if (c <= ' ') return false;
-        return /*c == '.' || */c == '_' || c == '$' || isDigit(c) /*|| c == '[' *//*|| c == '('*/;
+        return /*c == '.' || */c == '_' || c == '$' || NumberUtils.isDigit(c) /*|| c == '[' *//*|| c == '('*/;
     }
 
     final static int digit(char c, int numberRadix) {
@@ -1636,29 +1635,7 @@ public class ExprParser extends Expression {
         }
     }
 
-    /**
-     * 10进制数字开头
-     *
-     * @param c
-     * @return
-     */
-    final static boolean isDigit(char c) {
-        switch (c) {
-            case '0':
-            case '1':
-            case '2':
-            case '3':
-            case '4':
-            case '5':
-            case '6':
-            case '7':
-            case '8':
-            case '9':
-                return true;
-            default:
-                return false;
-        }
-    }
+
 
     private void resetToken() {
         // 重置记录上一个token类型
@@ -1822,14 +1799,8 @@ public class ExprParser extends Expression {
             return compressEvaluator(left);
         } else if (evalType == ExprEvaluator.EVAL_TYPE_OPERATOR) {
             left = compressEvaluator(left);
-//            if (right == null) {
-//                return left;
-//            }
             right = compressEvaluator(right);
             ElOperator elOperator = exprEvaluator.operator;
-//            if (eo == ElOperator.QUESTION) {
-//                return ExprEvaluator.TernaryImpl.of(exprEvaluator.update(left, right));
-//            }
             switch (elOperator) {
                 case MULTI:
                     // *乘法

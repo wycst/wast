@@ -3,6 +3,7 @@ package io.github.wycst.wast.json.temporal;
 import io.github.wycst.wast.common.beans.GeneralDate;
 import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
+import io.github.wycst.wast.common.utils.NumberUtils;
 import io.github.wycst.wast.json.JSONParseContext;
 import io.github.wycst.wast.json.JSONTemporalDeserializer;
 import io.github.wycst.wast.json.exceptions.JSONException;
@@ -45,7 +46,7 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
         int i = offset, hour, minute, second;
         char c1, c2;
         boolean isDigitFlag;
-        if ((isDigitFlag = isDigit(c1 = buf[i])) && isDigit(c2 = buf[++i])) {
+        if ((isDigitFlag = NumberUtils.isDigit(c1 = buf[i])) && NumberUtils.isDigit(c2 = buf[++i])) {
             hour = twoDigitsValue(c1, c2);
             ++i;
         } else {
@@ -56,7 +57,7 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
                 throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', hour field error ");
             }
         }
-        if ((isDigitFlag = isDigit(c1 = buf[++i])) && isDigit(c2 = buf[++i])) {
+        if ((isDigitFlag = NumberUtils.isDigit(c1 = buf[++i])) && NumberUtils.isDigit(c2 = buf[++i])) {
             minute = twoDigitsValue(c1, c2);
             ++i;
         } else {
@@ -67,7 +68,7 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
                 throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', minute field error ");
             }
         }
-        if ((isDigitFlag = isDigit(c1 = buf[++i])) && isDigit(c2 = buf[++i])) {
+        if ((isDigitFlag = NumberUtils.isDigit(c1 = buf[++i])) && NumberUtils.isDigit(c2 = buf[++i])) {
             second = twoDigitsValue(c1, c2);
             ++i;
         } else {
@@ -82,7 +83,7 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
         char c = buf[i];
         if (c == '.') {
             int cnt = 9;
-            while ((isDigitFlag = isDigit(c = buf[++i])) && isDigit(c1 = buf[++i])) {
+            while ((isDigitFlag = NumberUtils.isDigit(c = buf[++i])) && NumberUtils.isDigit(c1 = buf[++i])) {
                 cnt -= 2;
                 nanoOfSecond = nanoOfSecond * 100 + twoDigitsValue(c, c1);;
             }
@@ -109,7 +110,7 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
         int i = offset, hour, minute, second;
         byte b1, b2;
         boolean isDigitFlag;
-        if ((isDigitFlag = isDigit(b1 = buf[i])) && isDigit(b2 = buf[++i])) {
+        if ((isDigitFlag = NumberUtils.isDigit(b1 = buf[i])) && NumberUtils.isDigit(b2 = buf[++i])) {
             hour = twoDigitsValue(b1, b2);
             ++i;
         } else {
@@ -120,7 +121,7 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
                 throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', hour field error ");
             }
         }
-        if ((isDigitFlag = isDigit(b1 = buf[++i])) && isDigit(b2 = buf[++i])) {
+        if ((isDigitFlag = NumberUtils.isDigit(b1 = buf[++i])) && NumberUtils.isDigit(b2 = buf[++i])) {
             minute = twoDigitsValue(b1, b2);
             ++i;
         } else {
@@ -131,7 +132,7 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
                 throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', minute field error ");
             }
         }
-        if ((isDigitFlag = isDigit(b1 = buf[++i])) && isDigit(b2 = buf[++i])) {
+        if ((isDigitFlag = NumberUtils.isDigit(b1 = buf[++i])) && NumberUtils.isDigit(b2 = buf[++i])) {
             second = twoDigitsValue(b1, b2);
             ++i;
         } else {
@@ -152,7 +153,7 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
                 cnt -= 2;
                 nanoOfSecond = nanoOfSecond * 100 + val;
             }
-            if(isDigit(c = buf[i])) {
+            if(NumberUtils.isDigit(c = buf[i])) {
                 nanoOfSecond = (nanoOfSecond << 3) + (nanoOfSecond << 1) + (c & 0xf);
                 c = buf[++i];
                 --cnt;

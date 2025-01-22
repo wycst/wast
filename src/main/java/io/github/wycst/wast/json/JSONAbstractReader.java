@@ -401,14 +401,14 @@ abstract class JSONAbstractReader extends JSONGeneral {
         int mode = 0;
         int specifySuffix = 0;
         do {
-            while (isDigit(current)) {
+            while (NumberUtils.isDigit(current)) {
                 value = (value << 3) + (value << 1) + current - 48;
                 readNext();
             }
             if (current == '.') {
                 mode = 1;
                 // direct scan numbers
-                while (isDigit(readNext())) {
+                while (NumberUtils.isDigit(readNext())) {
                     value = (value << 3) + (value << 1) + current - 48;
                     ++decimalCount;
                 }
@@ -425,9 +425,9 @@ abstract class JSONAbstractReader extends JSONGeneral {
                 if ((expNegative = readNext() == '-') || current == '+') {
                     readNext();
                 }
-                if (isDigit(current)) {
+                if (NumberUtils.isDigit(current)) {
                     expValue = current - 48;
-                    while (isDigit(readNext())) {
+                    while (NumberUtils.isDigit(readNext())) {
                         expValue = (expValue << 3) + (expValue << 1) + current - 48;
                     }
                 }
@@ -1229,4 +1229,13 @@ abstract class JSONAbstractReader extends JSONGeneral {
      */
     public abstract void close();
 
+    public JSONAbstractReader multiple(boolean multiple) {
+        this.multiple = multiple;
+        return this;
+    }
+
+    public JSONAbstractReader options(ReadOption[] readOptions) {
+        this.readOptions = readOptions;
+        return this;
+    }
 }

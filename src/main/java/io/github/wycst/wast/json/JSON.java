@@ -19,6 +19,7 @@ package io.github.wycst.wast.json;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.utils.EnvUtils;
 import io.github.wycst.wast.common.utils.ObjectUtils;
+import io.github.wycst.wast.common.utils.StringUtils;
 import io.github.wycst.wast.json.exceptions.JSONException;
 import io.github.wycst.wast.json.options.ReadOption;
 import io.github.wycst.wast.json.options.WriteOption;
@@ -442,6 +443,124 @@ public final class JSON extends JSONGeneral {
             throw new JSONException("not supported type " + type);
         }
         return (T) parse(json, genericParameterizedType, readOptions);
+    }
+
+    /**
+     * 解析ndjson（jsonl）字符串返回列表
+     * <p>
+     * 注: 分隔符不限于换行回车符，即使没有分隔符或美化格式化后的多个json也支持解析
+     *
+     * @param json
+     * @param readOptions
+     * @return
+     */
+    public static List parseNdJson(String json, ReadOption... readOptions) {
+        return JSONL.parseNdJson(json, JSONTypeDeserializer.ANY, readOptions);
+    }
+
+    /**
+     * 解析ndjson（jsonl）流返回列表
+     * <p>
+     * 注: 分隔符不限于换行回车符，即使没有分隔符或美化格式化后的多个json也支持解析
+     *
+     * @param is
+     * @param readOptions
+     * @return
+     */
+    public static List parseNdJson(InputStream is, ReadOption... readOptions) {
+//        JSONReader reader = (JSONReader) JSONReader.from(is).multiple(true).options(readOptions);
+//        List list = new ArrayList();
+//        Object result;
+//        while ((result = reader.read()) != null) {
+//            list.add(result);
+//        }
+//        return list;
+        // Using parsing APIs seems to be faster
+        return JSONL.parseNdJson(StringUtils.fromStream(is), JSONTypeDeserializer.ANY, readOptions);
+    }
+
+//    /**
+//     * 解析ndjson（jsonl）返回指定索引位置的对象(按需)
+//     *
+//     * @param json
+//     * @param index 支持负数代表倒数
+//     * @param readOptions
+//     * @return
+//     */
+//    public static Object parseNdJsonAt(String json, int index, ReadOption... readOptions) {
+//        return JSONDefaultParser.parseNdJsonAt(json, index, readOptions);
+//    }
+
+    /**
+     * 支持同类型的ndjson（jsonl）解析
+     *
+     * @param json
+     * @param actualType
+     * @param readOptions
+     * @param <T>
+     * @return
+     */
+    public static <T> List<T> parseNdJson(String json, Class<T> actualType, ReadOption... readOptions) {
+        return JSONL.parseNdJson(json, JSONTypeDeserializer.getTypeDeserializer(actualType), readOptions);
+    }
+
+
+//    public static <T> T parseNdJson(String json, Class<T> actualType, int index, ReadOption... readOptions) {
+//        return null;
+//    }
+
+    /**
+     * 将集合对象转为ndjson字符串
+     *
+     * @param collection
+     * @param writeOptions
+     * @return
+     */
+    public static String toNdJsonString(Collection collection, WriteOption... writeOptions) {
+        JSONConfig jsonConfig = JSONConfig.config(writeOptions);
+        JSONWriter content = JSONWriter.forStringWriter(jsonConfig);
+        try {
+            JSONL.writeNdJsonTo(content, collection, jsonConfig);
+            return content.toString();
+        } catch (Exception e) {
+            throw (e instanceof JSONException) ? (JSONException) e : new JSONException(e);
+        } finally {
+            content.reset();
+            jsonConfig.clear();
+        }
+    }
+
+    /**
+     * 将集合对象写入ndjson输入流（使用系统默认编码）
+     *
+     * @param collection
+     * @param os
+     * @param writeOptions
+     */
+    public static void writeNdJsonTo(Collection collection, OutputStream os, WriteOption... writeOptions) {
+        writeNdJsonTo(collection, os, EnvUtils.CHARSET_DEFAULT, writeOptions);
+    }
+
+    /**
+     * 将集合对象写入ndjson输入流（使用系统默认编码）
+     *
+     * @param collection
+     * @param os
+     * @param charset
+     * @param writeOptions
+     */
+    public static void writeNdJsonTo(Collection collection, OutputStream os, Charset charset, WriteOption... writeOptions) {
+        JSONConfig jsonConfig = JSONConfig.config(writeOptions);
+        JSONWriter streamWriter = JSONWriter.forStreamWriter(charset, jsonConfig);
+        try {
+            JSONL.writeNdJsonTo(streamWriter, collection, jsonConfig);
+            streamWriter.toOutputStream(os);
+        } catch (Exception e) {
+            throw (e instanceof JSONException) ? (JSONException) e : new JSONException(e);
+        } finally {
+            streamWriter.reset();
+            jsonConfig.clear();
+        }
     }
 
     /**

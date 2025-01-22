@@ -170,51 +170,27 @@ public final class NumberUtils {
     }
 
     /**
-     * n 位数字（ 0 < n < 5）
+     * 判断一个字符或者字节是否为数字(48-57)
      *
-     * @param buf
-     * @param fromIndex
-     * @param n
+     * @param c
      * @return
-     * @throws NumberFormatException
      */
-    public static int parseIntWithin5(char[] buf, int fromIndex, int n)
-            throws NumberFormatException {
-        switch (n) {
-            case 1:
-                return parseInt1(buf, fromIndex);
-            case 2:
-                return parseInt2(buf, fromIndex);
-            case 3:
-                return parseInt3(buf, fromIndex);
-            case 4:
-                return parseInt4(buf, fromIndex);
+    public static boolean isDigit(int c) {
+        switch (c) {
+            case '0':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9':
+                return true;
+            default:
+                return false;
         }
-        throw new NumberFormatException("For input string: \"" + new String(buf, fromIndex, n) + "\"");
-    }
-
-    /**
-     * n 位数字（ 0 < n < 5）
-     *
-     * @param bytes
-     * @param fromIndex
-     * @param n
-     * @return
-     * @throws NumberFormatException
-     */
-    public static int parseIntWithin5(byte[] bytes, int fromIndex, int n)
-            throws NumberFormatException {
-        switch (n) {
-            case 1:
-                return parseInt1(bytes[fromIndex]);
-            case 2:
-                return parseInt2(bytes[fromIndex++], bytes[fromIndex]);
-            case 3:
-                return parseInt3(bytes[fromIndex++], bytes[fromIndex++], bytes[fromIndex]);
-            case 4:
-                return parseInt4(bytes[fromIndex++], bytes[fromIndex++], bytes[fromIndex++], bytes[fromIndex]);
-        }
-        throw new NumberFormatException("For input string: \"" + new String(bytes, fromIndex, n) + "\"");
     }
 
     /**
@@ -259,38 +235,6 @@ public final class NumberUtils {
             throw new NumberFormatException("For input string: \"" + new String(new char[]{(char) c1, (char) c2, (char) c3, (char) c4}) + "\"");
         }
         return v1 * 1000 + v2 * 100 + v3 * 10 + v4;
-    }
-
-    /**
-     * 转化为3位十进制数
-     *
-     * @param buf
-     * @param fromIndex
-     * @return
-     */
-    public static int parseInt3(char[] buf, int fromIndex)
-            throws NumberFormatException {
-        return parseInt3(buf[fromIndex++], buf[fromIndex++], buf[fromIndex]);
-    }
-
-    /**
-     * 转化为3位十进制数
-     *
-     * @param c1 百位
-     * @param c2 十位
-     * @param c3 个位
-     * @return
-     * @throws NumberFormatException
-     */
-    public static int parseInt3(int c1, int c2, int c3)
-            throws NumberFormatException {
-        int v1 = digitDecimal(c1);
-        int v2 = digitDecimal(c2);
-        int v3 = digitDecimal(c3);
-        if ((v1 | v2 | v3) == -1) {
-            throw new NumberFormatException("For input string: \"" + new String(new char[]{(char) c1, (char) c2, (char) c3}) + "\"");
-        }
-        return v1 * 100 + v2 * 10 + v3;
     }
 
     /**

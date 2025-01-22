@@ -20,7 +20,7 @@ WAST是一个高性能Java工具集库包，包括JSON、YAML、CSV、HttpClient
 <dependency>
     <groupId>io.github.wycst</groupId>
     <artifactId>wast</artifactId>
-    <version>0.0.21</version>
+    <version>0.0.22</version>
 </dependency>
 ```
 

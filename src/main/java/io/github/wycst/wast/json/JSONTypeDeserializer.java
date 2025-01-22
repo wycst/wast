@@ -906,7 +906,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                             return null;
                         }
                     }
-                    throw new JSONException("Syntax error, at pos " + fromIndex + ", unexpected character '" + beginChar + "' when parsing a number");
+                    throw new JSONException("Syntax error, at pos " + fromIndex + ", unexpected character '" + beginChar + "' when try parsing a number");
                 }
             }
         }
@@ -964,7 +964,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     return null;
                 }
             }
-            throw new JSONException("Syntax error, at pos " + fromIndex + ", unexpected character '" + beginByte + "' when parsing a number");
+            throw new JSONException("Syntax error, at pos " + fromIndex + ", unexpected character '" + (char) beginByte + "' when try parsing a number");
         }
 
         final static Number parseNumber(char[] buf, int fromIndex, int offset, long val, int cnt, boolean negative, char endToken, int returnType, JSONParseContext parseContext) throws Exception {
@@ -980,7 +980,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             int i = offset;
             char ch;
             do {
-                while (isDigit((ch = buf[i]))) {
+                while (NumberUtils.isDigit((ch = buf[i]))) {
                     value = (value << 3) + (value << 1) + (ch & 0xf);
                     ++cnt;
                     ++i;
@@ -989,7 +989,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     // 小数点模式
                     mode = 1;
                     // direct scan numbers
-                    while (isDigit((ch = buf[++i]))) {
+                    while (NumberUtils.isDigit((ch = buf[++i]))) {
                         value = (value << 3) + (value << 1) + (ch & 0xf);
                         ++decimalCount;
                         ++cnt;
@@ -1008,9 +1008,9 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     if ((expNegative = ch == '-') || ch == '+') {
                         ch = buf[++i];
                     }
-                    if (isDigit(ch)) {
+                    if (NumberUtils.isDigit(ch)) {
                         expValue = (ch & 0xf);
-                        while (isDigit(ch = buf[++i])) {
+                        while (NumberUtils.isDigit(ch = buf[++i])) {
                             expValue = (expValue << 3) + (expValue << 1) + (ch & 0xf);
                         }
                     }
@@ -1072,7 +1072,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     int j = fromIndex, decimalPointIndex = endIndex;
                     decimalCount = 0;
                     for (; j < i; ++j) {
-                        if (isDigit(ch = buf[j])) {
+                        if (NumberUtils.isDigit(ch = buf[j])) {
                             if (cnt++ < 18) {
                                 value = value * 10 + (ch & 0xf);
                             }
@@ -1190,7 +1190,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     cnt += 2;
                     i += 2;
                 }
-                if (isDigit(b = buf[i])) {
+                if (NumberUtils.isDigit(b = buf[i])) {
                     value = (value << 3) + (value << 1) + (b & 0xF);
                     b = buf[++i];
                     ++cnt;
@@ -1206,7 +1206,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                         decimalCount += 2;
                         i += 2;
                     }
-                    if (isDigit(b = buf[i])) {
+                    if (NumberUtils.isDigit(b = buf[i])) {
                         value = (value << 3) + (value << 1) + (b & 0xF);
                         b = buf[++i];
                         ++cnt;
@@ -1226,9 +1226,9 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     if ((expNegative = b == '-') || b == '+') {
                         b = buf[++i];
                     }
-                    if (isDigit(b)) {
+                    if (NumberUtils.isDigit(b)) {
                         expValue = (b & 0xF);
-                        while (isDigit(b = buf[++i])) {
+                        while (NumberUtils.isDigit(b = buf[++i])) {
                             expValue = (expValue << 3) + (expValue << 1) + (b & 0xF);
                         }
                     }
@@ -1290,7 +1290,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     int j = fromIndex, decimalPointIndex = endIndex;
                     decimalCount = 0;
                     for (; j < i; ++j) {
-                        if (isDigit(b = buf[j])) {
+                        if (NumberUtils.isDigit(b = buf[j])) {
                             if (cnt++ < 18) {
                                 value = value * 10 + (b & 0xF);
                             }
@@ -1394,7 +1394,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             int i = fromIndex;
             char ch, ch1 = 0;
             boolean isDigit;
-            while ((isDigit = isDigit((ch = buf[i]))) && isDigit(ch1 = buf[++i])) {
+            while ((isDigit = NumberUtils.isDigit((ch = buf[i]))) && NumberUtils.isDigit(ch1 = buf[++i])) {
                 value = value * 100 + twoDigitsValue(ch, ch1);
                 ++i;
             }
@@ -1428,7 +1428,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                 value = value * 100 + val;
                 i += 2;
             }
-            if (isDigit(b = buf[i])) {
+            if (NumberUtils.isDigit(b = buf[i])) {
                 value = (value << 3) + (value << 1) + (b & 0xF);
                 b = buf[++i];
             }
@@ -1595,11 +1595,11 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                 int i = offset;
                 char ch;
                 do {
-                    while (isDigit((ch = buf[i]))) {
+                    while (NumberUtils.isDigit((ch = buf[i]))) {
                         ++i;
                     }
                     if (ch == '.') {
-                        while (isDigit((ch = buf[++i]))) ;
+                        while (NumberUtils.isDigit((ch = buf[++i]))) ;
                     }
                     if (ch <= ' ') {
                         while ((ch = buf[++i]) <= ' ') ;
@@ -1612,8 +1612,8 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                         if (ch == '-' || ch == '+') {
                             ch = buf[++i];
                         }
-                        if (isDigit(ch)) {
-                            while (isDigit(ch = buf[++i])) ;
+                        if (NumberUtils.isDigit(ch)) {
+                            while (NumberUtils.isDigit(ch = buf[++i])) ;
                         }
                         if (ch <= ' ') {
                             while ((ch = buf[++i]) <= ' ') ;
@@ -1659,11 +1659,11 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                 int i = offset;
                 byte b;
                 do {
-                    while (isDigit((b = buf[i]))) {
+                    while (NumberUtils.isDigit((b = buf[i]))) {
                         ++i;
                     }
                     if (b == '.') {
-                        while (isDigit((b = buf[++i]))) ;
+                        while (NumberUtils.isDigit((b = buf[++i]))) ;
                     }
                     if (b <= ' ') {
                         while ((b = buf[++i]) <= ' ') ;
@@ -1676,8 +1676,8 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                         if (b == '-' || b == '+') {
                             b = buf[++i];
                         }
-                        if (isDigit(b)) {
-                            while (isDigit(b = buf[++i])) ;
+                        if (NumberUtils.isDigit(b)) {
+                            while (NumberUtils.isDigit(b = buf[++i])) ;
                         }
                         if (b <= ' ') {
                             while ((b = buf[++i]) <= ' ') ;

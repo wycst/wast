@@ -2698,8 +2698,8 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 int index = 0;
                 do {
                     char ch = pathChars[i++];
-                    if (JSONGeneral.isDigit(ch)) {
-                        index = (index << 3) + (index << 1) + ch - 48;
+                    if (NumberUtils.isDigit(ch)) {
+                        index = (index << 3) + (index << 1) + (ch & 0xf);
                     } else {
                         throw new IllegalArgumentException("mismatch array index '" + path.substring(offset, end) + "'");
                     }
@@ -2721,8 +2721,8 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 int index = 0;
                 do {
                     byte ch = pathBytes[i++];
-                    if (JSONGeneral.isDigit(ch)) {
-                        index = (index << 3) + (index << 1) + ch - 48;
+                    if (NumberUtils.isDigit(ch)) {
+                        index = (index << 3) + (index << 1) + (ch & 0xf);
                     } else {
                         throw new IllegalArgumentException("mismatch array index '" + path.substring(offset, end) + "'");
                     }

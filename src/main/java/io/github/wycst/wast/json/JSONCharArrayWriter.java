@@ -272,6 +272,11 @@ class JSONCharArrayWriter extends JSONWriter {
     }
 
     @Override
+    protected boolean endsWith(int c) {
+        return count == 0 ? false : buf[count - 1] == c;
+    }
+
+    @Override
     public String toString() {
         return new String(buf, 0, count);
     }

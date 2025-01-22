@@ -33,7 +33,7 @@ final class JSONUnsafe {
         @Override
         int digits2Bytes(byte[] buf, int offset) {
             int bigShortVal = UNSAFE.getShort(buf, BYTE_ARRAY_OFFSET + offset);
-            if ((bigShortVal & 0xFFFFF030) == 0x3030) {
+            if ((bigShortVal & 0xF030) == 0x3030) {
                 int l = bigShortVal & 0xf, h = (bigShortVal >> 8) & 0xf;
                 if (h > 9 || l > 9) return -1;
                 return (h << 3) + (h << 1) + l;
@@ -81,7 +81,7 @@ final class JSONUnsafe {
         @Override
         int digits2Bytes(byte[] buf, int offset) {
             int littleShortVal = UNSAFE.getShort(buf, BYTE_ARRAY_OFFSET + offset);
-            if ((littleShortVal & 0xFFFFF030) == 0x3030) {
+            if ((littleShortVal & 0xF030) == 0x3030) {
                 int h = littleShortVal & 0x3f, l8 = (littleShortVal >> 4) & 0xF0;
                 return JSONGeneral.TWO_DIGITS_VALUES[h ^ l8];
             } else {

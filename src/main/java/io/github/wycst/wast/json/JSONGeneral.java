@@ -128,6 +128,7 @@ class JSONGeneral {
     protected final static JSONSecureTrustedAccess JSON_SECURE_TRUSTED_ACCESS = new JSONSecureTrustedAccess();
     final static int[] TWO_DIGITS_VALUES = new int[256];
     protected final static int[] THREE_DIGITS_MUL10 = new int[10 << 8];  // 2560
+
     static {
         for (int i = 0; i < ESCAPE_VALUES.length; ++i) {
             switch (i) {
@@ -292,24 +293,128 @@ class JSONGeneral {
      * 转化为2位int数字
      *
      * @param buf
-     * @param fromIndex
+     * @param offset
      * @return
      */
-    protected final static int parseInt2(char[] buf, int fromIndex)
+    protected final static int parseInt2(char[] buf, int offset)
             throws NumberFormatException {
-        return NumberUtils.parseInt2(buf, fromIndex);
+        char c1, c2;
+        int i = offset;
+        if (NumberUtils.isDigit(c1 = buf[i]) && NumberUtils.isDigit(c2 = buf[++i])) {
+            return twoDigitsValue(c1, c2);
+        }
+        throw new NumberFormatException("2-digit parsing error: \"" + new String(buf, offset, 2));
+    }
+
+    /**
+     * 转化为2位int数字
+     *
+     * @param buf
+     * @param offset
+     * @return
+     */
+    protected final static int parseInt2(byte[] buf, int offset)
+            throws NumberFormatException {
+        byte c1, c2;
+        int i = offset;
+        if (NumberUtils.isDigit(c1 = buf[i]) && NumberUtils.isDigit(c2 = buf[++i])) {
+            return twoDigitsValue(c1, c2);
+        }
+        throw new NumberFormatException("2-digit parsing error: \"" + new String(buf, offset, 2));
     }
 
     /**
      * 转化为4位int数字
      *
      * @param buf
-     * @param fromIndex
+     * @param offset
      * @return
      */
-    protected final static int parseInt4(char[] buf, int fromIndex)
+    protected final static int parseInt4(char[] buf, int offset)
             throws NumberFormatException {
-        return NumberUtils.parseInt4(buf, fromIndex);
+        char c1, c2, c3, c4;
+        int i = offset;
+        if (NumberUtils.isDigit(c1 = buf[i]) && NumberUtils.isDigit(c2 = buf[++i]) && NumberUtils.isDigit(c3 = buf[++i]) && NumberUtils.isDigit(c4 = buf[++i])) {
+            return fourDigitsValue(c1 & 0xf, c2 & 0xf, c3 & 0xf, c4);
+        }
+        throw new NumberFormatException("4-digit parsing error: \"" + new String(buf, offset, 4));
+    }
+
+    /**
+     * 转化为4位int数字
+     *
+     * @param buf
+     * @param offset
+     * @return
+     */
+    protected final static int parseInt4(byte[] buf, int offset)
+            throws NumberFormatException {
+        byte c1, c2, c3, c4;
+        int i = offset;
+        if (NumberUtils.isDigit(c1 = buf[i]) && NumberUtils.isDigit(c2 = buf[++i]) && NumberUtils.isDigit(c3 = buf[++i]) && NumberUtils.isDigit(c4 = buf[++i])) {
+            return fourDigitsValue(c1 & 0xf, c2 & 0xf, c3 & 0xf, c4);
+        }
+        throw new NumberFormatException("4-digit parsing error: \"" + new String(buf, offset, 4));
+    }
+
+    /**
+     * n 位数字（ 0 < n < 4）
+     *
+     * @param bytes
+     * @param offset
+     * @param n
+     * @return
+     * @throws NumberFormatException
+     */
+    public static int parseIntWithin3(byte[] bytes, int offset, int n)
+            throws NumberFormatException {
+        switch (n) {
+            case 1:
+                byte b = bytes[offset];
+                if (NumberUtils.isDigit(b)) {
+                    return b & 0xf;
+                }
+                break;
+            case 2:
+                return parseInt2(bytes, offset);
+            case 3:
+                int i = offset;
+                byte b1 = bytes[i], b2 = bytes[++i], b3 = bytes[++i];
+                if (NumberUtils.isDigit(b1) && NumberUtils.isDigit(b2) && NumberUtils.isDigit(b3)) {
+                    return fourDigitsValue(0, b1 & 0xf, b2 & 0xf, b3);
+                }
+        }
+        throw new NumberFormatException(n + "-digit parsing error: \"" + new String(bytes, offset, n));
+    }
+
+    /**
+     * n 位数字（ 0 < n < 4）
+     *
+     * @param buf
+     * @param offset
+     * @param n
+     * @return
+     * @throws NumberFormatException
+     */
+    public static int parseIntWithin3(char[] buf, int offset, int n)
+            throws NumberFormatException {
+        switch (n) {
+            case 1:
+                char c = buf[offset];
+                if (NumberUtils.isDigit(c)) {
+                    return c & 0xf;
+                }
+                break;
+            case 2:
+                return parseInt2(buf, offset);
+            case 3:
+                int i = offset;
+                char c1 = buf[i], c2 = buf[++i], c3 = buf[++i];
+                if (NumberUtils.isDigit(c1) && NumberUtils.isDigit(c2) && NumberUtils.isDigit(c3)) {
+                    return fourDigitsValue(0, c1 & 0xf, c2 & 0xf, c3);
+                }
+        }
+        throw new NumberFormatException(n + "-digit parsing error: \"" + new String(buf, offset, n));
     }
 
     final static boolean isNoEscape32Bits(byte[] bytes, int offset) {
@@ -332,13 +437,14 @@ class JSONGeneral {
 
     /**
      * 通过unsafe一次性判断4个字节是否需要转义
+     *
      * @param value 限于ascii字节编码（所有字节的高位都为0）
      * @return
      */
     final static boolean isNoEscapeBytesUnsafeWith32Bits(int value) {
         return ((value + 0x60606060) & 0x80808080) == 0x80808080  // all >= 32
                 && ((value ^ 0xDDDDDDDD) + 0x01010101 & 0x80808080) == 0x80808080   // != 34
-                &&  ((value ^ 0xA3A3A3A3) + 0x01010101 & 0x80808080) == 0x80808080;  // all != 92
+                && ((value ^ 0xA3A3A3A3) + 0x01010101 & 0x80808080) == 0x80808080;  // all != 92
     }
 
     /**
@@ -350,11 +456,24 @@ class JSONGeneral {
     final static boolean isNoEscapeBytesUnsafeWith64Bits(long value) {
         return ((value + 0x6060606060606060L) & 0x8080808080808080L) == 0x8080808080808080L // all >= 32
                 && ((value ^ 0xDDDDDDDDDDDDDDDDL) + 0x0101010101010101L & 0x8080808080808080L) == 0x8080808080808080L // != 34
-                &&  ((value ^ 0xA3A3A3A3A3A3A3A3L) + 0x0101010101010101L & 0x8080808080808080L) == 0x8080808080808080L; // all != 92
+                && ((value ^ 0xA3A3A3A3A3A3A3A3L) + 0x0101010101010101L & 0x8080808080808080L) == 0x8080808080808080L; // all != 92
     }
 
+//    /**
+//     * 一次性判断4个字符是否不存在需要转义的字符
+//     *
+//     * @param value
+//     * @return
+//     */
+//    final static boolean isNoEscapeCharsUnsafeWith64Bits(long value) {
+//        // 0XFF60FF60FF60FF60
+//        return ((value + 0XFF60FF60FF60FF60L) & 0x800080080008000L) == 0x800080080008000L // all >= 32
+//                && ((value ^ 0xFFDDFFDDFFDDFFDDL) + 0x0001000100010001L & 0x800080080008000L) == 0x800080080008000L // != 34
+//                && ((value ^ 0xFFA3FFA3FFA3FFA3L) + 0x0001000100010001L & 0x800080080008000L) == 0x800080080008000L; // all != 92
+//    }
+
     /**
-     * 通过unsafe获取的4个字符一次性判断是否需要转义(包含'"'或者‘\\’)，如果需要转义返回false,否则返回true
+     * 通过unsafe获取的4个字符一次性判断是否不存在'"'或者‘\\’，如果存在返回false,否则返回true
      *
      * @param buf
      * @param offset
@@ -365,10 +484,10 @@ class JSONGeneral {
         long value = JSONUnsafe.getLong(buf, offset);
         // "(34) 0x0022 -> 0xFFDDL | '\''(39) 0x0027 -> 0xFFD8
         final long quoteMask = quote == '"' ? 0xFFDDFFDDFFDDFFDDL : 0xFFD8FFD8FFD8FFD8L;
-        return  ((value ^ quoteMask) + 0x0001000100010001L & 0x8000800080008000L) == 0x8000800080008000L // != quote
-                &&  ((value ^ 0xFFA3FFA3FFA3FFA3L) + 0x0001000100010001L & 0x8000800080008000L) == 0x8000800080008000L; // all != 92
+        return ((value ^ quoteMask) + 0x0001000100010001L & 0x8000800080008000L) == 0x8000800080008000L // != quote
+                && ((value ^ 0xFFA3FFA3FFA3FFA3L) + 0x0001000100010001L & 0x8000800080008000L) == 0x8000800080008000L; // all != 92
     }
-    
+
     /**
      * escape next
      *
@@ -572,7 +691,7 @@ class JSONGeneral {
         } catch (Throwable throwable) {
             // \\u parse error
             String errorContextTextAt = createErrorContextText(buf, j - 1);
-            throw new JSONException("Syntax error, from pos " + fromIndex + ", context text by '" + errorContextTextAt + "', " + throwable.getMessage());
+            throw new JSONException("Syntax error, from pos " + fromIndex + ", context text by '" + errorContextTextAt + "', hex unicode parse error ");
         }
     }
 
@@ -584,24 +703,6 @@ class JSONGeneral {
      */
     protected static int digitDecimal(int ch) {
         return NumberUtils.digitDecimal(ch);
-    }
-
-    protected static final boolean isDigit(int c) {
-        switch (c) {
-            case '0':
-            case '1':
-            case '2':
-            case '3':
-            case '4':
-            case '5':
-            case '6':
-            case '7':
-            case '8':
-            case '9':
-                return true;
-            default:
-                return false;
-        }
     }
 
     /**
@@ -678,7 +779,7 @@ class JSONGeneral {
                     int second = parseInt2(buf, from + 12);
                     int millsecond = 0;
                     if (len > 14) {
-                        millsecond = NumberUtils.parseIntWithin5(buf, from + 14, len - 14);
+                        millsecond = parseIntWithin3(buf, from + 14, len - 14);
                     }
                     return parseDate(year, month, day, hour, minute, second, millsecond, timezoneIdAt, dateCls);
                 } catch (Throwable throwable) {
@@ -701,7 +802,7 @@ class JSONGeneral {
                     int second = parseInt2(buf, from + 17);
                     int millsecond = 0;
                     if (len > 20) {
-                        millsecond = NumberUtils.parseIntWithin5(buf, from + 20, len - 20);
+                        millsecond = parseIntWithin3(buf, from + 20, len - 20);
                     }
                     return parseDate(year, month, day, hour, minute, second, millsecond, timezoneIdAt, dateCls);
                 } catch (Throwable throwable) {
@@ -737,7 +838,7 @@ class JSONGeneral {
                         int hour = parseInt2(buf, from + 11);
                         int minute = parseInt2(buf, from + 14);
                         int second = parseInt2(buf, from + 17);
-                        int millsecond = NumberUtils.parseIntWithin5(buf, from + 20, 3);
+                        int millsecond = parseIntWithin3(buf, from + 20, 3);
                         return parseDate(year, month, day, hour, minute, second, millsecond, timezoneIdAt, dateCls);
                     } catch (Throwable throwable) {
                     }
@@ -848,14 +949,14 @@ class JSONGeneral {
                 // HH:mm:ss
                 try {
                     if (dateCls != null && Time.class.isAssignableFrom(dateCls)) {
-                        int hour = NumberUtils.parseInt2(buf, from);
-                        int minute = NumberUtils.parseInt2(buf, from + 3);
-                        int second = NumberUtils.parseInt2(buf, from + 6);
+                        int hour = parseInt2(buf, from);
+                        int minute = parseInt2(buf, from + 3);
+                        int second = parseInt2(buf, from + 6);
                         return parseDate(1970, 1, 1, hour, minute, second, 0, timezoneIdAt, dateCls);
                     } else {
-                        int year = NumberUtils.parseInt4(buf, from);
-                        int month = NumberUtils.parseInt2(buf, from + 4);
-                        int day = NumberUtils.parseInt2(buf, from + 6);
+                        int year = parseInt4(buf, from);
+                        int month = parseInt2(buf, from + 4);
+                        int day = parseInt2(buf, from + 6);
                         return parseDate(year, month, day, 0, 0, 0, 0, timezoneIdAt, dateCls);
                     }
                 } catch (Throwable throwable) {
@@ -866,9 +967,9 @@ class JSONGeneral {
                 // yyyy-MM-dd yyyy/MM/dd
                 // \d{4}[-/]\d{2}[-/]\d{2}
                 try {
-                    int year = NumberUtils.parseInt4(buf, from);
-                    int month = NumberUtils.parseInt2(buf, from + 5);
-                    int day = NumberUtils.parseInt2(buf, from + 8);
+                    int year = parseInt4(buf, from);
+                    int month = parseInt2(buf, from + 5);
+                    int day = parseInt2(buf, from + 8);
                     return parseDate(year, month, day, 0, 0, 0, 0, timezoneIdAt, dateCls);
                 } catch (Throwable throwable) {
                 }
@@ -880,15 +981,15 @@ class JSONGeneral {
             case 17: {
                 // yyyyMMddHHmmss or yyyyMMddhhmmssSSS
                 try {
-                    int year = NumberUtils.parseInt4(buf, from);
-                    int month = NumberUtils.parseInt2(buf, from + 4);
-                    int day = NumberUtils.parseInt2(buf, from + 6);
-                    int hour = NumberUtils.parseInt2(buf, from + 8);
-                    int minute = NumberUtils.parseInt2(buf, from + 10);
-                    int second = NumberUtils.parseInt2(buf, from + 12);
+                    int year = parseInt4(buf, from);
+                    int month = parseInt2(buf, from + 4);
+                    int day = parseInt2(buf, from + 6);
+                    int hour = parseInt2(buf, from + 8);
+                    int minute = parseInt2(buf, from + 10);
+                    int second = parseInt2(buf, from + 12);
                     int millsecond = 0;
                     if (len > 14) {
-                        millsecond = NumberUtils.parseIntWithin5(buf, from + 14, len - 14);
+                        millsecond = parseIntWithin3(buf, from + 14, len - 14);
                     }
                     return parseDate(year, month, day, hour, minute, second, millsecond, timezoneIdAt, dateCls);
                 } catch (Throwable throwable) {
@@ -903,15 +1004,15 @@ class JSONGeneral {
                 // yyyy-MM-dd HH:mm:ss.SSS? yyyy/MM/dd HH:mm:ss.SSS? 23位
                 // \\d{4}[-/]\\d{2}[-/]\\d{2} \\d{2}:\\d{2}:\\d{2}
                 try {
-                    int year = NumberUtils.parseInt4(buf, from);
-                    int month = NumberUtils.parseInt2(buf, from + 5);
-                    int day = NumberUtils.parseInt2(buf, from + 8);
-                    int hour = NumberUtils.parseInt2(buf, from + 11);
-                    int minute = NumberUtils.parseInt2(buf, from + 14);
-                    int second = NumberUtils.parseInt2(buf, from + 17);
+                    int year = parseInt4(buf, from);
+                    int month = parseInt2(buf, from + 5);
+                    int day = parseInt2(buf, from + 8);
+                    int hour = parseInt2(buf, from + 11);
+                    int minute = parseInt2(buf, from + 14);
+                    int second = parseInt2(buf, from + 17);
                     int millsecond = 0;
                     if (len > 20) {
-                        millsecond = NumberUtils.parseIntWithin5(buf, from + 20, len - 20);
+                        millsecond = parseIntWithin3(buf, from + 20, len - 20);
                     }
                     return parseDate(year, month, day, hour, minute, second, millsecond, timezoneIdAt, dateCls);
                 } catch (Throwable throwable) {
@@ -925,13 +1026,13 @@ class JSONGeneral {
                  * @see Date#toString()
                  */
                 try {
-                    int year = NumberUtils.parseInt4(buf, from + 24);
+                    int year = parseInt4(buf, from + 24);
                     String monthAbbr = new String(buf, from + 4, 3);
                     int month = getMonthAbbrIndex(monthAbbr) + 1;
-                    int day = NumberUtils.parseInt2(buf, from + 8);
-                    int hour = NumberUtils.parseInt2(buf, from + 11);
-                    int minute = NumberUtils.parseInt2(buf, from + 14);
-                    int second = NumberUtils.parseInt2(buf, from + 17);
+                    int day = parseInt2(buf, from + 8);
+                    int hour = parseInt2(buf, from + 11);
+                    int minute = parseInt2(buf, from + 14);
+                    int second = parseInt2(buf, from + 17);
                     return parseDate(year, month, day, hour, minute, second, 0, timezoneIdAt, dateCls);
                 } catch (Throwable throwable) {
                 }
@@ -941,13 +1042,13 @@ class JSONGeneral {
                 if (len > 28) {
                     // yyyy-MM-ddTHH:mm:ss.000000000 -> yyyy-MM-ddTHH:mm:ss.000
                     try {
-                        int year = NumberUtils.parseInt4(buf, from);
-                        int month = NumberUtils.parseInt2(buf, from + 5);
-                        int day = NumberUtils.parseInt2(buf, from + 8);
-                        int hour = NumberUtils.parseInt2(buf, from + 11);
-                        int minute = NumberUtils.parseInt2(buf, from + 14);
-                        int second = NumberUtils.parseInt2(buf, from + 17);
-                        int millsecond = NumberUtils.parseIntWithin5(buf, from + 20, 3);
+                        int year = parseInt4(buf, from);
+                        int month = parseInt2(buf, from + 5);
+                        int day = parseInt2(buf, from + 8);
+                        int hour = parseInt2(buf, from + 11);
+                        int minute = parseInt2(buf, from + 14);
+                        int second = parseInt2(buf, from + 17);
+                        int millsecond = parseIntWithin3(buf, from + 20, 3);
                         return parseDate(year, month, day, hour, minute, second, millsecond, timezoneIdAt, dateCls);
                     } catch (Throwable throwable) {
                     }
@@ -980,29 +1081,29 @@ class JSONGeneral {
                 }
                 case 1: {
                     // yyyy-MM-dd HH:mm:ss or yyyy/MM/dd HH:mm:ss
-                    int year = NumberUtils.parseInt4(bytes, from + 1);
-                    int month = NumberUtils.parseInt2(bytes, from + 6);
-                    int day = NumberUtils.parseInt2(bytes, from + 9);
-                    int hour = NumberUtils.parseInt2(bytes, from + 12);
-                    int minute = NumberUtils.parseInt2(bytes, from + 15);
-                    int second = NumberUtils.parseInt2(bytes, from + 18);
+                    int year = parseInt4(bytes, from + 1);
+                    int month = parseInt2(bytes, from + 6);
+                    int day = parseInt2(bytes, from + 9);
+                    int hour = parseInt2(bytes, from + 12);
+                    int minute = parseInt2(bytes, from + 15);
+                    int second = parseInt2(bytes, from + 18);
                     return parseDate(year, month, day, hour, minute, second, 0, timezoneIdAt, dateCls);
                 }
                 case 2: {
                     // yyyy-MM-dd yyyy/MM/dd
-                    int year = NumberUtils.parseInt4(bytes, from + 1);
-                    int month = NumberUtils.parseInt2(bytes, from + 6);
-                    int day = NumberUtils.parseInt2(bytes, from + 9);
+                    int year = parseInt4(bytes, from + 1);
+                    int month = parseInt2(bytes, from + 6);
+                    int day = parseInt2(bytes, from + 9);
                     return parseDate(year, month, day, 0, 0, 0, 0, timezoneIdAt, dateCls);
                 }
                 case 3: {
                     // yyyyMMddHHmmss
-                    int year = NumberUtils.parseInt4(bytes, from + 1);
-                    int month = NumberUtils.parseInt2(bytes, from + 5);
-                    int day = NumberUtils.parseInt2(bytes, from + 7);
-                    int hour = NumberUtils.parseInt2(bytes, from + 9);
-                    int minute = NumberUtils.parseInt2(bytes, from + 11);
-                    int second = NumberUtils.parseInt2(bytes, from + 13);
+                    int year = parseInt4(bytes, from + 1);
+                    int month = parseInt2(bytes, from + 5);
+                    int day = parseInt2(bytes, from + 7);
+                    int hour = parseInt2(bytes, from + 9);
+                    int minute = parseInt2(bytes, from + 11);
+                    int second = parseInt2(bytes, from + 13);
                     return parseDate(year, month, day, hour, minute, second, 0, timezoneIdAt, dateCls);
                 }
                 default: {
@@ -1300,7 +1401,7 @@ class JSONGeneral {
                     ++pointFlag;
                 } else {
                     if (i != from || c != '-') {
-                        if (!isDigit(c)) {
+                        if (!NumberUtils.isDigit(c)) {
                             numberFlag = false;
                             break;
                         }
@@ -1355,7 +1456,7 @@ class JSONGeneral {
                     ++pointFlag;
                 } else {
                     if (i != from || c != '-') {
-                        if (!isDigit(c)) {
+                        if (!NumberUtils.isDigit(c)) {
                             numberFlag = false;
                             break;
                         }

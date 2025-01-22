@@ -43,6 +43,11 @@ class JSONWrapWriter extends JSONWriter {
     }
 
     @Override
+    protected boolean endsWith(int c) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void writeShortChars(char[] chars, int offset, int len) throws IOException {
         write(chars, offset, len);
     }

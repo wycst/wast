@@ -3,6 +3,7 @@ package io.github.wycst.wast.json;
 import io.github.wycst.wast.common.expression.ExprParser;
 import io.github.wycst.wast.common.expression.Expression;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
+import io.github.wycst.wast.common.utils.NumberUtils;
 import io.github.wycst.wast.json.exceptions.JSONException;
 
 import java.io.Serializable;
@@ -178,12 +179,12 @@ public final class JSONNodePath {
                     beginChar = ch;
                     char endChar;
                     boolean isNegative = ch == '-';
-                    if (isNegative || JSONGeneral.isDigit(ch)) {
+                    if (isNegative ||  NumberUtils.isDigit(ch)) {
                         int val = 0;
                         if (!isNegative) {
                             val = ch - 48;
                         }
-                        while (offset < len && JSONGeneral.isDigit(ch = chars[offset])) {
+                        while (offset < len &&  NumberUtils.isDigit(ch = chars[offset])) {
                             ++offset;
                             val = val * 10 + ch - 48;
                         }
@@ -201,7 +202,7 @@ public final class JSONNodePath {
                                 if (isNegative) {
                                     ++offset;
                                 }
-                                while (offset < len && JSONGeneral.isDigit(ch = chars[offset])) {
+                                while (offset < len &&  NumberUtils.isDigit(ch = chars[offset])) {
                                     ++offset;
                                     to = to * 10 + ch - 48;
                                 }

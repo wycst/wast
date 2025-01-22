@@ -183,6 +183,8 @@ public abstract class JSONWriter extends Writer {
         return toString().getBytes(charset);
     }
 
+    protected abstract boolean endsWith(int c);
+
     void reset() {
     }
 
