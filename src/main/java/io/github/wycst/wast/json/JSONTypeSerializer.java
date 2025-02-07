@@ -194,7 +194,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                         typeSerializer = ENUM;
                     } else {
                         JSONPojoStructure pojoStructure = JSONPojoStructure.get(cls);
-                        if (pojoStructure.isSupportedJIT()) {
+                        if (ENABLE_JIT && pojoStructure.isSupportedJIT()) {
                             try {
                                 Class<?> serializerClass = JDKCompiler.compileJavaSource(JSONPojoSerializer.generateRuntimeJavaCodeSource(pojoStructure));
                                 Constructor constructor = serializerClass.getDeclaredConstructor(new Class[]{JSONPojoStructure.class});

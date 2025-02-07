@@ -20,4 +20,9 @@ final class UTF16ByteArraySource implements CharSource {
     public String substring(byte[] bytes, int beginIndex, int endIndex) {
         return input.substring(beginIndex, endIndex);
     }
+
+    @Override
+    public void writeString(JSONCharArrayWriter writer, byte[] buf, int offset, int len) {
+        writer.writeString(input, offset, len);
+    }
 }

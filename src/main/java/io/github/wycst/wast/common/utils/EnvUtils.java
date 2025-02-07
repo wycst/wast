@@ -3,9 +3,11 @@ package io.github.wycst.wast.common.utils;
 import io.github.wycst.wast.common.compiler.MemoryClassLoader;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
 
+import java.lang.management.ManagementFactory;
 import java.lang.reflect.Method;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
+import java.util.List;
 
 public final class EnvUtils {
 
@@ -86,11 +88,11 @@ public final class EnvUtils {
 
         boolean supportedVector = false;
         if (JDK_VERSION >= 17f) {
-//            try {
-//                List<String> inputArguments = ManagementFactory.getRuntimeMXBean().getInputArguments();
-//                supportedVector = inputArguments.contains("--add-modules=jdk.incubator.vector");
-//            } catch (Throwable throwable) {
-//            }
+            try {
+                List<String> inputArguments = ManagementFactory.getRuntimeMXBean().getInputArguments();
+                supportedVector = inputArguments.contains("--add-modules=jdk.incubator.vector");
+            } catch (Throwable throwable) {
+            }
         }
         SUPPORTED_VECTOR = supportedVector;
     }

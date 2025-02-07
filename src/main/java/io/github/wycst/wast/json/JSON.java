@@ -1756,6 +1756,13 @@ public final class JSON extends JSONGeneral {
         }
     }
 
+    /**
+     * 全局关闭JIT优化（注: 即使不关闭，也仅仅序列化支持启用JIT，反序列化目前依然使用反射不支持JIT）
+     */
+    public static void disableJIT() {
+        ENABLE_JIT = false;
+    }
+
     static <T> JSONTypeSerializer buildCustomizedSerializer(final JSONTypeMapper<T> mapper) {
         return new JSONTypeSerializer() {
             @Override

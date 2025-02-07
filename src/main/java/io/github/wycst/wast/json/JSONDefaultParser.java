@@ -516,16 +516,16 @@ public final class JSONDefaultParser extends JSONGeneral {
 //    }
 
     static String parseMapKeyByCache(char[] buf, int from, char endCh, JSONParseContext jsonParseContext) {
-        int beginIndex = from + 1;
+        int beginIndex = from + 1, i = beginIndex;
         char ch;
-        int i = from;
         int len;
         JSONCharArrayWriter writer = null;
         boolean escape = false;
         boolean ascii = true;
         for (; ; ) {
-            long hashValue = ESCAPE;
-            while ((ch = buf[++i]) != '\\' && ch != endCh) {
+            long hashValue = ESCAPE_BACKSLASH;
+            while ((ch = buf[i]) != '\\' && ch != endCh) {
+                ++i;
                 if (ch > 0xFF) {
                     hashValue = (hashValue << 16) | ch;
                     ascii = false;
@@ -538,8 +538,10 @@ public final class JSONDefaultParser extends JSONGeneral {
                     writer = getContextWriter(jsonParseContext);
                 }
                 escape = true;
-                beginIndex = escapeNext(buf, buf[i + 1], i, beginIndex, writer, jsonParseContext);
-                i = jsonParseContext.endIndex;
+                if (i > beginIndex) {
+                    writer.write(buf, beginIndex, i - beginIndex);
+                }
+                i = beginIndex = escapeNextChars(buf, buf[i + 1], i, writer);
             } else {
                 jsonParseContext.endIndex = i;
                 len = i - beginIndex;

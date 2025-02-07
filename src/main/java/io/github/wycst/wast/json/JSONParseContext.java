@@ -116,7 +116,7 @@ public class JSONParseContext {
         strings = null;
     }
 
-    final boolean checkEscapeUseChar(String input, int fromIndex, int endIndex) {
+    final boolean checkEscapeBackslashJDK16(String input, int fromIndex, int endIndex) {
         if(!escape || endIndex < escapeOffset) return false;
         if(fromIndex > escapeOffset) {
             escapeOffset = input.indexOf('\\', fromIndex);
@@ -126,15 +126,26 @@ public class JSONParseContext {
         return endIndex > escapeOffset;
     }
 
-    final boolean checkEscapeUseString(String input, int fromIndex, int endIndex) {
-        if(!escape || endIndex < escapeOffset) return false;
-        if(fromIndex > escapeOffset) {
-            escapeOffset = input.indexOf("\\", fromIndex);
-            escape = escapeOffset > -1;
-            if(!escape) return false;
-        }
-        return endIndex > escapeOffset;
-    }
+//    final boolean checkEscapeBackslashJDK9(String input, int fromIndex, int endIndex) {
+//        if(!escape || endIndex < escapeOffset) return false;
+//        if(fromIndex > escapeOffset) {
+//            escapeOffset = input.indexOf("\\", fromIndex);
+//            escape = escapeOffset > -1;
+//            if(!escape) return false;
+//        }
+//        return endIndex > escapeOffset;
+//    }
+
+//    final boolean checkEscapeBackslashJDK9(String input, byte[] bytes, int fromIndex, int endIndex) {
+//        if(!escape || endIndex < escapeOffset) return false;
+//        if(fromIndex > escapeOffset) {
+//            // input.indexOf("\\", fromIndex);
+//            escapeOffset = JSONGeneral.indexOfTokenUseUnsafeJDK9(input, "\\", bytes, fromIndex, '\\', JSONGeneral.BACKSLASH_MASK);
+//            escape = escapeOffset > -1;
+//            if(!escape) return false;
+//        }
+//        return endIndex > escapeOffset;
+//    }
 
     final int getEscapeOffset() {
         return escapeOffset;

@@ -26,4 +26,11 @@ final class AsciiStringSource implements CharSource {
     public String substring(byte[] bytes, int beginIndex, int endIndex) {
         return JSONUnsafe.createAsciiString(bytes, beginIndex, endIndex - beginIndex);
     }
+
+    @Override
+    public void writeString(JSONCharArrayWriter writer, byte[] buf, int offset, int len) {
+        writer.writeString(input, offset, len);
+    }
+
+
 }

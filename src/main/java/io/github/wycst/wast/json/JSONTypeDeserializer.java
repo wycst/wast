@@ -100,7 +100,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
 
         CharSequenceImpl stringDeserializer;
         if (EnvUtils.JDK_9_PLUS) {
-            if (EnvUtils.JDK_16_PLUS) {
+            if (EnvUtils.JDK_16_PLUS && !ENABLE_VECTOR) {
                 stringDeserializer = new CharSequenceImpl.StringJDK16PlusImpl();
             } else {
                 // JDK9~JDK15
@@ -438,11 +438,11 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             }
         }
 
-        protected void skip(CharSource source, byte[] buf, int fromIndex, byte endCh, JSONParseContext parseContext) throws Exception {
+        protected void skip(CharSource source, byte[] buf, int fromIndex, byte endByte, JSONParseContext parseContext) throws Exception {
             int beginIndex = fromIndex + 1;
             if (source != null) {
                 final String input = source.input();
-                int endIndex = input.indexOf(endCh, beginIndex);
+                int endIndex = JSONGeneral.JSON_UTIL.indexOf(input, buf, beginIndex, endByte); // input.indexOf(endCh, beginIndex);
                 byte prev = buf[endIndex - 1];
                 while (prev == '\\') {
                     boolean prevEscapeFlag = true;
@@ -451,7 +451,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                         prevEscapeFlag = !prevEscapeFlag;
                     }
                     if (prevEscapeFlag) {
-                        endIndex = input.indexOf(endCh, endIndex + 1);
+                        endIndex = JSONGeneral.JSON_UTIL.indexOf(input, buf, endIndex + 1, endByte); // input.indexOf(endByte, endIndex + 1);
                         prev = buf[endIndex - 1];
                     } else {
                         break;
@@ -462,7 +462,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             }
 
             int i = fromIndex;
-            while (buf[++i] != endCh) ;
+            while (buf[++i] != endByte) ;
             byte prev = buf[i - 1];
             while (prev == '\\') {
                 boolean prevEscapeFlag = true;
@@ -471,7 +471,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     prevEscapeFlag = !prevEscapeFlag;
                 }
                 if (prevEscapeFlag) {
-                    while (buf[++i] != endCh) ;
+                    while (buf[++i] != endByte) ;
                     prev = buf[i - 1];
                 } else {
                     break;
@@ -515,6 +515,9 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             } else if (beginChar == 'n') {
                 return parseNull(buf, fromIndex, parseContext);
             } else {
+                if(beginChar == '\'') {
+                    return deserializeString(charSource, buf, fromIndex, beginChar, parameterizedType, parseContext);
+                }
                 if (parameterizedType == GenericParameterizedType.StringType) {
                     try {
                         NUMBER_SKIPPER.deserialize(charSource, buf, fromIndex, null, null, endToken, parseContext);
@@ -535,6 +538,9 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             } else if (b == 'n') {
                 return parseNull(buf, fromIndex, parseContext);
             } else {
+                if(b == '\'') {
+                    return deserializeString(charSource, buf, fromIndex, b, parameterizedType, parseContext);
+                }
                 // 当类型为字符串时兼容number转化
                 boolean isStringType = parameterizedType.getActualType() == String.class;
                 if (isStringType) {
@@ -553,112 +559,188 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
         final static class StringJDK8Impl extends CharSequenceImpl {
 
             String deserializeString(CharSource charSource, byte[] buf, int fromIndex, int endByte, GenericParameterizedType parameterizedType, JSONParseContext parseContext) {
-                JSONCharArrayWriter writer = getContextWriter(parseContext);
-                char[] chars = writer.ensureCapacity(buf.length);
-                int count = writer.count;
-                byte b, b0 = 0;
-                int i = fromIndex;
-                for (; ; ) {
-                    boolean bEndFlag;
-                    // Read 2 bytes per iteration
-                    while ((bEndFlag = ((b = buf[++i]) != '\\' && b != endByte)) && (b0 = buf[++i]) != '\\' && b0 != endByte) {
-                        if (b0 >= 0) {
-                            chars[count++] = (char) b;
-                            chars[count++] = (char) b0;
-                        } else {
-                            byte b1;
-                            if (b >= 0) {
-                                // b >= 0 & b0 < 0
-                                chars[count++] = (char) b;
-                                b = b0;
-                                b1 = buf[++i];
-                            } else {
-                                // b < 0 & b0 < 0
-                                b1 = b0;
-                            }
-                            // UTF-8 decode
-                            int s = b >> 4;
-                            // 读取字节b的前4位判断需要读取几个字节
-                            if (s == -2) {
-                                // 1110 3个字节
-                                try {
-                                    // 第1个字节的后4位 + 第2个字节的后6位 + 第3个字节的后6位
-                                    byte b2 = buf[++i];
-                                    int a = ((b & 0xf) << 12) | ((b1 & 0x3f) << 6) | (b2 & 0x3f);
-                                    chars[count++] = (char) a;
-                                } catch (Throwable throwable) {
-                                    throw new UnsupportedOperationException("utf-8 character error ");
-                                }
-                            } else if (s == -3 || s == -4) {
-                                // 1100 2 bytes
-                                try {
-                                    int a = ((b & 0x1f) << 6) | (b1 & 0x3f);
-                                    chars[count++] = (char) a;
-                                } catch (Throwable throwable) {
-                                    throw new UnsupportedOperationException("utf-8 character error ");
-                                }
-                            } else if (s == -1) {
-                                // 1111 4个字节
-                                try {
-                                    // 第1个字节的后4位 + 第2个字节的后6位 + 第3个字节的后6位 + 第4个字节的后6位
-                                    byte b2 = buf[++i];
-                                    byte b3 = buf[++i];
-                                    int a = ((b & 0x7) << 18) | ((b1 & 0x3f) << 12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f);
-                                    if (Character.isSupplementaryCodePoint(a)) {
-                                        chars[count++] = (char) ((a >>> 10)
-                                                + (Character.MIN_HIGH_SURROGATE - (Character.MIN_SUPPLEMENTARY_CODE_POINT >>> 10)));
-                                        chars[count++] = (char) ((a & 0x3ff) + Character.MIN_LOW_SURROGATE);
-                                    } else {
-                                        chars[count++] = (char) a;
-                                    }
-                                } catch (Throwable throwable) {
-                                    throw new UnsupportedOperationException("utf-8 character error ");
-                                }
-                            } else {
-                                throw new UnsupportedOperationException("utf-8 character error ");
-                            }
-                        }
-                    }
-                    // b > 0 && b0 > 0
-                    if (bEndFlag) {
-                        // b0 == endByte or b0 == '\\'
-                        chars[count++] = (char) b;
-                        b = b0;
-                    }
-                    if (b == endByte) {
+                int beginIndex = fromIndex + 1, i = beginIndex, count = 0;
+                JSONCharArrayWriter writer = null;
+                char[] chars = null;
+                byte b;
+                final long quoteMask = endByte == '"' ? DOUBLE_QUOTE_MASK : SINGLE_QUOTE_MASK;
+                for (; ;) {
+                    b = buf[i = JSON_UTIL.ensureIndexOfQuoteOrBackslashOrUTF8Byte(buf, i, endByte, quoteMask)];
+                    if(b == endByte) {
+                        // endFlag
                         parseContext.endIndex = i;
-                        writer.count = count;
-                        return new String(chars, 0, count); // charSequenceResult(writer, parameterizedType);
-                    } else {
-                        byte next = '\0';
-                        if (i < parseContext.toIndex - 1) {
-                            next = buf[i + 1];
+                        if(writer == null) {
+                            // ascii mode and no escape
+                            return JSONUnsafe.createStringByAsciiBytesJDK8(buf, beginIndex, i);
+                        } else {
+                            if(i > beginIndex) {
+                                count += JSONUnsafe.asciiBytesToChars(buf, beginIndex, i, chars, count);
+                            }
+                            return new String(chars, 0, count);
                         }
-                        writer.count = count;
-                        escape(buf, next, i, i, writer, parseContext);
-                        count = writer.count;
-                        i = parseContext.endIndex;
+                    } else {
+                        // '\' or the first byte of UTF-8 encoding
+                        if(writer == null) {
+                            writer = getContextWriter(parseContext);
+                            chars = writer.ensureCapacity(buf.length);
+                        }
+                        if(i > beginIndex) {
+                            count += JSONUnsafe.asciiBytesToChars(buf, beginIndex, i, chars, count);
+                        }
+                        if(b == ESCAPE_BACKSLASH) {
+                            writer.count = count;
+                            i = beginIndex = escapeNextBytes(buf, buf[i + 1], i, writer);
+                            count = writer.count;
+                        } else {
+                            do {
+                                // b < 0
+                                byte b1 = buf[++i];
+                                // UTF-8 decode
+                                int s = b >> 4;
+                                // 读取字节b的前4位判断需要读取几个字节
+                                if (s == -2) {
+                                    // 1110 3个字节
+                                    try {
+                                        // 第1个字节的后4位 + 第2个字节的后6位 + 第3个字节的后6位
+                                        byte b2 = buf[++i];
+                                        int a = ((b & 0xf) << 12) | ((b1 & 0x3f) << 6) | (b2 & 0x3f);
+                                        chars[count++] = (char) a;
+                                    } catch (Throwable throwable) {
+                                        throw new UnsupportedOperationException("utf-8 character error ");
+                                    }
+                                } else if (s == -3 || s == -4) {
+                                    // (1100 1101) 2 bytes
+                                    try {
+                                        int a = ((b & 0x1f) << 6) | (b1 & 0x3f);
+                                        chars[count++] = (char) a;
+                                    } catch (Throwable throwable) {
+                                        throw new UnsupportedOperationException("utf-8 character error ");
+                                    }
+                                } else if (s == -1) {
+                                    // 1111 4个字节
+                                    try {
+                                        // 第1个字节的后4位 + 第2个字节的后6位 + 第3个字节的后6位 + 第4个字节的后6位
+                                        byte b2 = buf[++i];
+                                        byte b3 = buf[++i];
+                                        int a = ((b & 0x7) << 18) | ((b1 & 0x3f) << 12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f);
+                                        if (Character.isSupplementaryCodePoint(a)) {
+                                            chars[count++] = (char) ((a >>> 10)
+                                                    + (Character.MIN_HIGH_SURROGATE - (Character.MIN_SUPPLEMENTARY_CODE_POINT >>> 10)));
+                                            chars[count++] = (char) ((a & 0x3ff) + Character.MIN_LOW_SURROGATE);
+                                        } else {
+                                            chars[count++] = (char) a;
+                                        }
+                                    } catch (Throwable throwable) {
+                                        throw new UnsupportedOperationException("utf-8 character error ");
+                                    }
+                                } else {
+                                    throw new UnsupportedOperationException("utf-8 character error ");
+                                }
+                            } while ((b = buf[++i]) < 0);
+                            beginIndex = i;
+                        }
                     }
+
+//                    boolean bEndFlag;
+//                    // Read 2 bytes per iteration
+//                    while ((bEndFlag = ((b = buf[++i]) != '\\' && b != endByte)) && (b0 = buf[++i]) != '\\' && b0 != endByte) {
+//                        if (b0 >= 0) {
+//                            chars[count++] = (char) b;
+//                            chars[count++] = (char) b0;
+//                        } else {
+//                            byte b1;
+//                            if (b >= 0) {
+//                                // b >= 0 & b0 < 0
+//                                chars[count++] = (char) b;
+//                                b = b0;
+//                                b1 = buf[++i];
+//                            } else {
+//                                // b < 0 & b0 < 0
+//                                b1 = b0;
+//                            }
+//                            // UTF-8 decode
+//                            int s = b >> 4;
+//                            // 读取字节b的前4位判断需要读取几个字节
+//                            if (s == -2) {
+//                                // 1110 3个字节
+//                                try {
+//                                    // 第1个字节的后4位 + 第2个字节的后6位 + 第3个字节的后6位
+//                                    byte b2 = buf[++i];
+//                                    int a = ((b & 0xf) << 12) | ((b1 & 0x3f) << 6) | (b2 & 0x3f);
+//                                    chars[count++] = (char) a;
+//                                } catch (Throwable throwable) {
+//                                    throw new UnsupportedOperationException("utf-8 character error ");
+//                                }
+//                            } else if (s == -3 || s == -4) {
+//                                // (1100 1101) 2 bytes
+//                                try {
+//                                    int a = ((b & 0x1f) << 6) | (b1 & 0x3f);
+//                                    chars[count++] = (char) a;
+//                                } catch (Throwable throwable) {
+//                                    throw new UnsupportedOperationException("utf-8 character error ");
+//                                }
+//                            } else if (s == -1) {
+//                                // 1111 4个字节
+//                                try {
+//                                    // 第1个字节的后4位 + 第2个字节的后6位 + 第3个字节的后6位 + 第4个字节的后6位
+//                                    byte b2 = buf[++i];
+//                                    byte b3 = buf[++i];
+//                                    int a = ((b & 0x7) << 18) | ((b1 & 0x3f) << 12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f);
+//                                    if (Character.isSupplementaryCodePoint(a)) {
+//                                        chars[count++] = (char) ((a >>> 10)
+//                                                + (Character.MIN_HIGH_SURROGATE - (Character.MIN_SUPPLEMENTARY_CODE_POINT >>> 10)));
+//                                        chars[count++] = (char) ((a & 0x3ff) + Character.MIN_LOW_SURROGATE);
+//                                    } else {
+//                                        chars[count++] = (char) a;
+//                                    }
+//                                } catch (Throwable throwable) {
+//                                    throw new UnsupportedOperationException("utf-8 character error ");
+//                                }
+//                            } else {
+//                                throw new UnsupportedOperationException("utf-8 character error ");
+//                            }
+//                        }
+//                    }
+//                    // b > 0 && b0 > 0
+//                    if (bEndFlag) {
+//                        // b0 == endByte or b0 == '\\'
+//                        chars[count++] = (char) b;
+//                        b = b0;
+//                    }
+//                    if (b == endByte) {
+//                        parseContext.endIndex = i;
+//                        writer.count = count;
+//                        return new String(chars, 0, count); // charSequenceResult(writer, parameterizedType);
+//                    } else {
+//                        byte next = '\0';
+//                        if (i < parseContext.toIndex - 1) {
+//                            next = buf[i + 1];
+//                        }
+//                        writer.count = count;
+//                        escapeJDK8(buf, next, i, i, writer, parseContext);
+//                        count = writer.count;
+//                        i = parseContext.endIndex;
+//                    }
                 }
             }
 
             @Override
             String deserializeString(CharSource source, char[] buf, int fromIndex, char endChar, GenericParameterizedType parameterizedType, JSONParseContext parseContext) {
-                int beginIndex = fromIndex + 1;
+                int beginIndex = fromIndex + 1, i = beginIndex;
                 JSONCharArrayWriter writer = null;
                 char ch;
-                int i = beginIndex;
-                int len;
-                boolean unEscape = true;
-                for (; ; ++i) {
-                    while ((ch = buf[i]) != '\\' && ch != endChar) {
-                        ++i;
-                    }
+                boolean noEscapeFlag = true;
+                final long quoteMask = endChar == '"' ? 0xFFDDFFDDFFDDFFDDL : 0xFFD8FFD8FFD8FFD8L;
+                for (; ;) {
+                    ch = buf[i = JSON_UTIL.ensureIndexOfQuoteOrBackslashChar(buf, i, endChar, quoteMask)];
+//                    while ((ch = buf[i]) != '\\' && ch != endChar) {
+//                        ++i;
+//                    }
                     if (ch == endChar) {
                         parseContext.endIndex = i;
-                        len = i - beginIndex;
-                        if (unEscape) {
-                            return JSONUnsafe.createString(buf, beginIndex, len);
+                        int len = i - beginIndex;
+                        if (noEscapeFlag) {
+                            return JSONUnsafe.createStringJDK8(buf, beginIndex, len);
                         } else {
                             writer.write(buf, beginIndex, len);
                             return writer.toString();
@@ -666,10 +748,12 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     } else {
                         if (writer == null) {
                             writer = getContextWriter(parseContext);
-                            unEscape = false;
+                            noEscapeFlag = false;
                         }
-                        beginIndex = escapeNext(buf, buf[i + 1], i, beginIndex, writer, parseContext);
-                        i = parseContext.endIndex;
+                        if (i > beginIndex) {
+                            writer.write(buf, beginIndex, i - beginIndex);
+                        }
+                        i = beginIndex = escapeNextChars(buf, buf[i + 1], i, writer);
                     }
                 }
             }
@@ -679,50 +763,173 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
         final static class StringJDK9PlusImpl extends CharSequenceImpl {
 
             String deserializeString(CharSource charSource, char[] buf, int fromIndex, char endChar, GenericParameterizedType parameterizedType, JSONParseContext parseContext) {
-                int beginIndex = fromIndex + 1;
-                String token = endChar == '"' ? "\"" : "'";
-                String source = charSource.input();
-                int endIndex = source.indexOf(token, beginIndex);
-                if (!parseContext.checkEscapeUseString(source, beginIndex, endIndex)) {
-                    parseContext.endIndex = endIndex;
-                    return new String(buf, beginIndex, endIndex - beginIndex);
-                }
-                // must exist \\ in range {beginIndex, endIndex}
-                JSONCharArrayWriter writer = getContextWriter(parseContext);
-                do {
-                    int escapeIndex = parseContext.getEscapeOffset();
-                    beginIndex = escapeNext(buf, buf[escapeIndex + 1], escapeIndex, beginIndex, writer, parseContext);
-                    if (beginIndex > endIndex) {
-                        endIndex = source.indexOf(endChar, endIndex + 1);
-                    }
-                } while (parseContext.checkEscapeUseChar(source, beginIndex, endIndex));
+//                int beginIndex = fromIndex + 1;
+//                String token = endChar == '"' ? "\"" : "'";
+//                String source = charSource.input();
+//                int endIndex = source.indexOf(token, beginIndex);
+//                if (!parseContext.checkEscapeBackslashJDK9(source, beginIndex, endIndex)) {
+//                    parseContext.endIndex = endIndex;
+//                    return new String(buf, beginIndex, endIndex - beginIndex);
+//                }
+//                // must exist \\ in range {beginIndex, endIndex}
+//                JSONCharArrayWriter writer = getContextWriter(parseContext);
+//                do {
+//                    int escapeIndex = parseContext.getEscapeOffset();
+//                    if (escapeIndex > beginIndex) {
+//                        writer.write(buf, beginIndex, escapeIndex - beginIndex);
+//                    }
+//                    beginIndex = escapeNextChars(buf, buf[escapeIndex + 1], escapeIndex, writer);
+//                    if (beginIndex > endIndex) {
+//                        endIndex = source.indexOf(endChar, endIndex + 1);
+//                    }
+//                } while (parseContext.checkEscapeBackslashJDK16(source, beginIndex, endIndex));
+//
+//                parseContext.endIndex = endIndex;
+//                writer.write(source, beginIndex, endIndex - beginIndex);
+//                return writer.toString();
 
-                parseContext.endIndex = endIndex;
-                writer.write(charSource.input(), beginIndex, endIndex - beginIndex);
-                return writer.toString();
+                String source = charSource.input();
+                int beginIndex = fromIndex + 1, i = beginIndex;
+                JSONCharArrayWriter writer = null;
+                char ch;
+                boolean noEscapeFlag = true;
+                final long quoteMask = endChar == '"' ? 0xFFDDFFDDFFDDFFDDL : 0xFFD8FFD8FFD8FFD8L;
+                for (; ;) {
+                    ch = buf[i = JSON_UTIL.ensureIndexOfQuoteOrBackslashChar(buf, i, endChar, quoteMask)];
+                    if (ch == endChar) {
+                        parseContext.endIndex = i;
+                        if (noEscapeFlag) {
+                            return source.substring(beginIndex, i);
+                        } else {
+                            int len = i - beginIndex;
+                            writer.write(buf, beginIndex, len);
+                            return writer.toString();
+                        }
+                    } else {
+                        if (writer == null) {
+                            writer = getContextWriter(parseContext);
+                            noEscapeFlag = false;
+                        }
+                        if (i > beginIndex) {
+                            writer.write(buf, beginIndex, i - beginIndex);
+                        }
+                        i = beginIndex = escapeNextChars(buf, buf[i + 1], i, writer);
+                    }
+                }
             }
 
             String deserializeString(CharSource charSource, byte[] buf, int fromIndex, int endByte, GenericParameterizedType parameterizedType, JSONParseContext parseContext) {
-                String source = charSource.input();
-                String token = endByte == '"' ? "\"" : "'";
-                int beginIndex = fromIndex + 1;
-                int endIndex = source.indexOf(token, beginIndex);
-                if (!parseContext.checkEscapeUseString(source, beginIndex, endIndex)) {
-                    parseContext.endIndex = endIndex;
-                    return charSource.substring(buf, beginIndex, endIndex);
-                }
-                JSONCharArrayWriter writer = getContextWriter(parseContext);
-                do {
-                    int escapeIndex = parseContext.getEscapeOffset();
-                    beginIndex = escapeAscii(source, buf, buf[escapeIndex + 1], escapeIndex, beginIndex, writer, parseContext);
-                    if (beginIndex > endIndex) {
-                        endIndex = source.indexOf(token, endIndex + 1);
-                    }
-                } while (parseContext.checkEscapeUseString(source, beginIndex, endIndex));
+//                String source = charSource.input();
+//                final String token;
+//                final long quoteMask;
+//                if(endByte == '"') {
+//                    token = "\"";
+//                    quoteMask = DOUBLE_QUOTE_MASK;
+//                } else {
+//                    token = "'";
+//                    quoteMask = SINGLE_QUOTE_MASK;
+//                }
+//                int beginIndex = fromIndex + 1;
+//                int endIndex = indexOfTokenUseUnsafeJDK9(source, token, buf, beginIndex, endByte, quoteMask);
+//                if (!parseContext.checkEscapeBackslashJDK9(source, buf, beginIndex, endIndex)) {
+//                    parseContext.endIndex = endIndex;
+//                    return charSource.substring(buf, beginIndex, endIndex);
+//                }
+//                JSONCharArrayWriter writer = getContextWriter(parseContext);
+//                do {
+//                    int escapeIndex = parseContext.getEscapeOffset();
+//                    if(escapeIndex > beginIndex) {
+//                        charSource.writeString(writer, source, buf, beginIndex, escapeIndex - beginIndex);
+//                    }
+//                    beginIndex = escapeNextBytes(buf, buf[escapeIndex + 1], escapeIndex, writer);
+//                    if (beginIndex > endIndex) {
+//                        endIndex = indexOfTokenUseUnsafeJDK9(source, token, buf, endIndex + 1, endByte, quoteMask);
+//                    }
+//                } while (parseContext.checkEscapeBackslashJDK9(source, buf, beginIndex, endIndex));
+//
+//                parseContext.endIndex = endIndex;
+//                charSource.writeString(writer, source, buf, beginIndex, endIndex - beginIndex);
+//                return writer.toString();
 
-                parseContext.endIndex = endIndex;
-                writer.write(source, beginIndex, endIndex - beginIndex);
-                return writer.toString();
+                int beginIndex = fromIndex + 1, i = beginIndex;
+                JSONCharArrayWriter writer = null;
+                byte b;
+                final long quoteMask = endByte == '"' ? DOUBLE_QUOTE_MASK : SINGLE_QUOTE_MASK;
+                for (; ;) {
+                    b = buf[i = JSON_UTIL.ensureIndexOfQuoteOrBackslashOrUTF8Byte(buf, i, endByte, quoteMask)];
+                    if(b == endByte) {
+                        // endFlag
+                        parseContext.endIndex = i;
+                        if(writer == null) {
+                            // ascii mode and no escape
+                            return JSONUnsafe.createAsciiString(buf, beginIndex, i - beginIndex);
+                        } else {
+                            if(i > beginIndex) {
+                                charSource.writeString(writer, buf, beginIndex, i - beginIndex);
+                            }
+                            return writer.toString();
+                        }
+                    } else {
+                        // '\' or the first byte of UTF-8 encoding
+                        if(writer == null) {
+                            writer = getContextWriter(parseContext);
+                            writer.ensureCapacity(buf.length);
+                        }
+                        if(i > beginIndex) {
+                            charSource.writeString(writer, buf, beginIndex, i - beginIndex);
+                        }
+                        if(b == ESCAPE_BACKSLASH) {
+                            i = beginIndex = escapeNextBytes(buf, buf[i + 1], i, writer);
+                        } else {
+                            do {
+                                // b < 0
+                                byte b1 = buf[++i];
+                                // UTF-8 decode
+                                int s = b >> 4;
+                                // 读取字节b的前4位判断需要读取几个字节
+                                if (s == -2) {
+                                    // 1110 3个字节
+                                    try {
+                                        // 第1个字节的后4位 + 第2个字节的后6位 + 第3个字节的后6位
+                                        byte b2 = buf[++i];
+                                        int a = ((b & 0xf) << 12) | ((b1 & 0x3f) << 6) | (b2 & 0x3f);
+                                        writer.writeDirect((char) a);
+                                    } catch (Throwable throwable) {
+                                        throw new UnsupportedOperationException("utf-8 character error ");
+                                    }
+                                } else if (s == -3 || s == -4) {
+                                    // (1100 1101) 2 bytes
+                                    try {
+                                        int a = ((b & 0x1f) << 6) | (b1 & 0x3f);
+                                        writer.writeDirect((char) a);
+                                    } catch (Throwable throwable) {
+                                        throw new UnsupportedOperationException("utf-8 character error ");
+                                    }
+                                } else if (s == -1) {
+                                    // 1111 4个字节
+                                    try {
+                                        // 第1个字节的后4位 + 第2个字节的后6位 + 第3个字节的后6位 + 第4个字节的后6位
+                                        byte b2 = buf[++i];
+                                        byte b3 = buf[++i];
+                                        int a = ((b & 0x7) << 18) | ((b1 & 0x3f) << 12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f);
+                                        if (Character.isSupplementaryCodePoint(a)) {
+                                            writer.writeDirect((char) ((a >>> 10)
+                                                    + (Character.MIN_HIGH_SURROGATE - (Character.MIN_SUPPLEMENTARY_CODE_POINT >>> 10))));
+                                            writer.writeDirect((char) ((a & 0x3ff) + Character.MIN_LOW_SURROGATE));
+                                        } else {
+                                            writer.writeDirect((char) a);
+                                        }
+                                    } catch (Throwable throwable) {
+                                        throw new UnsupportedOperationException("utf-8 character error ");
+                                    }
+                                } else {
+                                    throw new UnsupportedOperationException("utf-8 character error ");
+                                }
+                            } while ((b = buf[++i]) < 0);
+                            beginIndex = i;
+                        }
+                    }
+                }
             }
         }
 
@@ -733,7 +940,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                 int beginIndex = fromIndex + 1;
                 String source = charSource.input();
                 int endIndex = source.indexOf(endChar, beginIndex);
-                if (!parseContext.checkEscapeUseChar(source, beginIndex, endIndex)) {
+                if (!parseContext.checkEscapeBackslashJDK16(source, beginIndex, endIndex)) {
                     parseContext.endIndex = endIndex;
                     return new String(buf, beginIndex, endIndex - beginIndex);
                 }
@@ -741,36 +948,43 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                 JSONCharArrayWriter writer = getContextWriter(parseContext);
                 do {
                     int escapeIndex = parseContext.getEscapeOffset();
-                    beginIndex = escapeNext(buf, buf[escapeIndex + 1], escapeIndex, beginIndex, writer, parseContext);
+                    if (escapeIndex > beginIndex) {
+                        writer.write(buf, beginIndex, escapeIndex - beginIndex);
+                    }
+                    beginIndex = escapeNextChars(buf, buf[escapeIndex + 1], escapeIndex, writer);
                     if (beginIndex > endIndex) {
                         endIndex = source.indexOf(endChar, endIndex + 1);
                     }
-                } while (parseContext.checkEscapeUseChar(source, beginIndex, endIndex));
+                } while (parseContext.checkEscapeBackslashJDK16(source, beginIndex, endIndex));
 
                 parseContext.endIndex = endIndex;
-                writer.write(charSource.input(), beginIndex, endIndex - beginIndex);
+                writer.write(source, beginIndex, endIndex - beginIndex);
                 return writer.toString();
             }
 
             String deserializeString(CharSource charSource, byte[] buf, int fromIndex, int endByte, GenericParameterizedType parameterizedType, JSONParseContext parseContext) {
                 String source = charSource.input();
                 int beginIndex = fromIndex + 1;
+                // int endIndex = JSON_UTIL.indexOf(source, buf, beginIndex, endByte);
                 int endIndex = source.indexOf(endByte, beginIndex);
-                if (!parseContext.checkEscapeUseChar(source, beginIndex, endIndex)) {
+                if (!parseContext.checkEscapeBackslashJDK16(source, beginIndex, endIndex)) {
                     parseContext.endIndex = endIndex;
                     return charSource.substring(buf, beginIndex, endIndex);
-                }
+                }  
                 JSONCharArrayWriter writer = getContextWriter(parseContext);
                 do {
                     int escapeIndex = parseContext.getEscapeOffset();
-                    beginIndex = escapeAscii(source, buf, buf[escapeIndex + 1], escapeIndex, beginIndex, writer, parseContext);
+                    if(escapeIndex > beginIndex) {
+                        charSource.writeString(writer, buf, beginIndex, escapeIndex - beginIndex);
+                    }
+                    beginIndex = escapeNextBytes(buf, buf[escapeIndex + 1], escapeIndex, writer);
                     if (beginIndex > endIndex) {
                         endIndex = source.indexOf(endByte, endIndex + 1);
                     }
-                } while (parseContext.checkEscapeUseChar(source, beginIndex, endIndex));
+                } while (parseContext.checkEscapeBackslashJDK16(source, beginIndex, endIndex));
 
                 parseContext.endIndex = endIndex;
-                writer.write(source, beginIndex, endIndex - beginIndex);
+                charSource.writeString(writer, buf, beginIndex, endIndex - beginIndex);
                 return writer.toString();
             }
         }
@@ -790,7 +1004,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     case '\"': {
                         char result = 0;
                         String value = (String) CHAR_SEQUENCE_STRING.deserializeString(charSource, buf, fromIndex, firstChar, null, parseContext);
-                        if (value.length() > 0) {
+                        if (value != null && !value.isEmpty()) {
                             result = value.charAt(0);
                         }
                         return result;
@@ -814,7 +1028,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     case '\"': {
                         char result = 0;
                         String value = (String) CHAR_SEQUENCE_STRING.deserializeString(charSource, buf, fromIndex, firstByte, null, parseContext);
-                        if (value.length() > 0) {
+                        if (value != null && !value.isEmpty()) {
                             result = value.charAt(0);
                         }
                         return result;
@@ -1977,8 +2191,8 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             protected Enum deserializeEnumName(CharSource charSource, char[] buf, int fromIndex, Class enumCls, JSONParseContext parseContext) throws Exception {
                 int begin = fromIndex + 1, i = begin;
                 Enum value = enumValueMatcher.matchValue(charSource, buf, i, '"', parseContext);
-                i = parseContext.endIndex;
                 if (value == null) {
+                    i = parseContext.endIndex;
                     if (buf[i - 1] == '\\') {
                         // skip
                         char ch, prev = 0;
@@ -1993,7 +2207,6 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     String errorContextTextAt = createErrorContextText(buf, fromIndex);
                     throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unknown Enum name '" + new String(buf, fromIndex + 1, i - fromIndex - 1) + "' of EnumType " + enumCls);
                 }
-                parseContext.endIndex = i;
                 return value;
             }
 
@@ -2001,12 +2214,12 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             protected Enum deserializeEnumName(CharSource charSource, byte[] buf, int fromIndex, Class enumCls, JSONParseContext parseContext) throws Exception {
                 int begin = fromIndex + 1, i = begin;
                 Enum value = enumValueMatcher.matchValue(charSource, buf, i, '"', parseContext);
-                i = parseContext.endIndex;
                 if (value == null) {
-                    if (buf[i - 1] == ESCAPE) {
+                    i = parseContext.endIndex;
+                    if (buf[i - 1] == ESCAPE_BACKSLASH) {
                         // skip
                         byte b, prev = 0;
-                        while (((b = buf[++i]) != DOUBLE_QUOTATION || prev == ESCAPE)) {
+                        while (((b = buf[++i]) != DOUBLE_QUOTATION || prev == ESCAPE_BACKSLASH)) {
                             prev = b;
                         }
                     }
@@ -2017,7 +2230,6 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     String errorContextTextAt = createErrorContextText(buf, fromIndex);
                     throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', unknown Enum name '" + new String(buf, fromIndex + 1, i - fromIndex - 1) + "' of EnumType " + enumCls);
                 }
-                parseContext.endIndex = i;
                 return value;
             }
         }
@@ -3371,7 +3583,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                         }
                     }
                     if (b == ']') {
-                        if (collection.size() > 0 && !parseContext.allowLastEndComma) {
+                        if (!collection.isEmpty() && !parseContext.allowLastEndComma) {
                             String errorContextTextAt = createErrorContextText(buf, i);
                             throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "' the closing symbol ']' is not allowed here.");
                         }
@@ -4703,25 +4915,25 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
 
     static String parseMapKey(byte[] bytes, int from, char endCh, JSONParseContext parseContext) {
         int beginIndex = from + 1;
-        byte b, next = '\0';
-        int i = from;
+        byte b;
+        int i = beginIndex;
         int len;
-
         JSONCharArrayWriter writer = null;
         boolean escape = false;
-        for (; ; ) {
-            while ((b = bytes[++i]) != '\\' && b != endCh) ;
+        for (; ;) {
+            while ((b = bytes[i]) != '\\' && b != endCh) {
+                ++i;
+            }
             // b is \\ or "
             if (b == '\\') {
-                if (i < parseContext.toIndex - 1) {
-                    next = bytes[i + 1];
-                }
                 if (writer == null) {
                     writer = getContextWriter(parseContext);
                 }
                 escape = true;
-                beginIndex = escape(bytes, next, i, beginIndex, writer, parseContext);
-                i = parseContext.endIndex;
+                if(i > beginIndex) {
+                    writer.writeBytes(bytes, beginIndex, i - beginIndex);
+                }
+                i = beginIndex = escapeNextBytes(bytes, bytes[i + 1], i, writer);
             } else {
                 parseContext.endIndex = i;
                 len = i - beginIndex;
@@ -4736,13 +4948,13 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
     }
 
     static String parseMapKeyByCache(byte[] bytes, int from, char endCh, JSONParseContext parseContext) {
-        byte b, next = 0;
-        int i = from, toIndex = parseContext.toIndex;
+        byte b;
         int beginIndex = from + 1;
         int len;
         JSONCharArrayWriter writer = null;
         if (!parseContext.escape) {
-            long hashValue = ESCAPE;
+            int i = from;
+            long hashValue = ESCAPE_BACKSLASH;
             byte b1;
             if ((b = bytes[++i]) != endCh && (b1 = bytes[++i]) != endCh) {
                 hashValue = (hashValue << 16) | (b << 8) | b1;
@@ -4763,24 +4975,25 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
             }
             return parseContext.getCacheKey(bytes, beginIndex, len, hashValue);
         } else {
+            int i = beginIndex;
             boolean escape = false;
             for (; ; ) {
                 // Setting to ESCAPE can solve interference
-                long hashValue = ESCAPE;
-                while ((b = bytes[++i]) != '\\' && b != endCh) {
+                long hashValue = ESCAPE_BACKSLASH;
+                while ((b = bytes[i]) != '\\' && b != endCh) {
                     hashValue = hashValue << 8 | b;
+                    ++i;
                 }
                 // ch is \\ or "
                 if (b == '\\') {
-                    if (i < toIndex - 1) {
-                        next = bytes[i + 1];
-                    }
                     if (writer == null) {
                         writer = getContextWriter(parseContext);
                     }
                     escape = true;
-                    beginIndex = escape(bytes, next, i, beginIndex, writer, parseContext);
-                    i = parseContext.endIndex;
+                    if (i > beginIndex) {
+                        writer.writeBytes(bytes, beginIndex, i - beginIndex);
+                    }
+                    i = beginIndex = escapeNextBytes(bytes, bytes[i + 1], i, writer);
                 } else {
                     parseContext.endIndex = i;
                     len = i - beginIndex;

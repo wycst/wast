@@ -25,4 +25,14 @@ public interface CharSource {
      * @return
      */
     String substring(byte[] bytes, int beginIndex, int endIndex);
+
+    /**
+     * 将字串写入writer
+     *
+     * @param writer
+     * @param buf
+     * @param offset
+     * @param len
+     */
+    void writeString(JSONCharArrayWriter writer, byte[] buf, int offset, int len);
 }

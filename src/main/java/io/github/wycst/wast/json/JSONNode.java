@@ -2738,7 +2738,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     }
 
     private String matchFieldName(char[] chars, int offset, int len) {
-        long hashValue = JSONGeneral.ESCAPE;
+        long hashValue = JSONGeneral.ESCAPE_BACKSLASH;
         boolean ascii = true;
         for (int i = 0; i < len; ++i) {
             char ch = chars[offset + i];
@@ -2756,7 +2756,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     }
 
     private String matchFieldName(byte[] bytes, int offset, int len) {
-        long hashValue = JSONGeneral.ESCAPE;
+        long hashValue = JSONGeneral.ESCAPE_BACKSLASH;
         for (int i = 0; i < len; ++i) {
             byte ch = bytes[offset + i];
             hashValue = hashValue << 8 | ch;

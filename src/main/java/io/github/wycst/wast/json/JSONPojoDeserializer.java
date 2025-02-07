@@ -334,14 +334,14 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
             }
             JSONPojoFieldDeserializer fieldDeserializer = null;
             if (b == DOUBLE_QUOTATION) {
-                fieldDeserializer = fieldDeserializerMatcher.matchValue(charSource, buf, ++i, DOUBLE_QUOTATION, jsonParseContext);
+                fieldDeserializer = fieldDeserializerMatcher.matchValue(charSource, buf, i + 1, DOUBLE_QUOTATION, jsonParseContext);
                 i = jsonParseContext.endIndex;
                 if (fieldDeserializer == null) {
                     byte prev = buf[i - 1];
-                    while (prev == ESCAPE) {
+                    while (prev == ESCAPE_BACKSLASH) {
                         boolean isPrevEscape = true;
                         int j = i - 1;
-                        while (buf[--j] == ESCAPE) {
+                        while (buf[--j] == ESCAPE_BACKSLASH) {
                             isPrevEscape = !isPrevEscape;
                         }
                         if (isPrevEscape) {
@@ -366,14 +366,14 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                 }
                 if (b == '\'') {
                     if (jsonParseContext.allowSingleQuotes) {
-                        fieldDeserializer = fieldDeserializerMatcher.matchValue(charSource, buf, ++i, '\'', jsonParseContext);
+                        fieldDeserializer = fieldDeserializerMatcher.matchValue(charSource, buf, i + 1, '\'', jsonParseContext);
                         i = jsonParseContext.endIndex;
                         if (fieldDeserializer == null) {
                             byte prev = buf[i - 1];
-                            while (prev == ESCAPE) {
+                            while (prev == ESCAPE_BACKSLASH) {
                                 boolean isPrevEscape = true;
                                 int j = i - 1;
-                                while (buf[--j] == ESCAPE) {
+                                while (buf[--j] == ESCAPE_BACKSLASH) {
                                     isPrevEscape = !isPrevEscape;
                                 }
                                 if (isPrevEscape) {

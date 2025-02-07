@@ -115,6 +115,14 @@ class JSONCharArrayWriter extends JSONWriter {
     }
 
     /**
+     * Skip out of bounds detection
+     * @param c
+     */
+    public void writeDirect(char c) {
+        buf[count++] = c;
+    }
+
+    /**
      * Write special token characters to skip expansion detection
      *
      * <p> 5 special JSON tokens such as '{', '}', '[', ']', ',' or other single character </p>
@@ -162,7 +170,7 @@ class JSONCharArrayWriter extends JSONWriter {
      * @param offset
      * @param len
      */
-    void writeBytes(byte[] bytes, int offset, int len) {
+    public void writeBytes(byte[] bytes, int offset, int len) {
         if (len == 0) return;
         String str = new String(bytes, offset, len);
         // reset len maybe utf8 bytes
@@ -313,7 +321,18 @@ class JSONCharArrayWriter extends JSONWriter {
         ensureCapacity(len + (2 + SECURITY_UNCHECK_SPACE));
         int count = this.count;
         buf[count++] = '"';
-        for (char ch : chars) {
+
+        final int limit = len - 4;
+        int offset = 0;
+        long v64;
+        while (offset <= limit
+                && JSONGeneral.isNoneEscaped4Chars(v64 = JSONUnsafe.getLong(chars, offset))) {
+            JSONUnsafe.putLong(buf, count, v64);
+            offset += 4;
+            count += 4;
+        }
+        for (; offset < len; ++offset) {
+            char ch = chars[offset];
             String escapeStr;
             if ((ch > '"' && ch != '\\') || (escapeStr = JSONGeneral.ESCAPE_VALUES[ch]) == null) {
                 buf[count++] = ch;
@@ -325,6 +344,18 @@ class JSONCharArrayWriter extends JSONWriter {
                 buf[count++] = escapeStr.charAt(j);
             }
         }
+//        for (char ch : chars) {
+//            String escapeStr;
+//            if ((ch > '"' && ch != '\\') || (escapeStr = JSONGeneral.ESCAPE_VALUES[ch]) == null) {
+//                buf[count++] = ch;
+//                continue;
+//            }
+//            int escapesLen = escapeStr.length();
+//            ensureCapacity(escapesLen + SECURITY_UNCHECK_SPACE);
+//            for (int j = 0; j < escapesLen; ++j) {
+//                buf[count++] = escapeStr.charAt(j);
+//            }
+//        }
         buf[count++] = '"';
         this.count = count;
     }
@@ -547,13 +578,13 @@ class JSONCharArrayWriter extends JSONWriter {
     @Override
     public void writeJSONChars(char[] chars) throws IOException {
         int len = chars.length;
-        if (len <= 64) {
+        if (len < 64) {
             writeShortJSONChars(chars);
         } else {
             ensureCapacity(len + (2 + SECURITY_UNCHECK_SPACE));
-            int count = this.count, beginIndex = 0;
+            int count = this.count, beginIndex = 0, i = JSONGeneral.JSON_UTIL.toNoEscapeOffset(chars, 0);
             buf[count++] = '"';
-            for (int i = 0; i < len; ++i) {
+            for (; i < len; ++i) {
                 char ch = chars[i];
                 String escapeStr;
                 if ((ch > '"' && ch != '\\') || (escapeStr = JSONGeneral.ESCAPE_VALUES[ch]) == null) continue;
@@ -600,8 +631,8 @@ class JSONCharArrayWriter extends JSONWriter {
         buf[count++] = '"';
         if (len > 15) {
             int beginIndex = 0, i = 0;
-            if(JSONGeneral.isNoEscapeBytesUnsafeWith64Bits(JSONUnsafe.getLong(bytes, i))
-                    && JSONGeneral.isNoEscapeBytesUnsafeWith64Bits(JSONUnsafe.getLong(bytes, i = i + 8))) {
+            if(JSONGeneral.isNoneEscaped8Bytes(JSONUnsafe.getLong(bytes, i))
+                    && JSONGeneral.isNoneEscaped8Bytes(JSONUnsafe.getLong(bytes, i = i + 8))) {
                 i += 8;
             }
             for (; i < len; ++i) {
@@ -628,15 +659,16 @@ class JSONCharArrayWriter extends JSONWriter {
             int i = 0, b, b1, b2, b3, b4, b5, b6, b7;
             do {
                 if (i <= len - 8) {
-                    if (JSONGeneral.isNoEscapeBytesUnsafeWith64Bits(JSONUnsafe.getLong(bytes, i))) {
-                        buf[count++] = (char) bytes[i];
-                        buf[count++] = (char) bytes[i + 1];
-                        buf[count++] = (char) bytes[i + 2];
-                        buf[count++] = (char) bytes[i + 3];
-                        buf[count++] = (char) bytes[i + 4];
-                        buf[count++] = (char) bytes[i + 5];
-                        buf[count++] = (char) bytes[i + 6];
-                        buf[count++] = (char) bytes[i + 7];
+                    if (JSONGeneral.isNoneEscaped8Bytes(JSONUnsafe.getLong(bytes, i))) {
+                        buf[count] = (char) bytes[i];
+                        buf[count + 1] = (char) bytes[i + 1];
+                        buf[count + 2] = (char) bytes[i + 2];
+                        buf[count + 3] = (char) bytes[i + 3];
+                        buf[count + 4] = (char) bytes[i + 4];
+                        buf[count + 5] = (char) bytes[i + 5];
+                        buf[count + 6] = (char) bytes[i + 6];
+                        buf[count + 7] = (char) bytes[i + 7];
+                        count += 8;
                         i += 8;
                     } else {
                         count = escapeBytesToChars(bytes, i, buf, count);
@@ -648,10 +680,11 @@ class JSONCharArrayWriter extends JSONWriter {
                             && isNoEscape(b1 = bytes[i + 1] & 0xFF)
                             && isNoEscape(b2 = bytes[i + 2] & 0xFF)
                             && isNoEscape(b3 = bytes[i + 3] & 0xFF)) {
-                        buf[count++] = (char) b;
-                        buf[count++] = (char) b1;
-                        buf[count++] = (char) b2;
-                        buf[count++] = (char) b3;
+                        buf[count] = (char) b;
+                        buf[count + 1] = (char) b1;
+                        buf[count + 2] = (char) b2;
+                        buf[count + 3] = (char) b3;
+                        count += 4;
                         i += 4;
                     } else {
                         count = escapeBytesToChars(bytes, i, buf, count);
@@ -661,8 +694,9 @@ class JSONCharArrayWriter extends JSONWriter {
                 if (i <= len - 2) {
                     if (isNoEscape(b = bytes[i] & 0xFF)
                             && isNoEscape(b1 = bytes[i + 1] & 0xFF)) {
-                        buf[count++] = (char) b;
-                        buf[count++] = (char) b1;
+                        buf[count] = (char) b;
+                        buf[count + 1] = (char) b1;
+                        count += 2;
                         i += 2;
                     } else {
                         count = escapeBytesToChars(bytes, i, buf, count);

@@ -2,8 +2,10 @@ package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.common.beans.DateTemplate;
 import io.github.wycst.wast.common.beans.GregorianDate;
+import io.github.wycst.wast.common.compiler.MemoryClassLoader;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
+import io.github.wycst.wast.common.utils.ByteUtils;
 import io.github.wycst.wast.common.utils.EnvUtils;
 import io.github.wycst.wast.common.utils.NumberUtils;
 import io.github.wycst.wast.json.exceptions.JSONException;
@@ -55,7 +57,10 @@ class JSONGeneral {
     protected final static byte END_ARRAY = ']';
     protected final static byte END_OBJECT = '}';
     protected final static byte WHITE_SPACE = ' ';
-    protected final static byte ESCAPE = '\\';
+    protected final static byte ESCAPE_BACKSLASH = '\\';
+    protected final static long DOUBLE_QUOTE_MASK = 0xDDDDDDDDDDDDDDDDL;
+    protected final static long SINGLE_QUOTE_MASK = 0xD8D8D8D8D8D8D8D8L;
+//    protected final static long BACKSLASH_MASK = 0xA3A3A3A3A3A3A3A3L;
 
     final static int TYPE_BIGDECIMAL = 1;
     final static int TYPE_BIGINTEGER = 2;
@@ -129,6 +134,9 @@ class JSONGeneral {
     final static int[] TWO_DIGITS_VALUES = new int[256];
     protected final static int[] THREE_DIGITS_MUL10 = new int[10 << 8];  // 2560
 
+    protected final static JSONUtil JSON_UTIL;
+    protected final static boolean ENABLE_VECTOR;
+    protected static boolean ENABLE_JIT;
     static {
         for (int i = 0; i < ESCAPE_VALUES.length; ++i) {
             switch (i) {
@@ -177,7 +185,6 @@ class JSONGeneral {
         } catch (Throwable throwable) {
         }
 
-        // 注: 主流小端模式存储（各位在前，十位在后）
         // i（十位） j（个位） k = (i | 0x30) ^ j << 4
         for (int i = 0; i < 16; i++) {
             for (int j = 0; j < 16; j++) {
@@ -185,7 +192,7 @@ class JSONGeneral {
             }
         }
 
-        // THREE_DIGITS_MUL10(与大小端无关)
+        // THREE_DIGITS_MUL10
         for (int i = 0; i < 10; ++i) {
             for (int j = 0; j < 10; ++j) {
                 for (int k = 0; k < 10; ++k) {
@@ -193,6 +200,24 @@ class JSONGeneral {
                 }
             }
         }
+
+        JSONUtil envUtil = new JSONUtil();
+        boolean enableVector = false;
+        if (EnvUtils.SUPPORTED_VECTOR) {
+            // jdk17 supported jdk.incubator.vector
+            try {
+                MemoryClassLoader memoryClassLoader = new MemoryClassLoader();
+                Class<?> utilClass = memoryClassLoader.loadClass("io.github.wycst.wast.json.JSONUtilVectorImpl", ByteUtils.hexString2Bytes("CAFEBABE0000003D008C0A000200030700040C00050006010022696F2F6769746875622F77796373742F776173742F6A736F6E2F4A534F4E5574696C0100063C696E69743E010003282956090008000907000A0C000B000C01002C696F2F6769746875622F77796373742F776173742F6A736F6E2F4A534F4E5574696C566563746F72496D706C01001D425954455F535045434945535F5052454645525245445F4C454E47544801000149090008000E0C000F0010010016425954455F535045434945535F5052454645525245440100244C6A646B2F696E63756261746F722F766563746F722F566563746F72537065636965733B0A001200130700140C0015001601001F6A646B2F696E63756261746F722F766563746F722F42797465566563746F7201000966726F6D417272617901004A284C6A646B2F696E63756261746F722F766563746F722F566563746F72537065636965733B5B4249294C6A646B2F696E63756261746F722F766563746F722F42797465566563746F723B0A001200180C0019001A01000265710100242842294C6A646B2F696E63756261746F722F766563746F722F566563746F724D61736B3B0A001C001D07001E0C001F002001001F6A646B2F696E63756261746F722F766563746F722F566563746F724D61736B0100096669727374547275650100032829490A002200230700240C002500260100106A6176612F6C616E672F537472696E67010007696E6465784F6601000528494929490A001C00280C0029002A0100026F72010044284C6A646B2F696E63756261746F722F766563746F722F566563746F724D61736B3B294C6A646B2F696E63756261746F722F766563746F722F566563746F724D61736B3B0A0012002C0C002D001A0100026C74090008002F0C0030000C01001E425954455F535045434945535F5052454645525245445F4C454E475448320A000800320C00330034010024676574496E6465784F6651756F74654F724261636B736C6173684F724E65676174697665010007285B42494929490A000200360C00370038010027656E73757265496E6465784F6651756F74654F724261636B736C6173684F725554463842797465010008285B4249494A2949090008003A0C003B001001001753484F52545F535045434945535F5052454645525245440A003D003E07003F0C004000410100206A646B2F696E63756261746F722F766563746F722F53686F7274566563746F7201000D66726F6D43686172417272617901004B284C6A646B2F696E63756261746F722F766563746F722F566563746F72537065636965733B5B4349294C6A646B2F696E63756261746F722F766563746F722F53686F7274566563746F723B0A003D00430C001900440100242853294C6A646B2F696E63756261746F722F766563746F722F566563746F724D61736B3B09000800460C0047000C01001F53484F52545F535045434945535F5052454645525245445F4C454E475448320A000800490C004A004B01001E676574496E6465784F6651756F74654F724261636B736C61736843686172010007285B4349492949090008004D0C004E000C01001E53484F52545F535045434945535F5052454645525245445F4C454E4754480A000200500C00510052010021656E73757265496E6465784F6651756F74654F724261636B736C61736843686172010008285B4349434A294909001200540C0055001001000B535045434945535F32353609001200570C00580010010011535045434945535F5052454645525245440B005A005B07005C0C005D00200100226A646B2F696E63756261746F722F766563746F722F566563746F72537065636965730100066C656E67746809003D00570100095369676E61747572650100364C6A646B2F696E63756261746F722F766563746F722F566563746F72537065636965733C4C6A6176612F6C616E672F427974653B3E3B0100045A45524F0100014201000D436F6E7374616E7456616C756503000000000100094241434B534C415348030000005C0100374C6A646B2F696E63756261746F722F766563746F722F566563746F72537065636965733C4C6A6176612F6C616E672F53686F72743B3E3B010004436F646501000F4C696E654E756D6265725461626C650100124C6F63616C5661726961626C655461626C650100047468697301002E4C696F2F6769746875622F77796373742F776173742F6A736F6E2F4A534F4E5574696C566563746F72496D706C3B010019284C6A6176612F6C616E672F537472696E673B5B4249492949010006766563746F720100214C6A646B2F696E63756261746F722F766563746F722F42797465566563746F723B01000A766563746F724D61736B0100214C6A646B2F696E63756261746F722F766563746F722F566563746F724D61736B3B0100086669727374506F73010006736F757263650100124C6A6176612F6C616E672F537472696E673B0100036275660100025B420100066F6666736574010005746F6B656E0100056C696D69740100164C6F63616C5661726961626C65547970655461626C650100334C6A646B2F696E63756261746F722F766563746F722F566563746F724D61736B3C4C6A6176612F6C616E672F427974653B3E3B01000D537461636B4D61705461626C6507007601000571756F746501000971756F74654D61736B0100014A0100066C696D6974320100096C696D6974466C61670100015A0100025B430100224C6A646B2F696E63756261746F722F766563746F722F53686F7274566563746F723B01000143010010746F4E6F4573636170654F6666736574010006285B424929490100083C636C696E69743E01000A536F7572636546696C650100174A534F4E5574696C566563746F72496D706C2E6A617661003000080002000000080018000F00100001005F0000000200600018000B000C000000180030000C000000180061006200010063000000020064001800650062000100630000000200660018003B00100001005F0000000200670018004E000C000000180047000C00000008000000050006000100680000002F00010001000000052AB70001B100000002006900000006000100000015006A0000000C000100000005006B006C000000010025006D000100680000011500030009000000442CBEB200076436051D1505A20031B2000D2C1DB800113A061906150491B600173A071907B6001B36081508B200079F000815081D60AC1DB20007603E2B15041DB60021AC000000040069000000260009000000190008001A000E001B0018001C0022001D0029001E0031001F00360021003C0023006A0000005C000900180024006E006F00060022001A007000710007002900130072000C000800000044006B006C00000000004400730074000100000044007500760002000000440077000C0003000000440078000C00040008003C0079000C0005007A0000000C00010022001A0070007B0007007C0000001F0002FF0036000907000807002207007D01010107001207001C010000F8000500080033003400010068000000700003000400000024B2000D2A1BB800114E2D1C91B600172D105CB60017B600272D03B6002BB60027B6001BAC0000000200690000000A00020000002700090028006A0000002A000400000024007500760000000000240077000C000100000024007E000C00020009001B006E006F000300010037003800010068000001B20006000A000000D32BBEB2002E6436060336071C1506A3000704A700040359360899006B2B1C1DB80031593607B20007A0005C2B1CB2000760593D1DB80031593607B20007A000471CB20007603D1C1506A3000704A70004035936089900302B1C1DB80031593607B20007A000212B1CB2000760593D1DB80031593607B20007A0000C1CB20007603DA7FFC515089900081C150760AC2BBEB200076436091C1509A3000704A700040359360899001B2B1C1DB80031593607B20007A0000C1CB20007603DA7FFDA15089900081C150760AC2A2B1C1D1604B70035AC0000000300690000004A00120000002D0008002E000B0030001F0031003400320040003400460035005A0036006F0037007B00390084003C0089003D008E003F0096004000B6004100BF004300C4004400C90046006A0000005C00090096003D0079000C0009000000D3006B006C0000000000D3007500760001000000D30077000C0002000000D3007E000C0003000000D3007F00800004000800CB0081000C0006000B00C80072000C0007001900BA008200830008007C0000001B000CFD001501014001FC002F010940013209FC0007010940011D090008004A004B0001006800000068000300040000001CB200392A1BB8003C4E2D1C93B600422D105CB60042B60027B6001BAC0000000200690000000A00020000004B0009004C006A0000002A00040000001C0075008400000000001C0077000C00010000001C007E000C000200090013006E0085000300010051005200010068000001B20006000A000000D32BBEB200456436060336071C1506A3000704A700040359360899006B2B1C1DB80048593607B2004CA0005C2B1CB2004C60593D1DB80048593607B2004CA000471CB2004C603D1C1506A3000704A70004035936089900302B1C1DB80048593607B2004CA000212B1CB2004C60593D1DB80048593607B2004CA0000C1CB2004C603DA7FFC515089900081C150760AC2BBEB2004C6436091C1509A3000704A700040359360899001B2B1C1DB80048593607B2004CA0000C1CB2004C603DA7FFDA15089900081C150760AC2A2B1C1D1604B7004FAC0000000300690000004A00120000005100080052000B0054001F0055003400560040005800460059005A005A006F005B007B005D0084006000890061008E00630096006400B6006500BF006700C4006800C9006A006A0000005C00090096003D0079000C0009000000D3006B006C0000000000D3007500840001000000D30077000C0002000000D3007E00860003000000D3007F00800004000800CB0081000C0006000B00C80072000C0007001900BA008200830008007C0000001B000CFD001501014001FC002F010940013209FC0007010940011D09000100870088000100680000011D000300060000007CB200532B1CB800114E2D1022B600172D105CB60017B600272D1020B6002BB60027B6001B360415041020A0004D8402202BBE10206436051C1505A3003BB200532B1CB800114E2D1022B600172D105CB60017B600272D1020B6002BB60027B6001B3604150410209F00081C150460AC840220A7FFC51CAC1C150460AC00000003006900000036000D000000700009007100260072002D00730030007400370075003D00760046007700630078006A0079006F007B0075007D0077007F006A0000003E0006003700400079000C00050000007C006B006C00000000007C0075007600010000007C0077000C000200090073006E006F0003002600560072000C0004007C0000000F0004FE003707001201013705FA0001000800890006000100680000005F0002000000000033B20056B3000DB2000DB900590100B30007B200070478B3002EB2005EB30039B20039B900590100B3004CB2004C0478B30045B10000000100690000001A00060000000B0006000C0011000D00190011001F0012002A00130001008A00000002008B"));
+                envUtil = (JSONUtil) UnsafeHelper.newInstance(utilClass);
+                enableVector = true;
+            } catch (Throwable throwable) {
+                throwable.printStackTrace();
+            }
+        }
+        JSON_UTIL = envUtil;
+        ENABLE_VECTOR = enableVector;
+        // use vmargs to disabled jit:  -Dwastjson.disable-jit=true
+        ENABLE_JIT = !"true".equalsIgnoreCase(System.getProperty("wastjson.disable-jit"));
 
         registerImplCreator(EnumSet.class, new JSONImplInstCreator<EnumSet>() {
             @Override
@@ -417,23 +442,23 @@ class JSONGeneral {
         throw new NumberFormatException(n + "-digit parsing error: \"" + new String(buf, offset, n));
     }
 
-    final static boolean isNoEscape32Bits(byte[] bytes, int offset) {
-        return NO_ESCAPE_FLAGS[bytes[offset] & 0xff]
-                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff];
-    }
-
-    final static boolean isNoEscape64Bits(byte[] bytes, int offset) {
-        return NO_ESCAPE_FLAGS[bytes[offset] & 0xff]
-                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff];
-    }
+//    final static boolean isNoEscape32Bits(byte[] bytes, int offset) {
+//        return NO_ESCAPE_FLAGS[bytes[offset] & 0xff]
+//                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
+//                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
+//                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff];
+//    }
+//
+//    final static boolean isNoEscape64Bits(byte[] bytes, int offset) {
+//        return NO_ESCAPE_FLAGS[bytes[offset] & 0xff]
+//                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
+//                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
+//                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
+//                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
+//                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
+//                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
+//                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff];
+//    }
 
     /**
      * 通过unsafe一次性判断4个字节是否需要转义
@@ -441,10 +466,14 @@ class JSONGeneral {
      * @param value 限于ascii字节编码（所有字节的高位都为0）
      * @return
      */
-    final static boolean isNoEscapeBytesUnsafeWith32Bits(int value) {
-        return ((value + 0x60606060) & 0x80808080) == 0x80808080  // all >= 32
-                && ((value ^ 0xDDDDDDDD) + 0x01010101 & 0x80808080) == 0x80808080   // != 34
-                && ((value ^ 0xA3A3A3A3) + 0x01010101 & 0x80808080) == 0x80808080;  // all != 92
+    final static boolean isNoneEscaped4Bytes(int value) {
+//        return ((value + 0x60606060) & 0x80808080) == 0x80808080  // all >= 32
+//                && ((value ^ 0xDDDDDDDD) + 0x01010101 & 0x80808080) == 0x80808080   // != 34
+//                && ((value ^ 0xA3A3A3A3) + 0x01010101 & 0x80808080) == 0x80808080;  // all != 92
+
+        // if high-order bits of 4 bytes are all 1 return true, otherwise, return false
+        // Not considering negative numbers
+        return ((value + 0x60606060) & ((value ^ 0xDDDDDDDD) + 0x01010101) & ((value ^ 0xA3A3A3A3) + 0x01010101) & 0x80808080) == 0x80808080;
     }
 
     /**
@@ -453,39 +482,28 @@ class JSONGeneral {
      * @param value 限于ascii字节编码（所有字节的高位都为0）
      * @return
      */
-    final static boolean isNoEscapeBytesUnsafeWith64Bits(long value) {
-        return ((value + 0x6060606060606060L) & 0x8080808080808080L) == 0x8080808080808080L // all >= 32
-                && ((value ^ 0xDDDDDDDDDDDDDDDDL) + 0x0101010101010101L & 0x8080808080808080L) == 0x8080808080808080L // != 34
-                && ((value ^ 0xA3A3A3A3A3A3A3A3L) + 0x0101010101010101L & 0x8080808080808080L) == 0x8080808080808080L; // all != 92
+    final static boolean isNoneEscaped8Bytes(long value) {
+//        return ((value + 0x6060606060606060L) & 0x8080808080808080L) == 0x8080808080808080L // all >= 32
+//                && ((value ^ 0xDDDDDDDDDDDDDDDDL) + 0x0101010101010101L & 0x8080808080808080L) == 0x8080808080808080L // != 34
+//                && ((value ^ 0xA3A3A3A3A3A3A3A3L) + 0x0101010101010101L & 0x8080808080808080L) == 0x8080808080808080L; // all != 92
+
+        // if high-order bits of 8 bytes are all 1 return true, otherwise, return false
+        // Not considering negative numbers
+        return ((value + 0x6060606060606060L) & ((value ^ 0xDDDDDDDDDDDDDDDDL) + 0x0101010101010101L) & ((value ^ 0xA3A3A3A3A3A3A3A3L) + 0x0101010101010101L) & 0x8080808080808080L) == 0x8080808080808080L;
     }
 
-//    /**
-//     * 一次性判断4个字符是否不存在需要转义的字符
-//     *
-//     * @param value
-//     * @return
-//     */
-//    final static boolean isNoEscapeCharsUnsafeWith64Bits(long value) {
-//        // 0XFF60FF60FF60FF60
-//        return ((value + 0XFF60FF60FF60FF60L) & 0x800080080008000L) == 0x800080080008000L // all >= 32
-//                && ((value ^ 0xFFDDFFDDFFDDFFDDL) + 0x0001000100010001L & 0x800080080008000L) == 0x800080080008000L // != 34
-//                && ((value ^ 0xFFA3FFA3FFA3FFA3L) + 0x0001000100010001L & 0x800080080008000L) == 0x800080080008000L; // all != 92
-//    }
-
     /**
-     * 通过unsafe获取的4个字符一次性判断是否不存在'"'或者‘\\’，如果存在返回false,否则返回true
+     * 一次性判断4个字符是否不存在需要转义的字符
      *
-     * @param buf
-     * @param offset
+     * @param value
      * @return
      */
-    final static boolean isNotExistQuoteOrEscapeCharsUseUnsafe(char[] buf, int offset, char quote) {
-        // 注意这里缺少安全越界检查
-        long value = JSONUnsafe.getLong(buf, offset);
-        // "(34) 0x0022 -> 0xFFDDL | '\''(39) 0x0027 -> 0xFFD8
-        final long quoteMask = quote == '"' ? 0xFFDDFFDDFFDDFFDDL : 0xFFD8FFD8FFD8FFD8L;
-        return ((value ^ quoteMask) + 0x0001000100010001L & 0x8000800080008000L) == 0x8000800080008000L // != quote
-                && ((value ^ 0xFFA3FFA3FFA3FFA3L) + 0x0001000100010001L & 0x8000800080008000L) == 0x8000800080008000L; // all != 92
+    final static boolean isNoneEscaped4Chars(long value) {
+//        return ((value + 0x7FE07FE07FE07FE0L) & 0x8000800080008000L) == 0x8000800080008000L // all >= 32
+//                && ((value ^ 0xFFDDFFDDFFDDFFDDL) + 0x0001000100010001L & 0x8000800080008000L) == 0x8000800080008000L // != 34
+//                && ((value ^ 0xFFA3FFA3FFA3FFA3L) + 0x0001000100010001L & 0x8000800080008000L) == 0x8000800080008000L; // all != 92
+        long mask = (value + 0x7FE07FE07FE07FE0L) & ((value ^ 0xFFDDFFDDFFDDFFDDL) + 0x0001000100010001L) & ((value ^ 0xFFA3FFA3FFA3FFA3L) + 0x0001000100010001L);
+        return (mask & 0x8000800080008000L) == 0x8000800080008000L;
     }
 
     /**
@@ -493,34 +511,26 @@ class JSONGeneral {
      *
      * @param buf
      * @param next
-     * @param i
-     * @param beginIndex
+     * @param escapeIndex escape slash index
      * @param writer
-     * @param jsonParseContext
      * @return
      */
-    protected final static int escapeNext(char[] buf, char next, int i, int beginIndex, JSONCharArrayWriter writer, JSONParseContext jsonParseContext) {
-        if (i > beginIndex) {
-            writer.write(buf, beginIndex, i - beginIndex);
-        }
+    protected final static int escapeNextChars(char[] buf, char next, int escapeIndex, JSONCharArrayWriter writer) {
         if (next < ESCAPE_CHARS.length) {
             int escapeChar = ESCAPE_CHARS[next];
             if (escapeChar > -1) {
                 writer.write((char) escapeChar);
-                beginIndex = ++i + 1;
+                return escapeIndex + 2;
             } else {
                 // \\u
-                int c = hex4(buf, i + 2);
+                int c = hex4(buf, escapeIndex + 2);
                 writer.write((char) c);
-                i += 4;
-                beginIndex = ++i + 1;
+                return escapeIndex + 6;
             }
         } else {
             writer.write(next);
-            beginIndex = ++i + 1;
+            return escapeIndex + 2;
         }
-        jsonParseContext.endIndex = i;
-        return beginIndex;
     }
 
     /**
@@ -528,131 +538,29 @@ class JSONGeneral {
      *
      * @param bytes
      * @param next
-     * @param i
-     * @param beginIndex
+     * @param escapeIndex escape slash index
      * @param writer
-     * @param jsonParseContext
-     * @return
-     */
-    final static int escape(byte[] bytes, byte next, int i, int beginIndex, JSONCharArrayWriter writer, JSONParseContext jsonParseContext) {
-        int len;
-        switch (next) {
-            case '\'':
-            case '"':
-                if (i > beginIndex) {
-                    writer.writeBytes(bytes, beginIndex, i - beginIndex + 1);
-                    writer.setCharAt(writer.size() - 1, (char) next);
-                } else {
-                    writer.write((char) next);
-                }
-                beginIndex = ++i + 1;
-                break;
-            case 'n':
-                len = i - beginIndex;
-                writer.writeBytes(bytes, beginIndex, len + 1);
-                writer.setCharAt(writer.size() - 1, '\n');
-                beginIndex = ++i + 1;
-                break;
-            case 'r':
-                len = i - beginIndex;
-                writer.writeBytes(bytes, beginIndex, len + 1);
-                writer.setCharAt(writer.size() - 1, '\r');
-                beginIndex = ++i + 1;
-                break;
-            case 't':
-                len = i - beginIndex;
-                writer.writeBytes(bytes, beginIndex, len + 1);
-                writer.setCharAt(writer.size() - 1, '\t');
-                beginIndex = ++i + 1;
-                break;
-            case 'b':
-                len = i - beginIndex;
-                writer.writeBytes(bytes, beginIndex, len + 1);
-                writer.setCharAt(writer.size() - 1, '\b');
-                beginIndex = ++i + 1;
-                break;
-            case 'f':
-                len = i - beginIndex;
-                writer.writeBytes(bytes, beginIndex, len + 1);
-                writer.setCharAt(writer.size() - 1, '\f');
-                beginIndex = ++i + 1;
-                break;
-            case 'u':
-                len = i - beginIndex;
-                writer.writeBytes(bytes, beginIndex, len + 1);
-
-                int c;
-                int j = i + 2;
-                try {
-                    int c1 = hex(bytes[j++]);
-                    int c2 = hex(bytes[j++]);
-                    int c3 = hex(bytes[j++]);
-                    int c4 = hex(bytes[j++]);
-                    c = (c1 << 12) | (c2 << 8) | (c3 << 4) | c4;
-                } catch (Throwable throwable) {
-                    // \\u parse error
-                    String errorContextTextAt = createErrorContextText(bytes, i + 1);
-                    throw new JSONException("Syntax error, from pos " + (i + 1) + ", context text by '" + errorContextTextAt + "', " + throwable.getMessage());
-                }
-
-                writer.setCharAt(writer.size() - 1, (char) c);
-                i += 4;
-                beginIndex = ++i + 1;
-                break;
-            default: {
-                // other case delete char '\\'
-                len = i - beginIndex;
-                writer.writeBytes(bytes, beginIndex, len + 1);
-                writer.setCharAt(writer.size() - 1, (char) next);
-                beginIndex = ++i + 1;
-            }
-        }
-        jsonParseContext.endIndex = i;
-        return beginIndex;
-    }
-
-    /**
-     * escape next
-     *
-     * @param source
-     * @param bytes
-     * @param next
-     * @param i                escapeIndex
-     * @param beginIndex
-     * @param writer
-     * @param jsonParseContext
      * @return 返回转义内容处理完成后的下一个未知字符位置
      */
-    final static int escapeAscii(String source, byte[] bytes, byte next, int i, int beginIndex, JSONCharArrayWriter writer, JSONParseContext jsonParseContext) {
-        if (i > beginIndex) {
-            writer.writeString(source, beginIndex, i - beginIndex);
-        }
+    final static int escapeNextBytes(byte[] bytes, byte next, int escapeIndex, JSONCharArrayWriter writer) {
         if (next == 'u') {
-            int c;
-            int j = i + 2;
             try {
-                int c1 = hex(bytes[j++]);
-                int c2 = hex(bytes[j++]);
-                int c3 = hex(bytes[j++]);
-                int c4 = hex(bytes[j]);
-                c = (c1 << 12) | (c2 << 8) | (c3 << 4) | c4;
+                int c1 = hex(bytes[escapeIndex + 2]);
+                int c2 = hex(bytes[escapeIndex + 3]);
+                int c3 = hex(bytes[escapeIndex + 4]);
+                int c4 = hex(bytes[escapeIndex + 5]);
+                int c = (c1 << 12) | (c2 << 8) | (c3 << 4) | c4;
+                writer.write((char) c);
+                return escapeIndex + 6;
             } catch (Throwable throwable) {
                 // \\u parse error
-                String errorContextTextAt = createErrorContextText(bytes, i + 1);
-                throw new JSONException("Syntax error, from pos " + (i + 1) + ", context text by '" + errorContextTextAt + "', " + throwable.getMessage());
+                String errorContextTextAt = createErrorContextText(bytes, escapeIndex + 1);
+                throw new JSONException("Syntax error, from pos " + (escapeIndex + 1) + ", context text by '" + errorContextTextAt + "', " + throwable.getMessage());
             }
-            writer.write((char) c);
-            i += 4;
-            beginIndex = ++i + 1;
-        } else if (next < ESCAPE_CHARS.length) {
-            writer.write((char) ESCAPE_CHARS[next & 0xFF]);
-            beginIndex = ++i + 1;
         } else {
-            writer.write((char) next);
-            beginIndex = ++i + 1;
+            writer.write((char) ESCAPE_CHARS[next & 0xFF]);
+            return escapeIndex + 2;
         }
-        jsonParseContext.endIndex = i;
-        return beginIndex;
     }
 
     /**
@@ -677,11 +585,11 @@ class JSONGeneral {
      * 将\\u后面的4个16进制字符转化为int值
      *
      * @param buf
-     * @param fromIndex \\u位置后一位
+     * @param offset \\u位置后一位
      * @return
      */
-    protected static int hex4(char[] buf, int fromIndex) {
-        int j = fromIndex;
+    protected static int hex4(char[] buf, int offset) {
+        int j = offset;
         try {
             int c1 = hex(buf[j++]);
             int c2 = hex(buf[j++]);
@@ -691,7 +599,7 @@ class JSONGeneral {
         } catch (Throwable throwable) {
             // \\u parse error
             String errorContextTextAt = createErrorContextText(buf, j - 1);
-            throw new JSONException("Syntax error, from pos " + fromIndex + ", context text by '" + errorContextTextAt + "', hex unicode parse error ");
+            throw new JSONException("Syntax error, from pos " + offset + ", context text by '" + errorContextTextAt + "', hex unicode parse error ");
         }
     }
 
@@ -1130,13 +1038,13 @@ class JSONGeneral {
      * 开启注释支持后，支持//.*\n 和 /* *\/ （After enabling comment support, support / /* \N and / **\/）
      *
      * @param buf
-     * @param beginIndex       开始位置
-     * @param jsonParseContext 上下文配置
+     * @param beginIndex   开始位置
+     * @param parseContext 上下文配置
      * @return 去掉注释后的第一个非空字符位置（Non empty character position after removing comments）
      * @see ReadOption#AllowComment
      */
-    protected final static int clearCommentAndWhiteSpaces(char[] buf, int beginIndex, JSONParseContext jsonParseContext) {
-        int i = beginIndex, toIndex = jsonParseContext.toIndex;
+    protected final static int clearCommentAndWhiteSpaces(char[] buf, int beginIndex, JSONParseContext parseContext) {
+        int i = beginIndex, toIndex = parseContext.toIndex;
         if (i >= toIndex) {
             throw new JSONException("Syntax error, unexpected '/', position " + (beginIndex - 1));
         }
@@ -1153,7 +1061,7 @@ class JSONGeneral {
             while (i + 1 < toIndex && (ch = buf[++i]) <= ' ') ;
             if (ch == '/') {
                 // 递归清除
-                i = clearCommentAndWhiteSpaces(buf, i + 1, jsonParseContext);
+                i = clearCommentAndWhiteSpaces(buf, i + 1, parseContext);
             }
         } else if (ch == '*') {
             // End with */
@@ -1175,7 +1083,7 @@ class JSONGeneral {
             while (i + 1 < toIndex && (ch = buf[++i]) <= ' ') ;
             if (ch == '/') {
                 // 递归清除
-                i = clearCommentAndWhiteSpaces(buf, i + 1, jsonParseContext);
+                i = clearCommentAndWhiteSpaces(buf, i + 1, parseContext);
             }
         } else {
             throw new JSONException("Syntax error, unexpected '" + ch + "', position " + beginIndex);
@@ -1187,13 +1095,13 @@ class JSONGeneral {
      * 清除注释和空白
      *
      * @param bytes
-     * @param beginIndex       开始位置
-     * @param jsonParseContext 上下文配置
+     * @param beginIndex   开始位置
+     * @param parseContext 上下文配置
      * @return 去掉注释后的第一个非空字节位置（Non empty character position after removing comments）
      * @see ReadOption#AllowComment
      */
-    protected static int clearCommentAndWhiteSpaces(byte[] bytes, int beginIndex, JSONParseContext jsonParseContext) {
-        int i = beginIndex, toIndex = jsonParseContext.toIndex;
+    protected static int clearCommentAndWhiteSpaces(byte[] bytes, int beginIndex, JSONParseContext parseContext) {
+        int i = beginIndex, toIndex = parseContext.toIndex;
         if (i >= toIndex) {
             throw new JSONException("Syntax error, unexpected '/', position " + (beginIndex - 1));
         }
@@ -1210,7 +1118,7 @@ class JSONGeneral {
             while (i + 1 < toIndex && (b = bytes[++i]) <= ' ') ;
             if (b == '/') {
                 // 递归清除
-                i = clearCommentAndWhiteSpaces(bytes, i + 1, jsonParseContext);
+                i = clearCommentAndWhiteSpaces(bytes, i + 1, parseContext);
             }
         } else if (b == '*') {
             // End with */
@@ -1232,7 +1140,7 @@ class JSONGeneral {
             while (i + 1 < toIndex && (b = bytes[++i]) <= ' ') ;
             if (b == '/') {
                 // 递归清除
-                i = clearCommentAndWhiteSpaces(bytes, i + 1, jsonParseContext);
+                i = clearCommentAndWhiteSpaces(bytes, i + 1, parseContext);
             }
         } else {
             throw new JSONException("Syntax error, unexpected '" + (char) b + "', position " + beginIndex);
@@ -1723,10 +1631,10 @@ class JSONGeneral {
         }
     }
 
-    protected final static JSONCharArrayWriter getContextWriter(JSONParseContext jsonParseContext) {
-        JSONCharArrayWriter jsonWriter = jsonParseContext.getContextWriter();
+    protected final static JSONCharArrayWriter getContextWriter(JSONParseContext parseContext) {
+        JSONCharArrayWriter jsonWriter = parseContext.getContextWriter();
         if (jsonWriter == null) {
-            jsonParseContext.setContextWriter(jsonWriter = new JSONCharArrayWriter());
+            parseContext.setContextWriter(jsonWriter = new JSONCharArrayWriter());
         }
         return jsonWriter;
     }

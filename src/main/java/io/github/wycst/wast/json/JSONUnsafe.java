@@ -33,7 +33,7 @@ final class JSONUnsafe {
         @Override
         int digits2Bytes(byte[] buf, int offset) {
             int bigShortVal = UNSAFE.getShort(buf, BYTE_ARRAY_OFFSET + offset);
-            if ((bigShortVal & 0xF030) == 0x3030) {
+            if ((bigShortVal & 0xF0F0) == 0x3030) {
                 int l = bigShortVal & 0xf, h = (bigShortVal >> 8) & 0xf;
                 if (h > 9 || l > 9) return -1;
                 return (h << 3) + (h << 1) + l;
@@ -81,7 +81,7 @@ final class JSONUnsafe {
         @Override
         int digits2Bytes(byte[] buf, int offset) {
             int littleShortVal = UNSAFE.getShort(buf, BYTE_ARRAY_OFFSET + offset);
-            if ((littleShortVal & 0xF030) == 0x3030) {
+            if ((littleShortVal & 0xF0F0) == 0x3030) {
                 int h = littleShortVal & 0x3f, l8 = (littleShortVal >> 4) & 0xF0;
                 return JSONGeneral.TWO_DIGITS_VALUES[h ^ l8];
             } else {
@@ -179,6 +179,14 @@ final class JSONUnsafe {
 
         void copyMemory(byte[] source, int sourceOff, byte[] target, int targetOff) {
         }
+
+        public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+            char[] result = new char[len];
+            for (int j = 0; j < len; ++j) {
+                result[j] = (char) buf[offset + j];
+            }
+            return result;
+        }
     }
 
     final static Optimizer[] SIZE_INSTANCES = new Optimizer[]{
@@ -231,6 +239,11 @@ final class JSONUnsafe {
             public long[] copy(long[] buf, int offset, int len) {
                 return new long[]{};
             }
+
+            @Override
+            public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+                return JSONGeneral.EMPTY_ARRAY;
+            }
         };
     }
 
@@ -267,6 +280,11 @@ final class JSONUnsafe {
 
             void copyMemory(byte[] source, int sourceOff, byte[] target, int targetOff) {
                 target[targetOff] = source[sourceOff];
+            }
+
+            @Override
+            public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+                return new char[]{(char) buf[offset]};
             }
         };
     }
@@ -310,6 +328,11 @@ final class JSONUnsafe {
 
             void copyMemory(byte[] source, int sourceOff, byte[] target, int targetOff) {
                 UNSAFE.putShort(target, BYTE_ARRAY_OFFSET + targetOff, UNSAFE.getShort(source, BYTE_ARRAY_OFFSET + sourceOff));
+            }
+
+            @Override
+            public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+                return new char[]{(char) buf[offset++], (char) buf[offset]};
             }
         };
     }
@@ -358,6 +381,11 @@ final class JSONUnsafe {
                 UNSAFE.putShort(target, BYTE_ARRAY_OFFSET + targetOff, UNSAFE.getShort(source, BYTE_ARRAY_OFFSET + sourceOff));
                 target[targetOff + 2] = source[sourceOff + 2];
             }
+
+            @Override
+            public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+                return new char[]{(char) buf[offset++], (char) buf[offset++], (char) buf[offset]};
+            }
         };
     }
 
@@ -402,6 +430,11 @@ final class JSONUnsafe {
 
             void copyMemory(byte[] source, int sourceOff, byte[] target, int targetOff) {
                 UNSAFE.putInt(target, BYTE_ARRAY_OFFSET + targetOff, UNSAFE.getInt(source, BYTE_ARRAY_OFFSET + sourceOff));
+            }
+
+            @Override
+            public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+                return new char[]{(char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset]};
             }
         };
     }
@@ -452,6 +485,11 @@ final class JSONUnsafe {
                 UNSAFE.putInt(target, BYTE_ARRAY_OFFSET + targetOff, UNSAFE.getInt(source, BYTE_ARRAY_OFFSET + sourceOff));
                 target[targetOff + 4] = source[sourceOff + 4];
             }
+
+            @Override
+            public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+                return new char[]{(char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset]};
+            }
         };
     }
 
@@ -501,6 +539,11 @@ final class JSONUnsafe {
             void copyMemory(byte[] source, int sourceOff, byte[] target, int targetOff) {
                 UNSAFE.putInt(target, BYTE_ARRAY_OFFSET + targetOff, UNSAFE.getInt(source, BYTE_ARRAY_OFFSET + sourceOff));
                 UNSAFE.putShort(target, BYTE_ARRAY_OFFSET + targetOff + 4, UNSAFE.getShort(source, BYTE_ARRAY_OFFSET + sourceOff + 4));
+            }
+
+            @Override
+            public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+                return new char[]{(char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset]};
             }
         };
     }
@@ -553,6 +596,11 @@ final class JSONUnsafe {
                 UNSAFE.putShort(target, BYTE_ARRAY_OFFSET + targetOff + 4, UNSAFE.getShort(source, BYTE_ARRAY_OFFSET + sourceOff + 4));
                 target[targetOff + 6] = source[sourceOff + 6];
             }
+
+            @Override
+            public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+                return new char[]{(char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset]};
+            }
         };
     }
 
@@ -603,6 +651,11 @@ final class JSONUnsafe {
             void copyMemory(byte[] source, int sourceOff, byte[] target, int targetOff) {
                 UNSAFE.putLong(target, BYTE_ARRAY_OFFSET + targetOff, UNSAFE.getLong(source, BYTE_ARRAY_OFFSET + sourceOff));
             }
+
+            @Override
+            public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+                return new char[]{(char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset]};
+            }
         };
     }
 
@@ -639,6 +692,11 @@ final class JSONUnsafe {
             public long[] copy(long[] buf, int offset, int len) {
                 return new long[]{buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset]};
             }
+
+            @Override
+            public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+                return new char[]{(char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset]};
+            }
         };
     }
 
@@ -657,7 +715,9 @@ final class JSONUnsafe {
             public byte[] copyBytes(byte[] buf, int offset, int len) {
                 byte[] bytes = new byte[10];
                 putLong(bytes, 0, getLong(buf, offset));
-                putShort(bytes, 8, getShort(buf, offset + 8));
+                bytes[8] = buf[offset + 8];
+                bytes[9] = buf[offset + 9];
+//                putShort(bytes, 8, getShort(buf, offset + 8));
                 return bytes;
             }
 
@@ -674,6 +734,11 @@ final class JSONUnsafe {
             @Override
             public long[] copy(long[] buf, int offset, int len) {
                 return new long[]{buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset]};
+            }
+
+            @Override
+            public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+                return new char[]{(char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset]};
             }
         };
     }
@@ -711,6 +776,11 @@ final class JSONUnsafe {
             public long[] copy(long[] buf, int offset, int len) {
                 return new long[]{buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset]};
             }
+
+            @Override
+            public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+                return new char[]{(char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset]};
+            }
         };
     }
 
@@ -747,6 +817,11 @@ final class JSONUnsafe {
             public long[] copy(long[] buf, int offset, int len) {
                 return new long[]{buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset]};
             }
+
+            @Override
+            public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+                return new char[]{(char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset]};
+            }
         };
     }
 
@@ -766,7 +841,8 @@ final class JSONUnsafe {
             public byte[] copyBytes(byte[] buf, int offset, int len) {
                 byte[] bytes = new byte[13];
                 putLong(bytes, 0, getLong(buf, offset));
-                putLong(bytes, 5, getLong(buf, offset + 5));
+                putInt(bytes, 8, getInt(buf, offset + 8));
+                bytes[12] = buf[offset + 12];
                 return bytes;
             }
 
@@ -783,6 +859,11 @@ final class JSONUnsafe {
             @Override
             public long[] copy(long[] buf, int offset, int len) {
                 return new long[]{buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset]};
+            }
+
+            @Override
+            public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+                return new char[]{(char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset]};
             }
         };
     }
@@ -821,6 +902,11 @@ final class JSONUnsafe {
             public long[] copy(long[] buf, int offset, int len) {
                 return new long[]{buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset]};
             }
+
+            @Override
+            public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+                return new char[]{(char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset]};
+            }
         };
     }
 
@@ -857,6 +943,11 @@ final class JSONUnsafe {
             @Override
             public long[] copy(long[] buf, int offset, int len) {
                 return new long[]{buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset]};
+            }
+
+            @Override
+            public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+                return new char[]{(char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset]};
             }
         };
     }
@@ -895,6 +986,11 @@ final class JSONUnsafe {
             public long[] copy(long[] buf, int offset, int len) {
                 return new long[]{buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset]};
             }
+
+            @Override
+            public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+                return new char[]{(char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset]};
+            }
         };
     }
 
@@ -923,6 +1019,11 @@ final class JSONUnsafe {
             public long[] copy(long[] buf, int offset, int len) {
                 return new long[]{buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset]};
             }
+
+            @Override
+            public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+                return new char[]{(char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset]};
+            }
         };
     }
 
@@ -933,7 +1034,9 @@ final class JSONUnsafe {
                 byte[] bytes = new byte[18];
                 putLong(bytes, 0, getLong(buf, offset));
                 putLong(bytes, 8, getLong(buf, offset + 8));
-                putShort(bytes, 16, getShort(buf, offset + 16));
+//                putShort(bytes, 16, getShort(buf, offset + 16));
+                bytes[16] = buf[offset + 16];
+                bytes[17] = buf[offset + 17];
                 return bytes;
             }
 
@@ -950,6 +1053,11 @@ final class JSONUnsafe {
             @Override
             public long[] copy(long[] buf, int offset, int len) {
                 return new long[]{buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset]};
+            }
+
+            @Override
+            public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+                return new char[]{(char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset]};
             }
         };
     }
@@ -979,11 +1087,28 @@ final class JSONUnsafe {
             public long[] copy(long[] buf, int offset, int len) {
                 return new long[]{buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset]};
             }
+
+            @Override
+            public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+                return new char[]{(char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset]};
+            }
         };
     }
 
     static Optimizer s20() {
         return new Optimizer() {
+
+            @Override
+            public char[] copyChars(char[] buf, int offset, int len) {
+                char[] chars = new char[16];
+                putLong(chars, 0, getLong(buf, offset));
+                putLong(chars, 4, getLong(buf, offset + 4));
+                putLong(chars, 8, getLong(buf, offset + 8));
+                putLong(chars, 12, getLong(buf, offset + 12));
+                putLong(chars, 16, getLong(buf, offset + 16));
+                return chars;
+            }
+
             @Override
             public byte[] copyBytes(byte[] buf, int offset, int len) {
                 byte[] bytes = new byte[20];
@@ -1006,6 +1131,11 @@ final class JSONUnsafe {
             @Override
             public long[] copy(long[] buf, int offset, int len) {
                 return new long[]{buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset++], buf[offset]};
+            }
+
+            @Override
+            public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
+                return new char[]{(char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset++], (char) buf[offset]};
             }
         };
     }
@@ -1059,14 +1189,38 @@ final class JSONUnsafe {
         return UNSAFE.getObject(value, STRING_VALUE_OFFSET);
     }
 
-    public static String createString(char[] buf, int beginIndex, int len) {
+    static String createStringJDK8(char[] buf, int beginIndex, int len) {
         String target = new String();
         UNSAFE.putObject(target, STRING_VALUE_OFFSET, copyChars(buf, beginIndex, len));
         return target;
     }
 
+    static String createStringByAsciiBytesJDK8(byte[] buf, int beginIndex, int endIndex) {
+        int len = endIndex - beginIndex;
+        char[] result;
+        if(len < SIZE_LEN) {
+            result = SIZE_INSTANCES[len].asciiBytesToChars(buf, beginIndex, len);
+        } else {
+            result = new char[len];
+            for (int j = 0; j < len; ++j) {
+                result[j] = (char) buf[beginIndex + j];
+            }
+        }
+        String target = new String();
+        UNSAFE.putObject(target, STRING_VALUE_OFFSET, result);
+        return target;
+    }
+
+    static int asciiBytesToChars(byte[] buf, int beginIndex, int endIndex, char[] chars, int offset) {
+        int len = endIndex - beginIndex;
+        for (int j = 0; j < len; ++j) {
+            chars[offset + j] = (char) buf[beginIndex + j];
+        }
+        return len;
+    }
+
     public static char[] copyChars(char[] buf, int offset, int len) {
-        if (len < 16) {
+        if (len < SIZE_LEN) {
             return SIZE_INSTANCES[len].copyChars(buf, offset, len);
         } else {
             char[] chars = new char[len];

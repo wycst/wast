@@ -22,4 +22,9 @@ final class UTF8CharSource implements CharSource {
     public String substring(byte[] bytes, int beginIndex, int endIndex) {
         return new String(bytes, beginIndex, endIndex - beginIndex, EnvUtils.CHARSET_UTF_8);
     }
+
+    @Override
+    public void writeString(JSONCharArrayWriter writer, byte[] buf, int offset, int len) {
+        writer.writeBytes(buf, offset, len);
+    }
 }
