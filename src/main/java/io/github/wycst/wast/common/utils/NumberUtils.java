@@ -675,6 +675,10 @@ public final class NumberUtils {
      * @return
      */
     public static Scientific doubleToScientific(double doubleValue) {
+        if(doubleValue == Double.MIN_VALUE) {
+            // Double.MIN_VALUE JDK转化最小double为4.9e-324， 本方法转化为5.0e-324 , 由于此值特殊为了和JDK转化一致特俗处理一下
+            return Scientific.DOUBLE_MIN;
+        }
         long bits = Double.doubleToRawLongBits(doubleValue);
         int e2 = (int) (bits >> 52) & MOD_DOUBLE_EXP;
         long mantissa0 = bits & MOD_DOUBLE_MANTISSA;
@@ -775,9 +779,6 @@ public final class NumberUtils {
 
         // rem <= Actual Rem Value
         long div = rawOutput / 1000;
-        if(div == 0) {
-             return Scientific.DOUBLE_MIN;
-        }
         long rem = rawOutput - div * 1000;
         long remUp = (10001 - rem * 10) << 1;
         boolean up;
