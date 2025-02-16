@@ -688,7 +688,7 @@ public final class ClassStrucWrap {
                 genericParameterizedType = GenericParameterizedType.genericCollectionType(parameterType, type);
             } else {
                 // 没有泛型将集合视作普通实体类创建泛型结构
-                genericParameterizedType = GenericParameterizedType.newActualType(parameterType);
+                genericParameterizedType = GenericParameterizedType.createInternal(parameterType);
             }
         } else if (parameterType.isArray()) {
             Class<?> componentType = parameterType.getComponentType();
@@ -709,7 +709,7 @@ public final class ClassStrucWrap {
                 }
             } else {
                 // 没有泛型创建普通实体类泛型结构
-                genericParameterizedType = GenericParameterizedType.newActualType(parameterType);
+                genericParameterizedType = GenericParameterizedType.createInternal(parameterType);
             }
         } else {
             if (parameterType.isInterface() || Modifier.isAbstract(parameterType.getModifiers())) {
@@ -727,7 +727,7 @@ public final class ClassStrucWrap {
                 if (declaringClass != sourceClass) {
                     // maybe parent method
                     Class<?> superGenericClass = superGenericClassMap.get(name);
-                    genericParameterizedType = GenericParameterizedType.newActualType(superGenericClass);
+                    genericParameterizedType = GenericParameterizedType.createInternal(superGenericClass);
                 } else {
                     genericParameterizedType = GenericParameterizedType.genericEntityType(parameterType, typeVariable.getName());
                 }
@@ -740,7 +740,7 @@ public final class ClassStrucWrap {
                     if (actualTypeArgument instanceof Class) {
                         genericParameterizedType = GenericParameterizedType.entityType(parameterType, (Class<?>) actualTypeArgument);
                     } else {
-                        genericParameterizedType = GenericParameterizedType.newActualType(parameterType);
+                        genericParameterizedType = GenericParameterizedType.createInternal(parameterType);
                     }
                 } else {
                     TypeVariable[] typeParameters = parameterType.getTypeParameters();
@@ -757,7 +757,7 @@ public final class ClassStrucWrap {
                 }
 
             } else {
-                genericParameterizedType = GenericParameterizedType.newActualType(parameterType);
+                genericParameterizedType = GenericParameterizedType.createInternal(parameterType);
             }
         }
 

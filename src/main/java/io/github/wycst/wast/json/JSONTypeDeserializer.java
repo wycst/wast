@@ -100,7 +100,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
 
         CharSequenceImpl stringDeserializer;
         if (EnvUtils.JDK_9_PLUS) {
-            if (EnvUtils.JDK_16_PLUS && !ENABLE_VECTOR) {
+            if (EnvUtils.JDK_16_PLUS && SUPPORTED_INTRINSIC_CANDIDATE) {
                 stringDeserializer = new CharSequenceImpl.StringJDK16PlusImpl();
             } else {
                 // JDK9~JDK15

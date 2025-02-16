@@ -615,10 +615,10 @@ abstract class JSONAbstractReader extends JSONGeneral {
             } else if (classCategory == ReflectConsts.ClassCategory.MapCategory) {
                 instance = map = createMapInstance(genericType);
                 valueType = genericType.getValueType();
-                if(valueType == null) {
+                if (valueType == null) {
                     valueType = GenericParameterizedType.AnyType;
                 }
-            } else if(classCategory == ReflectConsts.ClassCategory.ANY) {
+            } else if (classCategory == ReflectConsts.ClassCategory.ANY) {
                 instance = map = new LinkedHashMap();
                 valueType = GenericParameterizedType.AnyType;
             } else {
@@ -1118,16 +1118,23 @@ abstract class JSONAbstractReader extends JSONGeneral {
                         this.endReading(-2, offset);
                         // stop reading buffer
                         this.readingOffset = -1;
-
                         int c1 = readNext(true);
                         int c2 = readNext(true);
                         int c3 = readNext(true);
                         int c4 = readNext(true);
-                        int c = hex4(c1, c2, c3, c4);
-
+                        long c64;
+                        try {
+                            c64 = hex4ToLong(c1, c2, c3, c4);
+                            if (c64 < 0) {
+                                throw new JSONException("Syntax error, from pos " + offset + ", invalid unicode " + new String(new char[]{(char) c1, (char) c2, (char) c3, (char) c4}));
+                            }
+                        } catch (Throwable throwable) {
+                            throw new JSONException("Syntax error, from pos " + offset + ", invalid unicode " + new String(new char[]{(char) c1, (char) c2, (char) c3, (char) c4}));
+                        }
+                        char c = (char) c64;
                         // begin reading and locate to offset
                         this.readingOffset = offset;
-                        writer.append((char) c);
+                        writer.append(c);
                         break;
                     case '\\':
                         // Skip \\ and current

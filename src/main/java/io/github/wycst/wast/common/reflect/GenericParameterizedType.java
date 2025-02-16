@@ -24,7 +24,7 @@ public final class GenericParameterizedType<T> {
     /**
      * AnyType类型
      */
-    public static GenericParameterizedType AnyType = GenericParameterizedType.actualType(Object.class);
+    public static final GenericParameterizedType AnyType = GenericParameterizedType.actualType(Object.class);
 
     /**
      * 字符串类型
@@ -124,12 +124,20 @@ public final class GenericParameterizedType<T> {
      * 通过new构建,场景需要隔离时使用
      *
      * @param actualType
-     * @param <T>
      * @return
      */
-    static <T> GenericParameterizedType<T> newActualType(Class<T> actualType) {
+    static GenericParameterizedType createInternal(Class actualType) {
         if(actualType == Object.class) {
             return AnyType;
+        }
+        if(actualType == String.class) {
+            return StringType;
+        }
+        if(actualType == Integer.class || actualType == int.class) {
+            return IntType;
+        }
+        if(actualType == Long.class || actualType == long.class) {
+            return LongType;
         }
         GenericParameterizedType genericParameterizedType = new GenericParameterizedType();
         genericParameterizedType.setActualType(actualType);

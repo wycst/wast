@@ -643,6 +643,7 @@ public final class NumberUtils {
      * @return
      */
     static long multiplyHighAndShift(long x, long y, long y32, int s) {
+        // -> BigInteger.valueOf(y).shiftLeft(32).add(BigInteger.valueOf(y32 & MASK_32_BITS)).multiply(BigInteger.valueOf(x)).shiftRight(s + 32)
         int sr = s - 64;
         long H = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(x, y);
         long L = x * y;
@@ -773,7 +774,11 @@ public final class NumberUtils {
         }
 
         // rem <= Actual Rem Value
-        long div = rawOutput / 1000, rem = rawOutput - div * 1000;
+        long div = rawOutput / 1000;
+        if(div == 0) {
+             return Scientific.DOUBLE_MIN;
+        }
+        long rem = rawOutput - div * 1000;
         long remUp = (10001 - rem * 10) << 1;
         boolean up;
         if ((up = (remUp <= d4)) || ((rem + 1) << (flagForDown ? 1 : 2)) <= d3) {
@@ -797,14 +802,15 @@ public final class NumberUtils {
      * @return
      */
     public static Scientific floatToScientific(float floatValue) {
-        int bits = Float.floatToRawIntBits(floatValue);
+        final int bits = Float.floatToRawIntBits(floatValue);
         int e2 = (bits >> 23) & MOD_FLOAT_EXP;
         int mantissa0 = bits & MOD_FLOAT_MANTISSA;
         boolean nonZeroFlag = mantissa0 > 0;
         int e23;
-        long output;
+        long output, rawOutput;
         long d4;
         int e10, adl;
+        boolean accurate = false;
         if (e2 > 0) {
             mantissa0 = 1 << 23 | mantissa0;
             e23 = e2 - 150;   // 1023 - 52
@@ -816,15 +822,33 @@ public final class NumberUtils {
         }
         if (e23 >= 0) {
             ED d = EF.E2_F_A[e23];
-            e10 = d.e10;   // e10 > 15
+            e10 = d.e10;
             adl = d.adl;
             d4 = d.d4;
             if (d.b && mantissa0 > d.bv) {
                 ++e10;
                 ++adl;
             }
+            int o5 = d.o5 + 6;  // 相对double(adl + 2 - e10)多加6个数字增加命中概率
+            int sb = e23 + o5;
+            if (o5 < 0) {
+                // mantissa0 * 2^(e23 + o5) * 5^o5 -> mantissa0 * 2^sb / 5^(-o5)
+                // rawOutput = BigInteger.valueOf(mantissa0).shiftLeft(sb).divide(POW5_BI_VALUES[-o5]).longValue();
+                if(sb < 40) {
+                    rawOutput = ((long) mantissa0 << sb) / POW5_LONG_VALUES[-o5];
+                } else {
+                    ED5 d5 = ED5.ED5_A[-o5];
+                    rawOutput = multiplyHighAndShift((long) mantissa0 << 39, d5.oy, d5.of, 71 + d5.ob - sb);
+                }
+            } else {
+                // o5 > 0 -> sb > 0
+                // accurate
+                rawOutput = mantissa0 * POW5_LONG_VALUES[o5] << sb;
+                accurate = true;
+            }
+
         } else {
-            // e52 >= -1074 -> p5 <= 1074
+            // e52 >= -149 -> p5 <= 149
             int e5 = -e23;
             ED d = EF.E5_F_A[e5];
             e10 = d.e10;
@@ -834,19 +858,44 @@ public final class NumberUtils {
                 ++e10;
                 ++adl;
             }
+
+            int o5 = d.o5 + 6; // 相对double(adl + 2 - e10)多加6个数字增加命中概率
+            int sb = o5 + e23;
+            if (sb < 0) {
+                // todo To be optimized
+                if(o5 < 17) {
+                    rawOutput = mantissa0 * POW5_LONG_VALUES[o5] >> -sb;
+                } else if (o5 < POW5_LONG_VALUES.length) {
+                    rawOutput = multiplyHighAndShift(mantissa0, POW5_LONG_VALUES[o5], -sb);
+                } else if (o5 < POW5_LONG_VALUES.length + 4) {
+                    rawOutput = multiplyHighAndShift(mantissa0 * POW5_LONG_VALUES[o5 - POW5_LONG_VALUES.length + 1], POW5_LONG_VALUES[POW5_LONG_VALUES.length - 1], -sb);
+                } else {
+                    ED5 ed5 = ED5.ED5_A[o5];
+                    rawOutput = multiplyHighAndShift((long) mantissa0 << 39, ed5.y, ed5.f, -(ed5.dfb + sb) + 39);   // 39 = 63 - 24
+                }
+            } else {
+                rawOutput = POW5_LONG_VALUES[o5] * mantissa0 << sb;
+                accurate = true;
+            }
         }
 
-        long rawOutput;
-        int rn = adl + 5 - e10;
-        double dv = floatValue;
-        if (rn >= 0) {
-            rawOutput = (long) (dv * NumberUtils.getDecimalPowerValue(rn));
-        } else {
-            rawOutput = (long) (dv / NumberUtils.getDecimalPowerValue(-rn));
+        // todo if accurate Fast conversion ?
+        if(accurate) {
+        // 如果追求性能可以这里返回，但可能返回非最短数字序列（结果一定是正确的）
+//            rawOutput = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(rawOutput, 0x6b5fca6af2bd215fL) >> 22; // rawOutput / 10000000;
+//            if (adl == 7) {
+//                --adl;
+//                rawOutput = (rawOutput + 5) / 10; // rawOutput = rawOutput / 10 + ((rawOutput % 10) >= 5 ? 1 : 0);
+//            }
+//            return new Scientific(rawOutput, adl + 2, e10);
         }
-        long div = rawOutput / 1000000;
-        long rem = rawOutput - div * 1000000;
-        long remUp = (1000001 - rem) << 1;
+
+        if(rawOutput < 1000000000) {
+            return new Scientific(rawOutput / 10000000, 2, e10);
+        }
+        long div = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(rawOutput, 0x44b82fa09b5a52ccL) >> 28; // rawOutput / 1000000000;
+        long rem = rawOutput - div * 1000000000;
+        long remUp = (1000000001 - rem) << 1;
         boolean up = remUp <= d4;
         if (up || ((rem + 1) << (nonZeroFlag ? 1 : 2)) <= d4) {
             output = div + (up ? 1 : 0);
@@ -860,9 +909,11 @@ public final class NumberUtils {
             }
         } else {
             if (nonZeroFlag) {
-                output = rawOutput / 100000 + (rem % 100000 >= 50000 ? 1 : 0);
+                long div0 = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(rawOutput, 0x55e63b88c230e77fL) >> 25; // rawOutput / 100000000
+                output = div0 + (rem % 100000000 >= 50000000 ? 1 : 0);
             } else {
-                output = rawOutput / 10000 + (rem % 10000 >= 5000 ? 1 : 0);
+                long div0 = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(rawOutput, 0x6b5fca6af2bd215fL) >> 22; // rawOutput / 10000000
+                output = div0 + (rem % 10000000 >= 5000000 ? 1 : 0);
                 ++adl;
             }
         }

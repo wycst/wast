@@ -750,17 +750,22 @@ public abstract class JSONWriter extends Writer {
             off += JSONUnsafe.putLong(buf, off, JSONGeneral.NULL_LONG);
             return off - beginIndex;
         }
-        if (e10 >= 0) {
-            char[] chars = POSITIVE_DECIMAL_POWER_CHARS[e10];
-            System.arraycopy(chars, 0, buf, off, chars.length);
-            off += chars.length;
-            return off - beginIndex;
-        } else {
-            char[] chars = NEGATIVE_DECIMAL_POWER_CHARS[-e10];
-            System.arraycopy(chars, 0, buf, off, chars.length);
-            off += chars.length;
-            return off - beginIndex;
-        }
+
+        char[] chars = e10 >= 0 ? POSITIVE_DECIMAL_POWER_CHARS[e10] : NEGATIVE_DECIMAL_POWER_CHARS[-e10];
+        System.arraycopy(chars, 0, buf, off, chars.length);
+        off += chars.length;
+        return off - beginIndex;
+//        if (e10 >= 0) {
+//            char[] chars = POSITIVE_DECIMAL_POWER_CHARS[e10];
+//            System.arraycopy(chars, 0, buf, off, chars.length);
+//            off += chars.length;
+//            return off - beginIndex;
+//        } else {
+//            char[] chars = NEGATIVE_DECIMAL_POWER_CHARS[-e10];
+//            System.arraycopy(chars, 0, buf, off, chars.length);
+//            off += chars.length;
+//            return off - beginIndex;
+//        }
     }
 
     /**
@@ -930,19 +935,25 @@ public abstract class JSONWriter extends Writer {
             off += JSONUnsafe.putInt(buf, off, JSONGeneral.NULL_INT);
             return off - beginIndex;
         }
-        if (e10 >= 0) {
-            char[] chars = POSITIVE_DECIMAL_POWER_CHARS[e10];
-            for (char c : chars) {
-                buf[off++] = (byte) c;
-            }
-            return off - beginIndex;
-        } else {
-            char[] chars = NEGATIVE_DECIMAL_POWER_CHARS[-e10];
-            for (char c : chars) {
-                buf[off++] = (byte) c;
-            }
-            return off - beginIndex;
+
+        char[] chars = e10 >= 0 ? POSITIVE_DECIMAL_POWER_CHARS[e10] : NEGATIVE_DECIMAL_POWER_CHARS[-e10];
+        for (char c : chars) {
+            buf[off++] = (byte) c;
         }
+        return off - beginIndex;
+//        if (e10 >= 0) {
+//            char[] chars = POSITIVE_DECIMAL_POWER_CHARS[e10];
+//            for (char c : chars) {
+//                buf[off++] = (byte) c;
+//            }
+//            return off - beginIndex;
+//        } else {
+//            char[] chars = NEGATIVE_DECIMAL_POWER_CHARS[-e10];
+//            for (char c : chars) {
+//                buf[off++] = (byte) c;
+//            }
+//            return off - beginIndex;
+//        }
     }
 
     /**

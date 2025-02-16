@@ -2826,7 +2826,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         char ch;
         for (int i = offset, n = i + len; i < n; ++i) {
             ch = buf.charAt(i);
-            int d = JSONGeneral.digitDecimal(ch);
+            int d = NumberUtils.digitDecimal(ch);
             if (d < 0) {
                 if (ch <= ' ') continue;
                 throw new IllegalArgumentException("mismatch array index: \"" + buf.substring(offset, offset + len) + "\"");

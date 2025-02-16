@@ -1351,6 +1351,53 @@ public final class JSON extends JSONGeneral {
         return stringify(parse(json), JSONConfig.config(WriteOption.FormatOutColonSpace), 0);
     }
 
+    // Faster than toJsonString
+    public static String toString(float value) {
+        char[] chars = JSONGeneral.CACHED_CHARS_36.get();
+        int len = JSONWriter.writeFloat(value, chars, 0);
+        if(chars[0] == 'n') {
+            if(value == Float.POSITIVE_INFINITY) {
+                return "Infinity";
+            } else if(value == Float.NEGATIVE_INFINITY) {
+                return "-Infinity";
+            } else {
+                return "NaN";
+            }
+        }
+        return new String(chars, 0, len);
+    }
+
+    // Faster than toJsonString
+    public static String toString(double value) {
+        char[] chars = JSONGeneral.CACHED_CHARS_36.get();
+        int len = JSONWriter.writeDouble(value, chars, 0);
+        if(chars[0] == 'n') {
+            if(value == Double.POSITIVE_INFINITY) {
+                return "Infinity";
+            } else if(value == Double.NEGATIVE_INFINITY) {
+                return "-Infinity";
+            } else {
+                return "NaN";
+            }
+        }
+        return new String(chars, 0, len);
+    }
+
+    // Faster than toJsonString
+    public static String toString(long value) {
+        if (value == Long.MIN_VALUE) {
+            return "-9223372036854775808";
+        }
+        char[] chars = JSONGeneral.CACHED_CHARS_36.get();
+        int offset = 0;
+        if(value < 0) {
+            chars[offset++] = '-';
+            value = -value;
+        }
+        offset += JSONWriter.writeInteger(value, chars, offset);
+        return new String(chars, 0, offset);
+    }
+
     /**
      * 将对象序列化为json字节数组
      *

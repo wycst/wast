@@ -12,7 +12,7 @@ public class JSONUtil {
 
     JSONUtil() {}
 
-    final static long getQuoteOrBackslashMask(char[] buf, int offset, long quoteMask) {
+    final static long getQuoteOrBackslashMask(char[] buf, long offset, long quoteMask) {
         long v64 = JSONUnsafe.UNSAFE.getLong(buf, JSONUnsafe.CHAR_ARRAY_OFFSET + (offset << 1));
         return ((v64 ^ quoteMask) + 0x0001000100010001L) & ((v64 ^ 0xFFA3FFA3FFA3FFA3L) + 0x0001000100010001L) & 0x8000800080008000L;
     }
@@ -238,6 +238,11 @@ public class JSONUtil {
         }
         return offset;
     }
+
+    public boolean isSupportVectorWellTest() {
+        return false;
+    }
+
 
 //    boolean isNoEscapeMemory32Bits(byte[] bytes, int offset) {
 //        return NO_ESCAPE_FLAGS[bytes[offset] & 0xff]
