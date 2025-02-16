@@ -676,7 +676,7 @@ public final class NumberUtils {
      */
     public static Scientific doubleToScientific(double doubleValue) {
         if(doubleValue == Double.MIN_VALUE) {
-            // Double.MIN_VALUE JDK转化最小double为4.9e-324， 本方法转化为5.0e-324 , 由于此值特殊为了和JDK转化一致特俗处理一下
+            // Double.MIN_VALUE JDK转化最小double为4.9e-324， 本方法转化为5.0e-324 , 由于此值特殊为了和JDK转化一致
             return Scientific.DOUBLE_MIN;
         }
         long bits = Double.doubleToRawLongBits(doubleValue);
@@ -892,7 +892,7 @@ public final class NumberUtils {
         }
 
         if(rawOutput < 1000000000) {
-            return new Scientific(rawOutput / 10000000, 2, e10);
+            return new Scientific(EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(rawOutput, 0x6b5fca6af2bd215fL) >> 22, 2, e10); // rawOutput / 10000000
         }
         long div = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(rawOutput, 0x44b82fa09b5a52ccL) >> 28; // rawOutput / 1000000000;
         long rem = rawOutput - div * 1000000000;
