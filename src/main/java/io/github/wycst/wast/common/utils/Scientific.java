@@ -6,13 +6,13 @@ package io.github.wycst.wast.common.utils;
  */
 public class Scientific {
 
-    public long output;
-    public int count;
+    public final long output;
+    public final int count;
     public final int e10;
     public final boolean b;
 
     public static final Scientific SCIENTIFIC_NULL = new Scientific(0, true);
-    public static final Scientific DOUBLE_MIN = new Scientific(49, 2, -324);  // 4.9E-324
+    public static final Scientific DOUBLE_MIN = new Scientific(49, 2, 324);  // 4.9E324
     public Scientific(long output, int count, int e10) {
         this.output = output;
         this.count = count;
@@ -23,6 +23,8 @@ public class Scientific {
     public Scientific(int e10, boolean b) {
         this.e10 = e10;
         this.b = b;
+        output = 0;
+        count = 0;
     }
 
     @Override
