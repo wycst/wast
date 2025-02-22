@@ -996,6 +996,18 @@ final class JSONUnsafe {
 
     static Optimizer s17() {
         return new Optimizer() {
+
+            @Override
+            public char[] copyChars(char[] buf, int offset, int len) {
+                char[] chars = new char[17];
+                putLong(chars, 0, getLong(buf, offset));
+                putLong(chars, 4, getLong(buf, offset + 4));
+                putLong(chars, 8, getLong(buf, offset + 8));
+                putLong(chars, 12, getLong(buf, offset + 12));
+                chars[16] = buf[offset + 16];
+                return chars;
+            }
+
             @Override
             public byte[] copyBytes(byte[] buf, int offset, int len) {
                 byte[] bytes = new byte[17];
@@ -1029,14 +1041,24 @@ final class JSONUnsafe {
 
     static Optimizer s18() {
         return new Optimizer() {
+
+            @Override
+            public char[] copyChars(char[] buf, int offset, int len) {
+                char[] chars = new char[18];
+                putLong(chars, 0, getLong(buf, offset));
+                putLong(chars, 4, getLong(buf, offset + 4));
+                putLong(chars, 8, getLong(buf, offset + 8));
+                putLong(chars, 12, getLong(buf, offset + 12));
+                putLong(chars, 14, getLong(buf, offset + 14));
+                return chars;
+            }
+
             @Override
             public byte[] copyBytes(byte[] buf, int offset, int len) {
                 byte[] bytes = new byte[18];
                 putLong(bytes, 0, getLong(buf, offset));
                 putLong(bytes, 8, getLong(buf, offset + 8));
-//                putShort(bytes, 16, getShort(buf, offset + 16));
-                bytes[16] = buf[offset + 16];
-                bytes[17] = buf[offset + 17];
+                putShort(bytes, 16, getShort(buf, offset + 16));
                 return bytes;
             }
 
@@ -1064,6 +1086,18 @@ final class JSONUnsafe {
 
     static Optimizer s19() {
         return new Optimizer() {
+
+            @Override
+            public char[] copyChars(char[] buf, int offset, int len) {
+                char[] chars = new char[19];
+                putLong(chars, 0, getLong(buf, offset));
+                putLong(chars, 4, getLong(buf, offset + 4));
+                putLong(chars, 8, getLong(buf, offset + 8));
+                putLong(chars, 12, getLong(buf, offset + 12));
+                putLong(chars, 15, getLong(buf, offset + 15));
+                return chars;
+            }
+
             @Override
             public byte[] copyBytes(byte[] buf, int offset, int len) {
                 byte[] bytes = new byte[19];

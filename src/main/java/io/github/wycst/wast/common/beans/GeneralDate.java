@@ -558,7 +558,7 @@ public class GeneralDate {
         boolean isLeapYear;
 //        int year = (int) ((days + 1) * 100000 / 36524219) + 1;
         int year = (int) EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(days * 400, 0x72d60d7991f1L) + 1; // (int) ((days * 400) / OFFSET_DAYS_DIVISOR + 1);
-        GeneralDate.YearMeta targetMeta = getYearMeta(year);
+        YearMeta targetMeta = getYearMeta(year);
         long offsetDays = targetMeta.offsetDays;
         if (days <= offsetDays) {
             targetMeta = getYearMeta(--year);

@@ -94,7 +94,7 @@ class JSONGeneral {
         ESCAPE_CHARS['u'] = -1;
     }
 
-    public final static int DIRECT_READ_BUFFER_SIZE = 8192;
+    protected final static int DIRECT_READ_BUFFER_SIZE = 8192;
     final static Map<String, TimeZone> GMT_TIME_ZONE_MAP = new ConcurrentHashMap<String, TimeZone>();
 
     // zero zone
@@ -406,7 +406,7 @@ class JSONGeneral {
      * @return
      * @throws NumberFormatException
      */
-    public static int parseIntWithin3(byte[] bytes, int offset, int n)
+    static int parseIntWithin3(byte[] bytes, int offset, int n)
             throws NumberFormatException {
         switch (n) {
             case 1:
@@ -436,7 +436,7 @@ class JSONGeneral {
      * @return
      * @throws NumberFormatException
      */
-    public static int parseIntWithin3(char[] buf, int offset, int n)
+    static int parseIntWithin3(char[] buf, int offset, int n)
             throws NumberFormatException {
         switch (n) {
             case 1:
@@ -1724,30 +1724,39 @@ class JSONGeneral {
         if("true".equalsIgnoreCase(System.getProperty("wast.json.intrinsic-candidate.disabled"))) {
             return false;
         }
-        final int cnt = 10, len = 256;
-        byte[] buf = new byte[len];
-        Arrays.fill(buf, (byte) 97);
-        buf[len - 1] = '\\';
-        final String text = new String(buf);
-        int index = 0;
-        long t0 = System.nanoTime();
-        for (int i = 0; i < cnt; i++) {
-            index = text.indexOf('\\');
+        int c1 = 0, c2 = 0;
+        // test 100 times
+        for (int k = 0; k < 1000; ++k) {
+            final int cnt = 10, len = 256;
+            byte[] buf = new byte[len];
+            Arrays.fill(buf, (byte) 97);
+            buf[len - 1] = '\\';
+            final String text = new String(buf);
+            int index = 0;
+            long t0 = System.nanoTime();
+            for (int i = 0; i < cnt; i++) {
+                index = text.indexOf('\\');
+            }
+            long t1 = System.nanoTime();
+            long indexOfUse = t1 - t0;
+            buf[index] = '\\';
+            t0 = System.nanoTime();
+            for (int i = 0; i < cnt; i++) {
+                index = indexOfCharCode(buf, '\\', 0, 256);
+            }
+            t1 = System.nanoTime();
+            long localUse = t1 - t0;
+            buf[index] = '\\';
+            if(localUse < indexOfUse << 1) {
+                ++c1;
+            } else {
+                ++c2;
+            }
         }
-        long t1 = System.nanoTime();
-        long indexOfUse = t1 - t0;
-        buf[index] = '\\';
-        t0 = System.nanoTime();
-        for (int i = 0; i < cnt; i++) {
-            index = indexOfCharJDK(buf, '\\', 0, 256);
-        }
-        t1 = System.nanoTime();
-        long localUse = t1 - t0;
-        buf[index] = '\\';
-        return localUse > indexOfUse * 2;
+        return c2 > c1 << 2;
     }
 
-    private static int indexOfCharJDK(byte[] value, int ch, int fromIndex, int max) {
+    private static int indexOfCharCode(byte[] value, int ch, int fromIndex, int max) {
         byte c = (byte)ch;
         for (int i = fromIndex; i < max; i++) {
             if (value[i] == c) {

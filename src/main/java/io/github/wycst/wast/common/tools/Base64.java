@@ -1,4 +1,4 @@
-//package io.github.wycst.wast.common.tools;
+package io.github.wycst.wast.common.tools;//package io.github.wycst.wast.common.tools;
 //
 //import java.io.FilterOutputStream;
 //import java.io.IOException;

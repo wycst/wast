@@ -20,6 +20,7 @@ public final class EnvUtils {
     public static final boolean JDK_20_PLUS;
 
     public static final boolean BIG_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN;
+    public static final boolean LITTLE_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
     public static final int HI_BYTE_SHIFT;
     public static final int LO_BYTE_SHIFT;
     public static final boolean SUPPORTED_VECTOR;
@@ -45,7 +46,7 @@ public final class EnvUtils {
     public final static int HASH_SET_HV = -1402716492;
 
     public final static Charset CHARSET_DEFAULT = Charset.defaultCharset();
-    public final static Charset CHARSET_ISO_8859_1 = forCharsetName("ISO_8859_1");
+//    public final static Charset CHARSET_ISO_8859_1 = forCharsetName("ISO_8859_1");
     public final static Charset CHARSET_UTF_8 = forCharsetName("UTF-8");
     public static final Method SC_HAS_NEGATIVES_METHOD;
 

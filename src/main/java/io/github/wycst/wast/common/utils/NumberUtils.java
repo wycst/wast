@@ -1,6 +1,5 @@
 package io.github.wycst.wast.common.utils;
 
-import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Arrays;
 
@@ -86,7 +85,7 @@ public final class NumberUtils {
     static final int MOD_FLOAT_EXP = (1 << 9) - 1;
     static final long MOD_DOUBLE_MANTISSA = (1L << 52) - 1;
     static final int MOD_FLOAT_MANTISSA = (1 << 23) - 1;
-    static final long MASK_32_BITS = 0xffffffffL;
+//    static final long MASK_32_BITS = 0xffffffffL;
     public static char[] copyDigitOnes() {
         return Arrays.copyOf(DigitOnes, DigitOnes.length);
     }
@@ -108,19 +107,19 @@ public final class NumberUtils {
         return Math.pow(10, expValue);
     }
 
-    /**
-     * 获取以10为底数的指定数值（-1 < expValue > 310）指数值,
-     *
-     * @param expValue ensure expValue < 0
-     * @return
-     */
-    public static double getNegativeDecimalPowerValue(int expValue) {
-        int index = -expValue;
-        if (index < NEGATIVE_DECIMAL_POWER.length) {
-            return NEGATIVE_DECIMAL_POWER[index];
-        }
-        return Math.pow(10, expValue);
-    }
+//    /**
+//     * 获取以10为底数的指定数值（-1 < expValue > 310）指数值,
+//     *
+//     * @param expValue ensure expValue < 0
+//     * @return
+//     */
+//    public static double getNegativeDecimalPowerValue(int expValue) {
+//        int index = -expValue;
+//        if (index < NEGATIVE_DECIMAL_POWER.length) {
+//            return NEGATIVE_DECIMAL_POWER[index];
+//        }
+//        return Math.pow(10, expValue);
+//    }
 
     /**
      * 获取long值的字符串长度
@@ -313,21 +312,6 @@ public final class NumberUtils {
     }
 
     /**
-     * 转化为1位int数字
-     *
-     * @param ch
-     * @return
-     */
-    public static int parseInt1(int ch)
-            throws NumberFormatException {
-        int v1 = digitDecimal(ch);
-        if (v1 == -1) {
-            throw new NumberFormatException("For input string: \"" + ch + "\"");
-        }
-        return v1;
-    }
-
-    /**
      * 将long类型的value转为长度为16的16进制字符串,缺省补字符0
      *
      * @param value
@@ -356,7 +340,7 @@ public final class NumberUtils {
      * @author wycst
      */
     public static double scientificToIEEEDouble(long val, int scale) {
-        if (val <= 0) {
+        if (val < 1) {
             if (val == Long.MIN_VALUE) {
                 val = 9223372036854775807L;
             } else {
@@ -364,20 +348,19 @@ public final class NumberUtils {
             }
         }
         int leadingZeros = Long.numberOfLeadingZeros(val);
-        double dv = val;
-        if (scale <= 0) {
-            if (scale == 0) return dv;
+        if (scale < 1) {
+            if (scale == 0) return val;
             int e10 = -scale;
-            if (e10 > 308) return Double.POSITIVE_INFINITY;
-            if ((long) dv == val && e10 < 23) {
-                return dv * POSITIVE_DECIMAL_POWER[e10];
+            if (e10 < 23 && val < 9007199254740993L) { // 1L << 53
+                return val * POSITIVE_DECIMAL_POWER[e10];
             }
-            BigInteger multiplier = POW5_BI_VALUES[e10];
+            if (e10 > 308) return Double.POSITIVE_INFINITY;
             ED5 ed5 = ED5.ED5_A[e10];
             long left = val << (leadingZeros - 1);
-            long h = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(left, ed5.y);
+            // h is 61~62 bits
+            long h = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(left, ed5.y), l;
             int sr, mask, mmask;
-            if (h >= 1L << 61) {
+            if (h > 0x1fffffffffffffffL) {// 62 bits
                 sr = 9;
                 mask = 0xFF;
                 mmask = 0x1FF;
@@ -386,7 +369,7 @@ public final class NumberUtils {
                 mask = 0x7F;
                 mmask = 0xFF;
             }
-            if (e10 < POW5_LONG_VALUES.length) {
+            /*if (e10 < POW5_LONG_VALUES.length) {
                 // accurate mode
                 long mantissa0 = h >>> sr;
                 long e2 = e10 - leadingZeros + multiplier.bitLength() + sr + 1077;
@@ -401,68 +384,67 @@ public final class NumberUtils {
                 }
                 long bits = (e2 << 52) | (mantissa0 & MOD_DOUBLE_MANTISSA);
                 return Double.longBitsToDouble(bits);
+            }*/
+            long e = e10 + ed5.dfb + 1140 - leadingZeros + sr;
+            if ((h & mmask) != mask || (l = left * ed5.y) > 0 || !checkLowCarry(l, left, ed5.f + 1) /*|| ((h >> sr - 1) & 1) == 0*/) {
+                return longBitsToIntegerDouble(h, e, sr);
             }
-            // todo 先修复bug后续研究
-            if ((h & mask) != mask /*|| ((h >> sr - 1) & 1) == 0*/) {
-                return longBitsToIntegerDouble(h, e10 - leadingZeros + ed5.dfb + sr + 1140, sr);
-            }
-            long l = left * ed5.y;
+            // l < 0
             if (checkLowCarry(l, left, ed5.f)) {
                 // tail h like 10000000
-                return longBitsToIntegerDouble(h + 1, e10 - leadingZeros + ed5.dfb + sr + 1140, sr);
-            } else if (!checkLowCarry(l, left, ed5.f + 1)) {
-                // tail h like 01111111
-                return longBitsToIntegerDouble(h, e10 - leadingZeros + ed5.dfb + sr + 1140, sr);
-            } else {
-                // This is a scenario that is extremely rare or unlikely to occur, although the low bit is only 32 bits.
-                // If it occurs, use the difference method for carry detection
-                int e52 = e10 - leadingZeros + ed5.dfb + sr + 65;
-                if (e52 >= 972) return Double.POSITIVE_INFINITY;
-                long mantissa0 = h >>> sr;
-                long rightSum = (mantissa0 << 1) + 1;
-                int sb = 1 - e52 + e10; // sb < 0
-                long diff = BigInteger.valueOf(val).multiply(multiplier).compareTo(BigInteger.valueOf(rightSum).shiftLeft(-sb));
-                if (diff > 0 || (diff == 0 && (mantissa0 & 1) == 1)) {
-                    ++mantissa0;
-                    if (mantissa0 == 1l << 53) {
-                        mantissa0 >>= 1;
-                        ++e52;
-                    }
+                return longBitsToIntegerDouble(h + 1, e, sr);
+            }
+            // The code here is basically unreachable, as the double range is too large to fully cover the test.
+            // If it can be confirmed that the last method call checkLowCarry can also be optimized, it will greatly improve overall performance
+            // If it is reached, use the difference method to determine (the result is guaranteed to be correct)
+            int e52 = e10 - leadingZeros + ed5.dfb + sr + 65;
+            if (e52 >= 972) return Double.POSITIVE_INFINITY;
+            long mantissa0 = h >>> sr;
+            long rightSum = (mantissa0 << 1) + 1;
+            int sb = 1 - e52 + e10; // sb < 0
+            BigInteger multiplier = POW5_BI_VALUES[e10];
+            long diff = BigInteger.valueOf(val).multiply(multiplier).compareTo(BigInteger.valueOf(rightSum).shiftLeft(-sb));
+            if (diff > 0 || (diff == 0 && (mantissa0 & 1) == 1)) {
+                ++mantissa0;
+                if (mantissa0 == 1L << 53) {
+                    mantissa0 = 1L << 52;
+                    ++e52;
                 }
-                long e2 = e52 + 1075;
-                long bits = (e2 << 52) | (mantissa0 & MOD_DOUBLE_MANTISSA);
-                return Double.longBitsToDouble(bits);
             }
+            long e2 = e52 + 1075;
+            long bits = (e2 << 52) | (mantissa0 & MOD_DOUBLE_MANTISSA);
+            return Double.longBitsToDouble(bits);
         } else {
+            /*if (scale < 23 && val < 9007199254740993L) {
+                // 1L << 53
+                return ((double) val) / POSITIVE_DECIMAL_POWER[scale];
+            }*/
             if (scale > 342) return 0.0D;
-            if ((long) dv == val && scale < 23) {
-                return dv / POSITIVE_DECIMAL_POWER[scale];
-            }
             ED5 ed5 = ED5.ED5_A[scale];
             long left = val << (leadingZeros - 1);
             // h is 61~62 bits
-            long h = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(left, ed5.oy);
+            long h = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(left, ed5.oy), l;
             int sr, mask;
-            if (h >= 1L << 61) {
+            if (h > 0x1fffffffffffffffL) { // 62 bits
                 sr = 9;
                 mask = 0xFF;
             } else {
                 sr = 8;
                 mask = 0x7F;
             }
-            // todo 先修复bug后续研究
-            if ((h & mask) != mask /*|| ((h >> sr - 1) & 1) == 0*/) {
-                return longBitsToDecimalDouble(h, 33 - scale - ed5.ob - leadingZeros + sr, sr);
+            final int e52 = 33 - scale - ed5.ob - leadingZeros + sr;
+            if ((h & mask) != mask || (e52 > -1075 && ((h >> sr - 1) & 1) == 1) || (l = left * ed5.oy) > 0 || !checkLowCarry(l, left, ed5.of + 1) /*|| ((h >> sr - 1) & 1) == 0*/) {
+                return longBitsToDecimalDouble(h, e52, sr);
             }
-            long l = left * ed5.oy;
-            int e52 = 33 - scale - ed5.ob - leadingZeros + sr;
+            // ensure l < 0
             if (checkLowCarry(l, left, ed5.of)) {
                 // tail h like 10000000
                 return longBitsToDecimalDouble(h + 1, e52, sr);
-            } else if (!checkLowCarry(l, left, ed5.of + 1)) {
-                // tail h like 01111111
-                return longBitsToDecimalDouble(h, e52, sr);
-            } else if (scale < POW5_LONG_VALUES.length) {
+            }
+            // The code here is basically unreachable, as the double range is too large to fully cover the test.
+            // If it can be confirmed that the last method call checkLowCarry can also be optimized, it will greatly improve overall performance
+            // If it is reached, use the difference method to determine (the result is guaranteed to be correct)
+            if (scale < POW5_LONG_VALUES.length) {
                 // if reach here, there is a high probability that val can be evenly divided by p5sv
                 long p5sv = POW5_LONG_VALUES[scale];
                 long mantissa0 = h >>> sr;
@@ -477,8 +459,6 @@ public final class NumberUtils {
                 }
                 return dv0;
             }
-            // This is a scenario that is extremely rare or unlikely to occur, although the low bit is only 32 bits.
-            // If it occurs, use the difference method for carry detection
             BigInteger divisor = POW5_BI_VALUES[scale];
             long e2, mantissa0 = h >>> sr;
             boolean oddFlag = (mantissa0 & 1) == 1;
@@ -496,8 +476,8 @@ public final class NumberUtils {
             long diff = BigInteger.valueOf(val).shiftLeft(sb).compareTo(divisor.multiply(BigInteger.valueOf(rightSum)));
             if (diff > 0 || (diff == 0 && oddFlag)) {
                 ++mantissa0;
-                if (mantissa0 == 1l << 53) {
-                    mantissa0 >>= 1;
+                if (mantissa0 == 1L << 53) {
+                    mantissa0 = 1L << 52;
                     ++e2;
                 }
             }
@@ -507,7 +487,7 @@ public final class NumberUtils {
     }
 
     private static boolean checkLowCarry(long l, long x, long y32) {
-        return l < 0 && l + ((EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(x, y32) << 32) + ((x * y32) >>> 32)) >= 0;
+        return l + ((EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(x, y32) << 32) + ((x * y32) >>> 32)) > -1;
         //        long h1 = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(x, y32), l1 = x * y32, carry = (h1 << 32) + (l1 >>> 32);
         //        long l2 = l + carry;
         //        return (l | carry) < 0 && ((l & carry) < 0 || l2 >= 0);
@@ -518,7 +498,7 @@ public final class NumberUtils {
         if (e52 < -1074) {
             sr += -1074 - e52;
             e2 = 0;
-            if (sr >= 62) {
+            if (sr > 61) {
                 return 0.0D;
             }
             mantissa0 = ((l62 >> sr - 1) + 1) >> 1;
@@ -526,7 +506,7 @@ public final class NumberUtils {
             e2 = e52 + 1075;
             mantissa0 = ((l62 >>> sr - 1) + 1) >> 1;
             if (mantissa0 == 1L << 53) {
-                mantissa0 >>= 1;
+                mantissa0 = 1L << 52;
                 ++e2;
             }
         }
@@ -535,7 +515,7 @@ public final class NumberUtils {
     }
 
     static double longBitsToIntegerDouble(long l62, long e2, int sr) {
-        if (e2 >= 2047) return Double.POSITIVE_INFINITY;
+        if (e2 > 2046) return Double.POSITIVE_INFINITY;
         long mantissa0 = ((l62 >>> sr - 1) + 1) >> 1;
         if (mantissa0 == 1L << 53) {
             mantissa0 = 1L << 52;
@@ -564,19 +544,19 @@ public final class NumberUtils {
      *    float result = Float.intBitsToFloat(floatBits);
      * </pre>
      *
-     * @param val
+     * @param val ensure val > 0, otherwise return 0
      * @param scale
      * @return
      * @author wycst
      */
     public static float scientificToIEEEFloat(long val, int scale) {
-        if (val <= 0) {
+        if (val < 1) {
             return 0.0f;
         }
         double dv;
         float fv = val;
         float val0;
-        if (scale <= 0) {
+        if (scale < 1) {
             if (scale == 0) return fv;
             int e10 = -scale;
             if (e10 > 38) return Float.POSITIVE_INFINITY;
@@ -922,217 +902,217 @@ public final class NumberUtils {
         return new Scientific(output, adl + 1, e10);
     }
 
-    public static void writePositiveLong(long val, Appendable appendable) throws IOException {
-        int v, v1, v2, v3, v4, v5, v6, v7, v8, v9;
-        if (val < 100) {
-            v = (int) val;
-            if (v > 9) {
-                appendable.append(DigitTens[v]);
-            }
-            appendable.append(DigitOnes[v]);
-            return;
-        }
-        long numValue = val;
-        val = numValue / 100;
-        v1 = (int) (numValue - val * 100);
-        if (val < 100) {
-            v = (int) val;
-            if (v > 9) {
-                appendable.append(DigitTens[v]);
-            }
-            appendable.append(DigitOnes[v]);
-            appendable.append(DigitTens[v1]);
-            appendable.append(DigitOnes[v1]);
-            return;
-        }
-
-        numValue = val;
-        val = numValue / 100;
-        v2 = (int) (numValue - val * 100);
-        if (val < 100) {
-            v = (int) val;
-            if (v > 9) {
-                appendable.append(DigitTens[v]);
-            }
-            appendable.append(DigitOnes[v]);
-            appendable.append(DigitTens[v2]);
-            appendable.append(DigitOnes[v2]);
-            appendable.append(DigitTens[v1]);
-            appendable.append(DigitOnes[v1]);
-            return;
-        }
-
-        numValue = val;
-        val = numValue / 100;
-        v3 = (int) (numValue - val * 100);
-        if (val < 100) {
-            v = (int) val;
-            if (v > 9) {
-                appendable.append(DigitTens[v]);
-            }
-            appendable.append(DigitOnes[v]);
-            appendable.append(DigitTens[v3]);
-            appendable.append(DigitOnes[v3]);
-            appendable.append(DigitTens[v2]);
-            appendable.append(DigitOnes[v2]);
-            appendable.append(DigitTens[v1]);
-            appendable.append(DigitOnes[v1]);
-            return;
-        }
-
-        numValue = val;
-        val = numValue / 100;
-        v4 = (int) (numValue - val * 100);
-        if (val < 100) {
-            v = (int) val;
-            if (v > 9) {
-                appendable.append(DigitTens[v]);
-            }
-            appendable.append(DigitOnes[v]);
-            appendable.append(DigitTens[v4]);
-            appendable.append(DigitOnes[v4]);
-            appendable.append(DigitTens[v3]);
-            appendable.append(DigitOnes[v3]);
-            appendable.append(DigitTens[v2]);
-            appendable.append(DigitOnes[v2]);
-            appendable.append(DigitTens[v1]);
-            appendable.append(DigitOnes[v1]);
-            return;
-        }
-
-        numValue = val;
-        val = numValue / 100;
-        v5 = (int) (numValue - val * 100);
-        if (val < 100) {
-            v = (int) val;
-            if (v > 9) {
-                appendable.append(DigitTens[v]);
-            }
-            appendable.append(DigitOnes[v]);
-            appendable.append(DigitTens[v5]);
-            appendable.append(DigitOnes[v5]);
-            appendable.append(DigitTens[v4]);
-            appendable.append(DigitOnes[v4]);
-            appendable.append(DigitTens[v3]);
-            appendable.append(DigitOnes[v3]);
-            appendable.append(DigitTens[v2]);
-            appendable.append(DigitOnes[v2]);
-            appendable.append(DigitTens[v1]);
-            appendable.append(DigitOnes[v1]);
-            return;
-        }
-
-        numValue = val;
-        val = numValue / 100;
-        v6 = (int) (numValue - val * 100);
-        if (val < 100) {
-            v = (int) val;
-            if (v > 9) {
-                appendable.append(DigitTens[v]);
-            }
-            appendable.append(DigitOnes[v]);
-            appendable.append(DigitTens[v6]);
-            appendable.append(DigitOnes[v6]);
-            appendable.append(DigitTens[v5]);
-            appendable.append(DigitOnes[v5]);
-            appendable.append(DigitTens[v4]);
-            appendable.append(DigitOnes[v4]);
-            appendable.append(DigitTens[v3]);
-            appendable.append(DigitOnes[v3]);
-            appendable.append(DigitTens[v2]);
-            appendable.append(DigitOnes[v2]);
-            appendable.append(DigitTens[v1]);
-            appendable.append(DigitOnes[v1]);
-            return;
-        }
-
-        numValue = val;
-        val = numValue / 100;
-        v7 = (int) (numValue - val * 100);
-        if (val < 100) {
-            v = (int) val;
-            if (v > 9) {
-                appendable.append(DigitTens[v]);
-            }
-            appendable.append(DigitOnes[v]);
-            appendable.append(DigitTens[v7]);
-            appendable.append(DigitOnes[v7]);
-            appendable.append(DigitTens[v6]);
-            appendable.append(DigitOnes[v6]);
-            appendable.append(DigitTens[v5]);
-            appendable.append(DigitOnes[v5]);
-            appendable.append(DigitTens[v4]);
-            appendable.append(DigitOnes[v4]);
-            appendable.append(DigitTens[v3]);
-            appendable.append(DigitOnes[v3]);
-            appendable.append(DigitTens[v2]);
-            appendable.append(DigitOnes[v2]);
-            appendable.append(DigitTens[v1]);
-            appendable.append(DigitOnes[v1]);
-            return;
-        }
-
-        numValue = val;
-        val = numValue / 100;
-        v8 = (int) (numValue - val * 100);
-        if (val < 100) {
-            v = (int) val;
-            if (v > 9) {
-                appendable.append(DigitTens[v]);
-            }
-            appendable.append(DigitOnes[v]);
-            appendable.append(DigitTens[v8]);
-            appendable.append(DigitOnes[v8]);
-            appendable.append(DigitTens[v7]);
-            appendable.append(DigitOnes[v7]);
-            appendable.append(DigitTens[v6]);
-            appendable.append(DigitOnes[v6]);
-            appendable.append(DigitTens[v5]);
-            appendable.append(DigitOnes[v5]);
-            appendable.append(DigitTens[v4]);
-            appendable.append(DigitOnes[v4]);
-            appendable.append(DigitTens[v3]);
-            appendable.append(DigitOnes[v3]);
-            appendable.append(DigitTens[v2]);
-            appendable.append(DigitOnes[v2]);
-            appendable.append(DigitTens[v1]);
-            appendable.append(DigitOnes[v1]);
-            return;
-        }
-
-        numValue = val;
-        val = numValue / 100;
-        v9 = (int) (numValue - val * 100);
-        if (val < 100) {
-            v = (int) val;
-            if (v > 9) {
-                appendable.append(DigitTens[v]);
-            }
-            appendable.append(DigitOnes[v]);
-            appendable.append(DigitTens[v9]);
-            appendable.append(DigitOnes[v9]);
-            appendable.append(DigitTens[v8]);
-            appendable.append(DigitOnes[v8]);
-            appendable.append(DigitTens[v7]);
-            appendable.append(DigitOnes[v7]);
-            appendable.append(DigitTens[v6]);
-            appendable.append(DigitOnes[v6]);
-            appendable.append(DigitTens[v5]);
-            appendable.append(DigitOnes[v5]);
-            appendable.append(DigitTens[v4]);
-            appendable.append(DigitOnes[v4]);
-            appendable.append(DigitTens[v3]);
-            appendable.append(DigitOnes[v3]);
-            appendable.append(DigitTens[v2]);
-            appendable.append(DigitOnes[v2]);
-            appendable.append(DigitTens[v1]);
-            appendable.append(DigitOnes[v1]);
-        }
-    }
-
-    public static byte hexDigitAt(int c) {
-        return HEX_DIGITS_REVERSE[c];
-    }
+//    public static void writePositiveLong(long val, Appendable appendable) throws IOException {
+//        int v, v1, v2, v3, v4, v5, v6, v7, v8, v9;
+//        if (val < 100) {
+//            v = (int) val;
+//            if (v > 9) {
+//                appendable.append(DigitTens[v]);
+//            }
+//            appendable.append(DigitOnes[v]);
+//            return;
+//        }
+//        long numValue = val;
+//        val = numValue / 100;
+//        v1 = (int) (numValue - val * 100);
+//        if (val < 100) {
+//            v = (int) val;
+//            if (v > 9) {
+//                appendable.append(DigitTens[v]);
+//            }
+//            appendable.append(DigitOnes[v]);
+//            appendable.append(DigitTens[v1]);
+//            appendable.append(DigitOnes[v1]);
+//            return;
+//        }
+//
+//        numValue = val;
+//        val = numValue / 100;
+//        v2 = (int) (numValue - val * 100);
+//        if (val < 100) {
+//            v = (int) val;
+//            if (v > 9) {
+//                appendable.append(DigitTens[v]);
+//            }
+//            appendable.append(DigitOnes[v]);
+//            appendable.append(DigitTens[v2]);
+//            appendable.append(DigitOnes[v2]);
+//            appendable.append(DigitTens[v1]);
+//            appendable.append(DigitOnes[v1]);
+//            return;
+//        }
+//
+//        numValue = val;
+//        val = numValue / 100;
+//        v3 = (int) (numValue - val * 100);
+//        if (val < 100) {
+//            v = (int) val;
+//            if (v > 9) {
+//                appendable.append(DigitTens[v]);
+//            }
+//            appendable.append(DigitOnes[v]);
+//            appendable.append(DigitTens[v3]);
+//            appendable.append(DigitOnes[v3]);
+//            appendable.append(DigitTens[v2]);
+//            appendable.append(DigitOnes[v2]);
+//            appendable.append(DigitTens[v1]);
+//            appendable.append(DigitOnes[v1]);
+//            return;
+//        }
+//
+//        numValue = val;
+//        val = numValue / 100;
+//        v4 = (int) (numValue - val * 100);
+//        if (val < 100) {
+//            v = (int) val;
+//            if (v > 9) {
+//                appendable.append(DigitTens[v]);
+//            }
+//            appendable.append(DigitOnes[v]);
+//            appendable.append(DigitTens[v4]);
+//            appendable.append(DigitOnes[v4]);
+//            appendable.append(DigitTens[v3]);
+//            appendable.append(DigitOnes[v3]);
+//            appendable.append(DigitTens[v2]);
+//            appendable.append(DigitOnes[v2]);
+//            appendable.append(DigitTens[v1]);
+//            appendable.append(DigitOnes[v1]);
+//            return;
+//        }
+//
+//        numValue = val;
+//        val = numValue / 100;
+//        v5 = (int) (numValue - val * 100);
+//        if (val < 100) {
+//            v = (int) val;
+//            if (v > 9) {
+//                appendable.append(DigitTens[v]);
+//            }
+//            appendable.append(DigitOnes[v]);
+//            appendable.append(DigitTens[v5]);
+//            appendable.append(DigitOnes[v5]);
+//            appendable.append(DigitTens[v4]);
+//            appendable.append(DigitOnes[v4]);
+//            appendable.append(DigitTens[v3]);
+//            appendable.append(DigitOnes[v3]);
+//            appendable.append(DigitTens[v2]);
+//            appendable.append(DigitOnes[v2]);
+//            appendable.append(DigitTens[v1]);
+//            appendable.append(DigitOnes[v1]);
+//            return;
+//        }
+//
+//        numValue = val;
+//        val = numValue / 100;
+//        v6 = (int) (numValue - val * 100);
+//        if (val < 100) {
+//            v = (int) val;
+//            if (v > 9) {
+//                appendable.append(DigitTens[v]);
+//            }
+//            appendable.append(DigitOnes[v]);
+//            appendable.append(DigitTens[v6]);
+//            appendable.append(DigitOnes[v6]);
+//            appendable.append(DigitTens[v5]);
+//            appendable.append(DigitOnes[v5]);
+//            appendable.append(DigitTens[v4]);
+//            appendable.append(DigitOnes[v4]);
+//            appendable.append(DigitTens[v3]);
+//            appendable.append(DigitOnes[v3]);
+//            appendable.append(DigitTens[v2]);
+//            appendable.append(DigitOnes[v2]);
+//            appendable.append(DigitTens[v1]);
+//            appendable.append(DigitOnes[v1]);
+//            return;
+//        }
+//
+//        numValue = val;
+//        val = numValue / 100;
+//        v7 = (int) (numValue - val * 100);
+//        if (val < 100) {
+//            v = (int) val;
+//            if (v > 9) {
+//                appendable.append(DigitTens[v]);
+//            }
+//            appendable.append(DigitOnes[v]);
+//            appendable.append(DigitTens[v7]);
+//            appendable.append(DigitOnes[v7]);
+//            appendable.append(DigitTens[v6]);
+//            appendable.append(DigitOnes[v6]);
+//            appendable.append(DigitTens[v5]);
+//            appendable.append(DigitOnes[v5]);
+//            appendable.append(DigitTens[v4]);
+//            appendable.append(DigitOnes[v4]);
+//            appendable.append(DigitTens[v3]);
+//            appendable.append(DigitOnes[v3]);
+//            appendable.append(DigitTens[v2]);
+//            appendable.append(DigitOnes[v2]);
+//            appendable.append(DigitTens[v1]);
+//            appendable.append(DigitOnes[v1]);
+//            return;
+//        }
+//
+//        numValue = val;
+//        val = numValue / 100;
+//        v8 = (int) (numValue - val * 100);
+//        if (val < 100) {
+//            v = (int) val;
+//            if (v > 9) {
+//                appendable.append(DigitTens[v]);
+//            }
+//            appendable.append(DigitOnes[v]);
+//            appendable.append(DigitTens[v8]);
+//            appendable.append(DigitOnes[v8]);
+//            appendable.append(DigitTens[v7]);
+//            appendable.append(DigitOnes[v7]);
+//            appendable.append(DigitTens[v6]);
+//            appendable.append(DigitOnes[v6]);
+//            appendable.append(DigitTens[v5]);
+//            appendable.append(DigitOnes[v5]);
+//            appendable.append(DigitTens[v4]);
+//            appendable.append(DigitOnes[v4]);
+//            appendable.append(DigitTens[v3]);
+//            appendable.append(DigitOnes[v3]);
+//            appendable.append(DigitTens[v2]);
+//            appendable.append(DigitOnes[v2]);
+//            appendable.append(DigitTens[v1]);
+//            appendable.append(DigitOnes[v1]);
+//            return;
+//        }
+//
+//        numValue = val;
+//        val = numValue / 100;
+//        v9 = (int) (numValue - val * 100);
+//        if (val < 100) {
+//            v = (int) val;
+//            if (v > 9) {
+//                appendable.append(DigitTens[v]);
+//            }
+//            appendable.append(DigitOnes[v]);
+//            appendable.append(DigitTens[v9]);
+//            appendable.append(DigitOnes[v9]);
+//            appendable.append(DigitTens[v8]);
+//            appendable.append(DigitOnes[v8]);
+//            appendable.append(DigitTens[v7]);
+//            appendable.append(DigitOnes[v7]);
+//            appendable.append(DigitTens[v6]);
+//            appendable.append(DigitOnes[v6]);
+//            appendable.append(DigitTens[v5]);
+//            appendable.append(DigitOnes[v5]);
+//            appendable.append(DigitTens[v4]);
+//            appendable.append(DigitOnes[v4]);
+//            appendable.append(DigitTens[v3]);
+//            appendable.append(DigitOnes[v3]);
+//            appendable.append(DigitTens[v2]);
+//            appendable.append(DigitOnes[v2]);
+//            appendable.append(DigitTens[v1]);
+//            appendable.append(DigitOnes[v1]);
+//        }
+//    }
+//
+//    public static byte hexDigitAt(int c) {
+//        return HEX_DIGITS_REVERSE[c];
+//    }
 
     public static boolean equals(long val, String text) {
         if(text == null || text.isEmpty()) return false;

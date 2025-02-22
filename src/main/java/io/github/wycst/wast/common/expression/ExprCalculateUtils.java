@@ -189,4 +189,49 @@ final class ExprCalculateUtils {
             return leftValue.longValue() - rightValue.longValue();
         }
     }
+
+    /**
+     * 或运算(|)返回long或者boolean
+     *
+     * @param left
+     * @param right
+     * @return
+     */
+    public static Object or(Object left, Object right) {
+        if (left instanceof Number) {
+            return ((Number) left).longValue() | ((Number) right).longValue();
+        } else {
+            return (Boolean) left | (Boolean) right;
+        }
+    }
+
+    /**
+     * 与运算（&）返回long或者boolean
+     *
+     * @param left
+     * @param right
+     * @return
+     */
+    public static Object and(Object left, Object right) {
+        if (left instanceof Number) {
+            return ((Number) left).longValue() & ((Number) right).longValue();
+        } else {
+            return (Boolean) left & (Boolean) right;
+        }
+    }
+
+    /**
+     * 异或运算（^）返回long或者boolean
+     *
+     * @param left
+     * @param right
+     * @return
+     */
+    public static Object xor(Object left, Object right) {
+        if (left instanceof Number) {
+            return ((Number) left).longValue() ^ ((Number) right).longValue();
+        } else {
+            return (Boolean) left ^ (Boolean) right;
+        }
+    }
 }

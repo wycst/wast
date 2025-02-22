@@ -15,6 +15,6 @@ public interface ExprFunction<I,O> {
      * @param params
      * @return
      */
-    public O call(I...params);
+    public O call(I... params);
 
 }

@@ -3,7 +3,7 @@ package io.github.wycst.wast.json;
 import io.github.wycst.wast.common.utils.EnvUtils;
 
 /**
- * use for jdk16+ scan token
+ * quickly find APIs using mask
  *
  * @Date 2024/6/14 19:08
  * @Created by wangyc
@@ -44,14 +44,19 @@ public class JSONUtil {
                     offset += 4;
                     continue;
                 }
-                if (EnvUtils.BIG_ENDIAN) {
-                    result = Long.reverseBytes(result);
-                }
-                int r32 = (int) result;
-                if (r32 == 0x80008000) {
-                    offset += (result == 0x0000800080008000L ? 3 : 2);
-                } else if (r32 == 0x00008000) {
-                    ++offset;
+//                if (EnvUtils.BIG_ENDIAN) {
+//                    result = Long.reverseBytes(result);
+//                }
+//                int r32 = (int) result;
+//                if (r32 == 0x80008000) {
+//                    offset += (result == 0x0000800080008000L ? 3 : 2);
+//                } else if (r32 == 0x00008000) {
+//                    ++offset;
+//                }
+                if(EnvUtils.LITTLE_ENDIAN) {
+                    offset += Long.numberOfTrailingZeros(result ^ 0x8000800080008000L) >> 4;
+                } else {
+                    offset += Long.numberOfLeadingZeros(result ^ 0x8000800080008000L) >> 4;
                 }
                 char c;
                 // 此处需要判断是否返回预期字符确保结果正确（当字符值大于0x8000(中文字符)时会导致快速命中错误）
@@ -75,29 +80,34 @@ public class JSONUtil {
     }
 
     final static int offsetTokenBytes(long result) {
-        if (EnvUtils.BIG_ENDIAN) {
-            result = Long.reverseBytes(result);
+        if (EnvUtils.LITTLE_ENDIAN) {
+            return Long.numberOfTrailingZeros(result ^ 0x8080808080808080L) >> 3;
+        } else {
+            return Long.numberOfLeadingZeros(result ^ 0x8080808080808080L) >> 3;
         }
-        int offset = 0;
-        int r32 = (int) result;
-        if (r32 == 0x80808080) {
-            offset += 4;
-            r32 = (int) (result >> 32);
-        }
-        switch (r32) {
-            case 0x00808080:
-                return offset + 3;
-            case 0x00008080:
-            case 0x80008080:
-                return offset + 2;
-            case 0x00000080:
-            case 0x00800080:
-            case 0x80000080:
-            case 0x80800080:
-                return offset + 1;
-            default:
-                return offset;
-        }
+//        if(EnvUtils.BIG_ENDIAN) {
+//            result = Long.reverseBytes(result);
+//        }
+//        int offset = 0;
+//        int r32 = (int) result;
+//        if (r32 == 0x80808080) {
+//            offset += 4;
+//            r32 = (int) (result >> 32);
+//        }
+//        switch (r32) {
+//            case 0x00808080:
+//                return offset + 3;
+//            case 0x00008080:
+//            case 0x80008080:
+//                return offset + 2;
+//            case 0x00000080:
+//            case 0x00800080:
+//            case 0x80000080:
+//            case 0x80800080:
+//                return offset + 1;
+//            default:
+//                return offset;
+//        }
     }
 
     /**
@@ -242,44 +252,4 @@ public class JSONUtil {
     public boolean isSupportVectorWellTest() {
         return false;
     }
-
-
-//    boolean isNoEscapeMemory32Bits(byte[] bytes, int offset) {
-//        return NO_ESCAPE_FLAGS[bytes[offset] & 0xff]
-//                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff];
-//    }
-//
-//    boolean isNoEscapeMemory64Bits(byte[] bytes, int offset) {
-//        return NO_ESCAPE_FLAGS[bytes[offset] & 0xff]
-//                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                ;
-//    }
-//
-//    int checkNeedEscapeIndex128Bits(byte[] bytes, int offset) {
-//        boolean flag =  NO_ESCAPE_FLAGS[bytes[offset] & 0xff]
-//                        && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                        && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                        && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                        && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                        && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                        && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                        && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                        && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                        && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                        && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                        && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                        && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                        && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                        && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff]
-//                        && NO_ESCAPE_FLAGS[bytes[++offset] & 0xff];
-//        return flag ? -1 : offset;
-//    }
 }

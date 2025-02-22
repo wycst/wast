@@ -1,6 +1,5 @@
 package io.github.wycst.wast.common.compiler;
 
-import javax.tools.JavaFileObject;
 import javax.tools.SimpleJavaFileObject;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -29,7 +28,7 @@ public class MemoryJavaFileObject extends SimpleJavaFileObject {
      * @return
      */
     public static MemoryJavaFileObject from(JavaSourceObject sourceObject) {
-        return new MemoryJavaFileObject(sourceObject.canonicalName, JavaFileObject.Kind.SOURCE);
+        return new MemoryJavaFileObject(sourceObject.canonicalName, Kind.SOURCE);
     }
 
     @Override

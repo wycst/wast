@@ -191,21 +191,23 @@ public abstract class JSONWriter extends Writer {
     public void clear() {
     }
 
-    final static void writeNano(int nano, Writer content) throws IOException {
-        if (nano > 0) {
-            content.write('.');
-            int stringSize = NumberUtils.stringSize(nano);
-            int n = 9 - stringSize;
-            while (n > 0) {
-                content.write('0');
-                --n;
-            }
-            while (nano % 1000 == 0) {
-                nano = nano / 1000;
-            }
-            NumberUtils.writePositiveLong(nano, content);
-        }
-    }
+//    final static void writeNano(int nano, Writer content) throws IOException {
+//        if (nano > 0) {
+//            content.write('.');
+//            int stringSize = NumberUtils.stringSize(nano);
+//            int n = 9 - stringSize;
+//            while (n > 0) {
+//                content.write('0');
+//                --n;
+//            }
+//            while (nano % 1000 == 0) {
+//                nano = nano / 1000;
+//            }
+//            char[] buf = JSONGeneral.CACHED_CHARS_36.get();
+//            int count = writeInteger(nano, buf, 0);
+//            content.write(buf, 0, count);
+//        }
+//    }
 
     final static int writeNano(int nano, char[] buf, int off) {
         // 4 + 2 + 3

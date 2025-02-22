@@ -1802,6 +1802,9 @@ public class ExprParser extends Expression {
             right = compressEvaluator(right);
             ElOperator elOperator = exprEvaluator.operator;
             switch (elOperator) {
+                case EXP:
+                    // **指数,平方/根
+                    return ExprEvaluator.PowerImpl.of(exprEvaluator.update(left, right));
                 case MULTI:
                     // *乘法
                     return ExprEvaluator.MultiplyImpl.of(exprEvaluator.update(left, right));
@@ -1811,9 +1814,6 @@ public class ExprParser extends Expression {
                 case MOD:
                     // %取余数
                     return ExprEvaluator.ModulusImpl.of(exprEvaluator.update(left, right));
-                case EXP:
-                    // **指数,平方/根
-                    return ExprEvaluator.PowerImpl.of(exprEvaluator.update(left, right));
                 case PLUS:
                     if (right.negate) {
                         right.negate = false;
@@ -1830,15 +1830,6 @@ public class ExprParser extends Expression {
                 case BIT_LEFT:
                     // << 位运算左移
                     return ExprEvaluator.BitLeftImpl.of(exprEvaluator.update(left, right));
-                case AND:
-                    // &
-                    return ExprEvaluator.BitAndImpl.of(exprEvaluator.update(left, right));
-                case XOR:
-                    // ^
-                    return ExprEvaluator.BitXorImpl.of(exprEvaluator.update(left, right));
-                case OR:
-                    // |
-                    return ExprEvaluator.BitOrImpl.of(exprEvaluator.update(left, right));
                 case GT:
                     // >
                     return ExprEvaluator.GtImpl.of(exprEvaluator.update(left, right));
@@ -1857,6 +1848,15 @@ public class ExprParser extends Expression {
                 case NE:
                     // !=
                     return ExprEvaluator.NEImpl.of(exprEvaluator.update(left, right));
+                case AND:
+                    // &
+                    return ExprEvaluator.BitAndImpl.of(exprEvaluator.update(left, right));
+                case XOR:
+                    // ^
+                    return ExprEvaluator.BitXorImpl.of(exprEvaluator.update(left, right));
+                case OR:
+                    // |
+                    return ExprEvaluator.BitOrImpl.of(exprEvaluator.update(left, right));
                 case LOGICAL_AND:
                     // &&
                     return ExprEvaluator.LogicalAndImpl.of(exprEvaluator.update(left, right));
