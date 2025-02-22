@@ -1100,7 +1100,7 @@ final class JSONUnsafe {
 
             @Override
             public char[] copyChars(char[] buf, int offset, int len) {
-                char[] chars = new char[16];
+                char[] chars = new char[20];
                 putLong(chars, 0, getLong(buf, offset));
                 putLong(chars, 4, getLong(buf, offset + 4));
                 putLong(chars, 8, getLong(buf, offset + 8));
