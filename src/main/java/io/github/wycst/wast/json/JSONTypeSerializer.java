@@ -41,6 +41,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
     static final BinaryImpl BINARY = new BinaryImpl();
     static final SimpleNumberImpl NUMBER = new SimpleNumberImpl();
     static final SimpleNumberImpl NUMBER_LONG = new LongImpl();
+    static final SimpleNumberImpl NUMBER_INTEGER = new IntegerImpl();
     static final SimpleNumberImpl NUMBER_DOUBLE = new DoubleImpl();
     static final SimpleNumberImpl NUMBER_FLOAT = new FloatImpl();
     static final MapImpl MAP = new MapImpl();
@@ -49,9 +50,9 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
     static final ArrayImpl ARRAY_OBJECT = new ArrayImpl();
     static final ArrayImpl ARRAY_STRING = new ArrayStringImpl();
     static final ArrayImpl ARRAY_PRIMITIVE_LONG = new ArrayPrimitiveImpl(NUMBER_LONG, ReflectConsts.PrimitiveType.PrimitiveLong);
-    static final ArrayImpl ARRAY_PRIMITIVE_BYTE = new ArrayPrimitiveImpl(NUMBER_LONG, ReflectConsts.PrimitiveType.PrimitiveByte);
-    static final ArrayImpl ARRAY_PRIMITIVE_INTEGER = new ArrayPrimitiveImpl(NUMBER_LONG, ReflectConsts.PrimitiveType.PrimitiveInt);
-    static final ArrayImpl ARRAY_PRIMITIVE_SHORT = new ArrayPrimitiveImpl(NUMBER_LONG, ReflectConsts.PrimitiveType.PrimitiveShort);
+    static final ArrayImpl ARRAY_PRIMITIVE_BYTE = new ArrayPrimitiveImpl(NUMBER_INTEGER, ReflectConsts.PrimitiveType.PrimitiveByte);
+    static final ArrayImpl ARRAY_PRIMITIVE_INTEGER = new ArrayPrimitiveImpl(NUMBER_INTEGER, ReflectConsts.PrimitiveType.PrimitiveInt);
+    static final ArrayImpl ARRAY_PRIMITIVE_SHORT = new ArrayPrimitiveImpl(NUMBER_INTEGER, ReflectConsts.PrimitiveType.PrimitiveShort);
     static final ArrayImpl ARRAY_PRIMITIVE_FLOAT = new ArrayPrimitiveImpl(NUMBER_FLOAT, ReflectConsts.PrimitiveType.PrimitiveFloat);
     static final ArrayImpl ARRAY_PRIMITIVE_DOUBLE = new ArrayPrimitiveImpl(NUMBER_DOUBLE, ReflectConsts.PrimitiveType.PrimitiveDouble);
     static final CollectionImpl COLLECTION = new CollectionImpl();
@@ -78,7 +79,8 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
         putTypeSerializer(new BigIntegerImpl(), BigInteger.class);
         putTypeSerializer(NUMBER_DOUBLE, double.class, Double.class);
         putTypeSerializer(NUMBER_FLOAT, float.class, Float.class);
-        putTypeSerializer(NUMBER_LONG, byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class, AtomicInteger.class, AtomicLong.class);
+        putTypeSerializer(NUMBER_LONG, long.class, Long.class, AtomicLong.class);
+        putTypeSerializer(NUMBER_INTEGER, byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, AtomicInteger.class);
 
         putTypeSerializer(ARRAY_OBJECT, Object[].class);
         putTypeSerializer(ARRAY_STRING, String[].class);
@@ -89,7 +91,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
         putTypeSerializer(ARRAY_PRIMITIVE_SHORT, short[].class);
         putTypeSerializer(BINARY, byte[].class);
         putTypeSerializer(new ArrayPrimitiveImpl(SIMPLE, ReflectConsts.PrimitiveType.PrimitiveBoolean), boolean[].class);
-        putTypeSerializer(CHAR_SEQUENCE, char[].class);
+        putTypeSerializer(CHAR_SEQUENCE, char[].class, StringBuffer.class, StringBuilder.class);
         // extension types
         JSONTypeExtensionSer.initExtens();
         BUILT_IN_TYPE_SET = new HashSet<Class<?>>(classJSONTypeSerializerMap.keySet());
@@ -375,7 +377,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
     static class SimpleNumberImpl extends SimpleImpl {
 
         protected void serializeNumber(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
-            writer.write(value.toString());
+            writer.writeLatinString(value.toString());
         }
 
         protected void serialize(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
@@ -396,12 +398,22 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
         }
     }
 
-    // integer/long/byte/short
+    // long
     final static class LongImpl extends SimpleNumberImpl {
 
         protected void serializeNumber(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
             long numValue = ((Number) value).longValue();
             writer.writeLong(numValue);
+        }
+    }
+
+
+    // integer/byte/short
+    final static class IntegerImpl extends SimpleNumberImpl {
+
+        protected void serializeNumber(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
+            int numValue = ((Number) value).intValue();
+            writer.writeInt(numValue);
         }
     }
 

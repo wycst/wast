@@ -1394,7 +1394,7 @@ public final class JSON extends JSONGeneral {
             chars[offset++] = '-';
             value = -value;
         }
-        offset += JSONWriter.writeInteger(value, chars, offset);
+        offset += JSONWriter.writeLong(value, chars, offset);
         return new String(chars, 0, offset);
     }
 
@@ -1406,7 +1406,18 @@ public final class JSON extends JSONGeneral {
      * @return
      */
     public static byte[] toJsonBytes(Object obj, WriteOption... options) {
-        return toJsonBytes(obj, Charset.defaultCharset(), options);
+        return toJsonBytes(obj, EnvUtils.CHARSET_UTF_8, JSONConfig.config(options));
+    }
+
+    /**
+     * 将对象序列化为json字节数组
+     *
+     * @param obj
+     * @param jsonConfig
+     * @return
+     */
+    public static byte[] toJsonBytes(Object obj, JSONConfig jsonConfig) {
+        return toJsonBytes(obj, EnvUtils.CHARSET_UTF_8, jsonConfig);
     }
 
     /**
@@ -1418,10 +1429,21 @@ public final class JSON extends JSONGeneral {
      * @return
      */
     public static byte[] toJsonBytes(Object obj, Charset charset, WriteOption... options) {
+        return toJsonBytes(obj, charset, JSONConfig.config(options));
+    }
+
+    /**
+     * 将对象序列化为json字节数组
+     *
+     * @param obj
+     * @param charset 指定编码
+     * @param jsonConfig
+     * @return
+     */
+    public static byte[] toJsonBytes(Object obj, Charset charset, JSONConfig jsonConfig) {
         if (obj == null) {
             return null;
         }
-        JSONConfig jsonConfig = JSONConfig.config(options);
         JSONWriter stringWriter = JSONWriter.forBytesWriter(charset, jsonConfig);
         try {
             writeToJSONWriter(obj, stringWriter, jsonConfig);
@@ -1471,7 +1493,7 @@ public final class JSON extends JSONGeneral {
             if (!parent.exists()) {
                 parent.mkdirs();
             }
-            writeJsonTo(object, new FileOutputStream(file), EnvUtils.CHARSET_DEFAULT, options);
+            writeJsonTo(object, new FileOutputStream(file), EnvUtils.CHARSET_UTF_8, JSONConfig.config(options));
         } catch (FileNotFoundException e) {
             throw new JSONException("file not found", e);
         }
@@ -1485,7 +1507,7 @@ public final class JSON extends JSONGeneral {
      * @param options
      */
     public static void writeJsonTo(Object object, OutputStream os, WriteOption... options) {
-        writeJsonTo(object, os, EnvUtils.CHARSET_DEFAULT, options);
+        writeJsonTo(object, os, EnvUtils.CHARSET_UTF_8, JSONConfig.config(options));
     }
 
     /**
@@ -1497,7 +1519,29 @@ public final class JSON extends JSONGeneral {
      * @param options
      */
     public static void writeJsonTo(Object object, OutputStream os, Charset charset, WriteOption... options) {
-        JSONConfig jsonConfig = JSONConfig.config(options);
+        writeJsonTo(object, os, charset, JSONConfig.config(options));
+    }
+
+    /**
+     * 将对象序列化内容直接写入os
+     *
+     * @param object
+     * @param os
+     * @param jsonConfig
+     */
+    public static void writeJsonTo(Object object, OutputStream os, JSONConfig jsonConfig) {
+        writeJsonTo(object, os, EnvUtils.CHARSET_UTF_8, jsonConfig);
+    }
+
+    /**
+     * 将对象序列化内容直接写入os
+     *
+     * @param object
+     * @param os
+     * @param charset
+     * @param jsonConfig
+     */
+    public static void writeJsonTo(Object object, OutputStream os, Charset charset, JSONConfig jsonConfig) {
         JSONWriter streamWriter = JSONWriter.forStreamWriter(charset, jsonConfig);
         try {
             writeToJSONWriter(object, streamWriter, jsonConfig);

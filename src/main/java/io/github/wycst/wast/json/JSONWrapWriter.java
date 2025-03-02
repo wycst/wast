@@ -67,6 +67,25 @@ class JSONWrapWriter extends JSONWriter {
             writer.write('-');
         }
         char[] buf = JSONGeneral.CACHED_CHARS_36.get();
+        int count = writeLong(numValue, buf, 0);
+        writer.write(buf, 0, count);
+    }
+
+    @Override
+    public void writeInt(int numValue) throws IOException {
+        if (numValue == 0) {
+            writer.write('0');
+            return;
+        }
+        if (numValue < 0) {
+            if (numValue == Integer.MIN_VALUE) {
+                writer.write("-2147483648");
+                return;
+            }
+            numValue = -numValue;
+            writer.write('-');
+        }
+        char[] buf = JSONGeneral.CACHED_CHARS_36.get();
         int count = writeInteger(numValue, buf, 0);
         writer.write(buf, 0, count);
     }
@@ -139,7 +158,7 @@ class JSONWrapWriter extends JSONWriter {
         if (year < 10000) {
             off += JSONUnsafe.putLong(buf, off, FOUR_DIGITS_64_BITS[year]);
         } else {
-            off += writeInteger(year, buf, off);
+            off += writeLong(year, buf, off);
         }
         off += JSONUnsafe.putLong(buf, off, ((long) '-') << 48 | ((long) TWO_DIGITS_32_BITS[month]) << 16 | '-');
         off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[day]);
@@ -183,7 +202,7 @@ class JSONWrapWriter extends JSONWriter {
         if (year < 10000) {
             off += JSONUnsafe.putLong(buf, off, FOUR_DIGITS_64_BITS[year]);
         } else {
-            off += writeInteger(year, buf, off);
+            off += writeLong(year, buf, off);
         }
         off += JSONUnsafe.putLong(buf, off, mergeInt64(month, '-', '-'));
         off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[day]);

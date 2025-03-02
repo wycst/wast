@@ -208,8 +208,10 @@ final class JSONPojoSerializerCodeGen {
                                     compactBodyBuilder.append("\t\twriter.writeDouble(" + valueVar + ");\n");
                                 } else if (returnType == float.class) {
                                     compactBodyBuilder.append("\t\twriter.writeFloat(" + valueVar + ");\n");
-                                } else if (returnType == long.class || returnType == int.class || returnType == short.class || returnType == byte.class) {
+                                } else if (returnType == long.class) {
                                     compactBodyBuilder.append("\t\twriter.writeLong(" + valueVar + ");\n");
+                                } else if (returnType == int.class || returnType == short.class || returnType == byte.class) {
+                                    compactBodyBuilder.append("\t\twriter.writeInt(" + valueVar + ");\n");
                                 } else {
                                     // char
                                     compactBodyBuilder.append("\t\twriter.writeJSONChar(" + valueVar + ");\n");
@@ -648,8 +650,10 @@ final class JSONPojoSerializerCodeGen {
                                     compactBodyBuilder.append("\t\twriter.writeDouble(" + valueVar + ");\n");
                                 } else if (returnType == float.class) {
                                     compactBodyBuilder.append("\t\twriter.writeFloat(" + valueVar + ");\n");
-                                } else if (returnType == long.class || returnType == int.class || returnType == short.class || returnType == byte.class) {
+                                } else if (returnType == long.class) {
                                     compactBodyBuilder.append("\t\twriter.writeLong(" + valueVar + ");\n");
+                                } else if (returnType == int.class || returnType == short.class || returnType == byte.class) {
+                                    compactBodyBuilder.append("\t\twriter.writeInt(" + valueVar + ");\n");
                                 } else {
                                     compactBodyBuilder.append("\t\twriter.writeJSONChar(" + valueVar + ");\n");
                                 }
@@ -940,10 +944,12 @@ final class JSONPojoSerializerCodeGen {
                             compactBodyBuilder.append("\t\t\twriter.writeFloat(" + valueVar + ");\n");
                         } else if (returnType == Character.class) {
                             compactBodyBuilder.append("\t\t\twriter.writeJSONChar(" + valueVar + ");\n");
-                        } else if (returnType == Long.class || returnType == Integer.class || returnType == Short.class || returnType == Byte.class) {
+                        } else if (returnType == Long.class) {
                             compactBodyBuilder.append("\t\t\twriter.writeLong(" + valueVar + ");\n");
+                        } else if (returnType == Integer.class || returnType == Short.class || returnType == Byte.class) {
+                            compactBodyBuilder.append("\t\t\twriter.writeInt(" + valueVar + ");\n");
                         } else if (returnType == BigDecimal.class) {
-                            compactBodyBuilder.append("\t\t\twriter.write(" + valueVar + ".toString());\n");
+                            compactBodyBuilder.append("\t\t\twriter.writeLatinString(" + valueVar + ".toString());\n");
                         } else if (returnType == BigInteger.class) {
                             compactBodyBuilder.append("\t\t\twriter.writeBigInteger(" + valueVar + ");\n");
                         } else if (returnType == String[].class) {
@@ -1255,12 +1261,14 @@ final class JSONPojoSerializerCodeGen {
             fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeFloat(" + valueVar + ");\n");
         } else if (returnType == Character.class || returnType == char.class) {
             fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeJSONChar(" + valueVar + ");\n");
-        } else if (returnType == Long.class || returnType == Integer.class || returnType == Short.class || returnType == Byte.class || returnType == long.class || returnType == int.class || returnType == short.class || returnType == byte.class) {
+        } else if (returnType == Long.class || returnType == long.class) {
             fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeLong(" + valueVar + ");\n");
+        } else if (returnType == Integer.class || returnType == Short.class || returnType == Byte.class || returnType == int.class || returnType == short.class || returnType == byte.class) {
+            fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeInt(" + valueVar + ");\n");
         } else if (returnType == boolean.class || returnType == Boolean.class) {
             fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.write(String.valueOf(" + valueVar + "));\n");
         } else if (returnType == BigDecimal.class) {
-            fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.write(" + valueVar + ".toString());\n");
+            fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeLatinString(" + valueVar + ".toString());\n");
         } else if (returnType == BigInteger.class) {
             fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeBigInteger(" + valueVar + ");\n");
         } else if (returnType == String[].class) {

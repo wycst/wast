@@ -147,12 +147,13 @@ public class TemporalLocalDateTimeDeserializer extends JSONTemporalDeserializer 
     protected Object deserializeDefault(byte[] buf, int offset, char endToken, JSONParseContext jsonParseContext) throws Exception {
         int i = offset;
         int year, month, day, hour, minute, second;
-        byte b1, b2, b3, b4;
-        if (NumberUtils.isDigit(b1 = buf[i]) && NumberUtils.isDigit(b2 = buf[++i]) && NumberUtils.isDigit(b3 = buf[++i]) && NumberUtils.isDigit(b4 = buf[++i])) {
-            year = fourDigitsValue(b1 & 0xf, b2 & 0xf, b3 & 0xf, b4);
+        byte b1, b2;
+        if ((year = fourDigitsValue(buf, i)) != -1) {
+            i += 3;
         } else {
-            if (b1 == '-' && NumberUtils.isDigit(b1 = buf[++i]) && NumberUtils.isDigit(b2 = buf[++i]) && NumberUtils.isDigit(b3 = buf[++i]) && NumberUtils.isDigit(b4 = buf[++i])) {
-                year = -fourDigitsValue(b1 & 0xf, b2 & 0xf, b3 & 0xf, b4);
+            if (buf[i] == '-' && (year = fourDigitsValue(buf, i + 1)) != -1) {
+                year = -year;
+                i += 4;
             } else {
                 String errorContextTextAt = createErrorContextText(buf, i);
                 throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', year field error ");

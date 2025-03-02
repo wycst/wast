@@ -49,7 +49,7 @@ final class JSONTypeExtensionDesr {
                 return parseNull(buf, fromIndex, parseContext);
             }
             String errorContextTextAt = createErrorContextText(buf, fromIndex);
-            throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', deserialize UUID fail");
+            throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', illegal uuid characters");
         }
 
         @Override
@@ -75,7 +75,7 @@ final class JSONTypeExtensionDesr {
                 return parseNull(buf, fromIndex, parseContext);
             }
             String errorContextTextAt = createErrorContextText(buf, fromIndex);
-            throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', deserialize UUID fail");
+            throw new JSONException("Syntax error, at pos " + fromIndex + ", context text by '" + errorContextTextAt + "', illegal uuid characters");
         }
     }
 

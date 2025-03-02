@@ -27,7 +27,7 @@ public final class NumberUtils {
     //0-9a-f
     final static char[] HEX_DIGITS = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
-    final static byte[] HEX_DIGITS_REVERSE = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0, 0, 0, 10, 11, 12, 13, 14, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 11, 12, 13, 14, 15};
+//    final static byte[] HEX_DIGITS_REVERSE = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0, 0, 0, 10, 11, 12, 13, 14, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 11, 12, 13, 14, 15};
 
     final static char[] DigitOnes = {
             '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
@@ -569,29 +569,6 @@ public final class NumberUtils {
         }
         return val0;
     }
-
-//    /**
-//     * Ensure x is greater than 0
-//     *
-//     * @param x
-//     * @param index(0,17)
-//     * @return
-//     */
-//    static long divPowTen(long x, int index) {
-//        // Use Karatsuba technique with two base 2^32 digits.
-//        long y = POW10_OPPOSITE_VALUES[index];
-////        long x1 = x >>> 32;
-////        long y1 = y >>> 32;
-////        long x2 = x & 0xFFFFFFFFL;
-////        long y2 = y & 0xFFFFFFFFL;
-////        long A = x1 * y1;
-////        long B = x2 * y2;
-////        long C = (x1 + x2) * (y1 + y2);
-////        long K = C - A - B;
-////        long H = (((B >>> 32) + K) >>> 32) + A;
-//        long H = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(x, y);
-//        return H >> POW10_OPPOSITE_RB[index];
-//    }
 
     /**
      * multiplyOutput

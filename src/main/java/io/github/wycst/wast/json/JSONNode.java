@@ -2422,6 +2422,24 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     }
 
     /**
+     * <p> xpath语法支持（仅仅支持以下简单语法，部分语法进行了语义替换，xpath复杂的语法由于易用性（难记）不考虑实现）
+     *
+     * <h4>路径分隔语法(和xpath一致)</h4>
+     * <li>"//" :  从当前节点开始查找所有满足条件的节点，并遍历所有子孙节点；</li>
+     * <li>"/"  :  仅从当前节点开始查找所有满足条件的节点（不包括子孙节点）；</li>
+     * <p> 更多请查看JSONNodePath
+     *
+     * @param bytes
+     * @param path
+     * @param options
+     * @return
+     * @see JSONNodePath
+     */
+    public final static List<JSONNode> collect(byte[] bytes, JSONNodePath path, ReadOption... options) {
+        return collect(bytes, path, JSONNodeCollector.DEFAULT, options);
+    }
+
+    /**
      * 解析并收集
      *
      * @param json

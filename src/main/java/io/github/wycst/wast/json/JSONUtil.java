@@ -10,7 +10,8 @@ import io.github.wycst.wast.common.utils.EnvUtils;
  */
 public class JSONUtil {
 
-    JSONUtil() {}
+    JSONUtil() {
+    }
 
     final static long getQuoteOrBackslashMask(char[] buf, long offset, long quoteMask) {
         long v64 = JSONUnsafe.UNSAFE.getLong(buf, JSONUnsafe.CHAR_ARRAY_OFFSET + (offset << 1));
@@ -53,7 +54,7 @@ public class JSONUtil {
 //                } else if (r32 == 0x00008000) {
 //                    ++offset;
 //                }
-                if(EnvUtils.LITTLE_ENDIAN) {
+                if (EnvUtils.LITTLE_ENDIAN) {
                     offset += Long.numberOfTrailingZeros(result ^ 0x8000800080008000L) >> 4;
                 } else {
                     offset += Long.numberOfLeadingZeros(result ^ 0x8000800080008000L) >> 4;
@@ -171,32 +172,69 @@ public class JSONUtil {
         return source.indexOf(token, beginIndex);
     }
 
-    static final boolean isNoneEscaped8Bytes(byte[] buf, int offset) {
-        long value = JSONUnsafe.UNSAFE.getLong(buf, JSONUnsafe.BYTE_ARRAY_OFFSET + offset);
-        return ((value + 0x6060606060606060L) & ((value ^ 0xDDDDDDDDDDDDDDDDL) + 0x0101010101010101L) & ((value ^ 0xA3A3A3A3A3A3A3A3L) + 0x0101010101010101L) & 0x8080808080808080L) == 0x8080808080808080L;
-    }
+//    static final boolean isNoneEscaped8Bytes(byte[] buf, int offset) {
+//        long value = JSONUnsafe.UNSAFE.getLong(buf, JSONUnsafe.BYTE_ARRAY_OFFSET + offset);
+////        return ((value + 0x6060606060606060L) & ((value ^ 0xDDDDDDDDDDDDDDDDL) + 0x0101010101010101L) & ((value ^ 0xA3A3A3A3A3A3A3A3L) + 0x0101010101010101L) & 0x8080808080808080L) == 0x8080808080808080L;
+//
+//        // if high-order bits of 8 bytes are all 1 return true, otherwise, return false
+//        // Not considering negative numbers
+//        long notBackslashMask = (value ^ 0xA3A3A3A3A3A3A3A3L) + 0x0101010101010101L & 0x8080808080808080L;
+//
+//        // Based on the probability of occurrence, first determine whether it is greater than '"' and not equal to '\\', and return true in advance
+//        if((notBackslashMask & value + 0x5D5D5D5D5D5D5D5DL) == 0x8080808080808080L) {
+//            return true;
+//        }
+//
+//        // complete standard verification
+//        return ((value + 0x6060606060606060L) & ((value ^ 0xDDDDDDDDDDDDDDDDL) + 0x0101010101010101L) & notBackslashMask & 0x8080808080808080L) == 0x8080808080808080L;
+//    }
+
+//    /**
+//     * <p>通过unsafe获取的32个字节值一次性判断是否需要转义(包含'"'或者‘\\’或者存在小于32的字节)，如果返回true则代表一定不存在待转义字节；</p>
+//     * <p>内部调用并确保不会越界</p>
+//     *
+//     * @param buf
+//     * @param offset
+//     * @return
+//     */
+//    final static boolean isNoneEscaped32Bytes(byte[] buf, int offset) {
+//        long v1 = JSONUnsafe.UNSAFE.getLong(buf, JSONUnsafe.BYTE_ARRAY_OFFSET + offset);
+//        long v2 = JSONUnsafe.UNSAFE.getLong(buf, JSONUnsafe.BYTE_ARRAY_OFFSET + offset + 8);
+//        long v3 = JSONUnsafe.UNSAFE.getLong(buf, JSONUnsafe.BYTE_ARRAY_OFFSET + offset + 16);
+//        long v4 = JSONUnsafe.UNSAFE.getLong(buf, JSONUnsafe.BYTE_ARRAY_OFFSET + offset + 24);
+//
+//        long notBackslashMask = ((v1 ^ 0xA3A3A3A3A3A3A3A3L) + 0x0101010101010101L) & ((v2 ^ 0xA3A3A3A3A3A3A3A3L) + 0x0101010101010101L) & ((v3 ^ 0xA3A3A3A3A3A3A3A3L) + 0x0101010101010101L) & ((v4 ^ 0xA3A3A3A3A3A3A3A3L) + 0x0101010101010101L) & 0x8080808080808080L;
+//        long geQuoteMask = (v1 + 0x5D5D5D5D5D5D5D5DL) & (v2 + 0x5D5D5D5D5D5D5D5DL) & (v3 + 0x5D5D5D5D5D5D5D5DL) & (v4 + 0x5D5D5D5D5D5D5D5DL);
+//
+//        // Based on prediction, prioritize whether all values are greater than '"' and not equal to '\\', which may be faster
+//        if((notBackslashMask & geQuoteMask) == 0x8080808080808080L) { // > '"' && != '\\'
+//            return true;
+//        }
+//
+//        // complete standard verification
+//        long ge32Mask = (v1 + 0x6060606060606060L) & (v2 + 0x6060606060606060L) & (v3 + 0x6060606060606060L) & (v4 + 0x6060606060606060L);
+//        long notQuoteMask = ((v1 ^ 0xDDDDDDDDDDDDDDDDL) + 0x0101010101010101L) & ((v2 ^ 0xDDDDDDDDDDDDDDDDL) + 0x0101010101010101L) & ((v3 ^ 0xDDDDDDDDDDDDDDDDL) + 0x0101010101010101L) & ((v4 ^ 0xDDDDDDDDDDDDDDDDL) + 0x0101010101010101L);
+//        return (ge32Mask & notQuoteMask & notBackslashMask) == 0x8080808080808080L; // >= 32 && != '"' && != '\\'
+//    }
 
     /**
      * <p> 尽量查找没有需要转义的位置(判定: "或者'\\'或者小于32)</p>
      * <p> 内部调用 </p>
      *
-     * @param buf (len >= 32)
+     * @param buf    (len >= 32)
      * @param offset = 0
      * @return the first position（8n） of escaped
      */
     public int toNoEscapeOffset(byte[] buf, int offset) {
-        if (isNoneEscaped8Bytes(buf, offset)
-                && isNoneEscaped8Bytes(buf, offset = offset + 8)
-                && isNoneEscaped8Bytes(buf, offset = offset + 8)
-                && isNoneEscaped8Bytes(buf, offset = offset + 8)
-        ) {
-            offset += 8;
+        if (JSONGeneral.isNoneEscaped16Bytes(JSONUnsafe.getLong(buf, offset), JSONUnsafe.getLong(buf, offset + 8))
+                && JSONGeneral.isNoneEscaped16Bytes(JSONUnsafe.getLong(buf, offset = offset + 16), JSONUnsafe.getLong(buf, offset + 8))) {
+            offset += 16;
             final int limit = buf.length - 32;
             while (offset <= limit
-                    && isNoneEscaped8Bytes(buf, offset)
-                    && isNoneEscaped8Bytes(buf, offset = offset + 8)
-                    && isNoneEscaped8Bytes(buf, offset = offset + 8)
-                    && isNoneEscaped8Bytes(buf, offset = offset + 8)) {
+                    && JSONGeneral.isNoneEscaped8Bytes(JSONUnsafe.getLong(buf, offset))
+                    && JSONGeneral.isNoneEscaped8Bytes(JSONUnsafe.getLong(buf, offset = offset + 8))
+                    && JSONGeneral.isNoneEscaped8Bytes(JSONUnsafe.getLong(buf, offset = offset + 8))
+                    && JSONGeneral.isNoneEscaped8Bytes(JSONUnsafe.getLong(buf, offset = offset + 8))) {
                 offset += 8;
             }
         }
@@ -212,9 +250,9 @@ public class JSONUtil {
      * <p> 尽量查找没有需要转义的位置(判定: "或者'\\'或者小于32)</p>
      * <p> 内部调用 </p>
      *
-     * @param buf （buf.len >= 64）
-     * @param offset = 0
-     * @return the first position（8n） of escaped
+     * @param buf    （buf.len >= 64）
+     * @param offset 0
+     * @return the first position（4n） of escaped
      */
     public final int toNoEscapeOffset(char[] buf, int offset) {
         // 64
@@ -248,6 +286,30 @@ public class JSONUtil {
         }
         return offset;
     }
+
+//    /**
+//     * Starting from offset, search for the first visible byte (>32).
+//     * <p>
+//     * Considering that spaces are generally not very long, here we check 4 bytes per batch
+//     *
+//     * @param buf
+//     * @param offset
+//     * @return
+//     */
+//    public int skipWhiteSpaces(byte[] buf, int offset) {
+//        final int limit = buf.length - 16;
+//        while (offset <= limit) {
+//            int val = JSONUnsafe.getInt(buf, offset);
+//            int result = (val + 0x5F5F5F5F & 0x80808080);
+//            if (result != 0) {
+//                int rem = EnvUtils.LITTLE_ENDIAN ? Integer.numberOfTrailingZeros(result) >> 3 : Integer.numberOfLeadingZeros(result) >> 3;
+//                return offset + rem;
+//            }
+//            offset += 4;
+//        }
+//
+//        return 0;
+//    }
 
     public boolean isSupportVectorWellTest() {
         return false;

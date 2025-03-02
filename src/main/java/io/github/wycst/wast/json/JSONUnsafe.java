@@ -25,7 +25,23 @@ final class JSONUnsafe {
 
         abstract long mergeInt64(long h32, long l32);
 
-        abstract long mergeInt64(long s1, long c, long s2, long c1, long s3);
+        /**
+         *  将年份(4位)和月份（2位）合并为8个字节的long值(yyyy-MM-)
+         *
+         * @param year
+         * @param month
+         * @return
+         */
+        abstract long mergeYearAndMonth(int year, int month);
+
+        /**
+         *  将时分秒合并为8个字节的long值(HH:mm:ss)
+         * @param hour
+         * @param minute
+         * @param second
+         * @return
+         */
+        abstract long mergeHHMMSS(int hour, int minute, int second);
     }
 
     final static class BigEndian extends Endian {
@@ -58,8 +74,15 @@ final class JSONUnsafe {
         }
 
         @Override
-        long mergeInt64(long s1, long c, long s2, long c1, long s3) {
-            return s1 << 48 | c << 40 | s2 << 24 | c1 << 16 | s3;
+        long mergeYearAndMonth(int year, int month) {
+            short[] TWO_DIGITS_16_BITS = JSONWriter.TWO_DIGITS_16_BITS;
+            return (long) TWO_DIGITS_16_BITS[year] << 32 | TWO_DIGITS_16_BITS[month] << 8 | 0x2d00002d;
+        }
+
+        @Override
+        long mergeHHMMSS(int hour, int minute, int second) {
+            short[] TWO_DIGITS_16_BITS = JSONWriter.TWO_DIGITS_16_BITS;
+            return 0x00003a00003a0000L | (long) TWO_DIGITS_16_BITS[hour] << 48 | (long) TWO_DIGITS_16_BITS[minute] << 24 | TWO_DIGITS_16_BITS[second];
         }
 //        @Override
 //        int digits2Chars(char[] buf, int offset) {
@@ -104,9 +127,17 @@ final class JSONUnsafe {
             return l32 << 32 | h32;
         }
 
+        // ‘-’ -> 0x2d
         @Override
-        long mergeInt64(long s1, long c, long s2, long c1, long s3) {
-            return s3 << 48 | c1 << 40 | s2 << 24 | c << 16 | s1;
+        long mergeYearAndMonth(int year, int month) {
+            return 0x2d00002d00000000L | (long) JSONWriter.TWO_DIGITS_16_BITS[month] << 40 | JSONWriter.FOUR_DIGITS_32_BITS[year];
+        }
+
+        // ':' -> 0x3a
+        @Override
+        long mergeHHMMSS(int hour, int minute, int second) {
+            short[] TWO_DIGITS_16_BITS = JSONWriter.TWO_DIGITS_16_BITS;
+            return 0x00003a00003a0000L | (long) TWO_DIGITS_16_BITS[second] << 48 | (long) TWO_DIGITS_16_BITS[minute] << 24 | TWO_DIGITS_16_BITS[hour];
         }
 //        @Override
 //        int digits2Chars(char[] buf, int offset) {

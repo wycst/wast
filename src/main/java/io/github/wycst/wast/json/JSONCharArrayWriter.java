@@ -362,15 +362,30 @@ class JSONCharArrayWriter extends JSONWriter {
 
     @Override
     public final void writeLong(long numValue) throws IOException {
-        if (numValue == 0) {
-            ensureCapacity(1 + SECURITY_UNCHECK_SPACE);
-            buf[count++] = '0';
-            return;
-        }
         ensureCapacity(20 + SECURITY_UNCHECK_SPACE);
-        if (numValue < 0) {
-            if (numValue == Long.MIN_VALUE) {
+        if (numValue < 1) {
+            if (numValue == 0) {
+                buf[count++] = '0';
+                return;
+            } else if (numValue == Long.MIN_VALUE) {
                 write("-9223372036854775808");
+                return;
+            }
+            numValue = -numValue;
+            buf[count++] = '-';
+        }
+        count += writeLong(numValue, buf, count);
+    }
+
+    @Override
+    public void writeInt(int numValue) throws IOException {
+        ensureCapacity(11 + SECURITY_UNCHECK_SPACE);
+        if (numValue < 1) {
+            if (numValue == 0) {
+                buf[count++] = '0';
+                return;
+            } else if (numValue == Integer.MIN_VALUE) {
+                write("-2147483648");
                 return;
             }
             numValue = -numValue;
@@ -391,11 +406,11 @@ class JSONCharArrayWriter extends JSONWriter {
                 val1 = -val1;
                 buf[off++] = ',';
                 buf[off++] = '-';
-                off += writeInteger(val1, buf, off);
+                off += writeLong(val1, buf, off);
             }
         } else {
             buf[off++] = ',';
-            off += writeInteger(val1, buf, off);
+            off += writeLong(val1, buf, off);
         }
         if (val2 < 0) {
             if (val2 == Long.MIN_VALUE) {
@@ -405,11 +420,11 @@ class JSONCharArrayWriter extends JSONWriter {
                 val2 = -val2;
                 buf[off++] = ',';
                 buf[off++] = '-';
-                off += writeInteger(val2, buf, off);
+                off += writeLong(val2, buf, off);
             }
         } else {
             buf[off++] = ',';
-            off += writeInteger(val2, buf, off);
+            off += writeLong(val2, buf, off);
         }
         count = off;
     }
@@ -450,7 +465,7 @@ class JSONCharArrayWriter extends JSONWriter {
         if (year < 10000) {
             off += JSONUnsafe.putLong(buf, off, FOUR_DIGITS_64_BITS[year]);
         } else {
-            off += writeInteger(year, buf, off);
+            off += writeLong(year, buf, off);
         }
         off += JSONUnsafe.putLong(buf, off, ((long) '-') << 48 | ((long) TWO_DIGITS_32_BITS[month]) << 16 | '-');
         off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[day]);
@@ -513,7 +528,7 @@ class JSONCharArrayWriter extends JSONWriter {
         if (year < 10000) {
             off += JSONUnsafe.putLong(buf, off, FOUR_DIGITS_64_BITS[year]);
         } else {
-            off += writeInteger(year, buf, off);
+            off += writeLong(year, buf, off);
         }
         off += JSONUnsafe.putLong(buf, off, ((long) '-') << 48 | ((long) TWO_DIGITS_32_BITS[month]) << 16 | '-');
         off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[day]);
@@ -557,7 +572,7 @@ class JSONCharArrayWriter extends JSONWriter {
         if (year < 10000) {
             off += JSONUnsafe.putLong(buf, off, FOUR_DIGITS_64_BITS[year]);
         } else {
-            off += writeInteger(year, buf, off);
+            off += writeLong(year, buf, off);
         }
         off += JSONUnsafe.putLong(buf, off, mergeInt64(month, '-', '-'));
         off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[day]);
@@ -719,6 +734,13 @@ class JSONCharArrayWriter extends JSONWriter {
         }
         buf[count++] = '"';
         this.count = count;
+    }
+
+    public final void writeLatinString(String str) throws IOException {
+        int len = str.length();
+        ensureCapacity(len + SECURITY_UNCHECK_SPACE);
+        str.getChars(0, len, buf, count);
+        count += len;
     }
 
     @Override
