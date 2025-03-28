@@ -81,8 +81,8 @@ public final class NumberUtils {
         }
     }
 
-    static final int MOD_DOUBLE_EXP = (1 << 12) - 1;
-    static final int MOD_FLOAT_EXP = (1 << 9) - 1;
+    static final int MOD_DOUBLE_EXP = (1 << 11) - 1;
+    static final int MOD_FLOAT_EXP = (1 << 8) - 1;
     static final long MOD_DOUBLE_MANTISSA = (1L << 52) - 1;
     static final int MOD_FLOAT_MANTISSA = (1 << 23) - 1;
 //    static final long MASK_32_BITS = 0xffffffffL;
@@ -628,7 +628,10 @@ public final class NumberUtils {
      * <p> Using the difference estimation method </p>
      * <p> The output may not be the shortest, but the general result is correct </p>
      *
-     * @param doubleValue > 0
+     * @param doubleValue best to ensure that the doubleValue > 0 before call.
+     *                    otherwise the absolute value of Scientific notation will be returned if doubleValue < 0.
+     *                    if doubleValue is NaN or POSIFINETY or NEGATIVE-INFINETY, it will directly return SCIENTIFIC_NULL
+     *                    if doubleValue == 0, return SCIENTIFIC_ZERO or SCIENTIFIC_NEGATIVE_ZERO
      * @return
      */
     public static Scientific doubleToScientific(double doubleValue) {
@@ -646,10 +649,15 @@ public final class NumberUtils {
         long rawOutput, /*d2, */d3, d4;
         int e10, adl;
         if (e2 > 0) {
+            // Double.NaN/Double.POSITIVE_INFINITY/Double.NEGATIVE_INFINITY -> NULL
             if (e2 == 2047) return Scientific.SCIENTIFIC_NULL;
             mantissa0 = 1L << 52 | mantissa0;
             e52 = e2 - 1075;
         } else {
+            if(mantissa0 == 0) {
+                // Dealing with error issues with doubleValue=0.0(-0.0) Or make sure doubleValue is greater than 0 before calling
+                return bits == 0 ? Scientific.ZERO : Scientific.NEGATIVE_ZERO;
+            }
             int lz52 = Long.numberOfLeadingZeros(mantissa0) - 11;
             mantissa0 <<= lz52;
             e52 = -1074 - lz52;
@@ -754,7 +762,10 @@ public final class NumberUtils {
     }
 
     /**
-     * ieee float -> scientific
+     * ieee float to Scientific notation.
+     * better to ensure that floatValue>0.
+     *
+     * if floatValue is less than 0, the absolute value of Scientific notation will be return
      *
      * @param floatValue != 0
      * @return
@@ -770,10 +781,14 @@ public final class NumberUtils {
         int e10, adl;
         boolean accurate = false;
         if (e2 > 0) {
+            if (e2 == MOD_FLOAT_EXP) return Scientific.SCIENTIFIC_NULL;
             mantissa0 = 1 << 23 | mantissa0;
-            e23 = e2 - 150;   // 1023 - 52
+            e23 = e2 - 150;   // - 127 - 23
         } else {
             // e2 == 0
+            if(mantissa0 == 0) {
+                return bits == 0 ? Scientific.ZERO : Scientific.NEGATIVE_ZERO;
+            }
             int l = Integer.numberOfLeadingZeros(mantissa0) - 8;
             mantissa0 <<= l;
             e23 = -149 - l;
