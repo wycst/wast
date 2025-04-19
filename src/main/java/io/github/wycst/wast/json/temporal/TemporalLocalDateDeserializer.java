@@ -92,14 +92,14 @@ public class TemporalLocalDateDeserializer extends JSONTemporalDeserializer {
 
     // default yyyy-MM-dd compatible yyyy.MM?.dd?
     @Override
-    protected LocalDate deserializeDefault(byte[] buf, int offset, char endToken, JSONParseContext jsonParseContext) throws Exception {
+    protected LocalDate deserializeDefault(byte[] buf, int offset, byte endToken, JSONParseContext jsonParseContext) throws Exception {
         int i = offset;
         int year, month, day;
         byte b1, b2;
-        if ((year = fourDigitsValue(buf, i)) != -1) {
+        if ((year = parseFourDigitsYear(buf, i)) != -1) {
             i += 3;
         } else {
-            if (buf[i] == '-' && (year = fourDigitsValue(buf, i + 1)) != -1) {
+            if (buf[i] == '-' && (year = parseFourDigitsYear(buf, i + 1)) != -1) {
                 year = -year;
                 i += 4;
             } else {
@@ -138,7 +138,7 @@ public class TemporalLocalDateDeserializer extends JSONTemporalDeserializer {
             return LocalDate.of(year, month, day);
         }
         String errorContextTextAt = createErrorContextText(buf, i);
-        throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token '" + (char) buf[i] + "', expected '" + endToken + "'");
+        throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token '" + (char) buf[i] + "', expected '" + (char) endToken + "'");
     }
 
     @Override

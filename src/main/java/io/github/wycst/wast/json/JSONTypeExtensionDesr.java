@@ -27,7 +27,7 @@ final class JSONTypeExtensionDesr {
         }
 
         @Override
-        protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext parseContext) throws Exception {
+        protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, int endToken, JSONParseContext parseContext) throws Exception {
             final char beginChar = buf[fromIndex];
             int offset = fromIndex + 1, endIndex;
             if (beginChar == DOUBLE_QUOTATION || beginChar == '\'') {
@@ -53,7 +53,7 @@ final class JSONTypeExtensionDesr {
         }
 
         @Override
-        protected Object deserialize(CharSource charSource, byte[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext parseContext) throws Exception {
+        protected Object deserialize(CharSource charSource, byte[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, int endToken, JSONParseContext parseContext) throws Exception {
             final byte beginByte = buf[fromIndex];
             int offset = fromIndex + 1, endIndex;
             if (beginByte == DOUBLE_QUOTATION || beginByte == '\'') {
@@ -87,13 +87,13 @@ final class JSONTypeExtensionDesr {
         }
 
         @Override
-        protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
+        protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, int endToken, JSONParseContext jsonParseContext) throws Exception {
             String urlString = (String) CHAR_SEQUENCE_STRING.deserialize(charSource, buf, fromIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
             return new URL(urlString);
         }
 
         @Override
-        protected Object deserialize(CharSource charSource, byte[] bytes, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext jsonParseContext) throws Exception {
+        protected Object deserialize(CharSource charSource, byte[] bytes, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, int endToken, JSONParseContext jsonParseContext) throws Exception {
             String urlString = (String) CHAR_SEQUENCE_STRING.deserialize(charSource, bytes, fromIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
             return new URL(urlString);
         }
@@ -106,13 +106,13 @@ final class JSONTypeExtensionDesr {
         }
 
         @Override
-        protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
+        protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, int endToken, JSONParseContext jsonParseContext) throws Exception {
             String urlString = (String) CHAR_SEQUENCE_STRING.deserialize(charSource, buf, fromIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
             return new URI(urlString);
         }
 
         @Override
-        protected Object deserialize(CharSource charSource, byte[] bytes, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext jsonParseContext) throws Exception {
+        protected Object deserialize(CharSource charSource, byte[] bytes, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, int endToken, JSONParseContext jsonParseContext) throws Exception {
             String urlString = (String) CHAR_SEQUENCE_STRING.deserialize(charSource, bytes, fromIndex, parameterizedType, defaultValue, endToken, jsonParseContext);
             return new URI(urlString);
         }

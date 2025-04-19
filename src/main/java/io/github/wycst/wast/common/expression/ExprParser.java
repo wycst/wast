@@ -784,40 +784,33 @@ public class ExprParser extends Expression {
                     }
                 }
             }
-
-            // use double
             double value;
-            int mode = 0;
-            // supported number suffix such as 123.456d/12.05f/123456L
-            int specifySuffix = 0;
-            // 科学计数法指数值
-            int expValue = 0;
-            // 科学计数法指数是否为负数
+            int mode = 0, suffix = 0, e10 = 0, decimalCount = 0;
             boolean expNegative = false;
-            // 小数位数
-            int decimalCount = 0;
-            // 默认10进制
             if (numberRadix == 10) {
                 if (!isMinusSymbol && !valInitSet) {
-                    ++cnt;
                     decimalVal = currentChar & 0xf;
+                    if(decimalVal != 0) {
+                        ++cnt;
+                    }
                 }
-                // 10进制
                 while (readable() && NumberUtils.isDigit(currentChar = read())) {
                     decimalVal = decimalVal * 10 + (currentChar & 0xf);
                     ++this.readIndex;
-                    ++cnt;
+                    if(decimalVal != 0) {
+                        ++cnt;
+                    }
                 }
-                // 小数点
                 if (currentChar == '.') {
                     ++this.readIndex;
-                    // 小数点模式
                     mode = 1;
                     // direct scan numbers
                     while (readable() && NumberUtils.isDigit(currentChar = read())) {
                         decimalVal = decimalVal * 10 + (currentChar & 0xf);
                         ++decimalCount;
-                        ++cnt;
+                        if(decimalVal != 0) {
+                            ++cnt;
+                        }
                         ++this.readIndex;
                     }
                 }
@@ -831,10 +824,10 @@ public class ExprParser extends Expression {
                             currentChar = read();
                         }
                         if (NumberUtils.isDigit(currentChar)) {
-                            expValue = currentChar & 0xf;
+                            e10 = currentChar & 0xf;
                             ++this.readIndex;
                             while (readable() && NumberUtils.isDigit(currentChar = read())) {
-                                expValue = (expValue << 3) + (expValue << 1) + (currentChar & 0xf);
+                                e10 = (e10 << 3) + (e10 << 1) + (currentChar & 0xf);
                                 ++this.readIndex;
                             }
                         }
@@ -846,25 +839,25 @@ public class ExprParser extends Expression {
                 switch (currentChar) {
                     case 'l':
                     case 'L': {
-                        specifySuffix = 1;
+                        suffix = 1;
                         ++this.readIndex;
                         break;
                     }
                     case 'f':
                     case 'F': {
-                        specifySuffix = 2;
+                        suffix = 2;
                         ++this.readIndex;
                         break;
                     }
                     case 'd':
                     case 'D': {
-                        specifySuffix = 3;
+                        suffix = 3;
                         ++this.readIndex;
                         break;
                     }
                     case '$': {
                         // BigDecimal
-                        specifySuffix = 4;
+                        suffix = 4;
                         ++this.readIndex;
                         break;
                     }
@@ -900,23 +893,23 @@ public class ExprParser extends Expression {
                 }
             } else {
                 this.tokenType = NUM_TOKEN;
-                final boolean overflow = cnt > 19 || decimalVal < 0;
+                final boolean overflow = cnt > 18 && (cnt > 19 || decimalVal < 0);
                 final boolean negate = exprParserContext.negate ^ isMinusSymbol;
                 if (mode == 0 && !overflow) {
                     if (negate) {
                         value = -value;
                     }
-                    if (specifySuffix == 0) {
+                    if (suffix == 0) {
                         if (value >= Long.MIN_VALUE && value <= Long.MAX_VALUE) {
                             numberValue = (long) value;
                         } else {
                             numberValue = value;
                         }
-                    } else if (specifySuffix == 1) {
+                    } else if (suffix == 1) {
                         numberValue = (long) value;
-                    } else if (specifySuffix == 2) {
+                    } else if (suffix == 2) {
                         numberValue = (float) value;
-                    } else if (specifySuffix == 4) {
+                    } else if (suffix == 4) {
                         numberValue = BigDecimal.valueOf((long) value);
                     } else {
                         numberValue = value;
@@ -924,7 +917,7 @@ public class ExprParser extends Expression {
                 } else {
                     do {
                         if (overflow) {
-                            if (specifySuffix == 4) {
+                            if (suffix == 4) {
                                 numberValue = createBigDecimal(begin, this.readIndex - 1, negate);
                                 break;
                             }
@@ -935,8 +928,11 @@ public class ExprParser extends Expression {
                             decimalCount = 0;
                             for (; j < this.readIndex; ++j) {
                                 if (NumberUtils.isDigit(c = sourceChars[offset + j])) {
-                                    if (cnt++ < 18) {
+                                    if (cnt < 18) {
                                         decimalVal = decimalVal * 10 + (c & 0xf);
+                                    }
+                                    if(decimalVal != 0) {
+                                        ++cnt;
                                     }
                                     if (j > decimalPointIndex) {
                                         ++decimalCount;
@@ -952,20 +948,20 @@ public class ExprParser extends Expression {
                             }
                             decimalCount -= cnt - 18;
                         }
-                        expValue = expNegative ? -expValue - decimalCount : expValue - decimalCount;
-                        if (specifySuffix == 4) {
-                            numberValue = BigDecimal.valueOf(negate ? -decimalVal : decimalVal, -expValue);
+                        e10 = expNegative ? -e10 - decimalCount : e10 - decimalCount;
+                        if (suffix == 4) {
+                            numberValue = BigDecimal.valueOf(negate ? -decimalVal : decimalVal, -e10);
                             break;
                         }
-                        value = NumberUtils.scientificToIEEEDouble(decimalVal, -expValue);
+                        value = NumberUtils.scientificToIEEEDouble(decimalVal, -e10);
                         if (negate) {
                             value = -value;
                         }
-                        if (specifySuffix == 0) {
+                        if (suffix == 0) {
                             numberValue = value;
-                        } else if (specifySuffix == 1) {
+                        } else if (suffix == 1) {
                             numberValue = (long) value;
-                        } else if (specifySuffix == 2) {
+                        } else if (suffix == 2) {
                             numberValue = (float) value;
                         } else {
                             numberValue = value;

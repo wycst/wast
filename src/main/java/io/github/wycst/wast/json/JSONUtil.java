@@ -13,9 +13,55 @@ public class JSONUtil {
     JSONUtil() {
     }
 
-    final static long getQuoteOrBackslashMask(char[] buf, long offset, long quoteMask) {
-        long v64 = JSONUnsafe.UNSAFE.getLong(buf, JSONUnsafe.CHAR_ARRAY_OFFSET + (offset << 1));
-        return ((v64 ^ quoteMask) + 0x0001000100010001L) & ((v64 ^ 0xFFA3FFA3FFA3FFA3L) + 0x0001000100010001L) & 0x8000800080008000L;
+//    final static long getQuoteOrBackslashMask(char[] buf, long offset, long quoteMask) {
+//        long v64 = JSONUnsafe.UNSAFE.getLong(buf, JSONUnsafe.CHAR_ARRAY_OFFSET + (offset << 1));
+//        return (((v64 ^ quoteMask) - 0x0001000100010001L) | ((v64 ^ 0x005C005C005C005CL) - 0x0001000100010001L)) & 0x8000800080008000L;
+//    }
+//
+//    final static long getQuoteOrBackslashMask(long v64, long quoteMask) {
+//        return (((v64 ^ quoteMask) - 0x0001000100010001L) | ((v64 ^ 0x005C005C005C005CL) - 0x0001000100010001L)) & 0x8000800080008000L;
+//    }
+
+    final static int offsetChars(long result) {
+        if (EnvUtils.LITTLE_ENDIAN) {
+            return Long.numberOfTrailingZeros(result) >> 4;
+        } else {
+            return Long.numberOfLeadingZeros(result) >> 4;
+        }
+    }
+
+    /**
+     * 模拟向量处理256位（一次方法调用，4次检测16个字符）
+     * 查找引号或者反斜杠
+     *
+     * @param buf
+     * @param offset
+     * @param quoteMask
+     * @return 与向量api Mask一致， 如果返回0 - 15 说明查找成功，否则返回16
+     */
+    final static int indexOfQuoteOrBackslashVector256(char[] buf, int offset, long quoteMask) {
+        final long bao = JSONUnsafe.CHAR_ARRAY_OFFSET + ((long) offset << 1);
+        long v = JSONUnsafe.UNSAFE.getLong(buf, bao);
+        long result = (((v ^ quoteMask) - 0x0001000100010001L) | ((v ^ 0x005C005C005C005CL) - 0x0001000100010001L)) & 0x8000800080008000L;
+        if (result != 0) {
+            return offsetChars(result);
+        }
+        v = JSONUnsafe.UNSAFE.getLong(buf, bao + 8);
+        result = (((v ^ quoteMask) - 0x0001000100010001L) | ((v ^ 0x005C005C005C005CL) - 0x0001000100010001L)) & 0x8000800080008000L;
+        if (result != 0) {
+            return 4 + offsetChars(result);
+        }
+        v = JSONUnsafe.UNSAFE.getLong(buf, bao + 16);
+        result = (((v ^ quoteMask) - 0x0001000100010001L) | ((v ^ 0x005C005C005C005CL) - 0x0001000100010001L)) & 0x8000800080008000L;
+        if (result != 0) {
+            return 8 + offsetChars(result);
+        }
+        v = JSONUnsafe.UNSAFE.getLong(buf, bao + 24);
+        result = (((v ^ quoteMask) - 0x0001000100010001L) | ((v ^ 0x005C005C005C005CL) - 0x0001000100010001L)) & 0x8000800080008000L;
+        if (result != 0) {
+            return 12 + offsetChars(result);
+        }
+        return 16;
     }
 
     /**
@@ -24,41 +70,22 @@ public class JSONUtil {
      * @param buf
      * @param offset
      * @param quote     引号
-     * @param quoteMask 引号按位反码（~）
+     * @param quoteMask
      * @return 从offset开始, 第一个quote或者'\\'的位置，如果找不到将抛出IndexOutOfBoundsException
      * @throws IndexOutOfBoundsException
      */
     public int ensureIndexOfQuoteOrBackslashChar(char[] buf, int offset, char quote, long quoteMask) {
         final int limit32 = buf.length - 32;
-        long result;
         if (offset <= limit32) {
+            int firstPos;
             do {
-                if ((result = getQuoteOrBackslashMask(buf, offset, quoteMask)) == 0x8000800080008000L
-                        && (result = getQuoteOrBackslashMask(buf, offset = offset + 4, quoteMask)) == 0x8000800080008000L
-                        && (result = getQuoteOrBackslashMask(buf, offset = offset + 4, quoteMask)) == 0x8000800080008000L
-                        && (result = getQuoteOrBackslashMask(buf, offset = offset + 4, quoteMask)) == 0x8000800080008000L
-                        && (result = getQuoteOrBackslashMask(buf, offset = offset + 4, quoteMask)) == 0x8000800080008000L
-                        && (result = getQuoteOrBackslashMask(buf, offset = offset + 4, quoteMask)) == 0x8000800080008000L
-                        && (result = getQuoteOrBackslashMask(buf, offset = offset + 4, quoteMask)) == 0x8000800080008000L
-                        && (result = getQuoteOrBackslashMask(buf, offset = offset + 4, quoteMask)) == 0x8000800080008000L
+                if ((firstPos = indexOfQuoteOrBackslashVector256(buf, offset, quoteMask)) == 16
+                        && (firstPos = indexOfQuoteOrBackslashVector256(buf, offset += 16, quoteMask)) == 16
                 ) {
-                    offset += 4;
+                    offset += 16;
                     continue;
                 }
-//                if (EnvUtils.BIG_ENDIAN) {
-//                    result = Long.reverseBytes(result);
-//                }
-//                int r32 = (int) result;
-//                if (r32 == 0x80008000) {
-//                    offset += (result == 0x0000800080008000L ? 3 : 2);
-//                } else if (r32 == 0x00008000) {
-//                    ++offset;
-//                }
-                if (EnvUtils.LITTLE_ENDIAN) {
-                    offset += Long.numberOfTrailingZeros(result ^ 0x8000800080008000L) >> 4;
-                } else {
-                    offset += Long.numberOfLeadingZeros(result ^ 0x8000800080008000L) >> 4;
-                }
+                offset += firstPos;
                 char c;
                 // 此处需要判断是否返回预期字符确保结果正确（当字符值大于0x8000(中文字符)时会导致快速命中错误）
                 if ((c = buf[offset]) == quote || c == '\\') {
@@ -76,39 +103,50 @@ public class JSONUtil {
     }
 
     final static long getQuoteOrBackslashOrUTF8Mask(byte[] buf, int offset, long quoteMask) {
-        long v64 = JSONUnsafe.UNSAFE.getLong(buf, JSONUnsafe.BYTE_ARRAY_OFFSET + offset);
-        return ((v64 ^ quoteMask) + 0x0101010101010101L) & ((v64 ^ 0xA3A3A3A3A3A3A3A3L) + 0x0101010101010101L) & 0x8080808080808080L;
+        long v64 = JSONUnsafe.UNSAFE.getLong(buf, JSONUnsafe.BYTE_ARRAY_OFFSET + offset); // 92 5cc
+        return (((v64 ^ quoteMask) - 0x0101010101010101L) | ((v64 ^ 0x5C5C5C5C5C5C5C5CL) - 0x0101010101010101L)) & 0x8080808080808080L;
+    }
+
+    /**
+     * 模拟向量处理256位（一次方法调用，4次检测32个字节）
+     * 查找引号或者反斜杠或者负字节；
+     *
+     * @param buf
+     * @param offset
+     * @param quoteMask
+     * @return 与向量api Mask一致， 如果返回0 - 31说明查找成功，否则返回32
+     */
+    final static int indexOfQuoteOrBackslashOrUTF8Vector256(byte[] buf, int offset, long quoteMask) {
+        final long bao = JSONUnsafe.BYTE_ARRAY_OFFSET + offset;
+        long v = JSONUnsafe.UNSAFE.getLong(buf, bao);
+        long result = (((v ^ quoteMask) - 0x0101010101010101L) | ((v ^ 0x5C5C5C5C5C5C5C5CL) - 0x0101010101010101L)) & 0x8080808080808080L;
+        if (result != 0) {
+            return offsetTokenBytes(result);
+        }
+        v = JSONUnsafe.UNSAFE.getLong(buf, bao + 8);
+        result = (((v ^ quoteMask) - 0x0101010101010101L) | ((v ^ 0x5C5C5C5C5C5C5C5CL) - 0x0101010101010101L)) & 0x8080808080808080L;
+        if (result != 0) {
+            return 8 + offsetTokenBytes(result);
+        }
+        v = JSONUnsafe.UNSAFE.getLong(buf, bao + 16);
+        result = (((v ^ quoteMask) - 0x0101010101010101L) | ((v ^ 0x5C5C5C5C5C5C5C5CL) - 0x0101010101010101L)) & 0x8080808080808080L;
+        if (result != 0) {
+            return 16 + offsetTokenBytes(result);
+        }
+        v = JSONUnsafe.UNSAFE.getLong(buf, bao + 24);
+        result = (((v ^ quoteMask) - 0x0101010101010101L) | ((v ^ 0x5C5C5C5C5C5C5C5CL) - 0x0101010101010101L)) & 0x8080808080808080L;
+        if (result != 0) {
+            return 24 + offsetTokenBytes(result);
+        }
+        return 32;
     }
 
     final static int offsetTokenBytes(long result) {
         if (EnvUtils.LITTLE_ENDIAN) {
-            return Long.numberOfTrailingZeros(result ^ 0x8080808080808080L) >> 3;
+            return Long.numberOfTrailingZeros(result) >> 3;
         } else {
-            return Long.numberOfLeadingZeros(result ^ 0x8080808080808080L) >> 3;
+            return Long.numberOfLeadingZeros(result) >> 3;
         }
-//        if(EnvUtils.BIG_ENDIAN) {
-//            result = Long.reverseBytes(result);
-//        }
-//        int offset = 0;
-//        int r32 = (int) result;
-//        if (r32 == 0x80808080) {
-//            offset += 4;
-//            r32 = (int) (result >> 32);
-//        }
-//        switch (r32) {
-//            case 0x00808080:
-//                return offset + 3;
-//            case 0x00008080:
-//            case 0x80008080:
-//                return offset + 2;
-//            case 0x00000080:
-//            case 0x00800080:
-//            case 0x80000080:
-//            case 0x80800080:
-//                return offset + 1;
-//            default:
-//                return offset;
-//        }
     }
 
     /**
@@ -118,39 +156,31 @@ public class JSONUtil {
      * @param buf
      * @param offset
      * @param quote     引号(单引号或者双引号)
-     * @param quoteMask 8个quote字节组成的long进行~运算值
-     * @return throws IndexOutOfBoundsException if not found
+     * @param quoteMask 8个quote字节组成的long值
+     * @return 首次引号或者转义符或者负字节位置
+     * @throws IndexOutOfBoundsException if not found
      */
     public int ensureIndexOfQuoteOrBackslashOrUTF8Byte(byte[] buf, int offset, int quote, long quoteMask) {
         final int limit32 = buf.length - 32;
         long result = 0;
+        int firstPos;
         boolean limitFlag;
-        if ((limitFlag = offset <= limit32)
-                && (result = getQuoteOrBackslashOrUTF8Mask(buf, offset, quoteMask)) == 0x8080808080808080L
-                && (result = getQuoteOrBackslashOrUTF8Mask(buf, offset = offset + 8, quoteMask)) == 0x8080808080808080L
-                && (result = getQuoteOrBackslashOrUTF8Mask(buf, offset = offset + 8, quoteMask)) == 0x8080808080808080L
-                && (result = getQuoteOrBackslashOrUTF8Mask(buf, offset = offset + 8, quoteMask)) == 0x8080808080808080L
-        ) {
-            offset += 8;
-            while ((limitFlag = offset <= limit32)
-                    && (result = getQuoteOrBackslashOrUTF8Mask(buf, offset, quoteMask)) == 0x8080808080808080L
-                    && (result = getQuoteOrBackslashOrUTF8Mask(buf, offset = offset + 8, quoteMask)) == 0x8080808080808080L
-                    && (result = getQuoteOrBackslashOrUTF8Mask(buf, offset = offset + 8, quoteMask)) == 0x8080808080808080L
-                    && (result = getQuoteOrBackslashOrUTF8Mask(buf, offset = offset + 8, quoteMask)) == 0x8080808080808080L
-            ) {
-                offset += 8;
+        if (offset <= limit32) {
+            if ((firstPos = indexOfQuoteOrBackslashOrUTF8Vector256(buf, offset, quoteMask)) != 32) {
+                return offset + firstPos;
+            } else {
+                while ((limitFlag = (offset += 32) <= limit32) && (firstPos = indexOfQuoteOrBackslashOrUTF8Vector256(buf, offset, quoteMask)) == 32) ;
+                if (limitFlag) {
+                    return offset + firstPos;
+                }
             }
+        }
+        final int limit8 = buf.length - 8;
+        while ((limitFlag = offset <= limit8) && (result = getQuoteOrBackslashOrUTF8Mask(buf, offset, quoteMask)) == 0) {
+            offset += 8;
         }
         if (limitFlag) {
             return offset + offsetTokenBytes(result);
-        } else {
-            final int limit8 = buf.length - 8;
-            while ((limitFlag = offset <= limit8) && (result = getQuoteOrBackslashOrUTF8Mask(buf, offset, quoteMask)) == 0x8080808080808080L) {
-                offset += 8;
-            }
-            if (limitFlag) {
-                return offset + offsetTokenBytes(result);
-            }
         }
         byte c;
         while ((c = buf[offset]) != quote && c != '\\' && c >= 0) {
@@ -158,6 +188,60 @@ public class JSONUtil {
         }
         return offset;
     }
+
+//    /**
+//     * <p> 确保从字节数组的offset位置开始查找下一个引号(单引号或者双引号)或者转义符(\\)或者负字节（utf-8编码，高位一定以11开头，以10开头的可以不考虑）；</p>
+//     * <p> 如果没有找到则抛出数组越界异常；</p>
+//     *
+//     * @param buf
+//     * @param offset
+//     * @param quote     引号(单引号或者双引号)
+//     * @param quoteMask 8个quote字节组成的long值
+//     * @return 首次引号或者转义符或者负字节位置
+//     * @throws IndexOutOfBoundsException if not found
+//     */
+//    public final static int ensureIndexOfQuoteOrBackslashOrUTF8Vector256(byte[] buf, int offset, int quote, long quoteMask) {
+//        final int limit32 = buf.length - 32;
+//        long result = 0;
+//        boolean limitFlag;
+//        int firstPos;
+//        if(offset <= limit32) {
+//            if((firstPos = indexOfQuoteOrBackslashOrUTF8Vector256(buf, offset, quoteMask)) != 32) {
+//                return offset + firstPos;
+//            } else {
+//                offset += 32;
+//                while ((limitFlag = offset <= limit32)
+//                        && (firstPos = indexOfQuoteOrBackslashOrUTF8Vector256(buf, offset, quoteMask)) == 32
+//                ) {
+//                    offset += 32;
+//                }
+//                if (limitFlag) {
+//                    return offset + firstPos;
+//                } else {
+//                    final int limit8 = buf.length - 8;
+//                    while ((limitFlag = offset <= limit8) && (result = getQuoteOrBackslashOrUTF8Mask(buf, offset, quoteMask)) == 0) {
+//                        offset += 8;
+//                    }
+//                    if (limitFlag) {
+//                        return offset + offsetTokenBytes(result);
+//                    }
+//                }
+//            }
+//        } else {
+//            final int limit8 = buf.length - 8;
+//            while ((limitFlag = offset <= limit8) && (result = getQuoteOrBackslashOrUTF8Mask(buf, offset, quoteMask)) == 0) {
+//                offset += 8;
+//            }
+//            if (limitFlag) {
+//                return offset + offsetTokenBytes(result);
+//            }
+//        }
+//        byte c;
+//        while ((c = buf[offset]) != quote && c != '\\' && c >= 0) {
+//            ++offset;
+//        }
+//        return offset;
+//    }
 
     /**
      * scan token
@@ -171,51 +255,6 @@ public class JSONUtil {
     public int indexOf(String source, byte[] buf, int beginIndex, int token) {
         return source.indexOf(token, beginIndex);
     }
-
-//    static final boolean isNoneEscaped8Bytes(byte[] buf, int offset) {
-//        long value = JSONUnsafe.UNSAFE.getLong(buf, JSONUnsafe.BYTE_ARRAY_OFFSET + offset);
-////        return ((value + 0x6060606060606060L) & ((value ^ 0xDDDDDDDDDDDDDDDDL) + 0x0101010101010101L) & ((value ^ 0xA3A3A3A3A3A3A3A3L) + 0x0101010101010101L) & 0x8080808080808080L) == 0x8080808080808080L;
-//
-//        // if high-order bits of 8 bytes are all 1 return true, otherwise, return false
-//        // Not considering negative numbers
-//        long notBackslashMask = (value ^ 0xA3A3A3A3A3A3A3A3L) + 0x0101010101010101L & 0x8080808080808080L;
-//
-//        // Based on the probability of occurrence, first determine whether it is greater than '"' and not equal to '\\', and return true in advance
-//        if((notBackslashMask & value + 0x5D5D5D5D5D5D5D5DL) == 0x8080808080808080L) {
-//            return true;
-//        }
-//
-//        // complete standard verification
-//        return ((value + 0x6060606060606060L) & ((value ^ 0xDDDDDDDDDDDDDDDDL) + 0x0101010101010101L) & notBackslashMask & 0x8080808080808080L) == 0x8080808080808080L;
-//    }
-
-//    /**
-//     * <p>通过unsafe获取的32个字节值一次性判断是否需要转义(包含'"'或者‘\\’或者存在小于32的字节)，如果返回true则代表一定不存在待转义字节；</p>
-//     * <p>内部调用并确保不会越界</p>
-//     *
-//     * @param buf
-//     * @param offset
-//     * @return
-//     */
-//    final static boolean isNoneEscaped32Bytes(byte[] buf, int offset) {
-//        long v1 = JSONUnsafe.UNSAFE.getLong(buf, JSONUnsafe.BYTE_ARRAY_OFFSET + offset);
-//        long v2 = JSONUnsafe.UNSAFE.getLong(buf, JSONUnsafe.BYTE_ARRAY_OFFSET + offset + 8);
-//        long v3 = JSONUnsafe.UNSAFE.getLong(buf, JSONUnsafe.BYTE_ARRAY_OFFSET + offset + 16);
-//        long v4 = JSONUnsafe.UNSAFE.getLong(buf, JSONUnsafe.BYTE_ARRAY_OFFSET + offset + 24);
-//
-//        long notBackslashMask = ((v1 ^ 0xA3A3A3A3A3A3A3A3L) + 0x0101010101010101L) & ((v2 ^ 0xA3A3A3A3A3A3A3A3L) + 0x0101010101010101L) & ((v3 ^ 0xA3A3A3A3A3A3A3A3L) + 0x0101010101010101L) & ((v4 ^ 0xA3A3A3A3A3A3A3A3L) + 0x0101010101010101L) & 0x8080808080808080L;
-//        long geQuoteMask = (v1 + 0x5D5D5D5D5D5D5D5DL) & (v2 + 0x5D5D5D5D5D5D5D5DL) & (v3 + 0x5D5D5D5D5D5D5D5DL) & (v4 + 0x5D5D5D5D5D5D5D5DL);
-//
-//        // Based on prediction, prioritize whether all values are greater than '"' and not equal to '\\', which may be faster
-//        if((notBackslashMask & geQuoteMask) == 0x8080808080808080L) { // > '"' && != '\\'
-//            return true;
-//        }
-//
-//        // complete standard verification
-//        long ge32Mask = (v1 + 0x6060606060606060L) & (v2 + 0x6060606060606060L) & (v3 + 0x6060606060606060L) & (v4 + 0x6060606060606060L);
-//        long notQuoteMask = ((v1 ^ 0xDDDDDDDDDDDDDDDDL) + 0x0101010101010101L) & ((v2 ^ 0xDDDDDDDDDDDDDDDDL) + 0x0101010101010101L) & ((v3 ^ 0xDDDDDDDDDDDDDDDDL) + 0x0101010101010101L) & ((v4 ^ 0xDDDDDDDDDDDDDDDDL) + 0x0101010101010101L);
-//        return (ge32Mask & notQuoteMask & notBackslashMask) == 0x8080808080808080L; // >= 32 && != '"' && != '\\'
-//    }
 
     /**
      * <p> 尽量查找没有需要转义的位置(判定: "或者'\\'或者小于32)</p>
@@ -286,30 +325,6 @@ public class JSONUtil {
         }
         return offset;
     }
-
-//    /**
-//     * Starting from offset, search for the first visible byte (>32).
-//     * <p>
-//     * Considering that spaces are generally not very long, here we check 4 bytes per batch
-//     *
-//     * @param buf
-//     * @param offset
-//     * @return
-//     */
-//    public int skipWhiteSpaces(byte[] buf, int offset) {
-//        final int limit = buf.length - 16;
-//        while (offset <= limit) {
-//            int val = JSONUnsafe.getInt(buf, offset);
-//            int result = (val + 0x5F5F5F5F & 0x80808080);
-//            if (result != 0) {
-//                int rem = EnvUtils.LITTLE_ENDIAN ? Integer.numberOfTrailingZeros(result) >> 3 : Integer.numberOfLeadingZeros(result) >> 3;
-//                return offset + rem;
-//            }
-//            offset += 4;
-//        }
-//
-//        return 0;
-//    }
 
     public boolean isSupportVectorWellTest() {
         return false;

@@ -234,6 +234,10 @@ public abstract class JSONNodePathCollector {
         return -1;
     }
 
+    protected boolean isExtract() {
+        return false;
+    }
+
     static abstract class PathInternalImpl extends JSONNodePathCollector {
 
         public PathInternalImpl(Serializable path) {
@@ -324,15 +328,22 @@ public abstract class JSONNodePathCollector {
     final static class ExactImpl extends PathInternalImpl {
 
         final boolean preparedSize;
+        final byte[] pathBytes;
 
         public ExactImpl(Serializable path) {
             super(path);
             this.preparedSize = path instanceof Integer && (Integer) path < 0;
+            this.pathBytes = JSONUnsafe.getStringUTF8Bytes(path.toString());
         }
 
         @Override
         protected int matchedObjectField(String key) {
             return path.toString().equals(key) ? 1 : -1;
+        }
+
+        @Override
+        protected boolean isExtract() {
+            return true;
         }
 
         @Override

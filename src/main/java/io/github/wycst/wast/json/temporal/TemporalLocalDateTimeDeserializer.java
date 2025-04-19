@@ -144,14 +144,14 @@ public class TemporalLocalDateTimeDeserializer extends JSONTemporalDeserializer 
 
     // default yyyy*MM*dd*HH*mm*ss
     @Override
-    protected Object deserializeDefault(byte[] buf, int offset, char endToken, JSONParseContext jsonParseContext) throws Exception {
+    protected Object deserializeDefault(byte[] buf, int offset, byte endToken, JSONParseContext jsonParseContext) throws Exception {
         int i = offset;
         int year, month, day, hour, minute, second;
         byte b1, b2;
-        if ((year = fourDigitsValue(buf, i)) != -1) {
+        if ((year = parseFourDigitsYear(buf, i)) != -1) {
             i += 3;
         } else {
-            if (buf[i] == '-' && (year = fourDigitsValue(buf, i + 1)) != -1) {
+            if (buf[i] == '-' && (year = parseFourDigitsYear(buf, i + 1)) != -1) {
                 year = -year;
                 i += 4;
             } else {
@@ -222,28 +222,15 @@ public class TemporalLocalDateTimeDeserializer extends JSONTemporalDeserializer 
         int nanoOfSecond = 0;
         byte c = buf[i];
         if (c == '.') {
-            int cnt = 9, val;
-            ++i;
-            while ((val = digits2Bytes(buf, i)) != -1) {
-                i += 2;
-                cnt -= 2;
-                nanoOfSecond = nanoOfSecond * 100 + val;
-            }
-            if (NumberUtils.isDigit(c = buf[i])) {
-                nanoOfSecond = (nanoOfSecond << 3) + (nanoOfSecond << 1) + (c & 0xf);
-                c = buf[++i];
-                --cnt;
-            }
-            if (cnt > 0) {
-                nanoOfSecond *= NANO_OF_SECOND_PADDING[cnt];
-            }
+            nanoOfSecond = parseNanoOfSecond(buf, i + 1, jsonParseContext);
+            c = buf[i = jsonParseContext.endIndex];
         }
         if (c == endToken) {
             jsonParseContext.endIndex = i;
             return LocalDateTime.of(year, month, day, hour, minute, second, nanoOfSecond);
         }
         String errorContextTextAt = createErrorContextText(buf, i);
-        throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token '" + (char) c + "', expected '" + endToken + "'");
+        throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', unexpected token '" + (char) c + "', expected '" + (char) endToken + "'");
     }
 
     @Override

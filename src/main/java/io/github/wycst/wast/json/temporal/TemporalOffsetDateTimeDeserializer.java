@@ -12,7 +12,7 @@ import java.time.temporal.Temporal;
  * @Date
  * @Created by wycst
  */
-public class TemporalOffsetDateTimeDeserializer extends TemporalZonedDateTimeDeserializer {
+public final class TemporalOffsetDateTimeDeserializer extends TemporalZonedDateTimeDeserializer {
     public TemporalOffsetDateTimeDeserializer(TemporalConfig temporalConfig) {
         super(temporalConfig);
     }

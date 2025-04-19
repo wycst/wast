@@ -17,14 +17,14 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class JSONPojoStructure {
 
-    private final static Map<Class<?>, JSONPojoStructure> OBJECT_STRUCTURE_WARPPERS = new ConcurrentHashMap<Class<?>, JSONPojoStructure>();
+    private final static Map<Class<?>, JSONPojoStructure> POJO_STRUCS = new ConcurrentHashMap<Class<?>, JSONPojoStructure>();
 
     private final ClassStrucWrap classStrucWrap;
     private ClassStrucWrap.ClassWrapperType classWrapperType;
     private final GenericParameterizedType genericType;
     final JSONValueMatcher<JSONPojoFieldDeserializer> fieldDeserializerMatcher;
     // deserializers
-    private final List<JSONPojoFieldDeserializer> fieldDeserializers;
+    final List<JSONPojoFieldDeserializer> fieldDeserializers;
 
     // getter methods
     private JSONPojoFieldSerializer[] getterMethodSerializers;
@@ -36,6 +36,7 @@ public final class JSONPojoStructure {
     volatile boolean fieldSerializersInitialized;
     private final boolean supportedJavaBeanConvention;
     private final boolean enableJIT;
+    final boolean supportedDeserOptimize;
 
     private JSONPojoStructure(ClassStrucWrap classStrucWrap) {
         classStrucWrap.getClass();
@@ -90,6 +91,7 @@ public final class JSONPojoStructure {
         Set<String> setterNames = classStrucWrap.setterNames();
 
         Map<String, JSONPojoFieldDeserializer> fieldDeserializerHashMap = new HashMap<String, JSONPojoFieldDeserializer>();
+        boolean deserializeOptimizable = true;
         for (String setterName : setterNames) {
             SetterInfo setterInfo = classStrucWrap.getSetterInfo(setterName);
             JsonProperty jsonProperty = (JsonProperty) setterInfo.getAnnotation(JsonProperty.class);
@@ -107,11 +109,16 @@ public final class JSONPojoStructure {
             JSONPojoFieldDeserializer fieldDeserializer = new JSONPojoFieldDeserializer(name, setterInfo, jsonProperty);
             fieldDeserializer.setPriority(priority);
             fieldDeserializerHashMap.put(name, fieldDeserializer);
+
+            if(!fieldDeserializer.ensuredTypeDeserializable()) {
+                deserializeOptimizable = false;
+            }
         }
         this.fieldDeserializers = new ArrayList<JSONPojoFieldDeserializer>(fieldDeserializerHashMap.values());
         this.fieldDeserializerMatcher = JSONValueMatcher.build(fieldDeserializerHashMap);
 
         this.enableJIT = jsonTypeSetting != null && jsonTypeSetting.enableJIT();
+        this.supportedDeserOptimize = /*this.enableJIT && */deserializeOptimizable;
     }
 
     /**
@@ -183,20 +190,20 @@ public final class JSONPojoStructure {
         if (pojoClass == null) {
             throw new IllegalArgumentException("pojoClass is null");
         }
-        JSONPojoStructure pojoStructure = OBJECT_STRUCTURE_WARPPERS.get(pojoClass);
+        JSONPojoStructure pojoStructure = POJO_STRUCS.get(pojoClass);
         if (pojoStructure != null) {
             return pojoStructure;
         }
         synchronized (pojoClass) {
-            if (OBJECT_STRUCTURE_WARPPERS.containsKey(pojoClass)) {
-                return OBJECT_STRUCTURE_WARPPERS.get(pojoClass);
+            if (POJO_STRUCS.containsKey(pojoClass)) {
+                return POJO_STRUCS.get(pojoClass);
             }
             ClassStrucWrap wrapper = ClassStrucWrap.get(pojoClass);
             if (wrapper == null) {
                 throw new IllegalArgumentException("pojoClass " + pojoClass + " is not supported !");
             }
             pojoStructure = new JSONPojoStructure(wrapper);
-            OBJECT_STRUCTURE_WARPPERS.put(pojoClass, pojoStructure);
+            POJO_STRUCS.put(pojoClass, pojoStructure);
         }
         return pojoStructure;
     }
@@ -249,5 +256,9 @@ public final class JSONPojoStructure {
      */
     public boolean isSupportedJIT() {
         return isSupportedJavaBeanConvention() && isPublic() && enableJIT;
+    }
+
+    boolean isSupportedOptimize() {
+        return supportedDeserOptimize && fieldDeserializerMatcher.isSupportedOptimize();
     }
 }

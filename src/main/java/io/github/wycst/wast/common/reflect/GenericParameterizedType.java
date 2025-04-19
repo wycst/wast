@@ -34,10 +34,10 @@ public final class GenericParameterizedType<T> {
      * 默认Map类型
      */
     public static final GenericParameterizedType DefaultMap = GenericParameterizedType.actualType(LinkedHashMap.class);
-    /**
-     * 默认Collection类型
-     */
-    public static final GenericParameterizedType DefaultCollection = GenericParameterizedType.collectionType(ArrayList.class, Object.class);
+//    /**
+//     * 默认Collection类型
+//     */
+//    public static final GenericParameterizedType DefaultCollection = GenericParameterizedType.collectionType(ArrayList.class, Object.class);
 
     /***
      * int类型
@@ -48,6 +48,11 @@ public final class GenericParameterizedType<T> {
      * long类型
      */
     public static final GenericParameterizedType<Long> LongType = GenericParameterizedType.actualType(long.class);
+
+    /***
+     * double类型
+     */
+    public static final GenericParameterizedType<Double> DoubleType = GenericParameterizedType.actualType(double.class);
 
     /***
      * BigDecimalType类型
@@ -115,6 +120,9 @@ public final class GenericParameterizedType<T> {
             genericParameterizedType = new GenericParameterizedType();
             genericParameterizedType.setActualType(actualType);
             genericParameterizedType.actualClassCategory = ReflectConsts.getClassCategory(actualType);
+            if(actualType.isArray()) {
+                genericParameterizedType.valueType = actualType(actualType.getComponentType());
+            }
             GENERIC_PARAMETERIZED_TYPE_MAP.put(actualType, genericParameterizedType);
         }
         return genericParameterizedType;
@@ -447,7 +455,7 @@ public final class GenericParameterizedType<T> {
      * @param actualType
      * @return
      */
-    public GenericParameterizedType copyAndReplaceActualType(Class<?> actualType) {
+    public GenericParameterizedType<?> copyAndReplaceActualType(Class<?> actualType) {
         GenericParameterizedType genericParameterizedType = new GenericParameterizedType();
         genericParameterizedType.setActualType(actualType);
         genericParameterizedType.valueType = this.valueType;

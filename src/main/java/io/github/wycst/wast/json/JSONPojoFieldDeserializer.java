@@ -109,6 +109,22 @@ public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implem
         }
     }
 
+    boolean ensuredTypeDeserializable() {
+        if (setterInfo.isNonInstanceType()) {
+            JSONTypeDeserializer deserializer = getCachedTypeDeserializer(genericParameterizedType.getActualType());
+            if(deserializer == null) {
+                return false;
+            }
+            this.deserializer = deserializer;
+            flag = true;
+        }
+        boolean unfixedType = jsonProperty != null && jsonProperty.unfixedType();
+        if (unfixedType && genericParameterizedType.getActualClassCategory() == ReflectConsts.ClassCategory.ObjectCategory) {
+            return false;
+        }
+        return true;
+    }
+
     private JSONTypeDeserializer getDeserializer(GenericParameterizedType genericParameterizedType) {
         // check custom Deserializer
         JsonDeserialize jsonDeserialize = (JsonDeserialize) setterInfo.getAnnotation(JsonDeserialize.class);
@@ -148,11 +164,11 @@ public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implem
 //        return genericParameterizedType;
 //    }
 
-    protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, char endToken, JSONParseContext jsonParseContext) throws Exception {
+    protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, int endToken, JSONParseContext jsonParseContext) throws Exception {
         throw new UnsupportedOperationException();
     }
 
-    protected Object deserialize(CharSource charSource, byte[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, byte endToken, JSONParseContext jsonParseContext) throws Exception {
+    protected Object deserialize(CharSource charSource, byte[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, int endToken, JSONParseContext jsonParseContext) throws Exception {
         throw new UnsupportedOperationException();
     }
 
@@ -197,4 +213,93 @@ public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implem
         if (setterInfo != o.setterInfo) return -1;
         return priority ? 1 : 0;
     }
+
+//    static JSONPojoFieldDeserializer createFieldDeserializer(String name, final SetterInfo setterInfo, JsonProperty jsonProperty) {
+//        final long fieldOffset = setterInfo.getFieldOffset();
+//        if (fieldOffset != -1) {
+//            ReflectConsts.PrimitiveType primitiveType = setterInfo.getPrimitiveType();
+//            if (primitiveType != null) {
+//                switch (primitiveType) {
+//                    case PrimitiveByte: {
+//                        return new JSONPojoFieldDeserializer(name, setterInfo, jsonProperty) {
+//                            @Override
+//                            public void invoke(Object entity, Object value) {
+//                                JSONUnsafe.UNSAFE.putByte(entity, fieldOffset, (Byte) value);
+//                            }
+//                        };
+//                    }
+//                    case PrimitiveShort: {
+//                        return new JSONPojoFieldDeserializer(name, setterInfo, jsonProperty) {
+//                            @Override
+//                            public void invoke(Object entity, Object value) {
+//                                JSONUnsafe.UNSAFE.putShort(entity, fieldOffset, (Short) value);
+//                            }
+//                        };
+//                    }
+//                    case PrimitiveInt: {
+//                        return new JSONPojoFieldDeserializer(name, setterInfo, jsonProperty) {
+//                            @Override
+//                            public void invoke(Object entity, Object value) {
+//                                JSONUnsafe.UNSAFE.putInt(entity, fieldOffset, (Integer) value);
+//                            }
+//                        };
+//                    }
+//                    case PrimitiveFloat: {
+//                        return new JSONPojoFieldDeserializer(name, setterInfo, jsonProperty) {
+//                            @Override
+//                            public void invoke(Object entity, Object value) {
+//                                JSONUnsafe.UNSAFE.putFloat(entity, fieldOffset, (Float) value);
+//                            }
+//                        };
+//                    }
+//                    case PrimitiveLong: {
+//                        return new JSONPojoFieldDeserializer(name, setterInfo, jsonProperty) {
+//                            @Override
+//                            public void invoke(Object entity, Object value) {
+//                                JSONUnsafe.UNSAFE.putLong(entity, fieldOffset, (Long) value);
+//                            }
+//                        };
+//                    }
+//                    case PrimitiveDouble: {
+//                        return new JSONPojoFieldDeserializer(name, setterInfo, jsonProperty) {
+//                            @Override
+//                            public void invoke(Object entity, Object value) {
+//                                JSONUnsafe.UNSAFE.putDouble(entity, fieldOffset, (Double) value);
+//                            }
+//                        };
+//                    }
+//                    case PrimitiveBoolean: {
+//                        return new JSONPojoFieldDeserializer(name, setterInfo, jsonProperty) {
+//                            @Override
+//                            public void invoke(Object entity, Object value) {
+//                                JSONUnsafe.UNSAFE.putBoolean(entity, fieldOffset, (Boolean) value);
+//                            }
+//                        };
+//                    }
+//                    default: {
+//                        return new JSONPojoFieldDeserializer(name, setterInfo, jsonProperty) {
+//                            @Override
+//                            public void invoke(Object entity, Object value) {
+//                                JSONUnsafe.UNSAFE.putChar(entity, fieldOffset, (Character) value);
+//                            }
+//                        };
+//                    }
+//                }
+//            } else {
+//                return new JSONPojoFieldDeserializer(name, setterInfo, jsonProperty) {
+//                    @Override
+//                    public void invoke(Object entity, Object value) {
+//                        JSONUnsafe.UNSAFE.putObject(entity, fieldOffset, value);
+//                    }
+//                };
+//            }
+//        } else {
+//            return new JSONPojoFieldDeserializer(name, setterInfo, jsonProperty) {
+//                @Override
+//                public void invoke(Object entity, Object value) {
+//                    JSON_SECURE_TRUSTED_ACCESS.set(setterInfo, entity, value);
+//                }
+//            };
+//        }
+//    }
 }

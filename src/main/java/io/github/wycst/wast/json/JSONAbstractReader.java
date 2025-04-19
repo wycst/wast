@@ -737,7 +737,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
         Class<?> collectionCls = null;
         GenericParameterizedType valueType = null;
         Class actualType = null;
-        boolean isArrayCls = false;
+        boolean isArrayCls = false, elementPrimitive = false;
         boolean useHook = readerHook != null;
         boolean useHookValueParse = useHook && genericType == null;
         do {
@@ -782,7 +782,9 @@ abstract class JSONAbstractReader extends JSONGeneral {
                 valueType = GenericParameterizedType.AnyType;
             }
             actualType = valueType.getActualType();
-            instance = collection = createCollectionInstance(collectionCls);
+            elementPrimitive = actualType.isPrimitive();
+
+            instance = collection = isArrayCls ? new ArrayList() : createCollectionInstance(collectionCls);
         } while (false);
 
         int elementIndex = 0;
@@ -815,7 +817,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
                 }
                 case 'n':
                     readNull();
-                    this.parseCollectionElement(useHookValueParse, null, collection, instance, elementIndex, nextPath, JSONNode.NULL);
+                    this.parseCollectionElement(useHookValueParse, elementPrimitive ? ObjectUtils.defaulValue(actualType) : null, collection, instance, elementIndex, nextPath, JSONNode.NULL);
                     break;
                 case 't': {
                     readTrue();

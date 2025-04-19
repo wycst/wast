@@ -1,5 +1,7 @@
 package io.github.wycst.wast.common.utils;
 
+import io.github.wycst.wast.common.reflect.UnsafeHelper;
+
 /**
  * @Date 2024/6/8 14:22
  * @Created by wangyc
@@ -45,5 +47,19 @@ public class JdkApiAgent {
         long K = C - A - B;
         long BC = B >>> 32;
         return ((BC + K) >>> 32) + A;
+    }
+
+    /**
+     * 判断是否包含负字节
+     *
+     * note: if JDK9, will use JDK's more efficient API reflection implementation
+     *
+     * @param bytes
+     * @param offset
+     * @param len
+     * @return
+     */
+    public boolean hasNegatives(byte[] bytes, int offset, int len) {
+        return UnsafeHelper.hasNegativesUnsafe(bytes, offset, len);
     }
 }

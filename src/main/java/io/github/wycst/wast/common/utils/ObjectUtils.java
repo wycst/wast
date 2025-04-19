@@ -382,6 +382,31 @@ public final class ObjectUtils extends InvokeUtils {
         return null;
     }
 
+    public static Object defaulValue(Class<?> type) {
+         if (type.isPrimitive()) {
+            if(type == boolean.class) {
+                return false;
+            } else if (type == char.class) {
+                return (char) 0;
+            } else if (type == byte.class) {
+                return (byte) 0;
+            } else if (type == short.class) {
+                return (short) 0;
+            } else if (type == long.class) {
+                return 0L;
+            } else if (type == double.class) {
+                return 0.0;
+            } else if (type == float.class) {
+                return 0.0f;
+            } else {
+                // int
+                return 0;
+            }
+        } else {
+            return null;
+        }
+    }
+
     public static boolean isInstance(Class<?> valueClass, Object value) {
         if (valueClass.isPrimitive()) {
             valueClass = ReflectConsts.PrimitiveType.getWrap(valueClass);

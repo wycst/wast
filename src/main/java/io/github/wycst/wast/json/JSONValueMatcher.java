@@ -92,6 +92,15 @@ class JSONValueMatcher<T> {
             super(valueMapForChars, valueMapForChars);
         }
 
+        @Override
+        boolean isPlhv() {
+            return true;
+        }
+
+        boolean isSupportedOptimize() {
+            return true;
+        }
+
         public final T matchValue(CharSource source, char[] buf, int offset, int endToken, JSONParseContext parseContext) {
             int i = offset;
             T result = null;
@@ -148,10 +157,18 @@ class JSONValueMatcher<T> {
         private final int bits;
         private final int bitsTwice;
 
+        boolean isSupportedOptimize() {
+            return true;
+        }
+
         public <T> BihvImpl(JSONKeyValueMap<T> valueMap, int bits) {
             super(valueMap, valueMap);
             this.bits = bits;
             this.bitsTwice = bits << 1;
+        }
+
+        boolean isBihv() {
+            return true;
         }
 
         public final T matchValue(CharSource source, char[] buf, int offset, int endToken, JSONParseContext parseContext) {
@@ -216,6 +233,14 @@ class JSONValueMatcher<T> {
             this.primeSquare = primeValue * primeValue;
         }
 
+        boolean isSupportedOptimize() {
+            return true;
+        }
+
+        boolean isPrhv() {
+            return true;
+        }
+
         public final T matchValue(CharSource source, char[] buf, int offset, int endToken, JSONParseContext parseContext) {
             int i = offset;
             T result = null;
@@ -267,136 +292,6 @@ class JSONValueMatcher<T> {
         }
     }
 
-//    static class JSONValueHashQuickMatcher<T> extends JSONValueQuickMatcher<T> {
-//        JSONValueHashQuickMatcher(FixedNameValueMap valueMapForChars, FixedNameValueMap valueMapForBytes) {
-//            super(valueMapForChars, valueMapForBytes);
-//        }
-//
-//        @Override
-//        protected final T getValue(char[] buf, int beginIndex, int endIndex, long hashValue) {
-//            return valueMapForChars.getValueByHash(hashValue);
-//        }
-//
-//        @Override
-//        protected final T getValue(byte[] buf, int beginIndex, int endIndex, long hashValue) {
-//            return valueMapForChars.getValueByHash(hashValue);
-//        }
-//
-//        public final T matchValue(CharSource source, char[] buf, int offset, int endToken, JSONParseContext parseContext) {
-//            T result = null;
-//            char ch;
-//            if ((ch = buf[offset]) != endToken) {
-//                long hashValue = calHashValue(ch, buf, offset, endToken, parseContext);
-//                result = valueMapForChars.getValueByHash(hashValue);
-//            } else {
-//                parseContext.endIndex = offset;
-//            }
-//            return result;
-//        }
-//    }
-//
-//    static class JSONOneNodeEqualMatcher<T> extends JSONValueMatcher<T> {
-//        final T value;
-//        // keyLength <= 8
-//        final int keyLength;
-//        final long keyCharValue;
-//        final long keyByteValue;
-//
-//        JSONOneNodeEqualMatcher(FixedNameValueMap valueMap, int keyLength, long keyCharValue, long keyByteValue, T value) {
-//            super(valueMap, valueMap);
-//            this.keyLength = keyLength;
-//            this.keyCharValue = keyCharValue;
-//            this.keyByteValue = keyByteValue;
-//            this.value = value;
-//        }
-//
-//        public T matchValue(CharSource source, byte[] buf, int offset, int endToken, JSONParseContext parseContext) {
-//            if (UnsafeHelper.getUnsafeLong(buf, offset, keyLength) == keyByteValue) {
-//                int endIndex = offset + keyLength;
-//                if (buf[endIndex] == endToken) {
-//                    parseContext.endIndex = endIndex;
-//                    return value;
-//                }
-//                while (buf[++endIndex] != endToken) ;
-//                parseContext.endIndex = endIndex;
-//                return null;
-//            } else {
-//                if (buf[offset] != endToken && buf[++offset] != endToken) {
-//                    while (buf[++offset] != endToken && buf[++offset] != endToken) {
-//                    }
-//                }
-//                parseContext.endIndex = offset;
-//                return null;
-//            }
-//        }
-//    }
-//
-//    static class MatcherNode<T> {
-//        public final byte[] bytes;
-//        public final char[] chars;
-//        public final T value;
-//        public final long hashValue;
-//
-//        public MatcherNode(byte[] bytes, char[] chars, T value, long hashValue) {
-//            this.bytes = bytes;
-//            this.chars = chars;
-//            this.value = value;
-//            this.hashValue = hashValue;
-//        }
-//    }
-
-//    // use suffix
-//    static class JSONSuffixQuickMatcher<T> extends JSONValueMatcher<T> {
-//        final int mask;
-//        final MatcherNode[] matcherNodes;
-//
-//        JSONSuffixQuickMatcher(FixedNameValueMap valueMapForChars, FixedNameValueMap valueMapForBytes, int mask, MatcherNode[] matcherNodes) {
-//            super(valueMapForChars, valueMapForBytes);
-//            this.mask = mask;
-//            this.matcherNodes = matcherNodes;
-//        }
-//
-//        @Override
-//        public T matchValue(CharSource source, byte[] buf, int offset, int endToken, JSONParseContext parseContext) {
-//            int begin = offset;
-//            if (buf[offset] != endToken) {
-//                // Try to avoid entering the loop as much as possible
-//                int endIndex, len;
-//                if (buf[++offset] != endToken && buf[++offset] != endToken && buf[++offset] != endToken && buf[++offset] != endToken && buf[++offset] != endToken && buf[++offset] != endToken && buf[++offset] != endToken) {
-//                    if (buf[++offset] != endToken && buf[++offset] != endToken && buf[++offset] != endToken && buf[++offset] != endToken && buf[++offset] != endToken && buf[++offset] != endToken && buf[++offset] != endToken && buf[++offset] != endToken) {
-//                        while (buf[++offset] != endToken && buf[++offset] != endToken && buf[++offset] != endToken && buf[++offset] != endToken && buf[++offset] != endToken) {
-//                        }
-//                    }
-//                    // len >= 8
-//                    endIndex = offset;
-//                    len = endIndex - begin;
-//                    parseContext.endIndex = endIndex;
-//                    long hash = UnsafeHelper.getLong(buf, offset - 8);
-//                    int nodeIndex = (int) (hash & mask);
-//                    MatcherNode<T> matcherNode = matcherNodes[nodeIndex];
-//                    if (matcherNode != null && hash == matcherNode.hashValue && len == matcherNode.bytes.length && MemoryOptimizerUtils.equals(buf, begin, matcherNode.bytes, 0, len - 8)) {
-//                        parseContext.endIndex = endIndex;
-//                        return matcherNode.value;
-//                    }
-//                } else {
-//                    // len < 8
-//                    endIndex = offset;
-//                    parseContext.endIndex = endIndex;
-//                    len = endIndex - begin;
-//                    long hash = UnsafeHelper.getUnsafeLong(buf, begin, len);
-//                    int nodeIndex = (int) (hash & mask);
-//                    MatcherNode<T> matcherNode = matcherNodes[nodeIndex];
-//                    if (matcherNode != null && hash == matcherNode.hashValue) {
-//                        return matcherNode.value;
-//                    }
-//                }
-//            } else {
-//                parseContext.endIndex = begin;
-//            }
-//            return null;
-//        }
-//    }
-
     static <T> JSONValueMatcher<T> build(JSONKeyValueMap valueMapForChars, JSONKeyValueMap valueMapForBytes) {
         return new JSONValueMatcher(valueMapForChars, valueMapForBytes);
     }
@@ -433,64 +328,6 @@ class JSONValueMatcher<T> {
 
         JSONKeyValueMap<T> valueMapForBytes = isAsciiKeys ? valueMapForChars : JSONKeyValueMap.build(originalMap, true);
 
-
-//        Set<Map.Entry<String, T>> entries = originalMap.entrySet();
-//        if (valueSize == 1) {
-//            // 单key模型
-//            Iterator<Map.Entry<String, T>> entryIterator = entries.iterator();
-//            entryIterator.hasNext();
-//            Map.Entry<String, T> entry = entryIterator.next();
-//            String key = entry.getKey();
-//            T value = entry.getValue();
-//            byte[] bytes = key.getBytes();
-//            int keyLength = bytes.length;
-//            if (keyLength <= 8) {
-//                return new JSONOneNodeEqualMatcher(defaultValueMap, keyLength, UnsafeHelper.getUnsafeLong(bytes, 0, keyLength), value);
-//            }
-//        }
-//
-//        int minByteLength = Integer.MAX_VALUE, minCharLength = Integer.MAX_VALUE;
-//        byte[][] keyBytesArray = new byte[valueSize][];
-//        char[][] keyCharsArray = new char[valueSize][];
-//        int i = 0;
-//        long[] suffixForBytes = new long[valueSize];
-//        Set<Object> valueSet = new HashSet<Object>();
-//        Object[] values = new Object[valueSize];
-//        boolean asciiFlag = true;
-//        for (Map.Entry<String, T> entry : entries) {
-//            String key = entry.getKey();
-//            T value = entry.getValue();
-//            byte[] keyBytes = key.getBytes();
-//            char[] keyChars = key.toCharArray();
-//            if (keyBytes.length != keyChars.length) {
-//                asciiFlag = false;
-//            }
-//            keyBytesArray[i] = keyBytes;
-//            keyCharsArray[i] = keyChars;
-//            values[i] = value;
-//            int keyLength = keyBytes.length;
-//            if(keyLength >= 8) {
-//                suffixForBytes[i] = UnsafeHelper.getUnsafeLong(keyBytes, keyLength - 8, 8);
-//            } else {
-//                suffixForBytes[i] = UnsafeHelper.getUnsafeLong(keyBytes, 0, keyLength);
-//            }
-//            minByteLength = Math.min(minByteLength, keyBytes.length);
-//            minCharLength = Math.min(minCharLength, keyChars.length);
-//            ++i;
-//        }
-//        if (isAllDifferent(suffixForBytes, valueSet)) {
-//            int mask = tryFindMask(suffixForBytes, valueSize);
-//            if (mask != -1) {
-//                MatcherNode[] matcherNodes = new MatcherNode[mask + 1];
-//                for (int j = 0; j < valueSize; ++j) {
-//                    long hv = suffixForBytes[j];
-//                    int index = (int) (hv & mask);
-//                    matcherNodes[index] = new MatcherNode(keyBytesArray[j], keyCharsArray[j], values[j], hv);
-//                }
-//                return new JSONSuffixQuickMatcher(defaultValueMap, mask, matcherNodes);
-//            }
-//        }
-
         // back default matcher model
         return build(valueMapForChars, valueMapForBytes);
     }
@@ -504,31 +341,20 @@ class JSONValueMatcher<T> {
         }
         return true;
     }
-//
-//    private static boolean isAllDifferent(long[] values, Set<Object> valueSet) {
-//        valueSet.clear();
-//        for (long val : values) {
-//            if (!valueSet.add(val)) {
-//                return false;
-//            }
-//        }
-//        return true;
-//    }
 
-//    private static int tryFindMask(long[] values, int size) {
-//        int mask = (1 << (32 - Integer.numberOfLeadingZeros(size))) - 1;
-//        int maxMask = Math.max(size << 4, 511);
-//        Set<Integer> rems = new HashSet<Integer>();
-//        while (mask <= maxMask) {
-//            rems.clear();
-//            for (long val : values) {
-//                rems.add((int) (val & mask));
-//            }
-//            if (rems.size() == size) {
-//                return mask;
-//            }
-//            mask = mask << 1 | 1;
-//        }
-//        return -1;
-//    }
+    boolean isPlhv() {
+        return false;
+    }
+
+    boolean isPrhv() {
+        return false;
+    }
+
+    boolean isBihv() {
+        return false;
+    }
+
+    boolean isSupportedOptimize() {
+        return false;
+    }
 }

@@ -1,4 +1,5 @@
 package io.github.wycst.wast.json;
+
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -119,7 +120,7 @@ class JSONKeyValueMap<T> {
     }
 
     public JSONKeyValueMap(int size) {
-        if(size > 1 << 14) {
+        if (size > 1 << 14) {
             throw new IllegalArgumentException("too large for size " + size);
         }
         int capacity = tableSizeFor(size) << 1;
@@ -263,6 +264,26 @@ class JSONKeyValueMap<T> {
         }
 
         return entryNode.value;
+    }
+
+    public final EntryNode<T> first() {
+        for (int i = 0, len = valueEntryNodes.length; i < len; ++i) {
+            EntryNode<T> entryNode = valueEntryNodes[i];
+            if (entryNode != null) {
+                return entryNode;
+            }
+        }
+        throw new NullPointerException();
+    }
+
+    public final EntryNode<T> last() {
+        for (int i = valueEntryNodes.length - 1; i > -1; --i) {
+            EntryNode<T> entryNode = valueEntryNodes[i];
+            if (entryNode != null) {
+                return entryNode;
+            }
+        }
+        throw new NullPointerException();
     }
 
     /**
@@ -420,7 +441,7 @@ class JSONKeyValueMap<T> {
 
     static final long bitHash(String name, int bits, boolean forByte) {
         long val = 0;
-        if(forByte) {
+        if (forByte) {
             byte[] bytes = name.getBytes();
             for (int i = 0, len = bytes.length; i < len; ++i) {
                 val = (val << bits) + bytes[i];
@@ -435,7 +456,7 @@ class JSONKeyValueMap<T> {
 
     static final long primeHash(String name, int primeValue, boolean forByte) {
         long val = 0;
-        if(forByte) {
+        if (forByte) {
             byte[] bytes = name.getBytes();
             for (int i = 0, len = bytes.length; i < len; ++i) {
                 val = val * primeValue + bytes[i];

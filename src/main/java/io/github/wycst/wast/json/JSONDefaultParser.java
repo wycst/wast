@@ -241,7 +241,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                 }
             }
             if (ch == ']') {
-                if (list.size() > 0 && !parseContext.allowLastEndComma) {
+                if (!list.isEmpty() && !parseContext.allowLastEndComma) {
                     throw new JSONException("Syntax error, at pos " + i + ", the closing symbol ']' is not allowed here.");
                 }
                 parseContext.endIndex = i;
@@ -332,9 +332,8 @@ public final class JSONDefaultParser extends JSONGeneral {
             int fieldKeyFrom = i;
             if (ch == '"') {
                 key = disableCacheMapKey ? (String) JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(source, buf, i, '"', null, parseContext) : parseMapKeyByCache(buf, i, '"', parseContext);
-                i = parseContext.endIndex;
+                i = parseContext.endIndex + 1;
                 empty = false;
-                ++i;
             } else {
                 if (ch == '}') {
                     if (!empty && !parseContext.allowLastEndComma) {
@@ -345,7 +344,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                 }
                 if (ch == '\'') {
                     if (parseContext.allowSingleQuotes) {
-                        while (i + 1 < parseContext.toIndex && (buf[++i] != '\'' || buf[i - 1] == '\\')) ;
+                        while ((buf[++i] != '\'' || buf[i - 1] == '\\')) ;
                         empty = false;
                         ++i;
                         key = parseKeyOfMap(buf, fieldKeyFrom, i, false);
@@ -354,7 +353,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                     }
                 } else {
                     if (parseContext.allowUnquotedFieldNames) {
-                        while (i + 1 < parseContext.toIndex && buf[++i] != ':') ;
+                        while (buf[++i] != ':') ;
                         empty = false;
                         key = parseKeyOfMap(buf, fieldKeyFrom, i, true);
                     } else {
@@ -437,9 +436,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                         }
                     }
                 }
-                // clear white space characters
                 while ((ch = buf[++i]) <= ' ') ;
-                // clear comment and whiteSpaces
                 if (allowomment) {
                     if (ch == '/') {
                         ch = buf[i = clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
@@ -648,7 +645,10 @@ public final class JSONDefaultParser extends JSONGeneral {
         byte b;
         int i = fromIndex;
         for (; ; ) {
-            while ((b = bytes[++i]) <= ' ') ;
+//            while ((b = bytes[++i]) <= ' ') ;
+            if((b = bytes[++i]) <= ' ') {
+                b = bytes[i = skipWhiteSpaces(bytes, i + 1)];
+            }
             if (jsonParseContext.allowComment) {
                 if (b == '/') {
                     b = bytes[i = clearCommentAndWhiteSpaces(bytes, i + 1, jsonParseContext)];
@@ -710,7 +710,10 @@ public final class JSONDefaultParser extends JSONGeneral {
                     }
                 }
             }
-            while ((b = bytes[++i]) <= ' ') ;
+//            while ((b = bytes[++i]) <= ' ') ;
+            if((b = bytes[++i]) <= ' ') {
+                b = bytes[i = skipWhiteSpaces(bytes, i + 1)];
+            }
             if (jsonParseContext.allowComment) {
                 if (b == '/') {
                     b = bytes[i = clearCommentAndWhiteSpaces(bytes, i + 1, jsonParseContext)];
@@ -733,7 +736,10 @@ public final class JSONDefaultParser extends JSONGeneral {
         boolean empty = true, allowomment = jsonParseContext.allowComment, disableCacheMapKey = jsonParseContext.disableCacheMapKey;
         int i = fromIndex;
         for (; ; ) {
-            while ((b = bytes[++i]) <= ' ') ;
+//            while ((b = bytes[++i]) <= ' ') ;
+            if((b = bytes[++i]) <= ' ') {
+                b = bytes[i = skipWhiteSpaces(bytes, i + 1)];
+            }
             if (allowomment) {
                 if (b == '/') {
                     b = bytes[i = clearCommentAndWhiteSpaces(bytes, i + 1, jsonParseContext)];
@@ -783,8 +789,11 @@ public final class JSONDefaultParser extends JSONGeneral {
                     }
                 }
             }
-            while ((b = bytes[i]) <= ' ') {
-                ++i;
+//            while ((b = bytes[i]) <= ' ') {
+//                ++i;
+//            }
+            if((b = bytes[i]) <= ' ') {
+                b = bytes[i = skipWhiteSpaces(bytes, i + 1)];
             }
             if (allowomment) {
                 if (b == '/') {
@@ -792,7 +801,10 @@ public final class JSONDefaultParser extends JSONGeneral {
                 }
             }
             if (b == ':') {
-                while ((b = bytes[++i]) <= ' ') ;
+//                while ((b = bytes[++i]) <= ' ') ;
+                if((b = bytes[++i]) <= ' ') {
+                    b = bytes[i = skipWhiteSpaces(bytes, i + 1)];
+                }
                 if (jsonParseContext.allowComment) {
                     if (b == '/') {
                         b = bytes[i = clearCommentAndWhiteSpaces(bytes, i + 1, jsonParseContext)];
@@ -847,7 +859,10 @@ public final class JSONDefaultParser extends JSONGeneral {
                         }
                     }
                 }
-                while ((b = bytes[++i]) <= ' ') ;
+//                while ((b = bytes[++i]) <= ' ') ;
+                if((b = bytes[++i]) <= ' ') {
+                    b = bytes[i = skipWhiteSpaces(bytes, i + 1)];
+                }
                 if (allowomment) {
                     if (b == '/') {
                         b = bytes[i = clearCommentAndWhiteSpaces(bytes, i + 1, jsonParseContext)];

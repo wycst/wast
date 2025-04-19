@@ -29,7 +29,8 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
     final static int LENGTH = ReflectConsts.ClassCategory.values().length;
     final static JSONTypeSerializer[] TYPE_SERIALIZERS = new JSONTypeSerializer[LENGTH];
     // class and JSONTypeSerializer mapping
-    private static final Map<Class<?>, JSONTypeSerializer> classJSONTypeSerializerMap = new ConcurrentHashMap<Class<?>, JSONTypeSerializer>();
+    private static final Map<Class<?>, JSONTypeSerializer> TYPE_SERIALIZER_MAP = new HashMap<Class<?>, JSONTypeSerializer>();
+    private static final Map<Class<?>, JSONTypeSerializer> TEMPORARY_MAP = new HashMap<Class<?>, JSONTypeSerializer>();
     private static final Set<Class> REGISTERED_TYPES = new LinkedHashSet<Class>();
     static final JSONTypeSerializer SIMPLE = new SimpleImpl();
     static final CharSequenceImpl CHAR_SEQUENCE = new CharSequenceImpl();
@@ -94,7 +95,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
         putTypeSerializer(CHAR_SEQUENCE, char[].class, StringBuffer.class, StringBuilder.class);
         // extension types
         JSONTypeExtensionSer.initExtens();
-        BUILT_IN_TYPE_SET = new HashSet<Class<?>>(classJSONTypeSerializerMap.keySet());
+        BUILT_IN_TYPE_SET = new HashSet<Class<?>>(TYPE_SERIALIZER_MAP.keySet());
     }
 
     static boolean isBuiltInType(Class<?> type) {
@@ -103,19 +104,19 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
 
     static void putTypeSerializer(JSONTypeSerializer typeSerializer, Class... types) {
         for (Class type : types) {
-            classJSONTypeSerializerMap.put(type, typeSerializer);
+            TYPE_SERIALIZER_MAP.put(type, typeSerializer);
         }
     }
 
     final static void registerTypeSerializer(JSONTypeSerializer typeSerializer, Class type) {
-        classJSONTypeSerializerMap.put(type, typeSerializer);
+        TYPE_SERIALIZER_MAP.put(type, typeSerializer);
         REGISTERED_TYPES.add(type);
     }
 
     final static JSONTypeSerializer checkSuperclassRegistered(Class<?> cls) {
         for (Class type : REGISTERED_TYPES) {
             if (type.isAssignableFrom(cls)) {
-                return classJSONTypeSerializerMap.get(type);
+                return TYPE_SERIALIZER_MAP.get(type);
             }
         }
         return null;
@@ -177,46 +178,57 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
     }
 
     // Quick search based on usage frequency, significant effect when serializing map objects
-    final static JSONTypeSerializer getTypeSerializer(Class<?> cls) {
-        JSONTypeSerializer typeSerializer = classJSONTypeSerializerMap.get(cls);
+    final static JSONTypeSerializer getTypeSerializer(final Class<?> cls) {
+        JSONTypeSerializer typeSerializer = TYPE_SERIALIZER_MAP.get(cls);
+        if (typeSerializer != null) {
+            return typeSerializer;
+        }
+        // secondary search resolve the initialization dead loop dependency
+        typeSerializer = TEMPORARY_MAP.get(cls);
         if (typeSerializer != null) {
             return typeSerializer.ensureInitialized();
-        } else {
-            synchronized (cls) {
-                typeSerializer = classJSONTypeSerializerMap.get(cls);
-                if (typeSerializer != null) {
-                    return typeSerializer.ensureInitialized();
-                }
-                ReflectConsts.ClassCategory classCategory = ReflectConsts.getClassCategory(cls);
-                if (classCategory == ReflectConsts.ClassCategory.ObjectCategory) {
-                    ClassStrucWrap classStrucWrap = ClassStrucWrap.get(cls);
-                    if (classStrucWrap.isTemporal()) {
-                        typeSerializer = JSONTemporalSerializer.getTemporalSerializerInstance(classStrucWrap, null);
-                    } else if (classStrucWrap.isSubEnum()) {
-                        typeSerializer = ENUM;
-                    } else {
-                        JSONPojoStructure pojoStructure = JSONPojoStructure.get(cls);
-                        if (ENABLE_JIT && pojoStructure.isSupportedJIT()) {
-                            try {
-                                Class<?> serializerClass = JDKCompiler.compileJavaSource(JSONPojoSerializer.generateRuntimeJavaCodeSource(pojoStructure));
-                                Constructor constructor = serializerClass.getDeclaredConstructor(new Class[]{JSONPojoStructure.class});
-                                UnsafeHelper.setAccessible(constructor);
-                                typeSerializer = (JSONPojoSerializer) constructor.newInstance(pojoStructure);
-                            } catch (Throwable throwable) {
-                                typeSerializer = new ObjectImpl.ObjectWrapperImpl(cls, pojoStructure);
-                            }
-                        } else {
+        }
+        synchronized (cls) {
+            typeSerializer = TYPE_SERIALIZER_MAP.get(cls);
+            if (typeSerializer != null) {
+                return typeSerializer;
+            }
+            ReflectConsts.ClassCategory classCategory = ReflectConsts.getClassCategory(cls);
+            if (classCategory == ReflectConsts.ClassCategory.ObjectCategory) {
+                ClassStrucWrap classStrucWrap = ClassStrucWrap.get(cls);
+                if (classStrucWrap.isTemporal()) {
+                    typeSerializer = JSONTemporalSerializer.getTemporalSerializerInstance(classStrucWrap, null);
+                } else if (classStrucWrap.isSubEnum()) {
+                    typeSerializer = ENUM;
+                } else {
+                    JSONPojoStructure pojoStructure = JSONPojoStructure.get(cls);
+                    if (ENABLE_JIT && pojoStructure.isSupportedJIT()) {
+                        try {
+                            Class<?> serializerClass = JDKCompiler.compileJavaSource(JSONPojoSerializer.generateRuntimeJavaCodeSource(pojoStructure));
+                            Constructor constructor = serializerClass.getDeclaredConstructor(new Class[]{JSONPojoStructure.class});
+                            UnsafeHelper.setAccessible(constructor);
+                            typeSerializer = (JSONPojoSerializer) constructor.newInstance(pojoStructure);
+                        } catch (Throwable throwable) {
                             typeSerializer = new ObjectImpl.ObjectWrapperImpl(cls, pojoStructure);
                         }
-                    }
-                } else {
-                    if ((typeSerializer = checkSuperclassRegistered(cls)) == null) {
-                        typeSerializer = getTypeSerializer(classCategory, null);
+                    } else {
+                        typeSerializer = new ObjectImpl.ObjectWrapperImpl(cls, pojoStructure);
                     }
                 }
-                classJSONTypeSerializerMap.put(cls, typeSerializer);
-                return typeSerializer.ensureInitialized();
+            } else {
+                if ((typeSerializer = checkSuperclassRegistered(cls)) == null) {
+                    typeSerializer = getTypeSerializer(classCategory, null);
+                }
             }
+            //  put to temporary_map
+            TEMPORARY_MAP.put(cls, typeSerializer);
+            typeSerializer.ensureInitialized();
+
+            // put to map
+            TYPE_SERIALIZER_MAP.put(cls, typeSerializer);
+            // remove if ensureInitialized
+            TEMPORARY_MAP.remove(cls);
+            return typeSerializer;
         }
     }
 
@@ -225,7 +237,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
     }
 
     static JSONTypeSerializer getEnumSerializer(Class<?> enumClass) {
-        JSONTypeSerializer enumSerializer = classJSONTypeSerializerMap.get(enumClass);
+        JSONTypeSerializer enumSerializer = TYPE_SERIALIZER_MAP.get(enumClass);
         if (enumSerializer != null) {
             return enumSerializer;
         }
@@ -240,7 +252,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
         }
 
         enumSerializer = new EnumImpl.EnumInstanceImpl(enumNames);
-        classJSONTypeSerializerMap.put(enumClass, enumSerializer);
+        TYPE_SERIALIZER_MAP.put(enumClass, enumSerializer);
         return enumSerializer;
     }
 

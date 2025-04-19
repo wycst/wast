@@ -209,6 +209,18 @@ public class SetterInfo {
             super.setField(field);
             this.primitiveType = ReflectConsts.PrimitiveType.typeOf(field.getType());
         }
+
+        public ReflectConsts.PrimitiveType getPrimitiveType() {
+            return primitiveType;
+        }
+    }
+
+    public final long getFieldOffset() {
+        return fieldOffset;
+    }
+
+    public ReflectConsts.PrimitiveType getPrimitiveType() {
+        return null;
     }
 }
 

@@ -205,6 +205,10 @@ final class JSONUnsafe {
             return result;
         }
 
+        protected void copyRemBytes(byte[] src, int sOff, byte[] dst, int dOff, int len) {
+            putLong(dst, dOff - 8 + len, getLong(src, sOff - 8 + len));
+        }
+
         void multipleCopyMemory(byte[] source, long sourceOff, byte[] target, long targetOff) {
         }
 
@@ -288,6 +292,11 @@ final class JSONUnsafe {
             @Override
             public byte[] copyBytes(byte[] buf, int offset, int len) {
                 return new byte[]{buf[offset]};
+            }
+
+            @Override
+            final protected void copyRemBytes(byte[] src, int sOff, byte[] dst, int dOff, int len) {
+                dst[dOff] = src[sOff];
             }
 
             @Override
@@ -746,9 +755,7 @@ final class JSONUnsafe {
             public byte[] copyBytes(byte[] buf, int offset, int len) {
                 byte[] bytes = new byte[10];
                 putLong(bytes, 0, getLong(buf, offset));
-                bytes[8] = buf[offset + 8];
-                bytes[9] = buf[offset + 9];
-//                putShort(bytes, 8, getShort(buf, offset + 8));
+                putShort(bytes, 8, getShort(buf, offset + 8));
                 return bytes;
             }
 
@@ -1304,9 +1311,16 @@ final class JSONUnsafe {
                 int t = len >> 3;
                 long sourceOff = BYTE_ARRAY_OFFSET + offset;
                 SIZE_INSTANCES[t].multipleCopyMemory(buf, sourceOff, bytes, BYTE_ARRAY_OFFSET);
-                if (rem > 0) {
-                    int remOffset = t << 3;
-                    putLong(bytes, remOffset - 8 + rem, getLong(buf, offset + remOffset - 8 + rem));
+//                if (rem > 0) {
+//                    int remOffset = t << 3;
+//                    putLong(bytes, remOffset - 8 + rem, getLong(buf, offset + remOffset - 8 + rem));
+//                }
+                if(rem > 4) {
+                    int remOffset = (t << 3) - 8 + rem;
+                    putLong(bytes, remOffset, getLong(buf, offset + remOffset));
+                } else if(rem > 0) {
+                    int remOffset = (t << 3) - 4 + rem;
+                    putInt(bytes, remOffset, getInt(buf, offset + remOffset));
                 }
                 return bytes;
             } else {
@@ -1382,7 +1396,7 @@ final class JSONUnsafe {
                 return bytes;
             }
         }
-        return value.getBytes(EnvUtils.CHARSET_UTF_8);
+        return value.getBytes(EnvUtils.CHARSET_UTF8_OR_DEF);
     }
 
     /**

@@ -11,6 +11,7 @@ import io.github.wycst.wast.json.annotations.JsonProperty;
 import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.Date;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -962,6 +963,19 @@ final class JSONPojoSerializerCodeGen {
                             compactBodyBuilder.append("\t\t\twriter.writeStringCollection(" + valueVar + ");\n");
                         } else if (returnType == UUID.class) {
                             compactBodyBuilder.append("\t\t\twriter.writeUUID(" + valueVar + ");\n");
+                        } else if (Date.class.isAssignableFrom(returnType)) {
+                            JsonProperty jsonProperty = fieldSerializer.getJsonProperty();
+                            boolean asTimestamp = jsonProperty != null && jsonProperty.asTimestamp();
+                            if (jsonProperty == null || jsonProperty.pattern().isEmpty() || jsonProperty.pattern().trim().equalsIgnoreCase("yyyy-MM-dd HH:mm:ss")) {
+                                if(asTimestamp) {
+                                    compactBodyBuilder.append("\t\t\twriter.writeLong(" + valueVar + ".getTime());\n");
+                                } else {
+                                    // use default pattern
+                                    compactBodyBuilder.append("\t\t\twriter.writeDate(" + valueVar + ", jsonConfig);\n");
+                                }
+                            } else {
+                                useSerializerInvokeFlag = true;
+                            }
                         } else if (returnTypeName == "java.time.Instant") {
                             JsonProperty jsonProperty = fieldSerializer.getJsonProperty();
                             if (jsonProperty == null || (jsonProperty.pattern().length() == 0 && !jsonProperty.asTimestamp())) {
@@ -1281,6 +1295,19 @@ final class JSONPojoSerializerCodeGen {
             fmatOutBodyBuilder.append(tabFlag).append("\t\twriteStringCollectionFormatOut(writer, " + valueVar + ", jsonConfig, indentPlus);\n");
         } else if (returnType == UUID.class) {
             fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeUUID(" + valueVar + ");\n");
+        } else if (Date.class.isAssignableFrom(returnType)) {
+            JsonProperty jsonProperty = fieldSerializer.getJsonProperty();
+            boolean asTimestamp = jsonProperty != null && jsonProperty.asTimestamp();
+            if (jsonProperty == null || jsonProperty.pattern().isEmpty() || jsonProperty.pattern().trim().equalsIgnoreCase("yyyy-MM-dd HH:mm:ss")) {
+                if(asTimestamp) {
+                    fmatOutBodyBuilder.append("\t\t\twriter.writeLong(" + valueVar + ".getTime());\n");
+                } else {
+                    // use default pattern
+                    fmatOutBodyBuilder.append("\t\t\twriter.writeDate(" + valueVar + ", jsonConfig);\n");
+                }
+            } else {
+                useSerializerInvokeFlag = true;
+            }
         } else if (returnTypeName == "java.time.Instant") {
             JsonProperty jsonProperty = fieldSerializer.getJsonProperty();
             if (jsonProperty == null || (jsonProperty.pattern().length() == 0 && !jsonProperty.asTimestamp())) {

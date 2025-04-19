@@ -12,6 +12,8 @@ import java.io.Writer;
 import java.math.BigInteger;
 import java.nio.charset.Charset;
 import java.util.Collection;
+import java.util.Date;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -471,6 +473,28 @@ public abstract class JSONWriter extends Writer {
      * @throws IOException
      */
     public abstract void writeDate(int year, int month, int day, int hourOfDay, int minute, int second) throws IOException;
+
+    /**
+     * 写入yyyy-MM-dd HH:mm:ss格式
+     *
+     * @param date
+     * @param jsonConfig
+     * @throws IOException
+     */
+    public final void writeDate(Date date, JSONConfig jsonConfig) throws IOException {
+        writeJSONToken('"');
+        TimeZone timeZone = jsonConfig.getTimezone();
+        int month, year, day, hourOfDay, minute, second;
+        GeneralDate generalDate = new GeneralDate(date.getTime(), timeZone);
+        year = generalDate.getYear();
+        month = generalDate.getMonth();
+        day = generalDate.getDay();
+        hourOfDay = generalDate.getHourOfDay();
+        minute = generalDate.getMinute();
+        second = generalDate.getSecond();
+        writeDate(year, month, day, hourOfDay, minute, second);
+        writeJSONToken('"');
+    }
 
     public abstract void writeBigInteger(BigInteger bigInteger) throws IOException;
 
