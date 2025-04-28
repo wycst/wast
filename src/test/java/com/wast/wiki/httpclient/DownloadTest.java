@@ -14,7 +14,12 @@ public class DownloadTest {
         String url = "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_linux-aarch64_bin.tar.gz";
         HttpClientConfig clientConfig = HttpClientConfig.
                 create()
-                .responseCallback((downloaded, total) -> System.out.println("downloaded " + downloaded + " total " + total + " progress " + (downloaded * 100 / total) + "%"));
+                .responseCallback(new HttpClientConfig.ResponseCallback() {
+                    @Override
+                    public void onDownloadProgress(long downloaded, long total) {
+                        System.out.println("downloaded " + downloaded + " total " + total + " progress " + (downloaded * 100 / total) + "%");
+                    }
+                });
         // 指定输出文件流
         OutputStream target = new FileOutputStream("E:/tmp/openjdk-21.0.2_linux-aarch64_bin-1.tar.gz");
         HttpClient.create().download(url, clientConfig, target);
