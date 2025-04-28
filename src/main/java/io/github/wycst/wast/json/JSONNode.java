@@ -2052,7 +2052,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                         }
                     }
                 } else {
-                    throw new JSONException("Syntax error, offset " + i + ", expected ':' or '}', but found '" + (char) b + "'");
+                    throw new JSONException("Syntax error, offset " + i + ", expected ',' or '}', but found '" + (char) b + "'");
                 }
             } else {
                 throw new JSONException("Syntax error, offset " + i + ", expected ':', but found '" + (char) b + "'");

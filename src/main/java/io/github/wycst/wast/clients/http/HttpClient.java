@@ -1,13 +1,11 @@
 package io.github.wycst.wast.clients.http;
 
-import io.github.wycst.wast.clients.http.consts.HttpHeaderValues;
 import io.github.wycst.wast.clients.http.definition.*;
 import io.github.wycst.wast.clients.http.impl.*;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.net.URLEncoder;
 import java.util.Map;
 
 /**
@@ -81,33 +79,41 @@ public class HttpClient extends AbstractHttpClient {
      * 带配置的get请求
      *
      * @param url
+     * @param headers
+     * @return
+     */
+    public HttpClientResponse get(String url, Map<String, String> headers) {
+        HttpClientConfig requestConfig = new HttpClientConfig();
+        requestConfig.setHeaders(headers);
+        HttpClientRequest httpRequest = new HttpClientGet(url, requestConfig);
+        return executeRequest(httpRequest);
+    }
+
+    /**
+     * 带配置的get请求
+     *
+     * @param url
+     * @param params
+     * @param headers
+     * @return
+     */
+    public HttpClientResponse get(String url, Map<String, Object> params, Map<String, String> headers) {
+        HttpClientConfig requestConfig = new HttpClientConfig();
+        requestConfig.setHeaders(headers);
+        HttpClientRequest httpRequest = new HttpClientGet(toStringifyUrl(url, params), requestConfig);
+        return executeRequest(httpRequest);
+    }
+
+    /**
+     * 带配置的get请求
+     *
+     * @param url
      * @param requestConfig
      * @return
      */
     public HttpClientResponse get(String url, HttpClientConfig requestConfig) {
         HttpClientRequest httpRequest = new HttpClientGet(url, requestConfig);
         return executeRequest(httpRequest);
-    }
-
-    public String stringify(Map<String, Object> params) {
-        StringBuilder builder = new StringBuilder();
-        int length = params.size();
-        int i = 0;
-        for (Map.Entry<String, Object> entry : params.entrySet()) {
-            String key = entry.getKey();
-            Object val = entry.getValue();
-            // if npc exception ?
-            String value = val == null ? "" : val.toString();
-            try {
-                builder.append(URLEncoder.encode(key, "UTF-8")).append('=').append(URLEncoder.encode(value, "UTF-8"));
-            } catch (Throwable throwable) {
-                builder.append(key).append('=').append(value);
-            }
-            if (i++ < length - 1) {
-                builder.append('&');
-            }
-        }
-        return builder.toString();
     }
 
     /**
@@ -120,15 +126,7 @@ public class HttpClient extends AbstractHttpClient {
      * @return
      */
     public <E> E get(String url, Map<String, Object> params, Class<E> rtnType) {
-        if (params != null && params.size() > 0) {
-            String paramString = stringify(params);
-            if (url.indexOf("?") > -1) {
-                url += "&" + paramString;
-            } else {
-                url += "?" + paramString;
-            }
-        }
-        HttpClientRequest httpRequest = new HttpClientGet(url);
+        HttpClientRequest httpRequest = new HttpClientGet(toStringifyUrl(url, params));
         HttpClientResponse httpResponse = executeRequest(httpRequest);
         return httpResponse.getEntity(rtnType);
     }
@@ -144,6 +142,21 @@ public class HttpClient extends AbstractHttpClient {
      */
     public <E> E get(String url, Class<E> rtnType, HttpClientConfig requestConfig) {
         HttpClientRequest httpRequest = new HttpClientGet(url, requestConfig);
+        HttpClientResponse httpResponse = executeRequest(httpRequest);
+        return httpResponse.getEntity(rtnType);
+    }
+
+    /**
+     * 带配置的get请求
+     *
+     * @param url
+     * @param rtnType
+     * @param requestConfig
+     * @param <E>
+     * @return
+     */
+    public <E> E get(String url, Map<String, Object> params, Class<E> rtnType, HttpClientConfig requestConfig) {
+        HttpClientRequest httpRequest = new HttpClientGet(toStringifyUrl(url, params), requestConfig);
         HttpClientResponse httpResponse = executeRequest(httpRequest);
         return httpResponse.getEntity(rtnType);
     }
@@ -304,7 +317,7 @@ public class HttpClient extends AbstractHttpClient {
     }
 
     /**
-     * 带配置的put请求(multipart = false)
+     * 带配置的put请求
      *
      * @param url
      * @param rtnType
@@ -314,6 +327,21 @@ public class HttpClient extends AbstractHttpClient {
      */
     public <E> E put(String url, Class<E> rtnType, HttpClientConfig requestConfig) {
         HttpClientRequest httpRequest = new HttpClientPut(url, requestConfig);
+        HttpClientResponse httpResponse = executeRequest(httpRequest);
+        return httpResponse.getEntity(rtnType);
+    }
+
+    /**
+     * 带配置的patch请求
+     *
+     * @param url
+     * @param rtnType
+     * @param requestConfig
+     * @param <E>
+     * @return
+     */
+    public <E> E patch(String url, Class<E> rtnType, HttpClientConfig requestConfig) {
+        HttpClientRequest httpRequest = HttpClientRequestBuilder.buildRequest(url, HttpClientMethod.PATCH, requestConfig);
         HttpClientResponse httpResponse = executeRequest(httpRequest);
         return httpResponse.getEntity(rtnType);
     }
@@ -361,7 +389,7 @@ public class HttpClient extends AbstractHttpClient {
      * @param entity
      * @return
      */
-    public HttpClientResponse postJson(String url, Object entity) {
+    public final HttpClientResponse postJson(String url, Object entity) {
         return postJson(url, HttpClientResponse.class, entity);
     }
 
@@ -374,9 +402,41 @@ public class HttpClient extends AbstractHttpClient {
      * @param <E>
      * @return
      */
-    public <E> E postJson(String url, Class<E> rtnType, Object entity) {
-        HttpClientConfig requestConfig = new HttpClientConfig();
-        requestConfig.setRequestBody(entity, HttpHeaderValues.APPLICATION_JSON, true);
+    public final <E> E postJson(String url, Class<E> rtnType, Object entity) {
+        return doPostJson(url, rtnType, entity, EMPTY_HEADERS, new HttpClientConfig());
+    }
+
+    /**
+     * post json请求
+     *
+     * @param url
+     * @param rtnType
+     * @param entity
+     * @param headers
+     * @param <E>
+     * @return
+     */
+    public <E> E postJson(String url, Class<E> rtnType, Object entity, Map<String, String> headers) {
+        return doPostJson(url, rtnType, entity, headers == null ? EMPTY_HEADERS : headers, new HttpClientConfig());
+    }
+
+    /**
+     * post json请求
+     *
+     * @param url
+     * @param rtnType
+     * @param entity
+     * @param requestConfig
+     * @param <E>
+     * @return
+     */
+    public <E> E postJson(String url, Class<E> rtnType, Object entity, HttpClientConfig requestConfig) {
+        return doPostJson(url, rtnType, entity, EMPTY_HEADERS, requestConfig);
+    }
+
+    final <E> E doPostJson(String url, Class<E> rtnType, Object entity, Map<String, String> headers, HttpClientConfig requestConfig) {
+        requestConfig.setHeaders(headers);
+        requestConfig.setJsonBody(entity);
         HttpClientRequest httpRequest = new HttpClientPost(url, requestConfig);
         HttpClientResponse httpResponse = executeRequest(httpRequest);
         return httpResponse.getEntity(rtnType);
@@ -406,7 +466,7 @@ public class HttpClient extends AbstractHttpClient {
      */
     public <E> E putJson(String url, Class<E> rtnType, Object entity) {
         HttpClientConfig requestConfig = new HttpClientConfig();
-        requestConfig.setRequestBody(entity, HttpHeaderValues.APPLICATION_JSON, true);
+        requestConfig.setJsonBody(entity);
         HttpClientRequest httpRequest = new HttpClientPut(url, requestConfig);
         HttpClientResponse httpResponse = executeRequest(httpRequest);
         return httpResponse.getEntity(rtnType);
@@ -446,15 +506,7 @@ public class HttpClient extends AbstractHttpClient {
      * @return
      */
     public <E> E delete(String url, Map<String, Object> params, Class<E> rtnType) {
-        if (params != null && params.size() > 0) {
-            String paramString = stringify(params);
-            if (url.indexOf("?") > -1) {
-                url += "&" + paramString;
-            } else {
-                url += "?" + paramString;
-            }
-        }
-        HttpClientRequest httpRequest = new HttpClientDelete(url);
+        HttpClientRequest httpRequest = new HttpClientDelete(toStringifyUrl(url, params));
         HttpClientResponse httpResponse = executeRequest(httpRequest);
         return httpResponse.getEntity(rtnType);
     }
@@ -470,6 +522,21 @@ public class HttpClient extends AbstractHttpClient {
      */
     public <E> E delete(String url, Class<E> rtnType, HttpClientConfig requestConfig) {
         HttpClientRequest httpRequest = new HttpClientDelete(url, requestConfig);
+        HttpClientResponse httpResponse = executeRequest(httpRequest);
+        return httpResponse.getEntity(rtnType);
+    }
+
+    /**
+     * 带配置的delete请求
+     *
+     * @param url
+     * @param rtnType
+     * @param requestConfig
+     * @param <E>
+     * @return
+     */
+    public <E> E delete(String url, Map<String, Object> params, Class<E> rtnType, HttpClientConfig requestConfig) {
+        HttpClientRequest httpRequest = new HttpClientDelete(toStringifyUrl(url, params), requestConfig);
         HttpClientResponse httpResponse = executeRequest(httpRequest);
         return httpResponse.getEntity(rtnType);
     }

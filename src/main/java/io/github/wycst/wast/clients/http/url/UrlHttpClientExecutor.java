@@ -1,9 +1,11 @@
 package io.github.wycst.wast.clients.http.url;
 
+import io.github.wycst.wast.clients.http.consts.HttpHeaderNames;
 import io.github.wycst.wast.clients.http.definition.*;
 import io.github.wycst.wast.clients.http.impl.HttpClientResponseImpl;
 import io.github.wycst.wast.clients.http.provider.RequestServiceInstance;
 import io.github.wycst.wast.clients.http.provider.ServiceInstance;
+import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import io.github.wycst.wast.common.utils.IOUtils;
 import io.github.wycst.wast.json.JSON;
 import io.github.wycst.wast.log.Log;
@@ -50,7 +52,7 @@ public class UrlHttpClientExecutor extends AbstractUrlHttpClientExecutor {
     }
 
     private HttpClientException clientException(Throwable throwable) {
-        if(throwable instanceof HttpClientException) {
+        if (throwable instanceof HttpClientException) {
             return (HttpClientException) throwable;
         }
         return new HttpClientException(throwable.getMessage(), throwable);
@@ -136,21 +138,38 @@ public class UrlHttpClientExecutor extends AbstractUrlHttpClientExecutor {
         } else {
             httpConnection = (HttpURLConnection) url.openConnection(proxy);
         }
-
-        httpConnection.setRequestMethod(method);
+        if (!UnsafeHelper.setRequestMethod(httpConnection, method)) {
+            httpConnection.setRequestMethod(method);
+        }
         httpConnection.setConnectTimeout((int) clientConfig.getMaxConnectTimeout());
         httpConnection.setReadTimeout((int) clientConfig.getMaxReadTimeout());
         httpConnection.setUseCaches(clientConfig.isUseCaches());
         httpConnection.setInstanceFollowRedirects(clientConfig.isFollowRedirect());
 
         Map<String, Serializable> header = clientConfig.getHeaders();
+        final boolean headerNameToLowerCase = clientConfig.isHeaderNameToLowerCase();
+        final boolean logApplicationHeaders = clientConfig.isLogApplicationHeaders();
         if (header != null) {
             for (Map.Entry<String, Serializable> entry : header.entrySet()) {
-                httpConnection.setRequestProperty(entry.getKey().toLowerCase(), String.valueOf(entry.getValue()));
+                String key = entry.getKey();
+                String headerKey = headerNameToLowerCase ? key.toLowerCase() : key;
+                String headerValue = String.valueOf(entry.getValue());
+                httpConnection.setRequestProperty(headerKey, headerValue);
+                if (logApplicationHeaders) {
+                    log.debug("Header Set -> {}: {}", headerKey, headerValue);
+                }
             }
         }
-        httpConnection.setRequestProperty("content-type", clientConfig.getContentType());
-        if ("POST".equals(method) || "PUT".equals(method)) {
+
+        if ("POST".equals(method) || "PUT".equals(method) || "PATCH".equals(method)) {
+            String contentType = clientConfig.getContentType();
+            if (contentType != null && !contentType.trim().isEmpty()) {
+                String headerKey = headerNameToLowerCase ? HttpHeaderNames.CONTENT_TYPE : HttpHeaderNames.CONTENT_TYPE_BROWSER;
+                httpConnection.setRequestProperty(headerKey, contentType);
+                if (logApplicationHeaders) {
+                    log.debug("Header Set -> {}: {}", headerKey, contentType);
+                }
+            }
             postRequestData(clientConfig, httpConnection);
         }
         int resCode = httpConnection.getResponseCode();
@@ -172,12 +191,12 @@ public class UrlHttpClientExecutor extends AbstractUrlHttpClientExecutor {
             throwable.printStackTrace();
         }
 
-        HttpClientResponse clientResponse = new HttpClientResponseImpl(resCode, httpConnection.getResponseMessage(), is, contentLength);
-        clientResponse.setContentType(resContentType);
-        clientResponse.setHeaders(httpConnection.getHeaderFields());
+        if (clientConfig.isResponseStream()) {
+            return new HttpClientResponseImpl(resCode, httpConnection.getResponseMessage(), is, contentLength, resContentType, httpConnection.getHeaderFields());
+        }
 
+        HttpClientResponse clientResponse = new HttpClientResponseImpl(resCode, httpConnection.getResponseMessage(), readInputStream(is, contentLength), contentLength, resContentType, httpConnection.getHeaderFields());
         httpConnection.disconnect();
-
         return clientResponse;
     }
 
@@ -197,7 +216,6 @@ public class UrlHttpClientExecutor extends AbstractUrlHttpClientExecutor {
         // flush
         dataOutputStream.flush();
         dataOutputStream.close();
-
     }
 
     private byte[] parsePostRequestData(HttpClientConfig clientConfig) throws IOException {

@@ -19,6 +19,10 @@ public class HttpClientRequestBuilder {
         return new HttpClientRequestImpl(url, method, requestConfig);
     }
 
+    public static HttpClientRequest buildRequest(String url, String method, HttpClientConfig requestConfig) {
+        return new HttpClientRequestImpl(url, method, requestConfig);
+    }
+
     public static HttpClientRequest buildRequest(String url) {
         return new HttpClientRequestImpl(url);
     }

@@ -5,7 +5,10 @@ import sun.misc.Unsafe;
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.math.BigInteger;
+import java.net.HttpURLConnection;
 import java.util.ArrayList;
 import java.util.TimeZone;
 
@@ -19,6 +22,7 @@ import java.util.TimeZone;
  */
 public final class UnsafeHelper {
 
+    public final static long HTTP_URL_CONNECTION_METHOD_OFFSET;
     public static final long STRING_VALUE_OFFSET;
     public static final long STRING_CODER_OFFSET;
     public static final long DEFAULT_TIME_ZONE_OFFSET;
@@ -28,6 +32,39 @@ public final class UnsafeHelper {
     private static final long OVERRIDE_OFFSET;
 
     static final Unsafe UNSAFE;
+
+    static final Field modifierField;
+    static {
+        Field field = null;
+        try {
+            field = Field.class.getDeclaredField("modifiers");
+            setAccessible(field);
+        } catch (Exception e) {
+            try {
+                Method getDeclaredFields0 = Class.class.getDeclaredMethod("getDeclaredFields0", boolean.class);
+                setAccessible(getDeclaredFields0);
+                Field[] fields = (Field[]) getDeclaredFields0.invoke(Field.class, false);
+                for (Field target : fields) {
+                    if ("modifiers".equals(target.getName())) {
+                        field = target;
+                        setAccessible(field);
+                        break;
+                    }
+                }
+            } catch (Throwable throwable) {
+            }
+        }
+        modifierField = field;
+    }
+
+    public static void clearFinalModifiers(Field field) {
+        if (modifierField != null) {
+            try {
+                modifierField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
+            } catch (Exception e) {
+            }
+        }
+    }
 
     static {
         Field theUnsafeField;
@@ -80,6 +117,15 @@ public final class UnsafeHelper {
         } catch (Throwable throwable) {
         }
         DEFAULT_TIME_ZONE_OFFSET = defaultTimeZoneOff;
+
+        long http_url_connection_method_offset = -1;
+        try {
+            Field httpUrlConnectionMethodField = HttpURLConnection.class.getDeclaredField("method");
+            setAccessible(httpUrlConnectionMethodField);
+            http_url_connection_method_offset = objectFieldOffset(httpUrlConnectionMethodField);
+        } catch (Throwable throwable) {
+        }
+        HTTP_URL_CONNECTION_METHOD_OFFSET = http_url_connection_method_offset;
     }
 
     // BigInteger
@@ -510,5 +556,14 @@ public final class UnsafeHelper {
             }
         }
         throw new IndexOutOfBoundsException("offset " + offset);
+    }
+
+    public static boolean setRequestMethod(HttpURLConnection urlConnection, String method) {
+        urlConnection.getClass();
+        if(HTTP_URL_CONNECTION_METHOD_OFFSET > -1 && urlConnection != null) {
+            UNSAFE.putObject(urlConnection, HTTP_URL_CONNECTION_METHOD_OFFSET, method);
+            return true;
+        }
+        return false;
     }
 }

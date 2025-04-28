@@ -1,5 +1,6 @@
 package io.github.wycst.wast.clients.http.definition;
 
+import io.github.wycst.wast.clients.http.consts.HttpHeaderValues;
 import io.github.wycst.wast.common.idgenerate.providers.IdGenerator;
 
 import java.io.File;
@@ -16,7 +17,7 @@ import java.util.Map;
  * @Date: 2020/7/2 16:10
  * @Description:
  */
-public class HttpClientConfig {
+public final class HttpClientConfig {
 
     private static boolean defaultFollowRedirect = false;
     private static boolean defaultUseCaches = false;
@@ -44,10 +45,16 @@ public class HttpClientConfig {
     private Object content;
     private boolean applicationJson;
     private String contentType = "application/x-www-form-urlencoded";
+    // headerName -> lowercase
+    private boolean headerNameToLowerCase;
+    private boolean logApplicationHeaders;
 
     private Proxy proxy;
     private String charset = "UTF-8";
 
+    private String downloadFileName;
+    private boolean responseStream;
+    private ResponseCallback responseCallback;
     public long getMaxContentLength() {
         return maxContentLength;
     }
@@ -68,6 +75,11 @@ public class HttpClientConfig {
         }
     }
 
+    public HttpClientConfig textParameters(HttpClientParameter...clientParameters) {
+        addTextParameters(clientParameters);
+        return this;
+    }
+
     /***
      * 添加普通文本参数
      *
@@ -76,6 +88,17 @@ public class HttpClientConfig {
      */
     public void addTextParameter(String name, String value) {
         parameterList.add(new HttpClientParameter(name, value));
+    }
+
+    /***
+     * 添加普通文本参数
+     *
+     * @param name
+     * @param value
+     */
+    public HttpClientConfig textParameter(String name, String value) {
+        parameterList.add(new HttpClientParameter(name, value));
+        return this;
     }
 
     /***
@@ -90,6 +113,18 @@ public class HttpClientConfig {
     }
 
     /***
+     * 添加文件域
+     *
+     * @param name
+     * @param file
+     * @param contentType
+     */
+    public HttpClientConfig fileParameter(String name, File file, String contentType) {
+        parameterList.add(new HttpClientParameter(name, file, contentType));
+        return this;
+    }
+
+    /***
      *  以字节参数添加文件域
      *
      * @param name
@@ -101,14 +136,37 @@ public class HttpClientConfig {
         parameterList.add(new HttpClientParameter(name, fileName, fileContent, contentType));
     }
 
+    /***
+     *  以字节参数添加文件域
+     *
+     * @param name
+     * @param fileName 文件名称
+     * @param fileContent
+     * @param contentType
+     */
+    public HttpClientConfig fileParameter(String name, String fileName, byte[] fileContent, String contentType) {
+        parameterList.add(new HttpClientParameter(name, fileName, fileContent, contentType));
+        return this;
+    }
+
     public void setHeader(String name, Serializable value) {
         headers.put(name, String.valueOf(value));
+    }
+
+    public HttpClientConfig header(String name, Serializable value) {
+        headers.put(name, String.valueOf(value));
+        return this;
     }
 
     public void setHeaders(Map<String, String> headerMap) {
         if(headerMap != null) {
             headers.putAll(headerMap);
         }
+    }
+
+    public HttpClientConfig headers(Map<String, String> headerMap) {
+        setHeaders(headerMap);
+        return this;
     }
 
     public void removeHeader(String name) {
@@ -141,6 +199,11 @@ public class HttpClientConfig {
         this.keepAlive = keepAlive;
     }
 
+    public HttpClientConfig keepAlive(boolean keepAlive) {
+        this.keepAlive = keepAlive;
+        return this;
+    }
+
     public long getMaxConnectTimeout() {
         return maxConnectTimeout;
     }
@@ -169,9 +232,19 @@ public class HttpClientConfig {
         this.proxy = proxy;
     }
 
+    public HttpClientConfig proxy(Proxy proxy) {
+        this.proxy = proxy;
+        return this;
+    }
+
     public void setProxy(String proxyHost, int proxyPort) {
         InetSocketAddress proxyAddr = new InetSocketAddress(proxyHost, proxyPort);
         this.proxy = new Proxy(Proxy.Type.HTTP, proxyAddr);
+    }
+
+    public HttpClientConfig proxy(String proxyHost, int proxyPort) {
+        setProxy(proxyHost, proxyPort);
+        return this;
     }
 
     public Proxy getProxy() {
@@ -187,6 +260,11 @@ public class HttpClientConfig {
         if (multipart) {
             initMultipart();
         }
+    }
+
+    public HttpClientConfig multipart(boolean multipart) {
+        setMultipart(multipart);
+        return this;
     }
 
     private void initMultipart() {
@@ -230,12 +308,33 @@ public class HttpClientConfig {
         this.applicationJson = applicationJson;
     }
 
+    public HttpClientConfig requestBody(Object requestBody, String contentType, boolean applicationJson) {
+        setRequestBody(requestBody, contentType, applicationJson);
+        return this;
+    }
+
+    public void setJsonBody(Object requestBody) {
+        this.content = requestBody;
+        this.contentType = HttpHeaderValues.APPLICATION_JSON;
+        this.applicationJson = true;
+    }
+
+    public HttpClientConfig jsonBody(Object body) {
+        setJsonBody(body);
+        return this;
+    }
+
     public boolean isApplicationJson() {
         return applicationJson;
     }
 
     public void setContentType(String contentType) {
         this.contentType = contentType;
+    }
+
+    public HttpClientConfig contentType(String contentType) {
+        this.contentType = contentType;
+        return this;
     }
 
     public String getContentType() {
@@ -254,12 +353,30 @@ public class HttpClientConfig {
         this.keepAliveOnTimeout = keepAliveOnTimeout;
     }
 
+    public HttpClientConfig keepAliveOnTimeout(boolean keepAliveOnTimeout) {
+        this.keepAliveOnTimeout = keepAliveOnTimeout;
+        return this;
+    }
+
     public boolean isFollowRedirect() {
         return followRedirect;
     }
 
     public void setFollowRedirect(boolean followRedirect) {
         this.followRedirect = followRedirect;
+    }
+
+    public HttpClientConfig followRedirect(boolean followRedirect) {
+        this.followRedirect = followRedirect;
+        return this;
+    }
+
+    public boolean isHeaderNameToLowerCase() {
+        return headerNameToLowerCase;
+    }
+    public HttpClientConfig headerNameToLowerCase(boolean headerNameToLowerCase) {
+        this.headerNameToLowerCase = headerNameToLowerCase;
+        return this;
     }
 
     public static HttpClientConfig create() {
@@ -281,4 +398,65 @@ public class HttpClientConfig {
     public static void setDefaultMaxReadTimeout(long defaultMaxReadTimeout) {
         HttpClientConfig.defaultMaxReadTimeout = defaultMaxReadTimeout;
     }
+
+    public boolean isLogApplicationHeaders() {
+        return logApplicationHeaders;
+    }
+
+    public void setLogApplicationHeaders(boolean logApplicationHeaders) {
+        this.logApplicationHeaders = logApplicationHeaders;
+    }
+
+    public HttpClientConfig logApplicationHeaders(boolean printlnDebugHeaders) {
+        this.logApplicationHeaders = printlnDebugHeaders;
+        return this;
+    }
+
+    public boolean isResponseStream() {
+        return responseStream;
+    }
+
+    public void setResponseStream(boolean responseStream) {
+        this.responseStream = responseStream;
+    }
+
+    /**
+     * 设置流响应模式（适合大文件流下载）
+     *
+     * @param responseStream
+     * @return
+     */
+    public HttpClientConfig responseStream(boolean responseStream) {
+        this.responseStream = responseStream;
+        return this;
+    }
+
+    /**
+     * 回调处理响应流（异步）
+     *
+     * @param responseCallback
+     * @return
+     */
+    public HttpClientConfig responseCallback(ResponseCallback responseCallback) {
+        this.responseCallback = responseCallback;
+        return this;
+    }
+
+    public String getDownloadFileName() {
+        return downloadFileName;
+    }
+
+    public HttpClientConfig downloadFileName(String downloadFileName) {
+        this.downloadFileName = downloadFileName;
+        return this;
+    }
+
+    public ResponseCallback getResponseCallback() {
+        return responseCallback;
+    }
+
+    public interface ResponseCallback {
+        void onDownloadProgress(long downloaded, long total);
+    }
 }
+

@@ -38,7 +38,16 @@ class HttpClientRequestImpl implements HttpClientRequest {
     }
 
     public HttpClientRequestImpl(String spec, HttpClientMethod httpClientMethod, HttpClientConfig httpClientConfig) {
-        this.method = String.valueOf(httpClientMethod);
+        this.method = httpClientMethod.name();
+        this.parseUrlInfo(spec);
+        if (httpClientConfig == null) {
+            httpClientConfig = new HttpClientConfig();
+        }
+        this.httpClientConfig = httpClientConfig;
+    }
+
+    HttpClientRequestImpl(String spec, String method, HttpClientConfig httpClientConfig) {
+        this.method = method;
         this.parseUrlInfo(spec);
         if (httpClientConfig == null) {
             httpClientConfig = new HttpClientConfig();

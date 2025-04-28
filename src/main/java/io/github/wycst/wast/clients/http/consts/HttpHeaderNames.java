@@ -32,6 +32,7 @@ public interface HttpHeaderNames {
     public static final String CONTENT_RANGE = "content-range";
     public static final String CONTENT_SECURITY_POLICY = "content-security-policy";
     public static final String CONTENT_TYPE = "content-type";
+    public static final String CONTENT_TYPE_BROWSER = "Content-Type";
     public static final String COOKIE = "cookie";
     public static final String DATE = "date";
     public static final String ETAG = "etag";

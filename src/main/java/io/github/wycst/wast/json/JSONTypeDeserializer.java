@@ -1203,7 +1203,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                             return new BigDecimal(buf, fromIndex, endIndex - fromIndex + 1);
                         }
                         value = negative ? -value : value;
-                        return new BigDecimal(BigInteger.valueOf(value), expNegative ? e10 + decimalCount : decimalCount - e10);
+                        return BigDecimal.valueOf(value, expNegative ? e10 + decimalCount : decimalCount - e10);
                     }
                     case TYPE_BIGINTEGER: {
                         if (cnt > 18 && (cnt > 19 || value < 0)) {
@@ -1433,7 +1433,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                             return new BigDecimal(new String(buf, fromIndex, endIndex - fromIndex + 1));
                         }
                         value = negative ? -value : value;
-                        return new BigDecimal(BigInteger.valueOf(value), expNegative ? e10 + decimalCount : decimalCount - e10);
+                        return BigDecimal.valueOf(value, expNegative ? e10 + decimalCount : decimalCount - e10);
                     }
                     case TYPE_BIGINTEGER: {
                         if (cnt > 18 && (cnt > 19 || value < 0)) {
@@ -1793,7 +1793,7 @@ public abstract class JSONTypeDeserializer extends JSONGeneral {
                     return new BigDecimal(new String(buf, fromIndex, endIndex - fromIndex + 1));
                 }
                 value = negative ? -value : value;
-                return new BigDecimal(BigInteger.valueOf(value), expNegative ? e10 + decimalCount : decimalCount - e10);
+                return BigDecimal.valueOf(value, expNegative ? e10 + decimalCount : decimalCount - e10);
             }
 
             @Override

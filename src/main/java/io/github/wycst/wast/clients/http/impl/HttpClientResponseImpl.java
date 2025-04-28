@@ -10,7 +10,6 @@ import java.io.InputStream;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * @Author: wangy
@@ -19,28 +18,12 @@ import java.util.Set;
  */
 public class HttpClientResponseImpl extends AbstractHttpClientResponse {
 
-    private String contentType;
-    private Map<String, List<String>> headers;
-
-    public HttpClientResponseImpl(int code, String reasonPhrase, InputStream is) {
-        super(code, reasonPhrase, is, -1);
+    public HttpClientResponseImpl(int code, String reasonPhrase, InputStream is, int contentLength, String contentType, Map<String, List<String>> headers) {
+        super(code, reasonPhrase, is, contentLength, contentType, headers);
     }
 
-    public HttpClientResponseImpl(int code, String reasonPhrase, InputStream is, int contentLength) {
-        super(code, reasonPhrase, is, contentLength);
-    }
-
-    public HttpClientResponseImpl(int code, String reasonPhrase, byte[] content) {
-        super(code, reasonPhrase, content);
-    }
-
-    @Override
-    public void setContentType(String contentType) {
-        this.contentType = contentType;
-    }
-
-    public String getContentType() {
-        return contentType;
+    public HttpClientResponseImpl(int code, String reasonPhrase, byte[] conent, int contentLength, String contentType, Map<String, List<String>> headers) {
+        super(code, reasonPhrase, conent, contentLength, contentType, headers);
     }
 
     public <E> E getEntity(Class<E> entityCls) {
@@ -92,28 +75,11 @@ public class HttpClientResponseImpl extends AbstractHttpClientResponse {
         return null;
     }
 
-    @Override
-    public void setHeaders(Map<String, List<String>> responseHeaders) {
-        this.headers = responseHeaders;
-    }
-
-    public String getHeader(String name) {
-        List<String> headerValues = headers.get(name);
-        return headerValues == null || headerValues.size() == 0 ? null : headerValues.get(0);
-    }
-
-    public List<String> getHeaders(String name) {
-        List<String> headerValues = headers.get(name);
-        return headerValues;
-    }
-
-    public Set<String> getHeaderNames() {
-        Set<String> keys = headers.keySet();
-        return keys;
-    }
 
     @Override
     public String toString() {
         return "Response : " + status() + " " + reasonPhrase();
     }
+
+
 }

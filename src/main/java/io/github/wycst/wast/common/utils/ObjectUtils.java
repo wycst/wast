@@ -5,6 +5,7 @@ import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.common.exceptions.TypeNotMatchExecption;
 import io.github.wycst.wast.common.reflect.*;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
@@ -383,8 +384,8 @@ public final class ObjectUtils extends InvokeUtils {
     }
 
     public static Object defaulValue(Class<?> type) {
-         if (type.isPrimitive()) {
-            if(type == boolean.class) {
+        if (type.isPrimitive()) {
+            if (type == boolean.class) {
                 return false;
             } else if (type == char.class) {
                 return (char) 0;
@@ -541,5 +542,35 @@ public final class ObjectUtils extends InvokeUtils {
             }
         }
         return null;
+    }
+
+    /**
+     * 判断value是否为空("/null/[]/{})
+     *
+     * @param value
+     * @return
+     */
+    public static boolean isEmpty(Object value) {
+        if (value == null) return true;
+        if (value instanceof CharSequence) {
+            String toString = value.toString();
+            return toString.trim().isEmpty();
+        }
+        if (value instanceof Collection) {
+            return ((Collection) value).isEmpty();
+        }
+        if (value instanceof Map) {
+            return ((Map) value).isEmpty();
+        }
+        Class cls = value.getClass();
+        if (cls.isArray()) {
+            Class componentType = cls.getComponentType();
+            if (componentType.isPrimitive()) {
+                return Array.getLength(value) == 0;
+            } else {
+                return ((Object[]) value).length == 0;
+            }
+        }
+        return false;
     }
 }
