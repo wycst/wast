@@ -341,7 +341,7 @@ class JSONKeyValueMap<T> {
                 }
                 case 2:
                 case 3: {
-                    remValueForChars = JSONUnsafe.getInt(chars, charLen - 2);
+                    remValueForChars = JSONMemoryHandle.getInt(chars, charLen - 2);
                     break;
                 }
             }
@@ -356,7 +356,7 @@ class JSONKeyValueMap<T> {
                 }
                 case 2:
                 case 3: {
-                    remValueForBytes = JSONUnsafe.getShort(bytes, byteLen - 2);
+                    remValueForBytes = JSONMemoryHandle.getShort(bytes, byteLen - 2);
                     break;
                 }
             }
@@ -373,11 +373,11 @@ class JSONKeyValueMap<T> {
         EntryNode<T> next;
 
         public final boolean equals(char[] buf, int offset, int len) {
-            return len == chars.length && JSONUnsafe.equals(buf, offset, chars, 0, len, remCharsValue);
+            return len == chars.length && JSONMemoryHandle.equals(buf, offset, chars, 0, len, remCharsValue);
         }
 
         public final boolean equals(byte[] buf, int offset, int len) {
-            return len == bytes.length && JSONUnsafe.equals(buf, offset, bytes, 0, len, remBytesValue);
+            return len == bytes.length && JSONMemoryHandle.equals(buf, offset, bytes, 0, len, remBytesValue);
         }
     }
 

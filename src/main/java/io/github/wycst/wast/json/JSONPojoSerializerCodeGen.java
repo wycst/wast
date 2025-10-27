@@ -4,7 +4,6 @@ import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.common.compiler.JavaSourceObject;
 import io.github.wycst.wast.common.idgenerate.providers.IdGenerator;
 import io.github.wycst.wast.common.reflect.GetterInfo;
-import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import io.github.wycst.wast.common.utils.EnvUtils;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 
@@ -114,24 +113,24 @@ final class JSONPojoSerializerCodeGen {
                 if (useUnsafe) {
                     fieldNameTempBuilder.setLength(0);
                     fieldNameTempBuilder.append(",\"").append(fieldKey).append("\":");
-                    longsFormatOut = UnsafeHelper.getCharLongs(fieldNameTempBuilder.substring(1));
-                    intsFormatOut = UnsafeHelper.getByteInts(fieldNameTempBuilder.substring(1));
+                    longsFormatOut = JSONMemoryHandle.getCharLongs(fieldNameTempBuilder.substring(1));
+                    intsFormatOut = JSONMemoryHandle.getByteInts(fieldNameTempBuilder.substring(1));
                     fieldNameFormatOutTokenLength = fieldNameTempBuilder.length() - 1;
                     if (isBoolean) {
                         fieldNameTempBuilder.append("true");
                     }
                     fieldNameTokenLength = fieldNameTempBuilder.length();
                     fieldNameTokenBoolFalseLength = fieldNameTokenLength + 1;
-                    longs = isBoolean ? UnsafeHelper.getCharLongs(fieldNameTempBuilder.substring(1)) : longsFormatOut;
-                    longsWithComma = UnsafeHelper.getCharLongs(fieldNameTempBuilder.toString());
-                    ints = isBoolean ? UnsafeHelper.getByteInts(fieldNameTempBuilder.substring(1)) : intsFormatOut;
-                    intsWithComma = UnsafeHelper.getByteInts(fieldNameTempBuilder.toString());
+                    longs = isBoolean ? JSONMemoryHandle.getCharLongs(fieldNameTempBuilder.substring(1)) : longsFormatOut;
+                    longsWithComma = JSONMemoryHandle.getCharLongs(fieldNameTempBuilder.toString());
+                    ints = isBoolean ? JSONMemoryHandle.getByteInts(fieldNameTempBuilder.substring(1)) : intsFormatOut;
+                    intsWithComma = JSONMemoryHandle.getByteInts(fieldNameTempBuilder.toString());
 
                     if (isBoolean) {
                         fieldNameTempBuilder.setLength(fieldNameTempBuilder.length() - 4);
                         fieldNameTempBuilder.append("false");
-                        longsWithCommaBoolFalse = UnsafeHelper.getCharLongs(fieldNameTempBuilder.toString());
-                        intsWithCommaBoolFalse = UnsafeHelper.getByteInts(fieldNameTempBuilder.toString());
+                        longsWithCommaBoolFalse = JSONMemoryHandle.getCharLongs(fieldNameTempBuilder.toString());
+                        intsWithCommaBoolFalse = JSONMemoryHandle.getByteInts(fieldNameTempBuilder.toString());
                     }
                 }
 
@@ -967,7 +966,7 @@ final class JSONPojoSerializerCodeGen {
                             JsonProperty jsonProperty = fieldSerializer.getJsonProperty();
                             boolean asTimestamp = jsonProperty != null && jsonProperty.asTimestamp();
                             if (jsonProperty == null || jsonProperty.pattern().isEmpty() || jsonProperty.pattern().trim().equalsIgnoreCase("yyyy-MM-dd HH:mm:ss")) {
-                                if(asTimestamp) {
+                                if (asTimestamp) {
                                     compactBodyBuilder.append("\t\t\twriter.writeLong(" + valueVar + ".getTime());\n");
                                 } else {
                                     // use default pattern
@@ -1041,8 +1040,8 @@ final class JSONPojoSerializerCodeGen {
                     compactBodyBuilder.append("\t\tObject " + valueVar + " = invokeValue(" + fieldSerializerName + ", entity);\n");
 
                     // generate format code
-                    if(Modifier.isPublic(returnType.getModifiers())) {
-                        if(EnvUtils.JDK_7_BELOW) {
+                    if (Modifier.isPublic(returnType.getModifiers())) {
+                        if (EnvUtils.JDK_7_BELOW) {
                             fmatOutBodyBuilder.append("\t\t" + returnType.getCanonicalName() + " " + valueVar + " = invokeValue(" + fieldSerializerName + ", entity, " + returnType.getCanonicalName() + ".class);\n");
                         } else {
                             fmatOutBodyBuilder.append("\t\t" + returnType.getCanonicalName() + " " + valueVar + " = (" + returnType.getCanonicalName() + ") invokeValue(" + fieldSerializerName + ", entity);\n");
@@ -1106,7 +1105,7 @@ final class JSONPojoSerializerCodeGen {
                     compactBodyBuilder.append("\t\t\tdoSerialize(" + fieldSerializerName + ".getSerializer(), " + valueVar + ", writer, jsonConfig, -1);\n");
                     compactBodyBuilder.append("\t\t}\n");
 
-                    if(primitive) {
+                    if (primitive) {
                         ensureNotEmptyFlag = true;
                     }
                 }
@@ -1299,7 +1298,7 @@ final class JSONPojoSerializerCodeGen {
             JsonProperty jsonProperty = fieldSerializer.getJsonProperty();
             boolean asTimestamp = jsonProperty != null && jsonProperty.asTimestamp();
             if (jsonProperty == null || jsonProperty.pattern().isEmpty() || jsonProperty.pattern().trim().equalsIgnoreCase("yyyy-MM-dd HH:mm:ss")) {
-                if(asTimestamp) {
+                if (asTimestamp) {
                     fmatOutBodyBuilder.append("\t\t\twriter.writeLong(" + valueVar + ".getTime());\n");
                 } else {
                     // use default pattern

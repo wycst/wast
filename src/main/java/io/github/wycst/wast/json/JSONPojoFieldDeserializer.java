@@ -1,5 +1,6 @@
 package io.github.wycst.wast.json;
 
+import io.github.wycst.wast.common.expression.Expression;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.SetterInfo;
@@ -84,7 +85,11 @@ public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implem
             flag = true;
             Class impl;
             boolean unfixedType = false;
+            Class<?>[] possibleTypes = null;
+            String possibleExpression = null;
             if (jsonProperty != null) {
+                possibleTypes = jsonProperty.possibleTypes();
+                possibleExpression = jsonProperty.possibleExpression().trim();
                 if ((impl = jsonProperty.impl()) != Object.class) {
                     if (isAvailableImpl(impl)) {
                         implClass = impl;
@@ -92,7 +97,9 @@ public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implem
                 }
                 unfixedType = jsonProperty.unfixedType();
             }
-            if (implClass != null) {
+            if (possibleTypes != null && possibleTypes.length > 0) {
+                this.deserializer = getPossibleTypesTypeDeserializer(genericParameterizedType.getActualType(), possibleTypes, possibleExpression.isEmpty() ? null : Expression.parse(possibleExpression));
+            } else if (implClass != null) {
                 this.deserializer = getTypeDeserializer(implClass);
                 this.genericParameterizedType = GenericParameterizedType.actualType(implClass);
             } else {
@@ -112,11 +119,13 @@ public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implem
     boolean ensuredTypeDeserializable() {
         if (setterInfo.isNonInstanceType()) {
             JSONTypeDeserializer deserializer = getCachedTypeDeserializer(genericParameterizedType.getActualType());
-            if(deserializer == null) {
+            if (deserializer == null) {
                 return false;
             }
-            this.deserializer = deserializer;
-            flag = true;
+            if (jsonProperty == null || jsonProperty.possibleTypes().length == 0) {
+                this.deserializer = deserializer;
+                flag = true;
+            }
         }
         boolean unfixedType = jsonProperty != null && jsonProperty.unfixedType();
         if (unfixedType && genericParameterizedType.getActualClassCategory() == ReflectConsts.ClassCategory.ObjectCategory) {
@@ -191,6 +200,7 @@ public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implem
     public boolean isAvailableImpl(Class<?> cls) {
         boolean assignableFrom = genericParameterizedType.getActualType().isAssignableFrom(cls);
         if (!assignableFrom) return false;
+        // only supported ObjectCategory, CollectionCategory, MapCategory
         switch (classCategory) {
             case MapCategory:
             case CollectionCategory:

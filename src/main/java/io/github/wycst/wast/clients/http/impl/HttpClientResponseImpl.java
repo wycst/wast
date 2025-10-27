@@ -30,7 +30,7 @@ public class HttpClientResponseImpl extends AbstractHttpClientResponse {
         byte[] content = content();
         if (content == null)
             return null;
-        if(entityCls == HttpClientResponse.class) {
+        if (entityCls == HttpClientResponse.class) {
             return (E) this;
         }
         if (byte[].class.isAssignableFrom(entityCls)) {
@@ -57,7 +57,7 @@ public class HttpClientResponseImpl extends AbstractHttpClientResponse {
     }
 
     @Override
-    public <E> E getEntity(GenericParameterizedType<E> parameterizedType, ReadOption...readOptions) {
+    public <E> E getEntity(GenericParameterizedType<E> parameterizedType, ReadOption... readOptions) {
         byte[] content = content();
         if (content == null)
             return null;

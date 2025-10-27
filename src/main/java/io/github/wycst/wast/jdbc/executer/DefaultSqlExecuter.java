@@ -65,7 +65,9 @@ public class DefaultSqlExecuter {
     boolean supportBatchInsert;
     boolean clickHouse;
     boolean mysql;
+    boolean oracle;
     boolean gbase;
+    boolean kingbase;
     String[] sqlTemplates = new String[SqlFunctionType.values().length];
 
     // api based on sql template
@@ -240,35 +242,36 @@ public class DefaultSqlExecuter {
             this.databaseProductName = databaseProductName;
 
             boolean supportBatchInsert = false;
-            boolean clickHouse = false;
-            boolean mysql = false;
-            boolean gbase = false;
             if (databaseProductName != null) {
                 String upperName = databaseProductName.toUpperCase();
-                if (mysql = (upperName.indexOf("MYSQL") > -1)) {
+                if (upperName.contains("MYSQL")) {
+                    mysql = true;
                     this.dialect = new MySqlDialect();
-                } else if (upperName.indexOf("ORACLE") > -1) {
+                } else if (upperName.contains("ORACLE")) {
+                    oracle = true;
                     this.dialect = new OracleDialect();
-                } else if ((clickHouse = upperName.indexOf("CLICKHOUSE") > -1)) {
+                } else if (upperName.contains("CLICKHOUSE")) {
+                    clickHouse = true;
                     // ClickHouse
                     this.dialect = new ClickHouseDialect();
                     sqlTemplates[SqlFunctionType.UPDATE_BY_ID.ordinal()] = "ALTER TABLE %s UPDATE %s WHERE %s = %s";
                     sqlTemplates[SqlFunctionType.UPDATE_BY_PARAMS.ordinal()] = "ALTER TABLE %s t UPDATE %s %s";
                     sqlTemplates[SqlFunctionType.DELETE_BY_ID.ordinal()] = "ALTER TABLE %s DELETE WHERE %s = %s";
                     sqlTemplates[SqlFunctionType.DELETE_BY_PARAMS.ordinal()] = "ALTER TABLE %s DELETE %s";
-                } else if (gbase = upperName.indexOf("GBASE") > -1) {
+                } else if (upperName.contains("KINGBASEES")) {
+                    // use mysql
+                    kingbase = true;
+                    this.dialect = new MySqlDialect();
+                } else if (upperName.contains("GBASE")) {
+                    gbase = true;
                     // gbase
                     this.dialect = new GbaseDialect();
                 } else {
                     // default
                     this.dialect = new DefaultDialect(pageDialectAgent);
                 }
-                supportBatchInsert = mysql || clickHouse;
+                supportBatchInsert = mysql || clickHouse || kingbase;
             }
-
-            this.clickHouse = clickHouse;
-            this.mysql = mysql;
-            this.gbase = gbase;
             this.supportBatchInsert = supportBatchInsert;
 
         } catch (SQLException e) {
@@ -870,7 +873,15 @@ public class DefaultSqlExecuter {
         return mysql;
     }
 
+    public boolean isOracle() {
+        return oracle;
+    }
+
     public boolean isGbase() {
         return gbase;
+    }
+
+    public boolean isKingbase() {
+        return kingbase;
     }
 }

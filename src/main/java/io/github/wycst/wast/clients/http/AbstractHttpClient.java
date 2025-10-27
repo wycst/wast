@@ -1,9 +1,11 @@
 package io.github.wycst.wast.clients.http;
 
-import io.github.wycst.wast.clients.http.definition.HttpClientConfig;
-import io.github.wycst.wast.clients.http.definition.HttpClientMethod;
-import io.github.wycst.wast.clients.http.definition.HttpClientRequest;
-import io.github.wycst.wast.clients.http.definition.HttpClientResponse;
+import io.github.wycst.wast.clients.http.consts.HttpHeaderNames;
+import io.github.wycst.wast.clients.http.consts.HttpHeaderValues;
+import io.github.wycst.wast.clients.http.definition.*;
+import io.github.wycst.wast.clients.http.event.EventSourceCallback;
+import io.github.wycst.wast.clients.http.event.EventSourceHandler;
+import io.github.wycst.wast.clients.http.event.EventSourceMessage;
 import io.github.wycst.wast.clients.http.executor.HttpClientExecutor;
 import io.github.wycst.wast.clients.http.impl.HttpClientRequestBuilder;
 import io.github.wycst.wast.clients.http.provider.ServiceProvider;
@@ -11,14 +13,12 @@ import io.github.wycst.wast.clients.http.url.UrlHttpClientExecutor;
 import io.github.wycst.wast.log.Log;
 import io.github.wycst.wast.log.LogFactory;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 /**
  * @Author: wangy
@@ -28,8 +28,9 @@ import java.util.Map;
 class AbstractHttpClient {
 
     private HttpClientExecutor httpClientExecutor;
-    final static Map<String, String> EMPTY_HEADERS = new HashMap<String, String>();
+    final static Map EMPTY_HEADERS = new HashMap();
     final static Log log = LogFactory.getLog(AbstractHttpClient.class);
+
     public AbstractHttpClient() {
         this(new UrlHttpClientExecutor());
     }
@@ -223,7 +224,7 @@ class AbstractHttpClient {
     public final void download(String url, HttpClientMethod method, HttpClientConfig clientConfig) {
         HttpClientResponse clientResponse = httpClientExecutor.executeRequest(HttpClientRequestBuilder.buildRequest(url, method, clientConfig.responseStream(true)));
         String fileName = clientConfig.getDownloadFileName();
-        if(fileName == null) {
+        if (fileName == null) {
             String contentDisposition = clientResponse.getHeader("content-disposition");
             if (contentDisposition != null) {
                 contentDisposition = contentDisposition.toLowerCase();
@@ -251,7 +252,7 @@ class AbstractHttpClient {
     }
 
     final void handleResponseInputStream(final HttpClientResponse clientResponse, final HttpClientConfig clientConfig, final OutputStream targetOutputStream) {
-        final HttpClientConfig.ResponseCallback responseCallback = clientConfig.getResponseCallback();
+        final ResponseCallback responseCallback = clientConfig.getResponseCallback();
         final InputStream is = clientResponse.inputStream();
         final byte[] buffer = new byte[8192];
         if (responseCallback != null) {
@@ -288,5 +289,143 @@ class AbstractHttpClient {
                 throwable.printStackTrace();
             }
         }
+    }
+
+    /**
+     * 支持客户端SSE(参考前端使用习惯)
+     *
+     * @param url
+     * @param method
+     * @param clientConfig
+     * @param eventSourceCallback
+     * @return
+     */
+    public final EventSourceHandler eventSource(final String url, final HttpClientMethod method, final HttpClientConfig clientConfig, final EventSourceCallback eventSourceCallback) {
+        return eventSource(url, method, clientConfig, eventSourceCallback, null);
+    }
+
+    static final void doSleep(long milliseconds) {
+        try {
+            Thread.sleep(milliseconds);
+        } catch (InterruptedException e) {
+        }
+    }
+
+    /**
+     * 支持客户端SSE(参考前端使用习惯)
+     *
+     * @param url
+     * @param method
+     * @param clientConfig
+     * @param eventSourceCallback
+     * @param executorService
+     * @return
+     */
+    public final EventSourceHandler eventSource(final String url, final HttpClientMethod method, final HttpClientConfig clientConfig, final EventSourceCallback eventSourceCallback, ExecutorService executorService) {
+        final EventSourceHandler eventSourceHandler = new EventSourceHandler();
+        if (eventSourceCallback == null) {
+            throw new IllegalArgumentException("EventSourceCallback can not be null");
+        }
+        clientConfig.responseCallback(eventSourceCallback);
+        clientConfig.setHeader(HttpHeaderNames.ACCEPT, HttpHeaderValues.TEXT_EVENT_STREAM);
+        clientConfig.setMaxReadTimeout(0L);
+        final Runnable eventSourceThread = new Runnable() {
+            @Override
+            public void run() {
+                // 最多失败重连次数
+                final int errorRetryCount = clientConfig.getErrorRetryCount();
+                final long retryIntervalSeconds = clientConfig.getRetryIntervalSeconds();
+                final boolean retryIfServerClosed = clientConfig.isRetryIfServerClosed();
+                // 实际重连次数。成功后重置
+                int retryCount = 0;
+                // If it doesn't close, keep trying
+                while (!eventSourceHandler.isClosed()) {
+                    HttpClientResponse clientResponse;
+                    InputStream is;
+                    boolean closedFlag = false;
+                    try {
+                        clientResponse = httpClientExecutor.executeRequest(HttpClientRequestBuilder.buildRequest(url, method, clientConfig.responseStream(true)));
+                        // check if sse response
+                        String contentType = clientResponse.getContentType();
+                        if (contentType == null || !contentType.startsWith(HttpHeaderValues.TEXT_EVENT_STREAM)) {
+                            eventSourceCallback.onerror(new IllegalArgumentException("content-type '" + contentType + "' not supported, EventSource content-type must be text/event-stream"));
+                            eventSourceHandler.resultOf(false, clientResponse);
+                            continue;
+                        }
+                        if (clientResponse.status() != 200) {
+                            eventSourceCallback.onerror(new IllegalArgumentException("status code " + clientResponse.status()));
+                            eventSourceHandler.resultOf(false, clientResponse);
+                            continue;
+                        }
+                        retryCount = 0;
+                        eventSourceCallback.onopen(clientResponse);
+                        is = clientResponse.inputStream();
+                        final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(is));
+
+                        String line;
+                        EventSourceMessage eventSourceMessage = null;
+                        long messageRetry;
+                        while ((line = bufferedReader.readLine()) != null) {
+                            if (line.isEmpty()) {
+                                if (eventSourceMessage == null || eventSourceMessage.getData() == null) {
+                                    continue;
+                                }
+                                messageRetry = eventSourceMessage.getRetry();
+                                eventSourceCallback.onmessage(eventSourceMessage);
+                                eventSourceMessage = null;
+                                if (messageRetry > 0) {
+                                    doSleep(messageRetry);
+                                }
+                                continue;
+                            }
+                            if (eventSourceMessage == null) {
+                                eventSourceMessage = new EventSourceMessage();
+                            }
+                            if (line.startsWith("data:")) {
+                                String dataStr = line.substring(5);
+                                eventSourceMessage.setData(dataStr);
+                            } else if (line.startsWith("event:")) {
+                                String event = line.substring(6);
+                                eventSourceMessage.setEvent(event);
+                            } else if (line.startsWith("id:")) {
+                                String id = line.substring(3);
+                                eventSourceMessage.setId(id);
+                            } else if (line.startsWith("retry:")) {
+                                String retry = line.substring(6);
+                                eventSourceMessage.setRetry(Long.parseLong(retry));
+                            }
+                        }
+                        is.close();
+                        // 通常情况下单次请后完毕后服务端会主动关闭连接等待客户端下次重新请求（比如常用的问答请求）
+                        // 在服务端正常关闭连接的场景下，如果还希望保持重连，可以设置retryIfServerClosed为true
+                        if (!retryIfServerClosed) {
+                            eventSourceCallback.onclose();
+                            eventSourceHandler.close();
+                            closedFlag = true;
+                        }
+                    } catch (Throwable throwable) {
+                        eventSourceCallback.onerror(throwable);
+                    } finally {
+                        if (!closedFlag) {
+                            ++retryCount;
+                            if ((errorRetryCount < 0 || retryCount <= errorRetryCount)) {
+                                log.debug("EventSource Error, wait {} Seconds, retryCount {} ", retryIntervalSeconds, retryCount);
+                                doSleep(retryIntervalSeconds * 1000);
+                            } else {
+                                eventSourceHandler.close();
+                            }
+                        }
+                    }
+                }
+                log.debug("EventSource closed");
+            }
+        };
+        // 异步处理
+        if (executorService == null) {
+            new Thread(eventSourceThread).start();
+        } else {
+            executorService.submit(eventSourceThread);
+        }
+        return eventSourceHandler;
     }
 }

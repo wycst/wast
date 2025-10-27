@@ -2,6 +2,7 @@ package io.github.wycst.wast.common.utils;
 
 import io.github.wycst.wast.common.reflect.ClassStrucWrap;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -117,5 +118,28 @@ public final class ReflectUtils {
         Class invokerCls = invoker.getClass();
         ClassStrucWrap classStrucWrap = ClassStrucWrap.get(invokerCls);
         return classStrucWrap.invokePublic(invoker, methodName, params);
+    }
+
+    /**
+     * 递归获取反射字段
+     *
+     * @param sourceClass
+     * @param fieldName
+     * @return
+     */
+    public static Field getField(Class<?> sourceClass, String fieldName) {
+        Class<?> target = sourceClass;
+        while (true) {
+            Field[] fields = target.getDeclaredFields();
+            for (Field field : fields) {
+                if (field.getName().equals(fieldName)) {
+                    return field;
+                }
+            }
+            target = target.getSuperclass();
+            if (target == null || target == Object.class) {
+                return null;
+            }
+        }
     }
 }

@@ -42,11 +42,11 @@ public class Point extends Geometry {
     void readBody(char[] chars, GeometryContext geometryContext) {
         int offset = geometryContext.offset;
         // trim()
-        while ((chars[++offset]) == ' ');
+        while ((chars[++offset]) == ' ') ;
         geometryContext.offset = offset;
         readPoint(chars, geometryContext);
         offset = geometryContext.offset;
-        if(chars[offset] != ')') {
+        if (chars[offset] != ')') {
             throw new IllegalArgumentException("Geometry syntax error, offset " + offset + " , expected ')', actual '" + chars[offset] + "'");
         }
         this.x = geometryContext.x;

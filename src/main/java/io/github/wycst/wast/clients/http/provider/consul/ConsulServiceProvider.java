@@ -256,7 +256,7 @@ public class ConsulServiceProvider extends CloudServiceProvider {
     }
 
     private void deregister() {
-        if(this.status) {
+        if (this.status) {
             try {
                 String serviceId = this.instanceIp + ":" + this.instancePort;
                 this.httpClient.put(String.format("http://%s/v1/agent/service/deregister/%s%s", this.consulServerName, serviceId, this.aclEnabled ? "?token=" + this.aclToken : ""), String.class);

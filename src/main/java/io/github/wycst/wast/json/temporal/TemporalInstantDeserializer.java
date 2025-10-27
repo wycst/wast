@@ -9,6 +9,7 @@ import io.github.wycst.wast.json.JSONTemporalDeserializer;
 import io.github.wycst.wast.json.exceptions.JSONException;
 
 import java.time.Instant;
+import java.time.temporal.Temporal;
 
 /**
  * Instant反序列化
@@ -40,97 +41,102 @@ public class TemporalInstantDeserializer extends JSONTemporalDeserializer {
 
     // use default pattern yyyy*MM*dd*HH*mm*ss.SZ?
     @Override
-    protected Object deserializeDefault(char[] buf, int offset, char endToken, JSONParseContext jsonParseContext) throws Exception {
-        int i = offset;
-        int year, month, day, hour, minute, second;
-        char c1, c2, c3, c4;
-        if (NumberUtils.isDigit(c1 = buf[i]) && NumberUtils.isDigit(c2 = buf[++i]) && NumberUtils.isDigit(c3 = buf[++i]) && NumberUtils.isDigit(c4 = buf[++i])) {
-            year = fourDigitsValue(c1 & 0xf, c2 & 0xf, c3 & 0xf, c4);
+    protected Object deserializeDefault(char[] buf, int offset, char endToken, JSONParseContext parseContext) throws Exception {
+        int i = offset, year, month, day, hour, minute, second;
+        char symbol, split;
+        char c;
+        if ((year = fourDigitsYear(buf, offset)) != -1) {
+            i += 3;
         } else {
-            if (c1 == '-' && NumberUtils.isDigit(c1 = buf[++i]) && NumberUtils.isDigit(c2 = buf[++i]) && NumberUtils.isDigit(c3 = buf[++i]) && NumberUtils.isDigit(c4 = buf[++i])) {
-                year = -fourDigitsValue(c1 & 0xf, c2 & 0xf, c3 & 0xf, c4);
+            if (buf[i] == '-' && (year = fourDigitsYear(buf, i + 1)) != -1) {
+                year = -year;
+                i += 4;
             } else {
                 String errorContextTextAt = createErrorContextText(buf, i);
                 throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', year field error ");
             }
         }
-        while (NumberUtils.isDigit(c1 = buf[++i])) {
-            year = year * 10 + (c1 & 0xf);
+        while (NumberUtils.isDigit(c = buf[++i])) {
+            year = year * 10 + (c & 0xf);
         }
-        boolean isDigitFlag;
-        if ((isDigitFlag = NumberUtils.isDigit(c1 = buf[++i])) && NumberUtils.isDigit(c2 = buf[++i])) {
-            month = twoDigitsValue(c1, c2);
-            ++i;
-        } else {
-            if(isDigitFlag) {
-                month = c1 & 0xf;
+        if ((symbol = c) != '-' && symbol != '/' && symbol != '.' && symbol != '~') {
+            String errorContextTextAt = createErrorContextText(buf, i);
+            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', default symbol error, only support '-' or '/' or '.' or '~', but " + symbol);
+        }
+        if ((month = digits2Chars(buf, ++i)) == -1) {
+            if (NumberUtils.isDigit(c = buf[i])) {
+                month = c & 0xf;
             } else {
                 String errorContextTextAt = createErrorContextText(buf, i);
                 throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', month field error ");
             }
-        }
-        if ((isDigitFlag = NumberUtils.isDigit(c1 = buf[++i])) && NumberUtils.isDigit(c2 = buf[++i])) {
-            day = twoDigitsValue(c1, c2);
-            ++i;
         } else {
-            if(isDigitFlag) {
-                day = c1 & 0xf;
+            ++i;
+        }
+        if (buf[++i] != symbol) {
+            String errorContextTextAt = createErrorContextText(buf, i);
+            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', expect '" + symbol + "', but '" + buf[i] + "'");
+        }
+        if ((day = digits2Chars(buf, ++i)) == -1) {
+            if (NumberUtils.isDigit(c = buf[i])) {
+                day = c & 0xf;
             } else {
                 String errorContextTextAt = createErrorContextText(buf, i);
                 throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', day field error ");
             }
-        }
-        if ((isDigitFlag = NumberUtils.isDigit(c1 = buf[++i])) && NumberUtils.isDigit(c2 = buf[++i])) {
-            hour = twoDigitsValue(c1, c2);
-            ++i;
         } else {
-            if(isDigitFlag) {
-                hour = c1 & 0xf;
+            ++i;
+        }
+        if ((split = buf[++i]) != 'T' && split != ' ') {
+            String errorContextTextAt = createErrorContextText(buf, i);
+            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', expect 'T' or ' ', but '" + buf[i] + "'");
+        }
+        // HH:mm:ss
+        if ((hour = digits2Chars(buf, ++i)) == -1) {
+            if (NumberUtils.isDigit(c = buf[i])) {
+                hour = c & 0xf;
             } else {
                 String errorContextTextAt = createErrorContextText(buf, i);
                 throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', hour field error ");
             }
-        }
-        if ((isDigitFlag = NumberUtils.isDigit(c1 = buf[++i])) && NumberUtils.isDigit(c2 = buf[++i])) {
-            minute = twoDigitsValue(c1, c2);
-            ++i;
         } else {
-            if(isDigitFlag) {
-                minute = c1 & 0xf;
+            ++i;
+        }
+        if (buf[++i] != ':') {
+            String errorContextTextAt = createErrorContextText(buf, i);
+            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', expect ':', but '" + buf[i] + "'");
+        }
+        if ((minute = digits2Chars(buf, ++i)) == -1) {
+            if (NumberUtils.isDigit(c = buf[i])) {
+                minute = c & 0xf;
             } else {
                 String errorContextTextAt = createErrorContextText(buf, i);
                 throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', minute field error ");
             }
-        }
-        if ((isDigitFlag = NumberUtils.isDigit(c1 = buf[++i])) && NumberUtils.isDigit(c2 = buf[++i])) {
-            second = twoDigitsValue(c1, c2);
-            ++i;
         } else {
-            if(isDigitFlag) {
-                second = c1 & 0xf;
+            ++i;
+        }
+        if (buf[++i] != ':') {
+            String errorContextTextAt = createErrorContextText(buf, i);
+            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', expect ':', but '" + buf[i] + "'");
+        }
+        if ((second = digits2Chars(buf, ++i)) == -1) {
+            if (NumberUtils.isDigit(c = buf[i])) {
+                second = c & 0xf;
             } else {
                 String errorContextTextAt = createErrorContextText(buf, i);
                 throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', second field error ");
             }
+        } else {
+            ++i;
         }
-        // long millis = GeneralDate.getTime(year, month, day, hour, minute, second, 0, ZERO_TIME_ZONE);
+        // next .
+        c = buf[++i];
         long epochSecond = GeneralDate.getSeconds(year, month, day, hour, minute, second);
         int nanoOfSecond = 0;
-        char c = buf[i];
         if (c == '.') {
-            int cnt = 9;
-            while ((isDigitFlag = NumberUtils.isDigit(c = buf[++i])) && NumberUtils.isDigit(c1 = buf[++i])) {
-                cnt -= 2;
-                nanoOfSecond = nanoOfSecond * 100 + twoDigitsValue(c, c1);;
-            }
-            if(isDigitFlag) {
-                nanoOfSecond = (nanoOfSecond << 3) + (nanoOfSecond << 1) + (c & 0xf);
-                c = c1;
-                --cnt;
-            }
-            if (cnt > 0) {
-                nanoOfSecond *= NANO_OF_SECOND_PADDING[cnt];
-            }
+            nanoOfSecond = parseNanoOfSecond(buf, i + 1, parseContext);
+            c = buf[i = parseContext.endIndex];
         }
         switch (c) {
             case 'z':
@@ -139,7 +145,7 @@ public class TemporalInstantDeserializer extends JSONTemporalDeserializer {
             }
             default: {
                 if (c == endToken) {
-                    jsonParseContext.endIndex = i;
+                    parseContext.endIndex = i;
                     return Instant.ofEpochSecond(epochSecond, nanoOfSecond);
                 }
             }
@@ -150,14 +156,14 @@ public class TemporalInstantDeserializer extends JSONTemporalDeserializer {
 
     // use default supported pattern like yyyy?MM?dd?HH:mm:ss.SZ
     @Override
-    protected Object deserializeDefault(byte[] buf, int offset, byte endToken, JSONParseContext jsonParseContext) throws Exception {
-        int i = offset;
-        int year, month, day, hour, minute, second;
-        byte b1, b2;
-        if ((year = parseFourDigitsYear(buf, i)) != -1) {
+    protected Temporal deserializeDefault(byte[] buf, int offset, byte endToken, JSONParseContext parseContext) throws Exception {
+        int i = offset, year, month, day, hour, minute, second;
+        byte symbol, split;
+        byte c;
+        if ((year = fourDigitsYear(buf, offset)) != -1) {
             i += 3;
         } else {
-            if (buf[i] == '-' && (year = parseFourDigitsYear(buf, i + 1)) != -1) {
+            if (buf[i] == '-' && (year = fourDigitsYear(buf, i + 1)) != -1) {
                 year = -year;
                 i += 4;
             } else {
@@ -165,71 +171,87 @@ public class TemporalInstantDeserializer extends JSONTemporalDeserializer {
                 throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', year field error ");
             }
         }
-        while (NumberUtils.isDigit(b1 = buf[++i])) {
-            year = year * 10 + (b1 & 0xf);
+        while (NumberUtils.isDigit(c = buf[++i])) {
+            year = year * 10 + (c & 0xf);
         }
-        boolean isDigitFlag;
-        if ((isDigitFlag = NumberUtils.isDigit(b1 = buf[++i])) && NumberUtils.isDigit(b2 = buf[++i])) {
-            month = twoDigitsValue(b1, b2);
-            ++i;
-        } else {
-            if(isDigitFlag) {
-                month = b1 & 0xf;
+        if ((symbol = c) != '-' && symbol != '/' && symbol != '.' && symbol != '~') {
+            String errorContextTextAt = createErrorContextText(buf, i);
+            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', default symbol error, only support '-' or '/' or '.' or '~', but " + symbol);
+        }
+        if ((month = digits2Bytes(buf, ++i)) == -1) {
+            if (NumberUtils.isDigit(c = buf[i])) {
+                month = c & 0xf;
             } else {
                 String errorContextTextAt = createErrorContextText(buf, i);
                 throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', month field error ");
             }
-        }
-        if ((isDigitFlag = NumberUtils.isDigit(b1 = buf[++i])) && NumberUtils.isDigit(b2 = buf[++i])) {
-            day = twoDigitsValue(b1, b2);
-            ++i;
         } else {
-            if(isDigitFlag) {
-                day = b1 & 0xf;
+            ++i;
+        }
+        if (buf[++i] != symbol) {
+            String errorContextTextAt = createErrorContextText(buf, i);
+            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', expect '" + (char) symbol + "', but '" + (char) buf[i] + "'");
+        }
+        if ((day = digits2Bytes(buf, ++i)) == -1) {
+            if (NumberUtils.isDigit(c = buf[i])) {
+                day = c & 0xf;
             } else {
                 String errorContextTextAt = createErrorContextText(buf, i);
                 throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', day field error ");
             }
-        }
-        if ((isDigitFlag = NumberUtils.isDigit(b1 = buf[++i])) && NumberUtils.isDigit(b2 = buf[++i])) {
-            hour = twoDigitsValue(b1, b2);
-            ++i;
         } else {
-            if(isDigitFlag) {
-                hour = b1 & 0xf;
+            ++i;
+        }
+        if ((split = buf[++i]) != 'T' && split != ' ') {
+            String errorContextTextAt = createErrorContextText(buf, i);
+            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', expect 'T' or ' ', but '" + (char) buf[i] + "'");
+        }
+        // HH:mm:ss
+        if ((hour = digits2Bytes(buf, ++i)) == -1) {
+            if (NumberUtils.isDigit(c = buf[i])) {
+                hour = c & 0xf;
             } else {
                 String errorContextTextAt = createErrorContextText(buf, i);
                 throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', hour field error ");
             }
-        }
-        if ((isDigitFlag = NumberUtils.isDigit(b1 = buf[++i])) && NumberUtils.isDigit(b2 = buf[++i])) {
-            minute = twoDigitsValue(b1, b2);
-            ++i;
         } else {
-            if(isDigitFlag) {
-                minute = b1 & 0xf;
+            ++i;
+        }
+        if (buf[++i] != ':') {
+            String errorContextTextAt = createErrorContextText(buf, i);
+            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', expect ':', but '" + (char) buf[i] + "'");
+        }
+        if ((minute = digits2Bytes(buf, ++i)) == -1) {
+            if (NumberUtils.isDigit(c = buf[i])) {
+                minute = c & 0xf;
             } else {
                 String errorContextTextAt = createErrorContextText(buf, i);
                 throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', minute field error ");
             }
-        }
-        if ((isDigitFlag = NumberUtils.isDigit(b1 = buf[++i])) && NumberUtils.isDigit(b2 = buf[++i])) {
-            second = twoDigitsValue(b1, b2);
-            ++i;
         } else {
-            if(isDigitFlag) {
-                second = b1 & 0xf;
+            ++i;
+        }
+        if (buf[++i] != ':') {
+            String errorContextTextAt = createErrorContextText(buf, i);
+            throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', expect ':', but '" + (char) buf[i] + "'");
+        }
+        if ((second = digits2Bytes(buf, ++i)) == -1) {
+            if (NumberUtils.isDigit(c = buf[i])) {
+                second = c & 0xf;
             } else {
                 String errorContextTextAt = createErrorContextText(buf, i);
                 throw new JSONException("Syntax error, at pos " + i + ", context text by '" + errorContextTextAt + "', second field error ");
             }
+        } else {
+            ++i;
         }
+        // next .
+        c = buf[++i];
         long epochSecond = GeneralDate.getSeconds(year, month, day, hour, minute, second);
         int nanoOfSecond = 0;
-        byte c = buf[i];
         if (c == '.') {
-            nanoOfSecond = parseNanoOfSecond(buf, i + 1, jsonParseContext);
-            c = buf[i = jsonParseContext.endIndex];
+            nanoOfSecond = parseNanoOfSecond(buf, i + 1, parseContext);
+            c = buf[i = parseContext.endIndex];
         }
         switch (c) {
             case 'z':
@@ -238,7 +260,7 @@ public class TemporalInstantDeserializer extends JSONTemporalDeserializer {
             }
             default: {
                 if (c == endToken) {
-                    jsonParseContext.endIndex = i;
+                    parseContext.endIndex = i;
                     return Instant.ofEpochSecond(epochSecond, nanoOfSecond);
                 }
             }

@@ -25,7 +25,7 @@ import java.util.Set;
 public class UrlHttpClientExecutor extends AbstractUrlHttpClientExecutor {
 
     // log
-    private Log log = LogFactory.getLog(UrlHttpClientExecutor.class);
+    private final Log log = LogFactory.getLog(UrlHttpClientExecutor.class);
 
     @Override
     public final byte[] fastGetBody(String targetUrl, Map<String, String> headers) {
@@ -146,11 +146,11 @@ public class UrlHttpClientExecutor extends AbstractUrlHttpClientExecutor {
         httpConnection.setUseCaches(clientConfig.isUseCaches());
         httpConnection.setInstanceFollowRedirects(clientConfig.isFollowRedirect());
 
-        Map<String, Serializable> header = clientConfig.getHeaders();
+        Map<String, Object> header = clientConfig.getHeaders();
         final boolean headerNameToLowerCase = clientConfig.isHeaderNameToLowerCase();
         final boolean logApplicationHeaders = clientConfig.isLogApplicationHeaders();
         if (header != null) {
-            for (Map.Entry<String, Serializable> entry : header.entrySet()) {
+            for (Map.Entry<String, Object> entry : header.entrySet()) {
                 String key = entry.getKey();
                 String headerKey = headerNameToLowerCase ? key.toLowerCase() : key;
                 String headerValue = String.valueOf(entry.getValue());
@@ -266,8 +266,13 @@ public class UrlHttpClientExecutor extends AbstractUrlHttpClientExecutor {
             if (requestBody != null) {
                 boolean applicationJson = clientConfig.isApplicationJson();
                 if (applicationJson) {
-                    String content = requestBody == null ? "" : JSON.toJsonString(requestBody);
-                    return content.getBytes();
+                    try {
+                        if (requestBody instanceof String && JSON.validate((String) requestBody)) {
+                            return ((String) requestBody).getBytes();
+                        }
+                    } catch (Exception e) {
+                    }
+                    return JSON.toJsonBytes(requestBody);
                 } else {
                     if (requestBody instanceof byte[]) {
                         return (byte[]) requestBody;

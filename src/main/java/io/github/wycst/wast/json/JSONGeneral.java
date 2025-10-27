@@ -42,13 +42,13 @@ class JSONGeneral {
 
     protected final static char[] EMPTY_ARRAY = new char[]{'[', ']'};
     protected final static char[] EMPTY_OBJECT = new char[]{'{', '}'};
-    protected final static int TRUE_INT = JSONUnsafe.getInt(new byte[]{'t', 'r', 'u', 'e'}, 0);
-    protected final static long TRUE_LONG = JSONUnsafe.getLong(new char[]{'t', 'r', 'u', 'e'}, 0);
-    protected final static int ALSE_INT = JSONUnsafe.getInt(new byte[]{'a', 'l', 's', 'e'}, 0);
-    protected final static long ALSE_LONG = JSONUnsafe.getLong(new char[]{'a', 'l', 's', 'e'}, 0);
+    protected final static int TRUE_INT = JSONMemoryHandle.getInt(new byte[]{'t', 'r', 'u', 'e'}, 0);
+    protected final static long TRUE_LONG = JSONMemoryHandle.getLong(new char[]{'t', 'r', 'u', 'e'}, 0);
+    protected final static int ALSE_INT = JSONMemoryHandle.getInt(new byte[]{'a', 'l', 's', 'e'}, 0);
+    protected final static long ALSE_LONG = JSONMemoryHandle.getLong(new char[]{'a', 'l', 's', 'e'}, 0);
 
-    protected final static int NULL_INT = JSONUnsafe.getInt(new byte[]{'n', 'u', 'l', 'l'}, 0);
-    protected final static long NULL_LONG = JSONUnsafe.getLong(new char[]{'n', 'u', 'l', 'l'}, 0);
+    protected final static int NULL_INT = JSONMemoryHandle.getInt(new byte[]{'n', 'u', 'l', 'l'}, 0);
+    protected final static long NULL_LONG = JSONMemoryHandle.getLong(new char[]{'n', 'u', 'l', 'l'}, 0);
 
     protected final static byte ZERO = 0;
     protected final static byte COMMA = ',';
@@ -140,7 +140,7 @@ class JSONGeneral {
     protected final static int[] THREE_DIGITS_MUL10 = new int[10 << 8];  // 2560
 
     protected final static JSONUtil JSON_UTIL;
-//    protected final static boolean ENABLE_VECTOR;
+    protected final static boolean ENABLE_VECTOR;
     protected static boolean ENABLE_JIT;
     protected final static boolean SUPPORTED_INTRINSIC_CANDIDATE;
 
@@ -176,9 +176,11 @@ class JSONGeneral {
             NO_ESCAPE_FLAGS[i] = !(i < 32 || i == '"' || i == '\\');
         }
 
-        String[] availableIDs = TimeZone.getAvailableIDs();
-        for (String availableID : availableIDs) {
-            GMT_TIME_ZONE_MAP.put(availableID, TimeZone.getTimeZone(availableID));
+        if (EnvUtils.JDK_VERSION < 25f) {
+            String[] availableIDs = TimeZone.getAvailableIDs();
+            for (String availableID : availableIDs) {
+                GMT_TIME_ZONE_MAP.put(availableID, TimeZone.getTimeZone(availableID));
+            }
         }
         TimeZone timeZone = ZERO_TIME_ZONE;
         GMT_TIME_ZONE_MAP.put("GMT+00:00", timeZone);
@@ -235,7 +237,7 @@ class JSONGeneral {
             }
         }
         JSON_UTIL = envUtil;
-//        ENABLE_VECTOR = enableVector;
+        ENABLE_VECTOR = enableVector;
         // use vmargs to disabled jit:  -Dwast.json.jit.disabled=true
         ENABLE_JIT = !"true".equalsIgnoreCase(System.getProperty("wast.json.jit.disabled"));
         SUPPORTED_INTRINSIC_CANDIDATE = supportedIntrinsicCandidate;
@@ -275,21 +277,21 @@ class JSONGeneral {
      * @return
      */
     protected static final int getDigits4Mask(byte[] buf, int offset) {
-        final int value = JSONUnsafe.getInt(buf, offset);
+        final int value = JSONMemoryHandle.getInt(buf, offset);
         // Determine that all 4 bytes are within the range of 0x30-0x39
         // The high bits of the mask obtained by addition and subtraction are all 0, indicating that the judgment is satisfied
         return (((value - 0x30303030) | (value + 0x46464646)) & 0x80808080);
     }
 
     /**
-     * 获取4个字节组成的mask用于数字校验
+     * 获取8个字节组成的mask用于数字校验
      *
      * @param buf
      * @param offset
      * @return
      */
     protected static final long getDigits8Mask(byte[] buf, int offset) {
-        final long value = JSONUnsafe.getLong(buf, offset);
+        final long value = JSONMemoryHandle.JSON_ENDIAN.getLong(buf, offset);
         return (((value - 0x3030303030303030L) | (value + 0x4646464646464646L)) & 0x8080808080808080L);
     }
 
@@ -301,7 +303,7 @@ class JSONGeneral {
      * @return
      */
     protected static final int fourDigitsValue(byte[] buf, int offset) {
-        final int value = JSONUnsafe.getInt(buf, offset);
+        final int value = JSONMemoryHandle.JSON_ENDIAN.getInt(buf, offset);
         int mask = ((value - 0x30303030) | (value + 0x46464646)) & 0x80808080;
         if (mask == 0) { // m = 0111_1111 - 0011_1001 -> 0100_0110 -> 0x46
             return THREE_DIGITS_MUL10[(buf[offset] & 0xf) << 8 | (buf[offset + 1] & 0xf) << 4 | (buf[offset + 2] & 0xf)] + buf[offset + 3];
@@ -313,7 +315,6 @@ class JSONGeneral {
      * 跳过数字序列返回第一个非数字位置
      * 注: 适合查找长数字串结束位置，短数字串反而会降低性能；
      * 内部调用，确保offset不会越界,否则请判断offset是否有效
-     *
      *
      * @param buf
      * @param offset
@@ -334,10 +335,14 @@ class JSONGeneral {
         int rem = (EnvUtils.LITTLE_ENDIAN ? Integer.numberOfTrailingZeros(mask) >> 3 : Integer.numberOfLeadingZeros(mask) >> 3);
         context.endIndex = offset + rem;
         switch (rem) {
-            case 0: return val;
-            case 1: return val * 10 + (buf[offset] & 0xF);
-            case 2: return val * 100 + TWO_DIGITS_VALUES[buf[offset] ^ ((buf[offset + 1] & 0xf) << 4)];
-            default: return val * 1000 + THREE_DIGITS_MUL10[(buf[offset] & 0xf) << 4 | (buf[offset + 1] & 0xf)] + buf[offset + 2];
+            case 0:
+                return val;
+            case 1:
+                return val * 10 + (buf[offset] & 0xF);
+            case 2:
+                return val * 100 + TWO_DIGITS_VALUES[buf[offset] ^ ((buf[offset + 1] & 0xf) << 4)];
+            default:
+                return val * 1000 + THREE_DIGITS_MUL10[(buf[offset] & 0xf) << 4 | (buf[offset + 1] & 0xf)] + buf[offset + 2];
         }
     }
 
@@ -345,14 +350,21 @@ class JSONGeneral {
         int rem = (EnvUtils.LITTLE_ENDIAN ? Long.numberOfTrailingZeros(mask) >> 3 : Long.numberOfLeadingZeros(mask) >> 3);
         context.endIndex = offset + rem;
         switch (rem) {
-            case 0: return val;
-            case 1: return val * 10 + (buf[offset] & 0xF);
-            case 2: return val * 100 + TWO_DIGITS_VALUES[buf[offset] ^ ((buf[offset + 1] & 0xf) << 4)];
-            case 3: return val * 1000 + THREE_DIGITS_MUL10[(buf[offset] & 0xf) << 4 | (buf[offset + 1] & 0xf)] + buf[offset + 2];
-            case 4: return val * 10000 + THREE_DIGITS_MUL10[(buf[offset] & 0xf) << 8 | (buf[offset + 1] & 0xf) << 4 | (buf[offset + 2] & 0xf)] + buf[offset + 3];
-            case 5: return val * 100000 + (buf[offset] & 0xf) * 10000L + THREE_DIGITS_MUL10[(buf[offset + 1] & 0xf) << 8 | (buf[offset + 2] & 0xf) << 4 | (buf[offset + 3] & 0xf)] + buf[offset + 4];
-            case 6: return val * 1000000 + (TWO_DIGITS_VALUES[buf[offset] ^ ((buf[offset + 1] & 0xf) << 4)]) * 10000L + THREE_DIGITS_MUL10[(buf[offset + 2] & 0xf) << 8 | (buf[offset + 3] & 0xf) << 4 | (buf[offset + 4] & 0xf)] + buf[offset + 5];
-            default : {
+            case 0:
+                return val;
+            case 1:
+                return val * 10 + (buf[offset] & 0xF);
+            case 2:
+                return val * 100 + TWO_DIGITS_VALUES[buf[offset] ^ ((buf[offset + 1] & 0xf) << 4)];
+            case 3:
+                return val * 1000 + THREE_DIGITS_MUL10[(buf[offset] & 0xf) << 4 | (buf[offset + 1] & 0xf)] + buf[offset + 2];
+            case 4:
+                return val * 10000 + THREE_DIGITS_MUL10[(buf[offset] & 0xf) << 8 | (buf[offset + 1] & 0xf) << 4 | (buf[offset + 2] & 0xf)] + buf[offset + 3];
+            case 5:
+                return val * 100000 + (buf[offset] & 0xf) * 10000L + THREE_DIGITS_MUL10[(buf[offset + 1] & 0xf) << 8 | (buf[offset + 2] & 0xf) << 4 | (buf[offset + 3] & 0xf)] + buf[offset + 4];
+            case 6:
+                return val * 1000000 + (TWO_DIGITS_VALUES[buf[offset] ^ ((buf[offset + 1] & 0xf) << 4)]) * 10000L + THREE_DIGITS_MUL10[(buf[offset + 2] & 0xf) << 8 | (buf[offset + 3] & 0xf) << 4 | (buf[offset + 4] & 0xf)] + buf[offset + 5];
+            default: {
                 // 7
                 int v3 = THREE_DIGITS_MUL10[(buf[offset] & 0xf) << 4 | (buf[offset + 1] & 0xf)] + buf[offset + 2];
                 int v4 = THREE_DIGITS_MUL10[(buf[offset + 3] & 0xf) << 8 | (buf[offset + 4] & 0xf) << 4 | (buf[offset + 5] & 0xf)] + buf[offset + 6];
@@ -370,39 +382,11 @@ class JSONGeneral {
      * @return
      */
     protected final static long parseDecimalDigits(long val, byte[] buf, int offset, JSONParseContext context) {
-//        int v1, v2, v3, v4, mask;
-//        if ((mask = JSONGeneral.getFourDigitsMask(buf, offset)) != 0) {
-//            return withRemDigits(val, mask, buf, offset, context);
-//        }
-//        v1 = THREE_DIGITS_MUL10[(buf[offset] & 0xf) << 8 | (buf[offset + 1] & 0xf) << 4 | (buf[offset + 2] & 0xf)] + buf[offset + 3];
-//        offset += 4;
-//        if ((mask = JSONGeneral.getFourDigitsMask(buf, offset)) != 0) {
-//            return withRemDigits(val * 10000 + v1, mask, buf, offset, context);
-//        }
-//
-//        v2 = THREE_DIGITS_MUL10[(buf[offset] & 0xf) << 8 | (buf[offset + 1] & 0xf) << 4 | (buf[offset + 2] & 0xf)] + buf[offset + 3];
-//        offset += 4;
-//        if ((mask = JSONGeneral.getFourDigitsMask(buf, offset)) != 0) {
-//            return withRemDigits(val * 10000_0000 + v1 * 10000L + v2, mask, buf, offset, context);
-//        }
-//
-//        v3 = THREE_DIGITS_MUL10[(buf[offset] & 0xf) << 8 | (buf[offset + 1] & 0xf) << 4 | (buf[offset + 2] & 0xf)] + buf[offset + 3];
-//        offset += 4;
-//        if ((mask = JSONGeneral.getFourDigitsMask(buf, offset)) != 0) {
-//            return withRemDigits(val * 10000_0000_0000L + v1 * 10000_0000L + v2 * 10000L + v3, mask, buf, offset, context);
-//        }
-//
-//        v4 = THREE_DIGITS_MUL10[(buf[offset] & 0xf) << 8 | (buf[offset + 1] & 0xf) << 4 | (buf[offset + 2] & 0xf)] + buf[offset + 3];
-//        offset += 4;
-//        if ((mask = JSONGeneral.getFourDigitsMask(buf, offset)) != 0) {
-//            return withRemDigits(val * 10000_0000_0000_0000L + v1 * 10000_0000_0000L + v2 * 10000_0000L + v3 * 10000L + v4, mask, buf, offset, context);
-//        }
-//
-//        // The value must overflow because Java does not have integers of length 20 bits
-//        // no need to calculate when overflowing, skip parsing directly, even if the parsed value is incorrect
-//        context.endIndex = skipDigits(buf, offset + 4);
-//        return val;
-
+        if (val == 0) {
+            while (offset < buf.length && buf[offset] == '0') {
+                ++offset;
+            }
+        }
         // 8 + 8 + 4
         int v1, v2, v3, v4, mask32;
         long mask64;
@@ -430,6 +414,39 @@ class JSONGeneral {
         return val;
     }
 
+//    /**
+//     *  Digits -> Integer
+//     *
+//     * @param buf
+//     * @param offset
+//     * @return
+//     */
+//    protected final static int parseIntegerDigits(/*int val, */byte[] buf, final int offset, JSONParseContext context) {
+//        int i = offset, v1, v2, mask;
+//        if ((mask = JSONGeneral.getDigits4Mask(buf, i)) != 0) {
+//            return (int) withRemDigits4(0, mask, buf, i, context);
+//        }
+//        v1 = THREE_DIGITS_MUL10[(buf[i] & 0xf) << 8 | (buf[i + 1] & 0xf) << 4 | (buf[i + 2] & 0xf)] + buf[i + 3];
+//        i += 4;
+//        if ((mask = JSONGeneral.getDigits4Mask(buf, i)) != 0) {
+//            return (int) withRemDigits4(/*val * 10000L + */v1, mask, buf, i, context);
+//        }
+//        v2 = THREE_DIGITS_MUL10[(buf[i] & 0xf) << 8 | (buf[i + 1] & 0xf) << 4 | (buf[i + 2] & 0xf)] + buf[i + 3];
+//        i += 4;
+//        if ((mask = JSONGeneral.getDigits4Mask(buf, i)) != 0) {
+//            return (int) withRemDigits4(/*val * 100000000L +*/ v1 * 10000L + v2, mask, buf, i, context);
+//        }
+//        if (buf[offset] == '0') {
+//            i = offset + 1;
+//            while (buf[i] == '0') {
+//                ++i;
+//            }
+//            return parseIntegerDigits(buf, i, context);
+//        }
+//        context.endIndex = skipDigits(buf, i + 4);
+//        return 0;
+//    }
+
     /**
      * 获取4个字节组成的4位数
      *
@@ -441,6 +458,64 @@ class JSONGeneral {
      */
     protected static final int fourDigitsValue(int i, int j, int k, int l) {
         return THREE_DIGITS_MUL10[i << 8 | j << 4 | k] + l;
+    }
+
+    /**
+     * utf8解码
+     *
+     * @param buf
+     * @param offset
+     * @param beginByte
+     * @param writer
+     * @return 返回第一个非负字节所在位置
+     */
+    static final int decodeUTF8Bytes(byte[] buf, int offset, byte beginByte, JSONCharArrayWriter writer) {
+        do {
+            // b < 0
+            byte b1 = buf[++offset];
+            // UTF-8 decode
+            int s = beginByte >> 4;
+            // 读取字节b的前4位判断需要读取几个字节
+            if (s == -2) {
+                // 1110 3个字节
+                try {
+                    // 第1个字节的后4位 + 第2个字节的后6位 + 第3个字节的后6位
+                    byte b2 = buf[++offset];
+                    int a = ((beginByte & 0xf) << 12) | ((b1 & 0x3f) << 6) | (b2 & 0x3f);
+                    writer.writeDirect((char) a);
+                } catch (Throwable throwable) {
+                    throw new UnsupportedOperationException("utf-8 character error ");
+                }
+            } else if (s == -3 || s == -4) {
+                // (1100 1101) 2 bytes
+                try {
+                    int a = ((beginByte & 0x1f) << 6) | (b1 & 0x3f);
+                    writer.writeDirect((char) a);
+                } catch (Throwable throwable) {
+                    throw new UnsupportedOperationException("utf-8 character error ");
+                }
+            } else if (s == -1) {
+                // 1111 4个字节
+                try {
+                    // 第1个字节的后4位 + 第2个字节的后6位 + 第3个字节的后6位 + 第4个字节的后6位
+                    byte b2 = buf[++offset];
+                    byte b3 = buf[++offset];
+                    int a = ((beginByte & 0x7) << 18) | ((b1 & 0x3f) << 12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f);
+                    if (Character.isSupplementaryCodePoint(a)) {
+                        writer.writeDirect((char) ((a >>> 10)
+                                + (Character.MIN_HIGH_SURROGATE - (Character.MIN_SUPPLEMENTARY_CODE_POINT >>> 10))));
+                        writer.writeDirect((char) ((a & 0x3ff) + Character.MIN_LOW_SURROGATE));
+                    } else {
+                        writer.writeDirect((char) a);
+                    }
+                } catch (Throwable throwable) {
+                    throw new UnsupportedOperationException("utf-8 character error ");
+                }
+            } else {
+                throw new UnsupportedOperationException("utf-8 character error:  " + createErrorContextText(buf, offset - 1));
+            }
+        } while ((beginByte = buf[++offset]) < 0);
+        return offset;
     }
 
     public static String toEscapeString(int ch) {
@@ -661,6 +736,25 @@ class JSONGeneral {
         // if high-order bits of 4 bytes are all 1 return true, otherwise, return false
         // Not considering negative numbers
         return ((value + 0x60606060) & ((value ^ 0xDDDDDDDD) + 0x01010101) & notBackslashMask) == 0x80808080;
+    }
+
+    /**
+     * 通过unsafe一次性判断2个字节是否需要转义
+     *
+     * @param value 限于ascii字节编码（所有字节的高位都为0）
+     * @return
+     */
+    final static boolean isNoneEscaped2Bytes(short value) {
+        int notBackslashMask = (value ^ 0xA3A3) + 0x0101 & 0x8080;
+
+        // Based on the probability of occurrence, first determine whether it is greater than '"' and not equal to '\\', and return true in advance
+        if ((notBackslashMask & value + 0x5D5D) == 0x8080) {
+            return true;
+        }
+
+        // if high-order bits of 4 bytes are all 1 return true, otherwise, return false
+        // Not considering negative numbers
+        return ((value + 0x6060) & ((value ^ 0xDDDD) + 0x0101) & notBackslashMask) == 0x8080;
     }
 
     /**
@@ -1303,7 +1397,7 @@ class JSONGeneral {
                 && buf[++offset] <= ' ' && buf[++offset] <= ' ' && buf[++offset] <= ' ' && buf[++offset] <= ' ' && buf[++offset] <= ' ' && buf[++offset] <= ' ' && buf[++offset] <= ' '
                 && buf[++offset] <= ' ' && buf[++offset] <= ' ' && buf[++offset] <= ' ' && buf[++offset] <= ' ' && buf[++offset] <= ' ' && buf[++offset] <= ' '
         ) {
-            while (buf[++offset] <= ' ');
+            while (buf[++offset] <= ' ') ;
         }
         return offset;
     }
@@ -1322,7 +1416,7 @@ class JSONGeneral {
                 && buf[++offset] <= ' ' && buf[++offset] <= ' ' && buf[++offset] <= ' ' && buf[++offset] <= ' ' && buf[++offset] <= ' ' && buf[++offset] <= ' ' && buf[++offset] <= ' '
                 && buf[++offset] <= ' ' && buf[++offset] <= ' ' && buf[++offset] <= ' ' && buf[++offset] <= ' ' && buf[++offset] <= ' ' && buf[++offset] <= ' '
         ) {
-            while (buf[++offset] <= ' ');
+            while (buf[++offset] <= ' ') ;
         }
         return offset;
     }
@@ -1341,7 +1435,7 @@ class JSONGeneral {
                 && NumberUtils.isDigit(buf[++offset]) && NumberUtils.isDigit(buf[++offset]) && NumberUtils.isDigit(buf[++offset]) && NumberUtils.isDigit(buf[++offset]) && NumberUtils.isDigit(buf[++offset]) && NumberUtils.isDigit(buf[++offset]) && NumberUtils.isDigit(buf[++offset])
                 && NumberUtils.isDigit(buf[++offset]) && NumberUtils.isDigit(buf[++offset]) && NumberUtils.isDigit(buf[++offset]) && NumberUtils.isDigit(buf[++offset]) && NumberUtils.isDigit(buf[++offset]) && NumberUtils.isDigit(buf[++offset]) && NumberUtils.isDigit(buf[++offset])
         ) {
-            while (NumberUtils.isDigit(buf[++offset]));
+            while (NumberUtils.isDigit(buf[++offset])) ;
         }
         return offset;
     }
@@ -1603,7 +1697,7 @@ class JSONGeneral {
             }
             int count = to - from;
             if (count == 4) {
-                long lv = JSONUnsafe.getLong(buf, from);
+                long lv = JSONMemoryHandle.getLong(buf, from);
                 if (lv == NULL_LONG) {
                     return null;
                 }
@@ -1611,7 +1705,7 @@ class JSONGeneral {
                     return true;
                 }
             }
-            if (count == 5 && buf[from] == 'f' && JSONUnsafe.getLong(buf, from + 1) == ALSE_LONG) {
+            if (count == 5 && buf[from] == 'f' && JSONMemoryHandle.getLong(buf, from + 1) == ALSE_LONG) {
                 return false;
             }
             boolean numberFlag = true;
@@ -1629,19 +1723,18 @@ class JSONGeneral {
                     }
                 }
             }
-            String result = new String(buf, from, count);
             if (numberFlag && pointFlag <= 1) {
                 if (pointFlag == 1) {
-                    return Double.parseDouble(result);
+                    return parseDouble(buf, from, from + count);
                 } else {
-                    long val = Long.parseLong(result);
+                    long val = Long.parseLong(new String(buf, from, count));
                     if (val <= Integer.MAX_VALUE && val >= Integer.MIN_VALUE) {
                         return (int) val;
                     }
                     return val;
                 }
             }
-            return result;
+            return new String(buf, from, count);
         } else {
             int len = to - from - 2;
             return new String(buf, from + 1, len);
@@ -1658,7 +1751,7 @@ class JSONGeneral {
             }
             int count = to - from;
             if (count == 4) {
-                int iv = JSONUnsafe.getInt(buf, from);
+                int iv = JSONMemoryHandle.getInt(buf, from);
                 if (iv == NULL_INT) {
                     return null;
                 }
@@ -1666,7 +1759,7 @@ class JSONGeneral {
                     return true;
                 }
             }
-            if (count == 5 && buf[from] == 'f' && JSONUnsafe.getInt(buf, from + 1) == ALSE_INT) {
+            if (count == 5 && buf[from] == 'f' && JSONMemoryHandle.getInt(buf, from + 1) == ALSE_INT) {
                 return false;
             }
             boolean numberFlag = true;
@@ -1684,19 +1777,18 @@ class JSONGeneral {
                     }
                 }
             }
-            String result = new String(buf, from, count);
             if (numberFlag && pointFlag <= 1) {
                 if (pointFlag == 1) {
-                    return Double.parseDouble(result);
+                    return parseDouble(buf, from, from + count);
                 } else {
-                    long val = Long.parseLong(result);
+                    long val = Long.parseLong(new String(buf, from, count));
                     if (val <= Integer.MAX_VALUE && val >= Integer.MIN_VALUE) {
                         return (int) val;
                     }
                     return val;
                 }
             }
-            return result;
+            return new String(buf, from, count);
         } else {
             int len = to - from - 2;
             return new String(buf, from + 1, len);
@@ -1756,7 +1848,11 @@ class JSONGeneral {
     }
 
     protected final static int digits2Bytes(byte[] buf, int offset) {
-        return JSONUnsafe.UNSAFE_ENDIAN.digits2Bytes(buf, offset);
+        return JSONMemoryHandle.JSON_ENDIAN.digits2Bytes(buf, offset);
+    }
+
+    protected final static int digits2Chars(char[] buf, int offset) {
+        return JSONMemoryHandle.JSON_ENDIAN.digits2Chars(buf, offset);
     }
 
     // 读取流中的最大限度（maxLen）的字符数组(只读取一次)
@@ -1803,22 +1899,22 @@ class JSONGeneral {
 
     protected final static <T> T throwUnexpectedException(byte[] buf, int offset, int unexpectedChar, char expectedChar, char orExpectedChar) {
         String errorContextTextAt = createErrorContextText(buf, offset);
-        throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', unexpected '" + (char) unexpectedChar + "', expected '" + expectedChar +  "' or '" + orExpectedChar + "'");
+        throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', unexpected '" + (char) unexpectedChar + "', expected '" + expectedChar + "' or '" + orExpectedChar + "'");
     }
 
     protected final static <T> T throwUnexpectedException(byte[] buf, int offset, int unexpectedChar, char expectedChar) {
         String errorContextTextAt = createErrorContextText(buf, offset);
-        throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', unexpected '" + (char) unexpectedChar + "', expected '" + expectedChar +  "'");
+        throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', unexpected '" + (char) unexpectedChar + "', expected '" + expectedChar + "'");
     }
 
     protected final static <T> T throwUnexpectedException(char[] buf, int offset, int unexpectedChar, char expectedChar, char orExpectedChar) {
         String errorContextTextAt = createErrorContextText(buf, offset);
-        throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', unexpected '" + (char) unexpectedChar + "', expected '" + expectedChar +  "' or '" + orExpectedChar + "'");
+        throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', unexpected '" + (char) unexpectedChar + "', expected '" + expectedChar + "' or '" + orExpectedChar + "'");
     }
 
     protected final static <T> T throwUnexpectedException(char[] buf, int offset, int unexpectedChar, char expectedChar) {
         String errorContextTextAt = createErrorContextText(buf, offset);
-        throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', unexpected '" + (char) unexpectedChar + "', expected '" + expectedChar +  "'");
+        throw new JSONException("Syntax error, at pos " + offset + ", context text by '" + errorContextTextAt + "', unexpected '" + (char) unexpectedChar + "', expected '" + expectedChar + "'");
     }
 
     // 常规日期格式分类
@@ -2017,7 +2113,7 @@ class JSONGeneral {
      * @return
      */
     protected final static Object getStringValue(String value) {
-        return JSONUnsafe.getStringValue(value.toString());
+        return JSONMemoryHandle.getStringValue(value.toString());
     }
 
     /**
@@ -2074,4 +2170,350 @@ class JSONGeneral {
 //        }
 //        return -1;
 //    }
+
+    /**
+     * json -> double
+     * <p>
+     * 读取byte[]数组解析为double值，支持+-开头及D,d,F,f,L,l结尾及科学计数法+-e(E),并对特殊字符串做了兼容处理包括前后置的空格和0字符等比如
+     * <li color=green>"00000002.3456000000d "</li>
+     * <li color=green>" 00.000000000000002345678988765432345876544d"</li>
+     * <li color=green>"1.0000000000000002345678988765432345876544d"</li>
+     * <li color=green>"123e+12f"</li>
+     * <li color=green>"-123e-12d"</li>
+     * <p>
+     * 如果输入不合法会抛出一个异常，例如:
+     * <li color=red>"123.5g"</li>
+     * <li color=red>"123.5p123"</li>
+     * <p>
+     * double输入解析例如: JSON.parseDouble("123e10"), 类似Double.parseDouble("123e10")
+     * 和常规JSON中的double字段解析区别是没有预期的结束token(',', '}', ']')，所以需要考虑数据越界的问题
+     *
+     * @param json
+     * @return
+     */
+    public static double parseDouble(String json) {
+        if (EnvUtils.JDK_9_PLUS) {
+            return parseDouble((byte[]) getStringValue(json));
+        } else {
+            return parseDouble((char[]) getStringValue(json));
+        }
+    }
+
+    /**
+     * bytes -> double
+     *
+     * @param buf
+     * @return
+     * @throws JSONException
+     */
+    public final static double parseDouble(byte[] buf) {
+        return parseDouble(buf, 0, buf.length);
+    }
+
+    /**
+     * bytes -> double
+     *
+     * @param buf
+     * @param offset
+     * @param endIndex
+     * @return
+     * @throws JSONException
+     */
+    public final static double parseDouble(byte[] buf, final int offset, final int endIndex) {
+        try {
+            int i = offset, zeroIndex = 0, decimalPointIndex = endIndex, cnt = 0, decimalCount = 0, zeroDecimalCount = 0, c, v, e10 = 0;
+            long value = 0L;
+            boolean negative, expNegative = false;
+            // 清除前置的空白
+            while ((c = buf[i]) <= ' ') {
+                ++i;
+            }
+            if ((negative = c == '-') || c == '+') {
+                c = buf[++i];
+            }
+            label_double_al:
+            {
+                // 清除处理前置0
+                if (c == '0') {
+                    while (++i < endIndex && (c = buf[i]) == '0') ;
+                    if (i == endIndex) return negative ? -0.0 : 0.0;
+                    zeroIndex = i;
+                }
+                while (NumberUtils.isDigit(c)) {
+                    value = value * 10 + (c & 0xF);
+                    ++cnt;
+                    if (++i == endIndex) break label_double_al;
+                    c = buf[i];
+                }
+                if (c == '.') {
+                    decimalPointIndex = i;
+                    c = buf[++i];
+                    if (cnt == 0 && c == '0') {
+                        ++decimalCount;
+                        while (++i < endIndex && (c = buf[i]) == '0') {
+                            ++decimalCount;
+                        }
+                        if (i == endIndex) return negative ? -0.0 : 0.0;
+                        zeroIndex = i;
+                        zeroDecimalCount = decimalCount;
+                    }
+                    if (NumberUtils.isDigit(c)) {
+                        value = value * 10 + (c & 0xF);
+                        ++cnt;
+                        ++decimalCount;
+                        ++i;
+                    }
+                    while (i < endIndex - 1 && (v = JSONMemoryHandle.JSON_ENDIAN.digits2Bytes(buf, i)) != -1) {
+                        value = value * 100 + v;
+                        cnt += 2;
+                        decimalCount += 2;
+                        i += 2;
+                    }
+                    if (i < endIndex && NumberUtils.isDigit(c = buf[i])) {
+                        value = value * 10 + (c & 0xF);
+                        ++cnt;
+                        ++decimalCount;
+                        if (++i == endIndex) break label_double_al;
+                        c = buf[i];
+                    }
+                    if (i == endIndex) break label_double_al;
+                }
+                // 清除后置的空白
+                if (c <= ' ') {
+                    while (++i < endIndex && (c = buf[i]) <= ' ') ;
+                    if (i == endIndex) break label_double_al;
+                }
+                if (c == 'e' || c == 'E') {
+                    if (++i == endIndex) break label_double_al;
+                    c = buf[i];
+                    if ((expNegative = c == '-') || c == '+') {
+                        if (++i == endIndex) break label_double_al;
+                        c = buf[i];
+                    }
+                    if (NumberUtils.isDigit(c)) {
+                        e10 = (c & 0xF);
+                        while (++i < endIndex && NumberUtils.isDigit(c = buf[i])) {
+                            e10 = e10 * 10 + (c & 0xF);
+                        }
+                        if (i == endIndex) break label_double_al;
+                    }
+                    if (c <= ' ') {
+                        while (++i < endIndex && (c = buf[i]) <= ' ') ;
+                    }
+                    if (i == endIndex) break label_double_al;
+                }
+                switch (c) {
+                    case 'L':
+                    case 'l':
+                    case 'F':
+                    case 'f':
+                    case 'D':
+                    case 'd': {
+                        // 清除后置的空白
+                        while (++i < endIndex && (c = buf[i]) <= ' ') ;
+                        if (i == endIndex) break label_double_al;
+                        throw new JSONException("For input string: \"" + new String(buf) + "\"");
+                    }
+                    default: {
+                        throw new JSONException("For input string: \"" + new String(buf) + "\"");
+                    }
+                }
+            }
+
+            // end
+            if (cnt > 18 && (cnt > 19 || value < 0)) {
+                // Compatible with double in abnormal length
+                // Get the top 18 significant digits
+                value = 0;
+                cnt = 0;
+                int j = zeroIndex;
+                decimalCount = zeroDecimalCount;
+                for (; j < i; ++j) {
+                    if (NumberUtils.isDigit(c = buf[j])) {
+                        if (cnt++ < 18) {
+                            value = value * 10 + (c & 0xF);
+                        }
+                        if (j > decimalPointIndex) {
+                            ++decimalCount;
+                        }
+                    } else {
+                        if (c == '.') {
+                            decimalPointIndex = j;
+                        } else if (c == 'e' || c == 'E') {
+                            break;
+                        }
+                    }
+                    if (cnt >= 18 && decimalCount > 0) break;
+                }
+                decimalCount -= cnt - 18;
+            }
+            double dv = NumberUtils.scientificToIEEEDouble(value, expNegative ? e10 + decimalCount : decimalCount - e10);
+            return negative ? -dv : dv;
+        } catch (Throwable throwable) {
+            throw throwable instanceof JSONException ? (JSONException) throwable : new JSONException("For input string: \"" + new String(buf) + "\"");
+        }
+    }
+
+    /**
+     * ‘
+     * 读取char[]数组解析为double值，支持+-开头及D,d,F,f,L,l结尾及科学计数法+-e(E),并对特殊字符串做了兼容处理包括前后置的空格和0字符等，比如00000002.3456000000
+     * <p>
+     * double输入解析例如: JSON.parseDouble("123e10"), 类似Double.parseDouble("123e10")
+     * 和常规JSON中的double字段解析区别是没有预期的结束token(',', '}', ']')，所以需要考虑数据越界的问题
+     * bytes -> double
+     *
+     * @param buf
+     * @return
+     */
+    public final static double parseDouble(char[] buf) {
+        return parseDouble(buf, 0, buf.length);
+    }
+
+    /**
+     * ‘
+     * 读取char[]数组解析为double值，支持+-开头及D,d,F,f,L,l结尾及科学计数法+-e(E),并对特殊字符串做了兼容处理包括前后置的空格和0字符等，比如00000002.3456000000
+     * <p>
+     * double输入解析例如: JSON.parseDouble("123e10"), 类似Double.parseDouble("123e10")
+     * 和常规JSON中的double字段解析区别是没有预期的结束token(',', '}', ']')，所以需要考虑数据越界的问题
+     * bytes -> double
+     *
+     * @param buf
+     * @param offset
+     * @param endIndex
+     * @return
+     */
+    public final static double parseDouble(char[] buf, final int offset, final int endIndex) {
+        try {
+            int i = offset, zeroIndex = 0, decimalPointIndex = endIndex, cnt = 0, decimalCount = 0, zeroDecimalCount = 0, c, v, e10 = 0;
+            long value = 0L;
+            boolean negative, expNegative = false;
+            // 清除前置的空白
+            while ((c = buf[i]) <= ' ') {
+                ++i;
+            }
+            if ((negative = c == '-') || c == '+') {
+                c = buf[++i];
+            }
+            label_double_al:
+            {
+                // 清除处理前置0
+                if (c == '0') {
+                    while (++i < endIndex && (c = buf[i]) == '0') ;
+                    if (i == endIndex) return negative ? -0.0 : 0.0;
+                    zeroIndex = i;
+                }
+                while (NumberUtils.isDigit(c)) {
+                    value = value * 10 + (c & 0xF);
+                    ++cnt;
+                    if (++i == endIndex) break label_double_al;
+                    c = buf[i];
+                }
+                if (c == '.') {
+                    decimalPointIndex = i;
+                    c = buf[++i];
+                    if (cnt == 0 && c == '0') {
+                        ++decimalCount;
+                        while (++i < endIndex && (c = buf[i]) == '0') {
+                            ++decimalCount;
+                        }
+                        if (i == endIndex) return negative ? -0.0 : 0.0;
+                        zeroIndex = i;
+                        zeroDecimalCount = decimalCount;
+                    }
+                    if (NumberUtils.isDigit(c)) {
+                        value = value * 10 + (c & 0xF);
+                        ++cnt;
+                        ++decimalCount;
+                        ++i;
+                    }
+                    while (i < endIndex - 1 && (v = JSONMemoryHandle.JSON_ENDIAN.digits2Chars(buf, i)) != -1) {
+                        value = value * 100 + v;
+                        cnt += 2;
+                        decimalCount += 2;
+                        i += 2;
+                    }
+                    if (i < endIndex && NumberUtils.isDigit(c = buf[i])) {
+                        value = value * 10 + (c & 0xF);
+                        ++cnt;
+                        ++decimalCount;
+                        if (++i == endIndex) break label_double_al;
+                        c = buf[i];
+                    }
+                    if (i == endIndex) break label_double_al;
+                }
+                // 清除后置的空白
+                if (c <= ' ') {
+                    while (++i < endIndex && (c = buf[i]) <= ' ') ;
+                    if (i == endIndex) break label_double_al;
+                }
+                if (c == 'e' || c == 'E') {
+                    if (++i == endIndex) break label_double_al;
+                    c = buf[i];
+                    if ((expNegative = c == '-') || c == '+') {
+                        if (++i == endIndex) break label_double_al;
+                        c = buf[i];
+                    }
+                    if (NumberUtils.isDigit(c)) {
+                        e10 = (c & 0xF);
+                        while (++i < endIndex && NumberUtils.isDigit(c = buf[i])) {
+                            e10 = e10 * 10 + (c & 0xF);
+                        }
+                        if (i == endIndex) break label_double_al;
+                    }
+                    if (c <= ' ') {
+                        while (++i < endIndex && (c = buf[i]) <= ' ') ;
+                    }
+                    if (i == endIndex) break label_double_al;
+                }
+                switch (c) {
+                    case 'L':
+                    case 'l':
+                    case 'F':
+                    case 'f':
+                    case 'D':
+                    case 'd': {
+                        // 清除后置的空白
+                        while (++i < endIndex && (c = buf[i]) <= ' ') ;
+                        if (i == endIndex) break label_double_al;
+                        throw new JSONException("For input string: \"" + new String(buf) + "\"");
+                    }
+                    default: {
+                        throw new JSONException("For input string: \"" + new String(buf) + "\"");
+                    }
+                }
+            }
+
+            // end
+            if (cnt > 18 && (cnt > 19 || value < 0)) {
+                // Compatible with double in abnormal length
+                // Get the top 18 significant digits
+                value = 0;
+                cnt = 0;
+                int j = zeroIndex;
+                decimalCount = zeroDecimalCount;
+                for (; j < i; ++j) {
+                    if (NumberUtils.isDigit(c = buf[j])) {
+                        if (cnt++ < 18) {
+                            value = value * 10 + (c & 0xF);
+                        }
+                        if (j > decimalPointIndex) {
+                            ++decimalCount;
+                        }
+                    } else {
+                        if (c == '.') {
+                            decimalPointIndex = j;
+                        } else if (c == 'e' || c == 'E') {
+                            break;
+                        }
+                    }
+                    if (cnt >= 18 && decimalCount > 0) break;
+                }
+                decimalCount -= cnt - 18;
+            }
+            double dv = NumberUtils.scientificToIEEEDouble(value, expNegative ? e10 + decimalCount : decimalCount - e10);
+            return negative ? -dv : dv;
+        } catch (Throwable throwable) {
+            throw throwable instanceof JSONException ? (JSONException) throwable : new JSONException("For input string: \"" + new String(buf) + "\"");
+        }
+    }
 }

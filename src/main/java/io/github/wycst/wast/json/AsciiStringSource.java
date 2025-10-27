@@ -3,6 +3,7 @@ package io.github.wycst.wast.json;
 final class AsciiStringSource implements CharSource {
 
     private final String input;
+
     public AsciiStringSource(String input) {
         this.input = input;
     }
@@ -24,7 +25,7 @@ final class AsciiStringSource implements CharSource {
 
     @Override
     public String substring(byte[] bytes, int beginIndex, int endIndex) {
-        return JSONUnsafe.createAsciiString(bytes, beginIndex, endIndex - beginIndex);
+        return JSONMemoryHandle.createAsciiString(bytes, beginIndex, endIndex - beginIndex);
     }
 
     @Override

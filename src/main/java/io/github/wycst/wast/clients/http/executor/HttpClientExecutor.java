@@ -48,10 +48,10 @@ public abstract class HttpClientExecutor {
 
     protected RequestServiceInstance getRequestServiceInstance(HttpClientRequest httpRequest) throws MalformedURLException {
         RequestServiceInstance requestServiceInstance = new RequestServiceInstance();
-        if(enableLoadBalance) {
+        if (enableLoadBalance) {
             checkServiceProvider();
             ServiceInstance serviceInstance = serviceProvider.getServiceInstance(httpRequest);
-            if(serviceInstance == null) {
+            if (serviceInstance == null) {
                 requestServiceInstance.setUrl(httpRequest.getURL());
             } else {
                 URL url = httpRequest.getURL();
@@ -67,7 +67,7 @@ public abstract class HttpClientExecutor {
     }
 
     private void checkServiceProvider() throws MalformedURLException {
-        if(serviceProvider == null) {
+        if (serviceProvider == null) {
             throw new HttpClientException("No service provider was specified when load balancing scheduling was enabled");
         }
     }
@@ -76,31 +76,31 @@ public abstract class HttpClientExecutor {
         if (httpRequest == null) {
             throw new HttpClientException("Request is null");
         }
-        if(httpRequest.getURL() == null) {
+        if (httpRequest.getURL() == null) {
             throw new HttpClientException("The URL of the request is not defined");
         }
     }
 
     protected URL parseQueryUrl(URL instanceUrl, String method, HttpClientConfig clientConfig) throws UnsupportedEncodingException, MalformedURLException {
-        if(instanceUrl == null) {
+        if (instanceUrl == null) {
             return null;
         }
         if ("GET".equals(method) || "DELETE".equals(method)) {
             List<HttpClientParameter> clientParameters = clientConfig.getParameterList();
-            if(clientParameters == null || clientParameters.size() == 0) {
+            if (clientParameters == null || clientParameters.size() == 0) {
                 return instanceUrl;
             }
             String url = instanceUrl.toString();
             // 追加query时注意是否存在？或者#问题
             int deleteIndex = url.indexOf("#");
-            if(deleteIndex > -1) {
+            if (deleteIndex > -1) {
                 url = new String(url.substring(0, deleteIndex));
             }
             StringBuilder queryParamBuffer = new StringBuilder();
-            if(url.indexOf("?") == -1) {
+            if (url.indexOf("?") == -1) {
                 queryParamBuffer.append("?");
             } else {
-                if(!url.endsWith("?")) {
+                if (!url.endsWith("?")) {
                     queryParamBuffer.append("&");
                 }
             }
@@ -108,7 +108,7 @@ public abstract class HttpClientExecutor {
             int i = 0;
             for (HttpClientParameter clientParameter : clientParameters) {
                 i++;
-                if(clientParameter.isFileUpload()) continue;
+                if (clientParameter.isFileUpload()) continue;
                 queryParamBuffer.append(URLEncoder.encode(clientParameter.getName(), "UTF-8")).append('=').append(URLEncoder.encode(clientParameter.getValue(), "UTF-8"));
                 if (i < length) {
                     queryParamBuffer.append('&');
@@ -146,11 +146,11 @@ public abstract class HttpClientExecutor {
     }
 
     private void handleExecuteRequestThrowable(Throwable e, HttpClientRequest httpRequest) {
-        if(e instanceof java.net.UnknownHostException) {
+        if (e instanceof java.net.UnknownHostException) {
             throw new UnknownHostException(e.getMessage(), e);
-        } else if(e instanceof java.net.ConnectException) {
+        } else if (e instanceof java.net.ConnectException) {
             throw new ConnectException(e.getMessage(), e);
-        } else if(e instanceof java.net.SocketTimeoutException) {
+        } else if (e instanceof java.net.SocketTimeoutException) {
             throw new SocketTimeoutException(e.getMessage(), e);
         }
         // if throw an exception ?

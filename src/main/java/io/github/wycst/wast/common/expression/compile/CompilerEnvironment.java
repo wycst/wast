@@ -48,6 +48,10 @@ public class CompilerEnvironment extends EvaluateEnvironment {
         return variableTypeMap;
     }
 
+    public static CompilerEnvironment create() {
+        return new CompilerEnvironment();
+    }
+
     /**
      * 拓展注册函数,仅仅在javassist编译下生效；
      * <p>

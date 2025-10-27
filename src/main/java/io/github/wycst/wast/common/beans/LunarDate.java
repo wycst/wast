@@ -1,5 +1,5 @@
 /*
- * Copyright [2020-2024] [wangyunchao]
+ * Copyright [2020-2026] [wangyunchao]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -124,8 +124,8 @@ public class LunarDate extends GregorianDate {
     private static final String[] CHINESE_ZODIAC = {"鼠", "牛", "虎", "兔", "龙", "蛇", "马", "羊", "猴", "鸡", "狗", "猪"};
 
     // 十二星座
-    private final static int[] CONSTELLATIONS_OFFSETS = new int[] { 20, 19, 21, 20, 21, 22, 23, 23, 23, 24, 23, 22 };
-    private static final String[] TWELVE_CONSTELLATIONS = {"水瓶座", "双鱼座", "白羊座", "金牛座", "双子座", "巨蟹座", "狮子座", "处女座", "天秤座", "天蝎座", "射手座", "摩羯座" };
+    private final static int[] CONSTELLATIONS_OFFSETS = new int[]{20, 19, 21, 20, 21, 22, 23, 23, 23, 24, 23, 22};
+    private static final String[] TWELVE_CONSTELLATIONS = {"水瓶座", "双鱼座", "白羊座", "金牛座", "双子座", "巨蟹座", "狮子座", "处女座", "天秤座", "天蝎座", "射手座", "摩羯座"};
 
     // 天文台数据(1900~2049)
     public final static long[] LUNAR_DATA = new long[]{0x04bd8, 0x04ae0, 0x0a570, 0x054d5, 0x0d260, 0x0d950, 0x16554, 0x056a0,
@@ -419,7 +419,7 @@ public class LunarDate extends GregorianDate {
         // 计算星座
         int constellationIndex = month - 1;
         int offset = CONSTELLATIONS_OFFSETS[constellationIndex];
-        if(dayOfMonth < offset) {
+        if (dayOfMonth < offset) {
             constellationIndex += 11;
         }
         this.constellation = TWELVE_CONSTELLATIONS[constellationIndex % 12];

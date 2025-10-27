@@ -3,7 +3,6 @@ package io.github.wycst.wast.json;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.GetterInfo;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
-import io.github.wycst.wast.common.reflect.UnsafeHelper;
 import io.github.wycst.wast.common.utils.EnvUtils;
 import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.annotations.JsonSerialize;
@@ -46,7 +45,7 @@ public class JSONPojoFieldSerializer extends JSONTypeSerializer {
     }
 
     void initSerializer() {
-        if(flag) return;
+        if (flag) return;
         if (this.serializer == null) {
             flag = true;
             this.serializer = createSerializer();
@@ -82,7 +81,7 @@ public class JSONPojoFieldSerializer extends JSONTypeSerializer {
             GenericParameterizedType genericParameterizedType = getterInfo.getGenericParameterizedType();
             if (classCategory == ReflectConsts.ClassCategory.CollectionCategory && genericParameterizedType != null) {
                 GenericParameterizedType valueType = genericParameterizedType.getValueType();
-                if(valueType != null) {
+                if (valueType != null) {
                     Class<?> valueClass = valueType.getActualType();
                     if (Modifier.isFinal(valueClass.getModifiers())) {
                         return JSONTypeSerializer.createCollectionSerializer(valueClass);
@@ -94,7 +93,7 @@ public class JSONPojoFieldSerializer extends JSONTypeSerializer {
     }
 
     public boolean isStringCollection() {
-        if(classCategory == ReflectConsts.ClassCategory.CollectionCategory) {
+        if (classCategory == ReflectConsts.ClassCategory.CollectionCategory) {
             GenericParameterizedType parameterizedType = getterInfo.getGenericParameterizedType();
             return parameterizedType != null && parameterizedType.getValueType() == GenericParameterizedType.StringType;
         }
@@ -121,8 +120,8 @@ public class JSONPojoFieldSerializer extends JSONTypeSerializer {
         // optimize use unsafe(适用JDK8，JDK9+提升不明显)
         if (name.getBytes().length == len) {
             String stringForUnsafe = new String(fieldNameTokenChars, 0, fieldNameTokenOffset);
-            fieldNameCharLongs = UnsafeHelper.getCharLongs(stringForUnsafe);
-            fieldNameByteLongs = UnsafeHelper.getByteLongs(stringForUnsafe);
+            fieldNameCharLongs = JSONMemoryHandle.getCharLongs(stringForUnsafe);
+            fieldNameByteLongs = JSONMemoryHandle.getByteLongs(stringForUnsafe);
         }
     }
 

@@ -69,7 +69,7 @@ public class HttpClientParameter {
 
     public void writeContentTo(OutputStream os) throws IOException {
         if (fileUpload) {
-            if(file != null) {
+            if (file != null) {
                 // 文件流
                 InputStream is = new FileInputStream(file);
                 bytes = IOUtils.readBytes(is);

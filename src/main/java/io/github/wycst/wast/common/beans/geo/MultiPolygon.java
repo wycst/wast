@@ -18,7 +18,7 @@ public class MultiPolygon extends AbstractMultiGeometry {
         elements.add(polygon);
     }
 
-    public void addAll(Polygon...polygons) {
+    public void addAll(Polygon... polygons) {
         for (Polygon polygon : polygons) {
             elements.add(polygon);
         }

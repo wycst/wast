@@ -26,12 +26,13 @@ public class ElVariableInvoker implements ElInvoker {
     // index pos
     int index;
     int tailIndex;
-//    int usages = 1;
+    //    int usages = 1;
     // Parent or Up one level
     ElVariableInvoker parent;
     // is last or not ?
     boolean tail;
-//    boolean hasChildren;
+
+    //    boolean hasChildren;
     ElVariableInvoker(String key) {
         this.key = key;
     }

@@ -25,7 +25,9 @@ class YamlGeneral {
      */
     protected static final char SPLIT_CHAR = ':';
 
-    /** 类型映射 */
+    /**
+     * 类型映射
+     */
     protected static Map<String, Integer> typeValues = new ConcurrentHashMap<String, Integer>();
 
     static {

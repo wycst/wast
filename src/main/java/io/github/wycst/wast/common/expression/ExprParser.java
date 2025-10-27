@@ -1,5 +1,5 @@
 /*
- * Copyright [2020-2024] [wangyunchao]
+ * Copyright [2020-2026] [wangyunchao]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package io.github.wycst.wast.common.expression;
 import io.github.wycst.wast.common.utils.NumberUtils;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -34,8 +35,8 @@ public class ExprParser extends Expression {
         this.parse();
     }
 
-    ExprParser(char[] buffers, int offset, int count) {
-        this.init(buffers, offset, count);
+    ExprParser(char[] buf, int offset, int count) {
+        this.init(buf, offset, count);
         this.parse();
     }
 
@@ -43,6 +44,13 @@ public class ExprParser extends Expression {
         this.init(exprSource, offset, exprSource.length() - offset);
         this.findMode = true;
         this.findEndIndex = exprSource.length();
+        this.parse();
+    }
+
+    ExprParser(char[] buf, int offset) {
+        this.init(buf, offset, buf.length - offset);
+        this.findMode = true;
+        this.findEndIndex = buf.length;
         this.parse();
     }
 
@@ -62,7 +70,7 @@ public class ExprParser extends Expression {
     // 字符串
     public static final int STR_TOKEN = 11;
     public static final int VAR_TOKEN = 12;
-    public static final int ARR_TOKEN = 13;
+    public static final int LIST_TOKEN = 13;
     // 函数(method)token,以@开始并且紧跟java标识符（@fun(...arg0)或者bean.fun(...arg0)）
     public static final int FUN_TOKEN = 14;
     public static final int BRACKET_END_TOKEN = 20;
@@ -88,7 +96,7 @@ public class ExprParser extends Expression {
     // 去重后的变量个数
     protected int variableSize;
     protected ElInvoker tailChainInvoker;
-    protected EvaluatorContextBuilder evaluatorContextBuilder = EvaluatorContextBuilder.EMPTY;
+    EvaluatorContextBuilder evaluatorContextBuilder = EvaluatorContextBuilder.EMPTY;
 
     // 标记类型
     private int prevTokenType;
@@ -103,7 +111,7 @@ public class ExprParser extends Expression {
     // 表达式解析器
     private ExprEvaluator exprEvaluator = createExprEvaluator();
     // 上下文
-    private ExprParserContext parserContext = new ExprParserContext();
+    private final ExprParserContext parserContext = new ExprParserContext();
 
     private final AtomicInteger cntForCompress = new AtomicInteger(0);
     private boolean compressed = false;
@@ -127,12 +135,12 @@ public class ExprParser extends Expression {
 
     public String getSource() {
         if (findMode) {
-            return new String(sourceChars, offset, findEndIndex - offset);
+            return getString(0, findEndIndex - offset);
         }
         if (offset == 0 && count == sourceChars.length) {
             return this.exprSource;
         }
-        return new String(sourceChars, offset, count);
+        return getString(0, count);
     }
 
     public int length() {
@@ -158,8 +166,8 @@ public class ExprParser extends Expression {
         this.count = count;
     }
 
-    protected final void init(char[] buffers, int offset, int count) {
-        this.sourceChars = buffers;
+    protected final void init(char[] buf, int offset, int count) {
+        this.sourceChars = buf;
         this.offset = offset;
         this.count = count;
     }
@@ -353,11 +361,11 @@ public class ExprParser extends Expression {
                 // all root and once vars without reusable
                 if (tailSize == 1) {
                     evaluatorContextBuilder = new EvaluatorContextBuilder.SingleReusableRootImpl((ElVariableInvoker) tailChainInvoker);
-                } else if(tailSize == 2) {
+                } else if (tailSize == 2) {
                     Iterator<ElVariableInvoker> iterator = invokes.values().iterator();
                     evaluatorContextBuilder = new EvaluatorContextBuilder.SibbingTwinsRootReusableImpl(iterator.next(), iterator.next());
                 } else {
-                    if(variableCount == tailSize) {
+                    if (variableCount == tailSize) {
                         evaluatorContextBuilder = new EvaluatorContextBuilder.ReusablelessRootImpl();
                     } else {
                         ElVariableInvoker[] arr = new ElVariableInvoker[tailSize];
@@ -373,10 +381,10 @@ public class ExprParser extends Expression {
                     evaluatorContextBuilder = new EvaluatorContextBuilder.SingleReusableImpl(tailChainInvoker);
                 } else {
                     Collection<ElVariableInvoker> values = tailInvokes.values();
-                    if(tailSize == 2) {
+                    if (tailSize == 2) {
                         Iterator<ElVariableInvoker> iterator = values.iterator();
                         ElVariableInvoker one = iterator.next(), next = iterator.next();
-                        if(one.parent == next.parent) {
+                        if (one.parent == next.parent) {
                             // parent + child1 + child2
                             evaluatorContextBuilder = new EvaluatorContextBuilder.SibbingTwinsReusableImpl(one.parent, one, next);
                         } else {
@@ -442,7 +450,7 @@ public class ExprParser extends Expression {
         }
     }
 
-    private void parseOpsToken(ExprParserContext exprParserContext) {
+    private void parseOperatorToken(ExprParserContext exprParserContext) {
         ExprEvaluator evaluator = exprParserContext.exprEvaluator;
         boolean negate = exprParserContext.negate;
         boolean logicalNot = exprParserContext.logicalNot;
@@ -458,7 +466,7 @@ public class ExprParser extends Expression {
         exprParserContext.setContext(right, negate, logicalNot);
     }
 
-    private void parseVarToken(ExprParserContext exprParserContext, char startChar, String
+    private void parseVariableToken(ExprParserContext exprParserContext, char startChar, String
             identifierValue, List<String> variableKeys) {
         ExprEvaluator evaluator = exprParserContext.exprEvaluator;
         boolean negate = exprParserContext.negate;
@@ -620,43 +628,204 @@ public class ExprParser extends Expression {
         exprParserContext.setContext(evaluator, false, false);
     }
 
-    final void parseArrToken(ExprParserContext exprParserContext, String arrStr) {
+    final void parseListToken(ExprParserContext exprParserContext, List<Object> arrList) {
         ExprEvaluator evaluator = exprParserContext.exprEvaluator;
         boolean negate = exprParserContext.negate;
         boolean logicalNot = exprParserContext.logicalNot;
-
-        ExprEvaluator left = createExprEvaluator();
+        ExprEvaluator left = new ExprEvaluator.ListImpl(arrList);
         left.negate = negate;
         left.logicalNot = logicalNot;
-        left.setArrayValue(arrStr);
+
         evaluator.left = left;
         exprParserContext.setContext(evaluator, false, false);
     }
 
-    final void parseFunToken(ExprParserContext exprParserContext, String functionName, String args) {
+    /**
+     * 从offset开始解析列表，直到endChar结束，多个子表达式使用逗号分隔.
+     * 考虑到数据使用局限性，使用[]或者{}包起来的默认解析为集合（java.util.ArrayList），可以调用List的支持的方法.
+     *
+     * @param startChar 开始token字符
+     * @param endChar   结束token字符
+     * @param begin     开始位置
+     * @return 列表
+     */
+    List<Object> parseList(int startChar, int endChar, int begin) {
+        List<Object> arrayList = new ArrayList<Object>();
+        int beginIndex = begin;
+        int bracketCount = 0;
+        int midBracketCount = 0;
+        int bigBracketCount = 0;
+        char currentChar = 0;
+        while (readable()) {
+            currentChar = read();
+            // 判断字符串，检测常量
+            if (currentChar == '\'') {
+                boolean isBegin = readIndex == beginIndex;
+                scanString();
+                int endIndex = readIndex;
+                ++readIndex;
+                // 清除空白
+                while (isWhitespace(currentChar = read())) {
+                    ++this.readIndex;
+                }
+                if (isBegin) {
+                    boolean isEnd = currentChar == endChar;
+                    if ((isEnd || currentChar == ',')) {
+                        arrayList.add(getString(beginIndex + 1, endIndex - beginIndex - 1));
+                        // ++readIndex;
+                        if (!isEnd) {
+                            ++readIndex;
+                            while (isWhitespace(currentChar = read())) {
+                                ++this.readIndex;
+                            }
+                            beginIndex = readIndex;
+                        } else {
+                            return arrayList;
+                        }
+                    }
+                }
+                continue;
+            }
+            // 判断数字,检测常量
+            if (NumberUtils.isDigit(currentChar) || currentChar == '-') {
+                if (readIndex == beginIndex) {
+                    boolean negate = currentChar == '-', decimal = false;
+                    long val = negate ? 0L : currentChar & 0xF;
+                    ++readIndex;
+                    int cnt = 0, decimalCount = 0;
+                    while (NumberUtils.isDigit(currentChar = read())) {
+                        val = val * 10 + (currentChar & 0xf);
+                        ++cnt;
+                        ++readIndex;
+                    }
+                    if (currentChar == '.') {
+                        decimal = true;
+                        ++readIndex;
+                        while (NumberUtils.isDigit(currentChar = read())) {
+                            val = val * 10 + (currentChar & 0xf);
+                            ++cnt;
+                            ++decimalCount;
+                            ++readIndex;
+                        }
+                    }
+                    while (isWhitespace(currentChar)) {
+                        ++this.readIndex;
+                        currentChar = read();
+                    }
+                    boolean isEnd = currentChar == endChar;
+                    if (isEnd || currentChar == ',') {
+                        final boolean overflow = cnt > 18 && (cnt > 19 || val < 0);
+                        if (overflow) {
+                            if (decimal) {
+                                arrayList.add(new BigDecimal(sourceChars, offset + beginIndex, readIndex - beginIndex));
+                            } else {
+                                arrayList.add(new BigInteger(getString(beginIndex, readIndex - beginIndex)));
+                            }
+                        } else {
+                            if (decimal) {
+                                double dv = NumberUtils.scientificToIEEEDouble(val, decimalCount);
+                                arrayList.add(negate ? -dv : dv);
+                            } else {
+                                arrayList.add(negate ? -val : val);
+                            }
+                        }
+                        if (!isEnd) {
+                            ++readIndex;
+                            while (isWhitespace(currentChar = read())) {
+                                ++this.readIndex;
+                            }
+                            beginIndex = readIndex;
+                            continue;
+                        } else {
+                            return arrayList;
+                        }
+                    }
+                }
+            }
+            // 是否结束
+            if (currentChar == endChar && bracketCount == 0 && midBracketCount == 0 && bigBracketCount == 0) {
+                // 判定结束
+                break;
+            }
+            switch (currentChar) {
+                case '(': {
+                    ++bracketCount;
+                    break;
+                }
+                case ')': {
+                    --bracketCount;
+                    break;
+                }
+                case '[': {
+                    ++midBracketCount;
+                    break;
+                }
+                case ']': {
+                    --midBracketCount;
+                    break;
+                }
+                case '{': {
+                    ++bigBracketCount;
+                    break;
+                }
+                case '}': {
+                    --bigBracketCount;
+                    break;
+                }
+                case ',': {
+                    if (bracketCount == 0 && midBracketCount == 0 && bigBracketCount == 0) {
+                        String childEl = getString(beginIndex, readIndex - beginIndex).trim();
+                        if (childEl.isEmpty()) {
+                            arrayList.add(null);
+                        } else {
+                            ExprParser exprParser = new ExprChildParser(childEl, this);
+                            arrayList.add(exprParser.isConstantExpr() ? exprParser.evaluate() : exprParser);
+                        }
+                        do {
+                            ++this.readIndex;
+                        } while (isWhitespace(currentChar = read()));
+                        beginIndex = readIndex;
+                        continue;
+                    }
+                }
+            }
+            ++readIndex;
+        }
+        if (currentChar != endChar) {
+            String errorMessage = createErrorContextText(sourceChars, this.readIndex);
+            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ],未找到与开始字符'" + startChar + "'相匹配的结束字符 '" + endChar + "'");
+        }
+        String childEl = getString(beginIndex, readIndex - beginIndex).trim();
+        if (childEl.isEmpty()) {
+            if (!arrayList.isEmpty()) {
+                arrayList.add(null);
+            }
+        } else {
+            ExprParser exprParser = new ExprChildParser(childEl, this);
+            arrayList.add(exprParser.isConstantExpr() ? exprParser.evaluate() : exprParser);
+        }
+        return arrayList;
+    }
+
+    final void parseFunToken(ExprParserContext exprParserContext, String functionName, List<Object> args) {
         ExprEvaluator evaluator = exprParserContext.exprEvaluator;
         boolean negate = exprParserContext.negate;
         boolean logicalNot = exprParserContext.logicalNot;
 
-        ExprEvaluator.FunctionImpl left = new ExprEvaluator.FunctionImpl();
+        ExprEvaluator.FunctionImpl left = new ExprEvaluator.FunctionImpl(functionName, args);
         left.negate = negate;
         left.logicalNot = logicalNot;
-        left.setFunction(functionName, args, global());
         evaluator.left = left;
         exprParserContext.setContext(evaluator, false, false);
     }
 
     final void parseMethodToken(ExprParserContext exprParserContext, List<String> variableKeys, String
-            methodName, String args) {
+            methodName, List<Object> args) {
         ExprEvaluator evaluator = exprParserContext.exprEvaluator;
         boolean negate = exprParserContext.negate;
         boolean logicalNot = exprParserContext.logicalNot;
 
         checkInitializedInvokes();
-        ExprEvaluator.MethodImpl left = new ExprEvaluator.MethodImpl();
-        left.negate = negate;
-        left.logicalNot = logicalNot;
-
         ElVariableInvoker variableInvoker = ElVariableUtils.build(variableKeys, getInvokes(), getTailInvokes());
         global().tailChainInvoker = variableInvoker;
         int kl = variableKeys.size();
@@ -665,7 +834,9 @@ public class ExprParser extends Expression {
             global().existChain = true;
         }
 
-        left.setMethod(variableInvoker, methodName, args, global());
+        ExprEvaluator.MethodImpl left = new ExprEvaluator.MethodImpl(variableInvoker, methodName, args);
+        left.negate = negate;
+        left.logicalNot = logicalNot;
         evaluator.left = left;
         exprParserContext.setContext(evaluator, false, false);
     }
@@ -692,21 +863,22 @@ public class ExprParser extends Expression {
     };
 
     private void parseNext(ExprParserContext exprParserContext) {
-
         // reset
         this.resetToken();
 
         char currentChar = 0;
-        // SKIP Whitespace
+        // skip whitespace
         while (readable() && isWhitespace(currentChar = read())) {
             ++this.readIndex;
         }
-
         if (isEnd()) {
             checkEndTokenSyntaxError(prevTokenType);
             return;
         }
+        parseNextChar0(currentChar, exprParserContext);
+    }
 
+    private void parseNextChar0(char currentChar, ExprParserContext exprParserContext) {
         // Based on prediction rules, it seems more efficient than switch
         ElOperator elOperator;
         // Is it a minus sign operator
@@ -746,7 +918,7 @@ public class ExprParser extends Expression {
                         ++this.readIndex;
                         ++cnt;
                     }
-                    // only supported long suffix sush as 0x123L
+                    // only supported long suffix eg: 0x123L
                     if (currentChar == 'l' || currentChar == 'L') {
                         ++this.readIndex;
                     }
@@ -790,14 +962,14 @@ public class ExprParser extends Expression {
             if (numberRadix == 10) {
                 if (!isMinusSymbol && !valInitSet) {
                     decimalVal = currentChar & 0xf;
-                    if(decimalVal != 0) {
+                    if (decimalVal != 0) {
                         ++cnt;
                     }
                 }
                 while (readable() && NumberUtils.isDigit(currentChar = read())) {
                     decimalVal = decimalVal * 10 + (currentChar & 0xf);
                     ++this.readIndex;
-                    if(decimalVal != 0) {
+                    if (decimalVal != 0) {
                         ++cnt;
                     }
                 }
@@ -808,7 +980,7 @@ public class ExprParser extends Expression {
                     while (readable() && NumberUtils.isDigit(currentChar = read())) {
                         decimalVal = decimalVal * 10 + (currentChar & 0xf);
                         ++decimalCount;
-                        if(decimalVal != 0) {
+                        if (decimalVal != 0) {
                             ++cnt;
                         }
                         ++this.readIndex;
@@ -888,7 +1060,7 @@ public class ExprParser extends Expression {
                         this.tokenType = OPS_TOKEN;
                         this.operator = ElOperator.MINUS;
                         checkTokenSyntaxError();
-                        parseOpsToken(exprParserContext);
+                        parseOperatorToken(exprParserContext);
                     }
                 }
             } else {
@@ -931,7 +1103,7 @@ public class ExprParser extends Expression {
                                     if (cnt < 18) {
                                         decimalVal = decimalVal * 10 + (c & 0xf);
                                     }
-                                    if(decimalVal != 0) {
+                                    if (decimalVal != 0) {
                                         ++cnt;
                                     }
                                     if (j > decimalPointIndex) {
@@ -1081,7 +1253,7 @@ public class ExprParser extends Expression {
                 }
             }
             checkOpsTokenSyntaxError();
-            parseOpsToken(exprParserContext);
+            parseOperatorToken(exprParserContext);
         } else if (isBracketSymbol(currentChar)) {
             this.operator = ElOperator.BRACKET;
             // 括号
@@ -1100,6 +1272,7 @@ public class ExprParser extends Expression {
                 exprParserContext.bracketEndFlag = true;
             }
         } else if (isQuestionColon(currentChar)) {
+            // ? :
             // this.operator = ElOperator.QUESTION_COLON;
             ++this.readIndex;
             this.tokenType = OPS_TOKEN;
@@ -1107,6 +1280,7 @@ public class ExprParser extends Expression {
                 checkBeforeQuestionTokenSyntaxError();
                 parseQuestionToken(exprParserContext);
             } else {
+                // :
                 if (!exprParserContext.questionMode) {
                     this.errorMsg = ":";
                     throwSyntaxError();
@@ -1115,6 +1289,7 @@ public class ExprParser extends Expression {
                 exprParserContext.questionEndFlag = true;
             }
         } else if (isIdentifierStart(currentChar)) {
+            // 解析标识符开头可能的变量表达式例如a.b.c.d
             if (prevTokenType >= NUM_TOKEN) {
                 this.errorMsg = String.valueOf(currentChar);
                 throwSyntaxError();
@@ -1144,10 +1319,9 @@ public class ExprParser extends Expression {
                                 throw new ExpressionException("syntax error, pos: " + this.readIndex + ", unexpected token '" + currentChar + "', Expression[... " + errorMessage + " ]");
                             }
                             // 内层循环直到遇到]结束
-                            variableKeys.add(new String(sourceChars, localOffset + this.offset, readIndex - localOffset));
+                            variableKeys.add(getString(localOffset, readIndex - localOffset));
                             localOffset = ++this.readIndex;
 
-                            boolean continueOuterLoop;
                             while (true) {
                                 // 查找结束的']',如果紧跟'则[]中的内容以字符串解析
                                 // 字符串中的'['和']'需要忽略
@@ -1186,7 +1360,7 @@ public class ExprParser extends Expression {
                                     String errorMessage = createErrorContextText(sourceChars, this.readIndex);
                                     throw new ExpressionException("syntax error, pos: " + this.readIndex + ", missing closing symbol ']', Expression[... " + errorMessage + " ]");
                                 }
-                                String identifierValue = null;
+                                String identifierValue;
                                 if (stringKey) {
                                     // 去除''
                                     int st = localOffset + this.offset;
@@ -1211,7 +1385,6 @@ public class ExprParser extends Expression {
                                     if ((currentChar = read()) == '.') {
                                         variableKeys.add(identifierValue);
                                         localOffset = ++this.readIndex;
-                                        continueOuterLoop = true;
                                         break;
                                     } else if (currentChar == '[') {
                                         variableKeys.add(identifierValue);
@@ -1225,12 +1398,10 @@ public class ExprParser extends Expression {
                                 variableKeys.add(identifierValue);
                                 this.tokenType = VAR_TOKEN;
                                 checkValueTokenSyntaxError();
-                                parseVarToken(exprParserContext, startChar, null, variableKeys);
+                                parseVariableToken(exprParserContext, startChar, null, variableKeys);
                                 return;
                             }
-                            if (continueOuterLoop) {
-                                continue;
-                            }
+                            continue;
                         }
                         break;
                     }
@@ -1256,7 +1427,7 @@ public class ExprParser extends Expression {
                         // this.checkIfBuiltInKeywords();
                         // checkTokenSyntaxError();
                         checkValueTokenSyntaxError();
-                        parseVarToken(exprParserContext, startChar, var, variableKeys);
+                        parseVariableToken(exprParserContext, startChar, var, variableKeys);
                     }
                 } finally {
                     variableKeys.clear();
@@ -1268,32 +1439,21 @@ public class ExprParser extends Expression {
             this.tokenType = NOT_TOKEN;
             parseNotToken(exprParserContext);
         } else if (currentChar == '\'') {
+            // 字符串
             int start = this.readIndex + 1;
             this.scanString();
-            // 最后一个字符属于token范围内字符需要++
-            // 标记为常量
             this.tokenType = STR_TOKEN;
             checkTokenSyntaxError();
-            parseStrToken(exprParserContext, new String(sourceChars, this.offset + start, readIndex - start));
+            parseStrToken(exprParserContext, getString(start, readIndex - start));
             ++this.readIndex;
-        } else if (currentChar == '{') {
-            // 静态数组（只支持number和字符串两种，不支持嵌套数组）
-            // 表达式中静态数组使用{}而不是[]
-            // 只能在解释模式下运行,编译模式java只支持声明时使用，运算不支持
+        } else if (currentChar == '[' || currentChar == '{') {
+            // 统一转化ArrayList；
+            final char endChar = currentChar == '{' ? '}' : ']';
             int start = ++this.readIndex;
-            while (readable() && (currentChar = read()) != '}') {
-                ++this.readIndex;
-                if (this.readIndex >= length()) {
-                    break;
-                }
-            }
-            if (currentChar != '}') {
-                String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-                throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ],未找到与开始字符'{'相匹配的结束字符 '}'");
-            }
-            this.tokenType = ARR_TOKEN;
+            List<Object> arrayList = parseList(currentChar, endChar, start);
+            this.tokenType = LIST_TOKEN;
             checkTokenSyntaxError();
-            parseArrToken(exprParserContext, new String(sourceChars, start + this.offset, this.readIndex - start));
+            parseListToken(exprParserContext, arrayList);
             ++this.readIndex;
         } else if (currentChar == '@') {
             // 函数token(解析函数内容)
@@ -1318,42 +1478,61 @@ public class ExprParser extends Expression {
             while (readable() && isWhitespace(currentChar = read())) {
                 ++this.readIndex;
             }
-
-            // 查找'('
+            // find '('
             if (currentChar != '(') {
-                String readSource = new String(this.exprSource.substring(0, this.readIndex));
+                String readSource = this.exprSource.substring(0, this.readIndex);
                 throw new ExpressionException("syntax error, pos: " + this.readIndex + ", source: '" + readSource + "' function start symbol '(' not found !");
             }
-            String functionName = new String(sourceChars, start + this.offset, this.readIndex - start);
-            start = ++this.readIndex;
-
-            // 查找结束的')'
-            int bracketCount = 1;
-            while (readable()) {
-                currentChar = read();
-                if (currentChar == '\'') {
-                    // find end ',ignore
-                    this.scanString();
-                    ++this.readIndex;
-                    continue;
-                }
-                ++this.readIndex;
-                if (currentChar == ')') {
-                    --bracketCount;
-                } else if (currentChar == '(') {
-                    ++bracketCount;
-                }
-                if (bracketCount == 0) {
-                    break;
-                }
-            }
-            String args = new String(sourceChars, start + this.offset, this.readIndex - start - 1);
+            String functionName = getString(start, this.readIndex - start);
+            List<Object> args = parseList('(', ')', ++this.readIndex);
             this.tokenType = FUN_TOKEN;
             checkTokenSyntaxError();
             parseFunToken(exprParserContext, functionName, args);
-        } else if (currentChar == '.' && prevTokenType == FUN_TOKEN) {
-            // todo
-            throw new UnsupportedOperationException("currently, it is not supported to access method return values as variables or method call handles");
+            ++this.readIndex;
+        } else if ((currentChar == '.') && prevTokenType >= NUM_TOKEN) {
+            int start = ++this.readIndex;
+            // 一般出现在常量的成员访问(属性或者方法)，如果是变量不会进入此逻辑，请使用.访问,暂时不考虑对常量[]的支持，必须标识符开头；
+            // update prev evaluator
+            this.tokenType = prevTokenType;
+            try {
+                while (true) {
+                    if (isIdentifierStart(currentChar = read())) {
+                        ++this.readIndex;
+                        while (readable() && isVariableAppend(currentChar = read())) {
+                            ++this.readIndex;
+                        }
+                        String member = getString(start, this.readIndex - start);
+                        while (isWhitespace(currentChar)) {
+                            ++readIndex;
+                            if (readable()) {
+                                currentChar = read();
+                            } else {
+                                break;
+                            }
+                        }
+                        if (currentChar == '(') {
+                            this.tokenType = FUN_TOKEN;
+                            List<Object> params = parseList(currentChar, ')', ++this.readIndex);
+                            exprParserContext.exprEvaluator.left = new ExprEvaluator.MemberImpl(exprParserContext.exprEvaluator.left, true, member, params);
+                            ++this.readIndex;
+                            return;
+                        } else {
+                            exprParserContext.exprEvaluator.left = new ExprEvaluator.MemberImpl(exprParserContext.exprEvaluator.left, false, member, null);
+                            if (currentChar == '.') {
+                                start = ++this.readIndex;
+                            } else {
+                                break;
+                            }
+                        }
+                    } else {
+                        errorMsg = String.valueOf(currentChar);
+                        throwUnsupportedError();
+                        return;
+                    }
+                }
+            } catch (Throwable throwable) {
+                throw new ExpressionException("syntax error, pos: " + this.readIndex, throwable);
+            }
         } else if (currentChar == '+' && prevTokenType == RESET_TOKEN) {
             // dealing with the first character '+' issue
             ++readIndex;
@@ -1376,43 +1555,18 @@ public class ExprParser extends Expression {
     }
 
     private void handleParseFunctionToken(String identifierValue, boolean oneLevelAccess, List<String> variableKeys, ExprParserContext exprParserContext) {
-        // forward method or function
-        int localOffset = ++this.readIndex;
-        int bracketCount = 1;
-        char currentChar = 0;
-        while (readable()) {
-            currentChar = read();
-            if (currentChar == '\'') {
-                // find end ',ignore
-                this.scanString();
-                ++this.readIndex;
-                continue;
-            }
-            ++this.readIndex;
-            if (currentChar == ')') {
-                --bracketCount;
-            } else if (currentChar == '(') {
-                ++bracketCount;
-            }
-            if (bracketCount == 0) {
-                break;
-            }
-        }
-        if (currentChar != ')') {
-            String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-            throw new ExpressionException("syntax error, pos: " + this.readIndex + ",Expression[... " + errorMessage + " ], end token ')' not found !");
-        }
-        String args = new String(sourceChars, localOffset + this.offset, this.readIndex - localOffset - 1);
+        List<Object> params = parseList('(', ')', ++this.readIndex);
         this.tokenType = FUN_TOKEN;
         checkValueTokenSyntaxError();
         if (oneLevelAccess) {
             // static Function
             // @see @function
-            parseFunToken(exprParserContext, identifierValue, args);
+            parseFunToken(exprParserContext, identifierValue, params);
         } else {
             // reflect invoke : obj.method(...args)
-            parseMethodToken(exprParserContext, variableKeys, identifierValue, args);
+            parseMethodToken(exprParserContext, variableKeys, identifierValue, params);
         }
+        ++this.readIndex;
     }
 
     protected List<String> getLocalVariableKeys() {
@@ -1428,9 +1582,9 @@ public class ExprParser extends Expression {
             ++this.readIndex;
             prevCh = currentChar;
         }
-        if (currentChar != '\'' || prevCh == '\\') {
+        if (currentChar != '\'') {
             String errorMessage = createErrorContextText(sourceChars, this.readIndex);
-            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ],未找到与开始字符'\''相匹配的结束字符 '\''");
+            throw new ExpressionException("syntax error, pos: " + this.readIndex + ", Expression[... " + errorMessage + " ],未找到与开始字符\"'\"相匹配的结束字符 \"'\"");
         }
     }
 
@@ -1488,17 +1642,13 @@ public class ExprParser extends Expression {
             case NUM_TOKEN:
             case STR_TOKEN:
             case VAR_TOKEN:
-            case ARR_TOKEN:
+            case LIST_TOKEN:
             case FUN_TOKEN:
                 return GROUP_TOKEN_VALUE;
             default:
                 return 0;
         }
     }
-
-//    final static boolean isNotGroupTokenValue(int tokenType) {
-//        return tokenType < NUM_TOKEN;
-//    }
 
     // 1.可以直接排除前置token类型一定不是VALUE_TOKEN
     // 2.只需要校验不能紧跟')'
@@ -1604,7 +1754,7 @@ public class ExprParser extends Expression {
         return /*c == '.' || */c == '_' || c == '$' || NumberUtils.isDigit(c) /*|| c == '[' *//*|| c == '('*/;
     }
 
-    final static int digit(char c, int numberRadix) {
+    final static int digit(char c, int radix) {
         switch (c) {
             case '0':
             case '1':
@@ -1618,7 +1768,7 @@ public class ExprParser extends Expression {
             case '9':
                 return c - '0';
             default: {
-                if (numberRadix == 16) {
+                if (radix == 16) {
                     if (c >= 'a' && c <= 'f') {
                         return c - ('a' - 10);
                     }
@@ -1632,8 +1782,7 @@ public class ExprParser extends Expression {
     }
 
 
-
-    private void resetToken() {
+    final void resetToken() {
         // 重置记录上一个token类型
         this.prevTokenType = this.tokenType;
         this.tokenType = RESET_TOKEN;
@@ -1663,9 +1812,6 @@ public class ExprParser extends Expression {
 
     /**
      * 是否括号标识符
-     *
-     * @param c
-     * @return
      */
     final boolean isBracketSymbol(char c) {
         return c == '(' || c == ')';
@@ -1673,9 +1819,6 @@ public class ExprParser extends Expression {
 
     /**
      * 是否三目运算符(?:)
-     *
-     * @param c
-     * @return
      */
     final boolean isQuestionColon(char c) {
         return c == '?' || c == ':';
@@ -1897,6 +2040,10 @@ public class ExprParser extends Expression {
         }
     }
 
+    String getString(int begin, int count) {
+        return new String(sourceChars, offset + begin, count);
+    }
+
     protected String createErrorContextText(char[] buf, int readIndex) {
         try {
             int at = offset + readIndex;
@@ -1915,11 +2062,11 @@ public class ExprParser extends Expression {
         }
     }
 
-    public void optimize() {
+    public final void optimize() {
         this.exprEvaluator = exprEvaluator.optimize();
     }
 
-    boolean isConstantExpr() {
+    final boolean isConstantExpr() {
         return exprEvaluator.isConstantExpr();
     }
 }

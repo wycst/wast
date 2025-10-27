@@ -27,7 +27,7 @@ abstract class AbstractPoints extends Geometry {
         points.add(point);
     }
 
-    public void addAll(Point...pointList) {
+    public void addAll(Point... pointList) {
         for (Point point : pointList) {
             points.add(point);
         }

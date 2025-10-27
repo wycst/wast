@@ -12,6 +12,7 @@ final class JSONReaderHookRegular extends JSONReaderHook {
     private final String regular;
     final Pattern pattern;
     private final boolean onlyLeaf;
+
     public JSONReaderHookRegular(String regular) {
         this(regular, false);
     }

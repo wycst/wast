@@ -36,15 +36,16 @@ final class JSONTypeExtensionDesr {
                     return null;
                 }
                 try {
-                    long mh = hex8ToLong(buf, offset);
-                    long ml = hex4ToLong(buf, offset + 9) << 16 | hex4ToLong(buf, offset + 14);
-                    long lh = hex4ToLong(buf, offset + 19) << 16 | hex4ToLong(buf, offset + 24);
-                    long ll = hex8ToLong(buf, offset + 28);
+                    long mh = hexToLong(buf[offset]) << 28 | hexToLong(buf[offset + 1]) << 24 | hexToLong(buf[offset + 2]) << 20 | hexToLong(buf[offset + 3]) << 16 | hexToLong(buf[offset + 4]) << 12 | hexToLong(buf[offset + 5]) << 8 | hexToLong(buf[offset + 6]) << 4 | hexToLong(buf[offset + 7]);
+                    long ml = hexToLong(buf[offset + 9]) << 28 | hexToLong(buf[offset + 10]) << 24 | hexToLong(buf[offset + 11]) << 20 | hexToLong(buf[offset + 12]) << 16 | hexToLong(buf[offset + 14]) << 12 | hexToLong(buf[offset + 15]) << 8 | hexToLong(buf[offset + 16]) << 4 | hexToLong(buf[offset + 17]);
+                    long lh = hexToLong(buf[offset + 19]) << 28 | hexToLong(buf[offset + 20]) << 24 | hexToLong(buf[offset + 21]) << 20 | hexToLong(buf[offset + 22]) << 16 | hexToLong(buf[offset + 24]) << 12 | hexToLong(buf[offset + 25]) << 8 | hexToLong(buf[offset + 26]) << 4 | hexToLong(buf[offset + 27]);
+                    long ll = hexToLong(buf[offset + 28]) << 28 | hexToLong(buf[offset + 29]) << 24 | hexToLong(buf[offset + 30]) << 20 | hexToLong(buf[offset + 31]) << 16 | hexToLong(buf[offset + 32]) << 12 | hexToLong(buf[offset + 33]) << 8 | hexToLong(buf[offset + 34]) << 4 | hexToLong(buf[offset + 35]);
                     if ((mh | ml | lh | ll) > -1 && buf[offset + 8] == '-' && buf[offset + 13] == '-' && buf[offset + 18] == '-' && buf[offset + 23] == '-' && buf[endIndex = offset + 36] == beginChar) {
                         parseContext.endIndex = endIndex;
                         return new UUID(mh << 32 | ml, lh << 32 | ll);
                     }
-                } catch (Throwable throwable) {}
+                } catch (Throwable throwable) {
+                }
             } else if (beginChar == 'n') {
                 return parseNull(buf, fromIndex, parseContext);
             }
@@ -62,15 +63,16 @@ final class JSONTypeExtensionDesr {
                     return null;
                 }
                 try {
-                    long mh = hex8ToLong(buf, offset);
-                    long ml = hex4ToLong(buf, offset + 9) << 16 | hex4ToLong(buf, offset + 14);
-                    long lh = hex4ToLong(buf, offset + 19) << 16 | hex4ToLong(buf, offset + 24);
-                    long ll = hex8ToLong(buf, offset + 28);
+                    long mh = hexToLong(buf[offset]) << 28 | hexToLong(buf[offset + 1]) << 24 | hexToLong(buf[offset + 2]) << 20 | hexToLong(buf[offset + 3]) << 16 | hexToLong(buf[offset + 4]) << 12 | hexToLong(buf[offset + 5]) << 8 | hexToLong(buf[offset + 6]) << 4 | hexToLong(buf[offset + 7]);
+                    long ml = hexToLong(buf[offset + 9]) << 28 | hexToLong(buf[offset + 10]) << 24 | hexToLong(buf[offset + 11]) << 20 | hexToLong(buf[offset + 12]) << 16 | hexToLong(buf[offset + 14]) << 12 | hexToLong(buf[offset + 15]) << 8 | hexToLong(buf[offset + 16]) << 4 | hexToLong(buf[offset + 17]);
+                    long lh = hexToLong(buf[offset + 19]) << 28 | hexToLong(buf[offset + 20]) << 24 | hexToLong(buf[offset + 21]) << 20 | hexToLong(buf[offset + 22]) << 16 | hexToLong(buf[offset + 24]) << 12 | hexToLong(buf[offset + 25]) << 8 | hexToLong(buf[offset + 26]) << 4 | hexToLong(buf[offset + 27]);
+                    long ll = hexToLong(buf[offset + 28]) << 28 | hexToLong(buf[offset + 29]) << 24 | hexToLong(buf[offset + 30]) << 20 | hexToLong(buf[offset + 31]) << 16 | hexToLong(buf[offset + 32]) << 12 | hexToLong(buf[offset + 33]) << 8 | hexToLong(buf[offset + 34]) << 4 | hexToLong(buf[offset + 35]);
                     if ((mh | ml | lh | ll) > -1 && buf[offset + 8] == '-' && buf[offset + 13] == '-' && buf[offset + 18] == '-' && buf[offset + 23] == '-' && buf[endIndex = offset + 36] == beginByte) {
                         parseContext.endIndex = endIndex;
                         return new UUID(mh << 32 | ml, lh << 32 | ll);
                     }
-                } catch (Throwable throwable) {}
+                } catch (Throwable throwable) {
+                }
             } else if (beginByte == 'n') {
                 return parseNull(buf, fromIndex, parseContext);
             }

@@ -58,11 +58,11 @@ public class CSVRow {
             E e = (E) classStrucWrap.newInstance();
             int columnIndex = 0, size = values.size();
             for (String column : columns) {
-                if(columnIndex < size) {
+                if (columnIndex < size) {
                     SetterInfo setterInfo;
                     boolean checkRequired = false;
                     Class<? extends CSVTypeHandler> typeHandlerCls = null;
-                    if(annotationedColumnMap.containsKey(column)) {
+                    if (annotationedColumnMap.containsKey(column)) {
                         CSVColumnMapper csvColumnMapper = annotationedColumnMap.get(column);
                         setterInfo = csvColumnMapper.setterInfo;
                         checkRequired = csvColumnMapper.csvColumn.required();
@@ -75,14 +75,14 @@ public class CSVRow {
                     if (setterInfo != null) {
                         Object value;
                         Class<?> type = setterInfo.getParameterType();
-                        if(typeHandlerCls == null || typeHandlerCls == CSVTypeHandler.DefaultCSVTypeHandler.class) {
+                        if (typeHandlerCls == null || typeHandlerCls == CSVTypeHandler.DefaultCSVTypeHandler.class) {
                             value = ObjectUtils.toType(stringVal, type);
                         } else {
                             try {
                                 CSVTypeHandler typeHandler = typeHandlerCls.newInstance();
                                 value = typeHandler.handle(stringVal, type);
-                                if(value != null) {
-                                    if(!type.isPrimitive() && !type.isInstance(value)) {
+                                if (value != null) {
+                                    if (!type.isPrimitive() && !type.isInstance(value)) {
                                         throw new CSVException("value '" + value + "'  from handler is not matched type " + type);
                                     }
                                 }
@@ -90,7 +90,7 @@ public class CSVRow {
                                 throw new CSVException(throwable.getMessage(), throwable);
                             }
                         }
-                        if(checkRequired && value == null) {
+                        if (checkRequired && value == null) {
                             throw new CSVException("value for column '" + column + "' is required but null");
                         }
                         setterInfo.invoke(e, value);
@@ -109,12 +109,12 @@ public class CSVRow {
         Set<SetterInfo> setterInfoSet = classStrucWrap.setterSet();
         for (SetterInfo setterInfo : setterInfoSet) {
             CSVColumn csvColumn = (CSVColumn) setterInfo.getAnnotation(CSVColumn.class);
-            if(csvColumn == null) continue;
+            if (csvColumn == null) continue;
             String value = csvColumn.value().trim();
-            if(value.length() == 0) {
+            if (value.length() == 0) {
                 value = setterInfo.getName();
             }
-            if(csvColumn.required() && columns.indexOf(value) == -1) {
+            if (csvColumn.required() && columns.indexOf(value) == -1) {
                 throw new CSVException("column '" + value + "' is required");
             }
             CSVColumnMapper csvColumnMapper = new CSVColumnMapper();

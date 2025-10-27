@@ -73,7 +73,7 @@ public abstract class TemplateClass {
      */
     final protected Object getContextValue(Object target, String key, Object defaultValue) {
         Object value = ObjectUtils.get(target, key);
-        if(value == null) {
+        if (value == null) {
             return defaultValue;
         }
         return value;

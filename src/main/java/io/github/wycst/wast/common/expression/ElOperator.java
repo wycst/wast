@@ -50,7 +50,7 @@ public enum ElOperator {
     LOGICAL_OR("||", 600, 62),
     IN("∈", 600, 63),
     OUT("∉", 600, 64),
-//    COLON("?:", 700, 70),
+    //    COLON("?:", 700, 70),
     QUESTION("??", 701, 71),
 
     // todo 拓展类型

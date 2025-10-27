@@ -11,7 +11,6 @@ import java.util.List;
 
 /**
  * 支持ndjson读写
- *
  */
 final class JSONL extends JSONGeneral {
 
@@ -25,7 +24,7 @@ final class JSONL extends JSONGeneral {
     static List parseNdJson(String json, JSONTypeDeserializer typeDeserializer, ReadOption[] readOptions) {
         json.getClass();
         if (EnvUtils.JDK_9_PLUS) {
-            byte[] bytes = (byte[]) JSONUnsafe.getStringValue(json);
+            byte[] bytes = (byte[]) JSONMemoryHandle.getStringValue(json);
             if (bytes.length == json.length()) {
                 return parseNdJson(typeDeserializer, AsciiStringSource.of(json), bytes, JSONParseContext.of(readOptions));
             } else {
@@ -33,7 +32,7 @@ final class JSONL extends JSONGeneral {
                 return parseNdJson(typeDeserializer, UTF16ByteArraySource.of(json), chars, JSONParseContext.of(readOptions));
             }
         }
-        char[] chars = (char[]) JSONUnsafe.getStringValue(json);
+        char[] chars = (char[]) JSONMemoryHandle.getStringValue(json);
         return parseNdJson(typeDeserializer, null, chars, JSONParseContext.of(readOptions));
     }
 

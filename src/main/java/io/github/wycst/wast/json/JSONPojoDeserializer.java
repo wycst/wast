@@ -19,12 +19,19 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
         this(checkPojoStructure(pojoClass));
         ensureInitialized();
     }
+
     static <T> JSONPojoStructure checkPojoStructure(Class<T> pojoClass) {
         JSONPojoStructure pojoStructure = JSONPojoStructure.get(pojoClass);
         if (pojoStructure == null) {
             throw new UnsupportedOperationException("not support for " + pojoClass);
         }
         return pojoStructure;
+    }
+
+    @Override
+    protected final boolean checkIfSupportedStartsWith(int c) {
+        // null
+        return c == '{' || c == 'n';
     }
 
     JSONPojoDeserializer(JSONPojoStructure pojoStructure) {
@@ -59,9 +66,9 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
 
     protected final T deserialize(CharSource charSource, byte[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object entity, int endToken, JSONParseContext jsonParseContext) throws Exception {
         byte beginByte = buf[fromIndex];
-        if(beginByte == '{') {
+        if (beginByte == '{') {
             return (T) deserializePojo(charSource, buf, fromIndex, parameterizedType, entity, jsonParseContext);
-        } else if(beginByte == 'n') {
+        } else if (beginByte == 'n') {
             parseNull(buf, fromIndex, jsonParseContext);
             return null;
         } else {
@@ -92,7 +99,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
         final boolean allowComment = parseContext.allowComment;
         int i = fromIndex;
         for (; ; ) {
-            if((c = buf[++i]) <= ' ') {
+            if ((c = buf[++i]) <= ' ') {
                 c = buf[i = skipWhiteSpaces(buf, i + 1)];
             }
             if (allowComment) {
@@ -152,7 +159,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                 }
             }
             if (c == ':') {
-                if(buf[++i] <= ' ') {
+                if (buf[++i] <= ' ') {
                     i = skipWhiteSpaces(buf, i + 1);
                 }
                 if (allowComment) {
@@ -468,7 +475,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
     }
 
     static JSONPojoDeserializer create(JSONPojoStructure pojoStructure) {
-        if(pojoStructure.fieldDeserializerMatcher.isPlhv()) {
+        if (pojoStructure.fieldDeserializerMatcher.isPlhv()) {
             final JSONKeyValueMap<JSONPojoFieldDeserializer> valueMap = pojoStructure.fieldDeserializerMatcher.valueMapForChars;
             final JSONKeyValueMap.EntryNode<JSONPojoFieldDeserializer>[] valueEntryNodes = valueMap.valueEntryNodes;
             final int mask = valueMap.mask;
@@ -493,7 +500,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                             hashValue += c;
                         }
                         parseContext.endIndex = i;
-                        if(!parseContext.strictMode) {
+                        if (!parseContext.strictMode) {
                             JSONKeyValueMap.EntryNode<JSONPojoFieldDeserializer> entryNode = valueEntryNodes[(int) (hashValue & mask)];
                             if (entryNode != null && entryNode.hash == hashValue) {
                                 return entryNode.value;
@@ -526,7 +533,7 @@ public class JSONPojoDeserializer<T> extends JSONTypeDeserializer {
                             hashValue += c;
                         }
                         parseContext.endIndex = i;
-                        if(!parseContext.strictMode) {
+                        if (!parseContext.strictMode) {
                             JSONKeyValueMap.EntryNode<JSONPojoFieldDeserializer> entryNode = valueEntryNodes[(int) (hashValue & mask)];
                             if (entryNode != null && entryNode.hash == hashValue) {
                                 return entryNode.value;

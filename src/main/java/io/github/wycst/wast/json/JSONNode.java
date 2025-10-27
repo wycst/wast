@@ -1,5 +1,5 @@
 /*
- * Copyright [2020-2024] [wangyunchao]
+ * Copyright [2020-2026] [wangyunchao]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
  */
 package io.github.wycst.wast.json;
 
+import io.github.wycst.wast.common.beans.DateParser;
 import io.github.wycst.wast.common.reflect.ClassStrucWrap;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.SetterInfo;
@@ -29,6 +30,7 @@ import java.io.Serializable;
 import java.io.Writer;
 import java.lang.reflect.Array;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * <ol>
@@ -95,7 +97,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     int offset;
     boolean completed;
     private Serializable path;
-
+    private String __absolutePath;
     Map<Serializable, JSONNode> fieldValues;
     JSONNode[] elementValues;
     int elementSize;
@@ -116,6 +118,255 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     Object any;
     boolean changed;
     JSONNodePathCtx collectCtx;
+
+    final JSONType matchedJSONType(JSONSchema schema) {
+        Object schemaType = schema.getType();
+        if (schemaType instanceof JSONType) {
+            JSONType jsonType = (JSONType) schemaType;
+            return type == jsonType.value ? jsonType : null;
+        }
+        if (schemaType instanceof JSONType[]) {
+            for (JSONType jsonType : (JSONType[]) schemaType) {
+                if (type == jsonType.value) {
+                    return jsonType;
+                }
+            }
+        }
+        return null;
+    }
+
+    final JSONSchemaResult validateSchemaNoneType(JSONSchema schema, boolean ignoreMessage) {
+        if (schema.ifAnyOf()) {
+            Object anyOf = schema.getAnyOf();
+            if (anyOf instanceof JSONSchema[]) {
+                JSONSchema[] anyOfs = (JSONSchema[]) anyOf;
+                for (JSONSchema item : anyOfs) {
+                    JSONSchemaResult result = validateSchema(item, true);
+                    if (result.isSuccess()) {
+                        return JSONSchemaResult.SUCCESS;
+                    }
+                }
+                return ignoreMessage ? JSONSchemaResult.FAILURE : new JSONSchemaResult(false, "anyOf not match", getAbsolutePath());
+            }
+            return JSONSchemaResult.SUCCESS_SKIP;
+        } else if (schema.ifAllOf()) {
+            Object allOf = schema.getAllOf();
+            if (allOf instanceof JSONSchema[]) {
+                JSONSchema[] allOfs = (JSONSchema[]) allOf;
+                for (JSONSchema item : allOfs) {
+                    JSONSchemaResult result = validateSchema(item, true);
+                    if (!result.isSuccess()) {
+                        return ignoreMessage ? JSONSchemaResult.FAILURE : new JSONSchemaResult(false, "allOf not match", getAbsolutePath());
+                    }
+                }
+                return JSONSchemaResult.SUCCESS;
+            }
+            return JSONSchemaResult.SUCCESS_SKIP;
+        } else if (schema.ifOneOf()) {
+            Object oneOf = schema.getOneOf();
+            if (oneOf instanceof JSONSchema[]) {
+                JSONSchema[] oneOfs = (JSONSchema[]) oneOf;
+                int count = 0;
+                for (JSONSchema item : oneOfs) {
+                    JSONSchemaResult result = validateSchema(item, true);
+                    if (result.isSuccess() && count++ > 1) {
+                        return ignoreMessage ? JSONSchemaResult.FAILURE : new JSONSchemaResult(false, "oneOf not match", getAbsolutePath());
+                    }
+                }
+                if (count == 0) {
+                    return ignoreMessage ? JSONSchemaResult.FAILURE : new JSONSchemaResult(false, "oneOf not match ", getAbsolutePath());
+                }
+                return JSONSchemaResult.SUCCESS;
+            }
+            return JSONSchemaResult.SUCCESS_SKIP;
+        } else if (schema.ifRef()) {
+            return validateSchema(schema.refSchema(), ignoreMessage);
+        } else if (schema.ifTypeEnums()) {
+            String[] enumTypes = schema.getEnums();
+            final String nodeType = TYPE_DESCS[type];
+            for (String enumType : enumTypes) {
+                if (nodeType.equals(enumType)) {
+                    return JSONSchemaResult.SUCCESS;
+                }
+            }
+            return ignoreMessage ? JSONSchemaResult.FAILURE : new JSONSchemaResult(false, "type not match, expect " + JSON.toJsonString(schema.getEnums()) + " but '" + TYPE_DESCS[type] + "'", getAbsolutePath());
+        }
+        return JSONSchemaResult.SUCCESS_SKIP;
+    }
+
+    public final JSONSchemaResult validateSchema(JSONSchema schema) {
+        return validateSchema(schema, false);
+    }
+
+    final JSONSchemaResult validateSchema(JSONSchema schema, boolean ignoreMessage) {
+        if (schema == null) {
+            return JSONSchemaResult.SUCCESS_SKIP;
+        }
+        if (schema.getType() == null) {
+            // handle ref anyOf|allOf|oneOf
+            return validateSchemaNoneType(schema, ignoreMessage);
+        }
+        if (schema.getMust() && type == NULL) {
+            return ignoreMessage ? JSONSchemaResult.FAILURE : JSONSchemaResult.fail(getAbsolutePath() + " is required");
+        }
+        JSONType dataType = matchedJSONType(schema);
+        if (dataType == null) {
+            return ignoreMessage ? JSONSchemaResult.FAILURE : new JSONSchemaResult(false, "type not match, expect " + JSON.toJsonString(schema.getType()) + " but '" + TYPE_DESCS[type] + "'", getAbsolutePath());
+        }
+        // 验证规则[rules]优先
+        List<JSONSchemaRule> rules = schema.getRules();
+        if (!CollectionUtils.isEmpty(rules)) {
+            for (JSONSchemaRule rule : rules) {
+                JSONSchemaRuleValidator validator = rule.validator();
+                if (validator == null) {
+                    continue;
+                }
+                boolean result = validator.validate(rule, this);
+                if (!result) {
+                    return JSONSchemaResult.fail(rule.getMessage());
+                }
+            }
+        }
+        switch (dataType) {
+            case OBJECT:
+                return validateSchemaObject(schema);
+            case ARRAY:
+                return validateSchemaArray(schema);
+            case NUMBER_INTEGER:
+            case NUMBER:
+                return validateSchemaNumber(schema);
+            case STRING:
+                return validateSchemaString(schema);
+        }
+        // 验证类型
+        return JSONSchemaResult.SUCCESS;
+    }
+
+    private JSONSchemaResult validateSchemaObject(JSONSchema schema) {
+        try {
+            final Map<Serializable, JSONSchema> fieldSchemas = schema.getProperties();
+            if (fieldSchemas != null && !fieldSchemas.isEmpty()) {
+                boolean disableExtra = schema.getDisableExtra();
+                ensureCompleted(true);
+                // determine whether there are undefined fields
+                Set<Map.Entry<Serializable, JSONNode>> entrySet = fieldValues.entrySet();
+                for (Map.Entry<Serializable, JSONNode> entry : entrySet) {
+                    Serializable key = entry.getKey();
+                    JSONNode value = entry.getValue();
+                    JSONSchema fieldSchema = fieldSchemas.get(key);
+                    if (fieldSchema == null) {
+                        if (disableExtra) {
+                            return JSONSchemaResult.fail("field: " + key + " not allowed", value.getAbsolutePath());
+                        }
+                        continue;
+                    }
+                    JSONSchemaResult fieldSchemaResult = value.validateSchema(fieldSchema);
+                    if (!fieldSchemaResult.isSuccess()) {
+                        return fieldSchemaResult;
+                    }
+                }
+
+                // determine if a required but non-existent field has been defined
+                Set<Map.Entry<Serializable, JSONSchema>> requiredFieldsEntrySet = fieldSchemas.entrySet();
+                for (Map.Entry<Serializable, JSONSchema> entry : requiredFieldsEntrySet) {
+                    JSONSchema value = entry.getValue();
+                    if (value == null || !value.getMust()) {
+                        continue;
+                    }
+                    Serializable requiredField = entry.getKey();
+                    if (!fieldValues.containsKey(requiredField)) {
+                        return JSONSchemaResult.fail("field: '" + requiredField + "' is required but not found", getAbsolutePath());
+                    }
+                }
+            }
+            return JSONSchemaResult.SUCCESS;
+        } catch (Throwable throwable) {
+            return JSONSchemaResult.fail(throwable.getMessage());
+        }
+    }
+
+    private JSONSchemaResult validateSchemaArray(JSONSchema schema) {
+        try {
+            Integer maxElementSize = schema.getMaxItems();
+            Integer minElementSize = schema.getMinItems();
+            ensureCompleted(true);
+            if (maxElementSize != null && maxElementSize > -1 && maxElementSize < elementSize) {
+                return JSONSchemaResult.fail("the maxElementSize is " + maxElementSize + ", input " + elementSize, getAbsolutePath());
+            }
+            if (minElementSize != null && minElementSize > elementSize) {
+                return JSONSchemaResult.fail("the minElementSize is " + minElementSize + ", input " + elementSize, getAbsolutePath());
+            }
+            if (schema.hasElementSchema()) {
+                for (int i = 0; i < elementSize; ++i) {
+                    JSONSchema elementSchema = schema.getElementSchemaAt(i);
+                    JSONSchemaResult elementResult = elementValues[i].validateSchema(elementSchema);
+                    if (!elementResult.isSuccess()) {
+                        return elementResult;
+                    }
+                }
+            }
+            return JSONSchemaResult.SUCCESS;
+        } catch (Throwable throwable) {
+            return JSONSchemaResult.fail(throwable.getMessage());
+        }
+    }
+
+    private JSONSchemaResult validateSchemaNumber(JSONSchema schema) {
+        if (schema.getType() == JSONType.NUMBER_INTEGER) {
+            if (!(value instanceof Integer) && !(value instanceof Long)) {
+                return JSONSchemaResult.fail("the value type is not integer", getAbsolutePath());
+            }
+        }
+        Number maxValue = schema.getMaximum();
+        Number minValue = schema.getMinimum();
+        boolean exclusiveMaximum = schema.getExclusiveMaximum();
+        boolean exclusiveMinimum = schema.getExclusiveMinimum();
+        double doubleValue = ((Number) value).doubleValue();
+        if (maxValue != null && (maxValue.doubleValue() < doubleValue || (exclusiveMaximum && maxValue.doubleValue() == doubleValue))) {
+            return JSONSchemaResult.fail("max value is " + maxValue + ", input " + value, getAbsolutePath());
+        }
+        if (minValue != null && (minValue.doubleValue() > doubleValue || (exclusiveMinimum && minValue.doubleValue() == doubleValue))) {
+            return JSONSchemaResult.fail("min value is " + minValue + ", input " + value, getAbsolutePath());
+        }
+        return JSONSchemaResult.SUCCESS;
+    }
+
+    private JSONSchemaResult validateSchemaString(JSONSchema schema) {
+        Integer maxLength = schema.getMaxLength();
+        Integer minLength = schema.getMinLength();
+        String valueString = (String) value;
+        if (maxLength != null && maxLength > -1 && maxLength < valueString.length()) {
+            return JSONSchemaResult.fail("the maxLength is " + maxLength + ", input " + valueString.length(), getAbsolutePath());
+        }
+        if (minLength != null && minLength > valueString.length()) {
+            return JSONSchemaResult.fail("the minLength is " + minLength + ", input " + valueString.length(), getAbsolutePath());
+        }
+        Pattern patternObject = schema.patternObject();
+        if (patternObject != null && !patternObject.matcher(valueString).matches()) {
+            return JSONSchemaResult.fail("pattern[" + schema.getPattern() + "] validate fail, input " + valueString, getAbsolutePath());
+        }
+
+        String format = schema.getFormat();
+        if (format != null) {
+            if (schema.formatUrl()) {
+                if (!JSONSchema.PATTERN_URL.matcher(valueString).matches()) {
+                    return JSONSchemaResult.fail("format[url] validate fail, input " + valueString, getAbsolutePath());
+                }
+            } else if (schema.formatEmail()) {
+                if (!JSONSchema.PATTERN_EMAIL.matcher(valueString).matches()) {
+                    return JSONSchemaResult.fail("format[email] validate fail, input " + valueString, getAbsolutePath());
+                }
+            } else if (schema.formatDate()) {
+                try {
+                    DateParser.parseDate(valueString);
+                } catch (Exception e) {
+                    return JSONSchemaResult.fail("format[date] validate fail, input " + valueString, getAbsolutePath());
+                }
+            }
+        }
+
+        return JSONSchemaResult.SUCCESS;
+    }
 
     final static class RootContext {
         final int beginIndex;
@@ -148,11 +399,24 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         return path;
     }
 
+    // 路径是否变化,理论上只有数组删除元素会导致下标元素的路径改变（依赖父节点路径递归变化）
+    final boolean isPathChanged() {
+        return parent != null && ((parent.isArray() && parent.changed) || parent.isPathChanged());
+    }
+
     public final String getAbsolutePath() {
         if (this == root) {
             return String.valueOf(path == null ? "" : path);
         }
-        if (!changed || !parent.isArray()) {
+        boolean pathChanged = isPathChanged();
+        if (!parent.isArray()) {
+            if (!pathChanged) {
+                if (__absolutePath == null) {
+                    __absolutePath = getParentAbsolutePath() + '/' + (path == null ? "" : path);
+                }
+                return __absolutePath;
+            }
+            __absolutePath = null;
             return getParentAbsolutePath() + '/' + (path == null ? "" : path);
         }
         return getParentAbsolutePath() + '/' + CollectionUtils.indexOf(parent.elementValues, this);
@@ -311,7 +575,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             }
             case 't': {
                 if (len == 4) {
-                    long unsafeValue = JSONUnsafe.getLong(buf, beginIndex);
+                    long unsafeValue = JSONMemoryHandle.getLong(buf, beginIndex);
                     if (unsafeValue == JSONGeneral.TRUE_LONG) {
                         type = BOOLEAN;
                         leafValue = true;
@@ -322,7 +586,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             }
             case 'f': {
                 if (len == 5) {
-                    long unsafeValue = JSONUnsafe.getLong(buf, beginIndex + 1);
+                    long unsafeValue = JSONMemoryHandle.getLong(buf, beginIndex + 1);
                     if (unsafeValue == JSONGeneral.ALSE_LONG) {
                         type = BOOLEAN;
                         leafValue = false;
@@ -333,7 +597,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             }
             case 'n': {
                 if (len == 4) {
-                    long unsafeValue = JSONUnsafe.getLong(buf, beginIndex);
+                    long unsafeValue = JSONMemoryHandle.getLong(buf, beginIndex);
                     if (unsafeValue == JSONGeneral.NULL_LONG) {
                         type = NULL;
                         leafValue = null;
@@ -386,7 +650,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             }
             case 't': {
                 if (len == 4) {
-                    int unsafeValue = JSONUnsafe.getInt(buf, beginIndex);
+                    int unsafeValue = JSONMemoryHandle.getInt(buf, beginIndex);
                     if (unsafeValue == JSONGeneral.TRUE_INT) {
                         type = BOOLEAN;
                         leafValue = true;
@@ -397,7 +661,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             }
             case 'f': {
                 if (len == 5) {
-                    int unsafeValue = JSONUnsafe.getInt(buf, beginIndex + 1);
+                    int unsafeValue = JSONMemoryHandle.getInt(buf, beginIndex + 1);
                     if (unsafeValue == JSONGeneral.ALSE_INT) {
                         type = BOOLEAN;
                         leafValue = false;
@@ -408,7 +672,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             }
             case 'n': {
                 if (len == 4) {
-                    int unsafeValue = JSONUnsafe.getInt(buf, beginIndex);
+                    int unsafeValue = JSONMemoryHandle.getInt(buf, beginIndex);
                     if (unsafeValue == JSONGeneral.NULL_INT) {
                         type = NULL;
                         leafValue = null;
@@ -480,6 +744,11 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             return text;
         }
 
+        @Override
+        protected String getErrorContextText() {
+            return JSONGeneral.createErrorContextText(buf, offset);
+        }
+
         public String source() {
             if (value != null && type != STRING) {
                 return String.valueOf(this.value);
@@ -513,59 +782,8 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             final boolean allowComment = parseContext.allowComment, extract = parseContext.extract;
             final boolean stored = !extract || !lazy;
             for (int i = offset + 1; i < endIndex; ++i) {
-                if ((ch = buf[i]) <= ' ') {
-                    ch = buf[i = JSONGeneral.skipWhiteSpaces(buf, i + 1)];
-                }
-                if (allowComment) {
-                    if (ch == '/') {
-                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
-                    }
-                }
-                int fieldKeyFrom = i;
-                String key = null;
-                boolean matched, skipValue;
-                if (ch == '"') {
-                    if (stored) {
-                        key = JSONDefaultParser.parseMapKeyByCache(buf, i, '"', parseContext);
-                        matched = fieldName != null && fieldName.equals(key);
-                        skipValue = false;
-                    } else {
-                        matched = matchJSONKey(charSource, buf, i, fieldName, ch, parseContext);
-                        skipValue = !matched;
-                    }
-                    i = parseContext.endIndex + 1;
-                } else {
-                    if (ch == '}') {
-                        // parseContext.allowLastEndComma
-                        if(stored) {
-                            offset = i;
-                            completed = true;
-                        }
-                        return null;
-                    }
-                    if (ch == '\'') {
-                        // parseContext.allowSingleQuotes
-                        while (i + 1 < endIndex && (buf[++i] != '\'' || buf[i - 1] == '\\')) ;
-                        ++i;
-                        key = (String) JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, false);
-                    } else {
-                        // parseContext.allowUnquotedFieldNames
-                        while (i + 1 < endIndex && buf[++i] != ':') ;
-                        key = String.valueOf(JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, true));
-                    }
-                    matched = fieldName != null && fieldName.equals(key);
-                    skipValue = !stored && !matched;
-                }
-                while ((ch = buf[i]) <= ' ') {
-                    ++i;
-                }
-                if (allowComment) {
-                    if (ch == '/') {
-                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
-                    }
-                }
-                if (ch == ':') {
-                    if ((ch = buf[++i]) <= ' ') {
+                try {
+                    if ((ch = buf[i]) <= ' ') {
                         ch = buf[i = JSONGeneral.skipWhiteSpaces(buf, i + 1)];
                     }
                     if (allowComment) {
@@ -573,43 +791,99 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                             ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                         }
                     }
-                    JSONNode node = null;
-                    try {
-                        if (skipValue) {
-                            JSONTypeDeserializer.ANY.skip(charSource, buf, i, '}', parseContext);
+                    int fieldKeyFrom = i;
+                    String key = null;
+                    boolean matched, skipValue;
+                    if (ch == '"') {
+                        if (stored) {
+                            key = JSONDefaultParser.parseMapKeyByCache(buf, i, '"', parseContext);
+                            matched = fieldName != null && fieldName.equals(key);
+                            skipValue = false;
                         } else {
-                            node = parseValueNode(i, '}', lazy, createObj);
+                            matched = matchJSONKey(charSource, buf, i, fieldName, ch, parseContext);
+                            skipValue = !matched;
                         }
-                    } catch (Throwable throwable) {
-                        if (throwable instanceof JSONException) {
-                            throw (JSONException) throwable;
+                        i = parseContext.endIndex + 1;
+                    } else {
+                        if (ch == '}') {
+                            // parseContext.allowLastEndComma
+                            if (stored) {
+                                offset = i;
+                                completed = true;
+                            }
+                            return null;
                         }
-                        throw new JSONException(throwable.getMessage(), throwable);
+                        if (ch == '\'') {
+                            // parseContext.allowSingleQuotes
+                            while (i + 1 < endIndex && (buf[++i] != '\'' || buf[i - 1] == '\\')) ;
+                            ++i;
+                            key = (String) JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, false);
+                        } else {
+                            // parseContext.allowUnquotedFieldNames
+                            while (i + 1 < endIndex && buf[++i] != ':') ;
+                            key = String.valueOf(JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, true));
+                        }
+                        matched = fieldName != null && fieldName.equals(key);
+                        skipValue = !stored && !matched;
                     }
-                    i = parseContext.endIndex;
-                    while ((ch = buf[++i]) <= ' ') ;
+                    while ((ch = buf[i]) <= ' ') {
+                        ++i;
+                    }
                     if (allowComment) {
                         if (ch == '/') {
                             ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                         }
                     }
-                    boolean isClosingSymbol = ch == '}';
-                    if (ch == ',' || isClosingSymbol) {
-                        if (stored) {
-                            addFieldValue(fieldValues, key, node);
-                            offset = i;
-                            if (isClosingSymbol) {
-                                completed = true;
+                    if (ch == ':') {
+                        if ((ch = buf[++i]) <= ' ') {
+                            ch = buf[i = JSONGeneral.skipWhiteSpaces(buf, i + 1)];
+                        }
+                        if (allowComment) {
+                            if (ch == '/') {
+                                ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                             }
                         }
-                        if (matched) {
-                            return node;
+                        JSONNode node = null;
+                        try {
+                            if (skipValue) {
+                                JSONTypeDeserializer.ANY.skip(charSource, buf, i, '}', parseContext);
+                            } else {
+                                node = parseValueNode(i, '}', lazy, createObj);
+                            }
+                        } catch (Throwable throwable) {
+                            if (throwable instanceof JSONException) {
+                                throw (JSONException) throwable;
+                            }
+                            throw new JSONException(throwable.getMessage(), throwable);
+                        }
+                        i = parseContext.endIndex;
+                        while ((ch = buf[++i]) <= ' ') ;
+                        if (allowComment) {
+                            if (ch == '/') {
+                                ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
+                            }
+                        }
+                        boolean isClosingSymbol = ch == '}';
+                        if (ch == ',' || isClosingSymbol) {
+                            if (stored) {
+                                addFieldValue(fieldValues, key, node);
+                                offset = i;
+                                if (isClosingSymbol) {
+                                    completed = true;
+                                }
+                            }
+                            if (matched) {
+                                return node;
+                            }
+                        } else {
+                            throw new JSONException("Syntax error, unexpected '" + ch + "', position " + i);
                         }
                     } else {
                         throw new JSONException("Syntax error, unexpected '" + ch + "', position " + i);
                     }
-                } else {
-                    throw new JSONException("Syntax error, unexpected '" + ch + "', position " + i);
+                } catch (RuntimeException runtimeException) {
+                    offset = i;
+                    throw runtimeException;
                 }
             }
             return null;
@@ -835,49 +1109,54 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             char ch;
             boolean allowComment = parseContext.allowComment, matchedIndex;
             for (int i = offset + 1; i < endIndex; ++i) {
-                while ((ch = buf[i]) <= ' ') {
-                    ++i;
-                }
-                if (allowComment) {
-                    if (ch == '/') {
-                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
-                    }
-                }
-                if (ch == ']') {
-                    // parseContext.allowLastEndComma
-                    offset = i;
-                    completed = true;
-                    return null;
-                }
-                matchedIndex = index > -1 && index == elementSize;
-                JSONNode node;
                 try {
-                    node = parseValueNode(i, ']', lazy, createObj);
-                } catch (Throwable throwable) {
-                    if (throwable instanceof JSONException) {
-                        throw (JSONException) throwable;
+                    while ((ch = buf[i]) <= ' ') {
+                        ++i;
                     }
-                    throw new JSONException(throwable.getMessage(), throwable);
-                }
-                i = parseContext.endIndex;
-                while ((ch = buf[++i]) <= ' ') ;
-                if (allowComment) {
-                    if (ch == '/') {
-                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
+                    if (allowComment) {
+                        if (ch == '/') {
+                            ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
+                        }
                     }
-                }
-                offset = i;
-                boolean isEnd = ch == ']';
-                if (ch == ',' || isEnd) {
-                    addElementNode(node);
-                    if (isEnd) {
+                    if (ch == ']') {
+                        // parseContext.allowLastEndComma
+                        offset = i;
                         completed = true;
+                        return null;
                     }
-                    if (matchedIndex) {
-                        return node;
+                    matchedIndex = index > -1 && index == elementSize;
+                    JSONNode node;
+                    try {
+                        node = parseValueNode(i, ']', lazy, createObj);
+                    } catch (Throwable throwable) {
+                        if (throwable instanceof JSONException) {
+                            throw (JSONException) throwable;
+                        }
+                        throw new JSONException(throwable.getMessage(), throwable);
                     }
-                } else {
-                    throw new JSONException("Syntax error, unexpected '" + ch + "', position " + i + ", missing ',' or '}'");
+                    i = parseContext.endIndex;
+                    while ((ch = buf[++i]) <= ' ') ;
+                    if (allowComment) {
+                        if (ch == '/') {
+                            ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
+                        }
+                    }
+                    offset = i;
+                    boolean isEnd = ch == ']';
+                    if (ch == ',' || isEnd) {
+                        addElementNode(node);
+                        if (isEnd) {
+                            completed = true;
+                        }
+                        if (matchedIndex) {
+                            return node;
+                        }
+                    } else {
+                        throw new JSONException("Syntax error, unexpected '" + ch + "', position " + i + ", missing ',' or '}'");
+                    }
+                } catch (RuntimeException runtimeException) {
+                    offset = i;
+                    throw runtimeException;
                 }
             }
             return null;
@@ -945,6 +1224,11 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             return text;
         }
 
+        @Override
+        protected String getErrorContextText() {
+            return JSONGeneral.createErrorContextText(buf, offset);
+        }
+
         public String source() {
             if (value != null && type != STRING) {
                 return String.valueOf(this.value);
@@ -977,107 +1261,112 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             byte b;
             final boolean allowComment = parseContext.allowComment, extract = parseContext.extract;
             final boolean stored = !extract || !lazy;
-            final byte[] fieldNameBytes = (!stored && fieldName != null) ? JSONUnsafe.getStringUTF8Bytes(fieldName) : null;
+            final byte[] fieldNameBytes = (!stored && fieldName != null) ? JSONMemoryHandle.getStringUTF8Bytes(fieldName) : null;
             for (int i = offset + 1; i < endIndex; ++i) {
-                if ((b = buf[i]) <= ' ') {
-                    b = buf[i = JSONGeneral.skipWhiteSpaces(buf, i + 1)];
-                }
-                if (allowComment) {
-                    if (b == '/') {
-                        b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
-                    }
-                }
-                int fieldKeyFrom = i;
-                String key = null;
-                boolean matched, skipValue;
-                if (b == '"') {
-                    if (stored) {
-                        key = JSONTypeDeserializer.parseMapKeyByCache(buf, i, '"', parseContext);
-                        matched = fieldName != null && fieldName.equals(key);
-                        skipValue = false;
-                    } else {
-                        // direct match bytes
-                        matched = matchJSONKey(charSource, buf, i, fieldNameBytes, b, parseContext);
-                        skipValue = !matched;
-                    }
-                    // empty = false;
-                    i = parseContext.endIndex + 1;
-                } else {
-                    if (b == '}') {
-                        // parseContext.allowLastEndComma
-                        if(stored) {
-                            offset = i;
-                            completed = true;
-                        }
-                        return null;
-                    }
-                    if (b == '\'') {
-                        // parseContext.allowSingleQuotes
-                        while (i + 1 < endIndex && (buf[++i] != '\'' || buf[i - 1] == '\\')) ;
-                        ++i;
-                        key = (String) JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, false);
-                    } else {
-                        // parseContext.allowUnquotedFieldNames
-                        while (i + 1 < endIndex && buf[++i] != ':') ;
-                        key = String.valueOf(JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, true));
-                    }
-                    matched = fieldName != null && fieldName.equals(key);
-                    skipValue = !stored && !matched;
-                }
-                while ((b = buf[i]) <= ' ') {
-                    ++i;
-                }
-                if (allowComment) {
-                    if (b == '/') {
-                        b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
-                    }
-                }
-                if (b == ':') {
-                    if ((b = buf[++i]) <= ' ') {
+                try {
+                    if ((b = buf[i]) <= ' ') {
                         b = buf[i = JSONGeneral.skipWhiteSpaces(buf, i + 1)];
                     }
-                    if (allowComment) {
-                        if (b == '/') {
-                            i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext);
-                        }
-                    }
-                    JSONNode node = null;
-                    try {
-                        if (skipValue) {
-                            JSONTypeDeserializer.ANY.skip(charSource, buf, i, (byte) '}', parseContext);
-                        } else {
-                            node = parseValueNode(i, '}', lazy, createObj);
-                        }
-                    } catch (Throwable throwable) {
-                        if (throwable instanceof JSONException) {
-                            throw (JSONException) throwable;
-                        }
-                        throw new JSONException(throwable.getMessage(), throwable);
-                    }
-                    i = parseContext.endIndex;
-                    while ((b = buf[++i]) <= ' ') ;
                     if (allowComment) {
                         if (b == '/') {
                             b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
                         }
                     }
-                    boolean isClosingSymbol = b == '}';
-                    if (b == ',' || isClosingSymbol) {
+                    int fieldKeyFrom = i;
+                    String key = null;
+                    boolean matched, skipValue;
+                    if (b == '"') {
                         if (stored) {
-                            addFieldValue(fieldValues, key, node);
-                            offset = i;
-                            if (isClosingSymbol) {
+                            key = JSONTypeDeserializer.parseMapKeyByCache(buf, i, '"', parseContext);
+                            matched = fieldName != null && fieldName.equals(key);
+                            skipValue = false;
+                        } else {
+                            // direct match bytes
+                            matched = matchJSONKey(charSource, buf, i, fieldNameBytes, b, parseContext);
+                            skipValue = !matched;
+                        }
+                        // empty = false;
+                        i = parseContext.endIndex + 1;
+                    } else {
+                        if (b == '}') {
+                            // parseContext.allowLastEndComma
+                            if (stored) {
+                                offset = i;
                                 completed = true;
                             }
+                            return null;
                         }
-                        if (matched) {
-                            return node;
+                        if (b == '\'') {
+                            // parseContext.allowSingleQuotes
+                            while (i + 1 < endIndex && (buf[++i] != '\'' || buf[i - 1] == '\\')) ;
+                            ++i;
+                            key = (String) JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, false);
+                        } else {
+                            // parseContext.allowUnquotedFieldNames
+                            while (i + 1 < endIndex && buf[++i] != ':') ;
+                            key = String.valueOf(JSONDefaultParser.parseKeyOfMap(buf, fieldKeyFrom, i, true));
+                        }
+                        matched = fieldName != null && fieldName.equals(key);
+                        skipValue = !stored && !matched;
+                    }
+                    while ((b = buf[i]) <= ' ') {
+                        ++i;
+                    }
+                    if (allowComment) {
+                        if (b == '/') {
+                            b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
+                        }
+                    }
+                    if (b == ':') {
+                        if ((b = buf[++i]) <= ' ') {
+                            b = buf[i = JSONGeneral.skipWhiteSpaces(buf, i + 1)];
+                        }
+                        if (allowComment) {
+                            if (b == '/') {
+                                i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext);
+                            }
+                        }
+                        JSONNode node = null;
+                        try {
+                            if (skipValue) {
+                                JSONTypeDeserializer.ANY.skip(charSource, buf, i, (byte) '}', parseContext);
+                            } else {
+                                node = parseValueNode(i, '}', lazy, createObj);
+                            }
+                        } catch (Throwable throwable) {
+                            if (throwable instanceof JSONException) {
+                                throw (JSONException) throwable;
+                            }
+                            throw new JSONException(throwable.getMessage(), throwable);
+                        }
+                        i = parseContext.endIndex;
+                        while ((b = buf[++i]) <= ' ') ;
+                        if (allowComment) {
+                            if (b == '/') {
+                                b = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
+                            }
+                        }
+                        boolean isClosingSymbol = b == '}';
+                        if (b == ',' || isClosingSymbol) {
+                            if (stored) {
+                                addFieldValue(fieldValues, key, node);
+                                offset = i;
+                                if (isClosingSymbol) {
+                                    completed = true;
+                                }
+                            }
+                            if (matched) {
+                                return node;
+                            }
+                        } else {
+                            throw new JSONException("Syntax error, unexpected '" + (char) b + "', position " + i);
                         }
                     } else {
                         throw new JSONException("Syntax error, unexpected '" + (char) b + "', position " + i);
                     }
-                } else {
-                    throw new JSONException("Syntax error, unexpected '" + (char) b + "', position " + i);
+                } catch (RuntimeException runtimeException) {
+                    offset = i;
+                    throw runtimeException;
                 }
             }
             return null;
@@ -1304,53 +1593,57 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             byte ch;
             boolean allowComment = parseContext.allowComment, matchedIndex;
             for (int i = offset + 1; i < endIndex; ++i) {
-                while ((ch = buf[i]) <= ' ') {
-                    ++i;
-                }
-                if (allowComment) {
-                    if (ch == '/') {
-                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
-                    }
-                }
-                if (ch == ']') {
-                    // parseContext.allowLastEndComma
-                    offset = i;
-                    completed = true;
-                    return null;
-                }
-                matchedIndex = index > -1 && index == elementSize;
-
-                JSONNode node;
                 try {
-                    node = parseValueNode(i, ']', lazy, createObj);
-                } catch (Throwable throwable) {
-                    if (throwable instanceof JSONException) {
-                        throw (JSONException) throwable;
+                    while ((ch = buf[i]) <= ' ') {
+                        ++i;
                     }
-                    throw new JSONException(throwable.getMessage(), throwable);
-                }
-                i = parseContext.endIndex;
-                while ((ch = buf[++i]) <= ' ') ;
-                if (allowComment) {
-                    if (ch == '/') {
-                        ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
+                    if (allowComment) {
+                        if (ch == '/') {
+                            ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
+                        }
                     }
-                }
-                offset = i;
-                boolean isEnd = ch == ']';
-                if (ch == ',' || isEnd) {
-                    addElementNode(node);
-                    if (isEnd) {
+                    if (ch == ']') {
+                        // parseContext.allowLastEndComma
+                        offset = i;
                         completed = true;
+                        return null;
                     }
-                    if (matchedIndex) {
-                        return node;
+                    matchedIndex = index > -1 && index == elementSize;
+
+                    JSONNode node;
+                    try {
+                        node = parseValueNode(i, ']', lazy, createObj);
+                    } catch (Throwable throwable) {
+                        if (throwable instanceof JSONException) {
+                            throw (JSONException) throwable;
+                        }
+                        throw new JSONException(throwable.getMessage(), throwable);
                     }
-                } else {
-                    throw new JSONException("Syntax error, unexpected '" + ch + "', position " + i + ", missing ',' or '}'");
+                    i = parseContext.endIndex;
+                    while ((ch = buf[++i]) <= ' ') ;
+                    if (allowComment) {
+                        if (ch == '/') {
+                            ch = buf[i = JSONGeneral.clearCommentAndWhiteSpaces(buf, i + 1, parseContext)];
+                        }
+                    }
+                    offset = i;
+                    boolean isEnd = ch == ']';
+                    if (ch == ',' || isEnd) {
+                        addElementNode(node);
+                        if (isEnd) {
+                            completed = true;
+                        }
+                        if (matchedIndex) {
+                            return node;
+                        }
+                    } else {
+                        throw new JSONException("Syntax error, unexpected '" + ch + "', position " + i + ", missing ',' or '}'");
+                    }
+                } catch (RuntimeException runtimeException) {
+                    offset = i;
+                    throw runtimeException;
                 }
             }
-
             return null;
         }
 
@@ -1422,9 +1715,9 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             JSONNode root;
             if (EnvUtils.JDK_9_PLUS) {
                 if (!EnvUtils.JDK_AGENT_INSTANCE.hasNegatives(bytes, 0, bytes.length)) {
-                    root = new B(AsciiStringSource.of(JSONUnsafe.createAsciiString(bytes)), bytes, 0, bytes.length, parseContext);
+                    root = new B(AsciiStringSource.of(JSONMemoryHandle.createAsciiString(bytes)), bytes, 0, bytes.length, parseContext);
                 } else {
-                    root = new B(UTF8CharSource.of(JSONUnsafe.createAsciiString(bytes)), bytes, 0, bytes.length, parseContext);
+                    root = new B(UTF8CharSource.of(JSONMemoryHandle.createAsciiString(bytes)), bytes, 0, bytes.length, parseContext);
                 }
             } else {
                 root = new B(null, bytes, 0, bytes.length, parseContext);
@@ -1451,7 +1744,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             parseContext.toIndex = source.length();
             JSONNode root;
             if (EnvUtils.JDK_9_PLUS) {
-                byte[] bytes = (byte[]) JSONUnsafe.getStringValue(source);
+                byte[] bytes = (byte[]) JSONMemoryHandle.getStringValue(source);
                 if (bytes.length == source.length()) {
                     root = new B(AsciiStringSource.of(source), bytes, 0, bytes.length, parseContext);
                 } else {
@@ -1459,7 +1752,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     root = new C(UTF16ByteArraySource.of(source), chars, 0, chars.length, parseContext);
                 }
             } else {
-                char[] chars = (char[]) JSONUnsafe.getStringValue(source);
+                char[] chars = (char[]) JSONMemoryHandle.getStringValue(source);
                 root = new C(null, chars, 0, chars.length, parseContext);
             }
             if (path == null) {
@@ -1484,7 +1777,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
      */
     public final static JSONNode from(String json, String path, ReadOption... readOptions) {
         if (EnvUtils.JDK_9_PLUS) {
-            byte[] bytes = (byte[]) JSONUnsafe.getStringValue(json.toString());
+            byte[] bytes = (byte[]) JSONMemoryHandle.getStringValue(json.toString());
             if (bytes.length == json.length()) {
                 return parseInternal(AsciiStringSource.of(json), bytes, JSONNodePath.parse(path), readOptions);
             } else {
@@ -1492,7 +1785,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 return parseInternal(UTF16ByteArraySource.of(json), chars, JSONNodePath.parse(path), readOptions);
             }
         } else {
-            return parseInternal(null, (char[]) JSONUnsafe.getStringValue(json.toString()), JSONNodePath.parse(path), readOptions);
+            return parseInternal(null, (char[]) JSONMemoryHandle.getStringValue(json.toString()), JSONNodePath.parse(path), readOptions);
         }
     }
 
@@ -1507,9 +1800,9 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     public final static JSONNode from(byte[] bytes, String path, ReadOption... readOptions) {
         if (EnvUtils.JDK_9_PLUS) {
             if (!EnvUtils.JDK_AGENT_INSTANCE.hasNegatives(bytes, 0, bytes.length)) {
-                return parseInternal(AsciiStringSource.of(JSONUnsafe.createAsciiString(bytes)), bytes, JSONNodePath.parse(path), readOptions);
+                return parseInternal(AsciiStringSource.of(JSONMemoryHandle.createAsciiString(bytes)), bytes, JSONNodePath.parse(path), readOptions);
             } else {
-                return parseInternal(UTF8CharSource.of(JSONUnsafe.createAsciiString(bytes)), bytes, JSONNodePath.parse(path), readOptions);
+                return parseInternal(UTF8CharSource.of(JSONMemoryHandle.createAsciiString(bytes)), bytes, JSONNodePath.parse(path), readOptions);
             }
         } else {
             return parseInternal(null, bytes, JSONNodePath.parse(path), readOptions);
@@ -1598,7 +1891,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
      */
     public final static <T> List<T> extract(String json, JSONNodePath path, JSONNodeCollector<T> nodeCollector, ReadOption... readOptions) {
         if (EnvUtils.JDK_9_PLUS) {
-            byte[] bytes = (byte[]) JSONUnsafe.getStringValue(json.toString());
+            byte[] bytes = (byte[]) JSONMemoryHandle.getStringValue(json.toString());
             if (bytes.length == json.length()) {
                 return extractInternal(AsciiStringSource.of(json), bytes, path, nodeCollector, readOptions);
             } else {
@@ -1607,7 +1900,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 return extractInternal(UTF16ByteArraySource.of(json), chars, path, nodeCollector, readOptions);
             }
         } else {
-            return extractInternal(null, (char[]) JSONUnsafe.getStringValue(json.toString()), path, nodeCollector, readOptions);
+            return extractInternal(null, (char[]) JSONMemoryHandle.getStringValue(json.toString()), path, nodeCollector, readOptions);
         }
     }
 
@@ -1627,9 +1920,9 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     public final static <T> List<T> extract(byte[] bytes, JSONNodePath path, JSONNodeCollector<T> nodeCollector, ReadOption... readOptions) {
         if (EnvUtils.JDK_9_PLUS) {
             if (!EnvUtils.JDK_AGENT_INSTANCE.hasNegatives(bytes, 0, bytes.length)) {
-                return extractInternal(AsciiStringSource.of(JSONUnsafe.createAsciiString(bytes)), bytes, path, nodeCollector, readOptions);
+                return extractInternal(AsciiStringSource.of(JSONMemoryHandle.createAsciiString(bytes)), bytes, path, nodeCollector, readOptions);
             } else {
-                return extractInternal(UTF8CharSource.of(JSONUnsafe.createAsciiString(bytes)), bytes, path, nodeCollector, readOptions);
+                return extractInternal(UTF8CharSource.of(JSONMemoryHandle.createAsciiString(bytes)), bytes, path, nodeCollector, readOptions);
             }
         } else {
             return extractInternal(null, bytes, path, nodeCollector, readOptions);
@@ -2967,7 +3260,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     }
 
     // 关闭Extract模式
-    public void closeExtractMode() {
+    public final void closeExtractMode() {
         parseContext.extract = false;
     }
 
@@ -3323,13 +3616,23 @@ public abstract class JSONNode implements Comparable<JSONNode> {
     }
 
     private void completeNode(boolean lazy, boolean createObj) {
-        if (array) {
-            parseArrayAt(-1, lazy, createObj);
-        } else {
-            if (fieldValues == null) {
-                fieldValues = new LinkedHashMap(8);
+        try {
+            if (array) {
+                parseArrayAt(-1, lazy, createObj);
+            } else {
+                if (fieldValues == null) {
+                    fieldValues = new LinkedHashMap(8);
+                }
+                parseObjectField(null, lazy, createObj);
             }
-            parseObjectField(null, lazy, createObj);
+        } catch (Throwable throwable) {
+            if (throwable instanceof JSONException) {
+                throw (JSONException) throwable;
+            }
+            if (throwable instanceof IndexOutOfBoundsException) {
+                throw new JSONException("Syntax error, context text by '" + getErrorContextText() + "‘, JSON format error, and the end token may be missing, such as '\"' or ', ' or '}' or ']'.", throwable);
+            }
+            throw new JSONException("complete node error.", throwable);
         }
     }
 
@@ -3465,6 +3768,64 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             return v1.compareTo(v2);
         }
         return 0;
+    }
+
+    public final static JSONNode[] diff(String json1, String json2) {
+        return JSONNode.parse(json1).diff(JSONNode.parse(json2));
+    }
+
+    public final JSONNode[] diff(JSONNode targetNode) {
+        if (type != targetNode.type) {
+            return new JSONNode[]{this, targetNode};
+        }
+        loadAll();
+        targetNode.loadAll();
+        JSONNode targetRoot = targetNode.root;
+        if (type == OBJECT) {
+            Set<Serializable> targetKeys = new HashSet<Serializable>(targetNode.fieldValues.keySet());
+            for (Serializable key : fieldValues.keySet()) {
+                JSONNode value = fieldValues.get(key);
+                String path = value.getAbsolutePath();
+                JSONNode target = targetRoot.get(path);
+                if (target == null) {
+                    return new JSONNode[]{value, null};
+                }
+                JSONNode[] results = value.diff(target);
+                if (results != null) {
+                    return results;
+                }
+                targetKeys.remove(key);
+            }
+            if (!targetKeys.isEmpty()) {
+                Serializable targetKey = targetKeys.iterator().next();
+                JSONNode value = targetNode.fieldValues.get(targetKey);
+                return new JSONNode[]{null, value};
+            }
+        } else if (type == ARRAY) {
+            int maxElementSize = Math.max(elementSize, targetNode.elementSize);
+            for (int i = 0; i < maxElementSize; i++) {
+                if (i == elementSize) {
+                    return new JSONNode[]{null, targetNode.elementValues[i]};
+                } else if (i == targetNode.elementSize) {
+                    return new JSONNode[]{elementValues[i], null};
+                }
+                JSONNode value = elementValues[i];
+                String path = value.getAbsolutePath();
+                JSONNode target = targetRoot.get(path);
+                if (target == null) {
+                    return new JSONNode[]{value, null};
+                }
+                JSONNode[] results = value.diff(target);
+                if (results != null) {
+                    return results;
+                }
+            }
+        } else {
+            if (compareTo(targetNode) != 0) {
+                return new JSONNode[]{this, targetNode};
+            }
+        }
+        return null;
     }
 
     private void writeTo(StringBuilder builder) {
@@ -3627,6 +3988,10 @@ public abstract class JSONNode implements Comparable<JSONNode> {
 
     JSONNode parseValueNode(int beginIndex, char endChar, boolean lazy, boolean createObj) throws Exception {
         return null;
+    }
+
+    protected String getErrorContextText() {
+        return "";
     }
 
     public String getText() {

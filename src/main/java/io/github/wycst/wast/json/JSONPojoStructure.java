@@ -110,7 +110,7 @@ public final class JSONPojoStructure {
             fieldDeserializer.setPriority(priority);
             fieldDeserializerHashMap.put(name, fieldDeserializer);
 
-            if(!fieldDeserializer.ensuredTypeDeserializable()) {
+            if (!fieldDeserializer.ensuredTypeDeserializable()) {
                 deserializeOptimizable = false;
             }
         }
@@ -132,9 +132,9 @@ public final class JSONPojoStructure {
     }
 
     void ensureInitializedFieldSerializers() {
-        if(fieldSerializersInitialized) return;
+        if (fieldSerializersInitialized) return;
         synchronized (this) {
-            if(fieldSerializersInitialized) return;
+            if (fieldSerializersInitialized) return;
             for (JSONPojoFieldSerializer fieldSerializer : getterMethodSerializers) {
                 fieldSerializer.initSerializer();
             }
@@ -146,9 +146,9 @@ public final class JSONPojoStructure {
     }
 
     void ensureInitializedFieldDeserializers() {
-        if(fieldDeserializersInitialized) return;
+        if (fieldDeserializersInitialized) return;
         synchronized (this) {
-            if(fieldDeserializersInitialized) return;
+            if (fieldDeserializersInitialized) return;
             for (JSONPojoFieldDeserializer fieldDeserializer : fieldDeserializers) {
                 fieldDeserializer.initDeserializer();
             }

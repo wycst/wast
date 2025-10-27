@@ -179,12 +179,12 @@ public final class JSONNodePath {
                     beginChar = ch;
                     char endChar;
                     boolean isNegative = ch == '-';
-                    if (isNegative ||  NumberUtils.isDigit(ch)) {
+                    if (isNegative || NumberUtils.isDigit(ch)) {
                         int val = 0;
                         if (!isNegative) {
                             val = ch - 48;
                         }
-                        while (offset < len &&  NumberUtils.isDigit(ch = chars[offset])) {
+                        while (offset < len && NumberUtils.isDigit(ch = chars[offset])) {
                             ++offset;
                             val = val * 10 + ch - 48;
                         }
@@ -202,7 +202,7 @@ public final class JSONNodePath {
                                 if (isNegative) {
                                     ++offset;
                                 }
-                                while (offset < len &&  NumberUtils.isDigit(ch = chars[offset])) {
+                                while (offset < len && NumberUtils.isDigit(ch = chars[offset])) {
                                     ++offset;
                                     to = to * 10 + ch - 48;
                                 }

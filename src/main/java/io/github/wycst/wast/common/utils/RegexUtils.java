@@ -20,12 +20,12 @@ public class RegexUtils {
 
     public static Pattern getPattern(String regSource) {
         Pattern pattern = cachePatterns.get(regSource);
-        if(pattern != null) {
+        if (pattern != null) {
             return pattern;
         }
         synchronized (regSource) {
             pattern = cachePatterns.get(regSource);
-            if(pattern == null) {
+            if (pattern == null) {
                 pattern = Pattern.compile(regSource);
                 cachePatterns.put(regSource, pattern);
             }

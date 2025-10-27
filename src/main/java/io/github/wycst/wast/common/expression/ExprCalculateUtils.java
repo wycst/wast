@@ -156,7 +156,11 @@ final class ExprCalculateUtils {
         if (environment.isAllowVariableNull()) {
             return left + String.valueOf(right);
         } else {
-            if (left instanceof CharSequence) {
+            if (left == null) {
+                return right;
+            } else if (right == null) {
+                return left;
+            } else if (left instanceof CharSequence) {
                 return left.toString() + right;
             } else if (right instanceof CharSequence) {
                 return left + right.toString();

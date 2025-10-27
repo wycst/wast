@@ -31,7 +31,7 @@ public class ServiceInstance {
         return alive;
     }
 
-    public void  setAlive(boolean alive) {
+    public void setAlive(boolean alive) {
         this.alive = alive;
     }
 }

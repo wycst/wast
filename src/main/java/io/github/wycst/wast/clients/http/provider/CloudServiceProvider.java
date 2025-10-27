@@ -170,7 +170,6 @@ public abstract class CloudServiceProvider extends DefaultServiceProvider {
 
     /**
      * 取消任务
-     *
      */
     public void cancelScheduled() {
         this.cancelServiceScheduled();

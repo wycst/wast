@@ -468,7 +468,7 @@ final class CompilerCodeUtils {
 
             Class type = typeNameInvoker.type;
             assignmentArrayVariables.append("\t\t").append(typeNameInvoker.type.getCanonicalName()).append(" ").append(defineJavaIdentifier).append(" = ");
-            if(type.isPrimitive() && EnvUtils.JDK_7_BELOW) {
+            if (type.isPrimitive() && EnvUtils.JDK_7_BELOW) {
                 String primitiveMethodValue = PRIMITIVE_VALUE_METHODS.get(type).getValue();
                 assignmentArrayVariables.append(primitiveMethodValue).append("(").append("parameters[").append(invoker.getTailIndex()).append("]);\r\n");
             } else {

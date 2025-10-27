@@ -40,23 +40,23 @@ public class JSONUtil {
      * @return 与向量api Mask一致， 如果返回0 - 15 说明查找成功，否则返回16
      */
     final static int indexOfQuoteOrBackslashVector256(char[] buf, int offset, long quoteMask) {
-        final long bao = JSONUnsafe.CHAR_ARRAY_OFFSET + ((long) offset << 1);
-        long v = JSONUnsafe.UNSAFE.getLong(buf, bao);
+        /*JSONUnsafe.CHAR_ARRAY_OFFSET + ((long) offset << 1)*/
+        long v = JSONMemoryHandle.JSON_ENDIAN.getLong(buf, offset);
         long result = (((v ^ quoteMask) - 0x0001000100010001L) | ((v ^ 0x005C005C005C005CL) - 0x0001000100010001L)) & 0x8000800080008000L;
         if (result != 0) {
             return offsetChars(result);
         }
-        v = JSONUnsafe.UNSAFE.getLong(buf, bao + 8);
+        v = JSONMemoryHandle.JSON_ENDIAN.getLong(buf, offset + 4);
         result = (((v ^ quoteMask) - 0x0001000100010001L) | ((v ^ 0x005C005C005C005CL) - 0x0001000100010001L)) & 0x8000800080008000L;
         if (result != 0) {
             return 4 + offsetChars(result);
         }
-        v = JSONUnsafe.UNSAFE.getLong(buf, bao + 16);
+        v = JSONMemoryHandle.JSON_ENDIAN.getLong(buf, offset + 8);
         result = (((v ^ quoteMask) - 0x0001000100010001L) | ((v ^ 0x005C005C005C005CL) - 0x0001000100010001L)) & 0x8000800080008000L;
         if (result != 0) {
             return 8 + offsetChars(result);
         }
-        v = JSONUnsafe.UNSAFE.getLong(buf, bao + 24);
+        v = JSONMemoryHandle.JSON_ENDIAN.getLong(buf, offset + 12);
         result = (((v ^ quoteMask) - 0x0001000100010001L) | ((v ^ 0x005C005C005C005CL) - 0x0001000100010001L)) & 0x8000800080008000L;
         if (result != 0) {
             return 12 + offsetChars(result);
@@ -103,8 +103,13 @@ public class JSONUtil {
     }
 
     final static long getQuoteOrBackslashOrUTF8Mask(byte[] buf, int offset, long quoteMask) {
-        long v64 = JSONUnsafe.UNSAFE.getLong(buf, JSONUnsafe.BYTE_ARRAY_OFFSET + offset); // 92 5cc
+        long v64 = JSONMemoryHandle.JSON_ENDIAN.getLong(buf, offset); // 92 5cc
         return (((v64 ^ quoteMask) - 0x0101010101010101L) | ((v64 ^ 0x5C5C5C5C5C5C5C5CL) - 0x0101010101010101L)) & 0x8080808080808080L;
+    }
+
+    // check: quote or \\(0x5C) or UTF8 begin
+    final static long getQuoteOrBackslashOrUTF8Mask(long value, long quoteMask) {
+        return (((value ^ quoteMask) - 0x0101010101010101L) | ((value ^ 0x5C5C5C5C5C5C5C5CL) - 0x0101010101010101L)) & 0x8080808080808080L;
     }
 
     /**
@@ -117,23 +122,23 @@ public class JSONUtil {
      * @return 与向量api Mask一致， 如果返回0 - 31说明查找成功，否则返回32
      */
     final static int indexOfQuoteOrBackslashOrUTF8Vector256(byte[] buf, int offset, long quoteMask) {
-        final long bao = JSONUnsafe.BYTE_ARRAY_OFFSET + offset;
-        long v = JSONUnsafe.UNSAFE.getLong(buf, bao);
+        /*JSONUnsafe.BYTE_ARRAY_OFFSET +*/
+        long v = JSONMemoryHandle.JSON_ENDIAN.getLong(buf, offset);
         long result = (((v ^ quoteMask) - 0x0101010101010101L) | ((v ^ 0x5C5C5C5C5C5C5C5CL) - 0x0101010101010101L)) & 0x8080808080808080L;
         if (result != 0) {
             return offsetTokenBytes(result);
         }
-        v = JSONUnsafe.UNSAFE.getLong(buf, bao + 8);
+        v = JSONMemoryHandle.JSON_ENDIAN.getLong(buf, offset + 8);
         result = (((v ^ quoteMask) - 0x0101010101010101L) | ((v ^ 0x5C5C5C5C5C5C5C5CL) - 0x0101010101010101L)) & 0x8080808080808080L;
         if (result != 0) {
             return 8 + offsetTokenBytes(result);
         }
-        v = JSONUnsafe.UNSAFE.getLong(buf, bao + 16);
+        v = JSONMemoryHandle.JSON_ENDIAN.getLong(buf, offset + 16);
         result = (((v ^ quoteMask) - 0x0101010101010101L) | ((v ^ 0x5C5C5C5C5C5C5C5CL) - 0x0101010101010101L)) & 0x8080808080808080L;
         if (result != 0) {
             return 16 + offsetTokenBytes(result);
         }
-        v = JSONUnsafe.UNSAFE.getLong(buf, bao + 24);
+        v = JSONMemoryHandle.JSON_ENDIAN.getLong(buf, offset + 24);
         result = (((v ^ quoteMask) - 0x0101010101010101L) | ((v ^ 0x5C5C5C5C5C5C5C5CL) - 0x0101010101010101L)) & 0x8080808080808080L;
         if (result != 0) {
             return 24 + offsetTokenBytes(result);
@@ -169,7 +174,8 @@ public class JSONUtil {
             if ((firstPos = indexOfQuoteOrBackslashOrUTF8Vector256(buf, offset, quoteMask)) != 32) {
                 return offset + firstPos;
             } else {
-                while ((limitFlag = (offset += 32) <= limit32) && (firstPos = indexOfQuoteOrBackslashOrUTF8Vector256(buf, offset, quoteMask)) == 32) ;
+                while ((limitFlag = (offset += 32) <= limit32) && (firstPos = indexOfQuoteOrBackslashOrUTF8Vector256(buf, offset, quoteMask)) == 32)
+                    ;
                 if (limitFlag) {
                     return offset + firstPos;
                 }
@@ -265,15 +271,15 @@ public class JSONUtil {
      * @return the first position（8n） of escaped
      */
     public int toNoEscapeOffset(byte[] buf, int offset) {
-        if (JSONGeneral.isNoneEscaped16Bytes(JSONUnsafe.getLong(buf, offset), JSONUnsafe.getLong(buf, offset + 8))
-                && JSONGeneral.isNoneEscaped16Bytes(JSONUnsafe.getLong(buf, offset = offset + 16), JSONUnsafe.getLong(buf, offset + 8))) {
+        if (JSONGeneral.isNoneEscaped16Bytes(JSONMemoryHandle.getLong(buf, offset), JSONMemoryHandle.getLong(buf, offset + 8))
+                && JSONGeneral.isNoneEscaped16Bytes(JSONMemoryHandle.getLong(buf, offset = offset + 16), JSONMemoryHandle.getLong(buf, offset + 8))) {
             offset += 16;
             final int limit = buf.length - 32;
             while (offset <= limit
-                    && JSONGeneral.isNoneEscaped8Bytes(JSONUnsafe.getLong(buf, offset))
-                    && JSONGeneral.isNoneEscaped8Bytes(JSONUnsafe.getLong(buf, offset = offset + 8))
-                    && JSONGeneral.isNoneEscaped8Bytes(JSONUnsafe.getLong(buf, offset = offset + 8))
-                    && JSONGeneral.isNoneEscaped8Bytes(JSONUnsafe.getLong(buf, offset = offset + 8))) {
+                    && JSONGeneral.isNoneEscaped8Bytes(JSONMemoryHandle.getLong(buf, offset))
+                    && JSONGeneral.isNoneEscaped8Bytes(JSONMemoryHandle.getLong(buf, offset = offset + 8))
+                    && JSONGeneral.isNoneEscaped8Bytes(JSONMemoryHandle.getLong(buf, offset = offset + 8))
+                    && JSONGeneral.isNoneEscaped8Bytes(JSONMemoryHandle.getLong(buf, offset = offset + 8))) {
                 offset += 8;
             }
         }
@@ -281,7 +287,7 @@ public class JSONUtil {
     }
 
     static final boolean isNoneEscaped4Chars(char[] buf, int offset) {
-        long value = JSONUnsafe.getLong(buf, offset);
+        long value = JSONMemoryHandle.getLong(buf, offset);
         return (((value + 0x7FE07FE07FE07FE0L) & (value ^ 0xFFDDFFDDFFDDFFDDL) + 0x0001000100010001L & (value ^ 0xFFA3FFA3FFA3FFA3L) + 0x0001000100010001L) & 0x8000800080008000L) == 0x8000800080008000L;
     }
 

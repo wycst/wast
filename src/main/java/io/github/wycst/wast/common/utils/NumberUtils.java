@@ -73,25 +73,41 @@ public final class NumberUtils {
             val *= 5;
         }
 
-        BigInteger five = BigInteger.valueOf(5);
-        POW5_BI_VALUES[0] = BigInteger.ONE;
-        for (int i = 1; i < POW5_BI_VALUES.length; ++i) {
-            BigInteger pow5Value = five.pow(i);
-            POW5_BI_VALUES[i] = pow5Value;
-        }
+//        BigInteger five = BigInteger.valueOf(5);
+//        POW5_BI_VALUES[0] = BigInteger.ONE;
+//        for (int i = 1; i < POW5_BI_VALUES.length; ++i) {
+//            BigInteger pow5Value = five.pow(i);
+//            POW5_BI_VALUES[i] = pow5Value;
+//        }
     }
 
     static final int MOD_DOUBLE_EXP = (1 << 11) - 1;
     static final int MOD_FLOAT_EXP = (1 << 8) - 1;
     static final long MOD_DOUBLE_MANTISSA = (1L << 52) - 1;
     static final int MOD_FLOAT_MANTISSA = (1 << 23) - 1;
-//    static final long MASK_32_BITS = 0xffffffffL;
+
+    //    static final long MASK_32_BITS = 0xffffffffL;
     public static char[] copyDigitOnes() {
         return Arrays.copyOf(DigitOnes, DigitOnes.length);
     }
 
     public static char[] copyDigitTens() {
         return Arrays.copyOf(DigitTens, DigitTens.length);
+    }
+
+    /**
+     * 实时获取5的指定次方对应的BigInteger对象，减少初始化POW5_BI_VALUES内存占用
+     *
+     * @param e5
+     * @return
+     */
+    static BigInteger pow5_bi(int e5) {
+        BigInteger pow5 = POW5_BI_VALUES[e5];
+        if (pow5 == null) {
+            pow5 = BigInteger.valueOf(5).pow(e5);
+            POW5_BI_VALUES[e5] = pow5;
+        }
+        return pow5;
     }
 
     /**
@@ -189,6 +205,30 @@ public final class NumberUtils {
                 return true;
             default:
                 return false;
+        }
+    }
+
+    /**
+     * 字符转数字
+     *
+     * @param c
+     * @return
+     */
+    public static int digit(int c) {
+        switch (c) {
+            case '0':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9':
+                return c & 0xF;
+            default:
+                return -1;
         }
     }
 
@@ -402,7 +442,7 @@ public final class NumberUtils {
             long mantissa0 = h >>> sr;
             long rightSum = (mantissa0 << 1) + 1;
             int sb = 1 - e52 + e10; // sb < 0
-            BigInteger multiplier = POW5_BI_VALUES[e10];
+            BigInteger multiplier = pow5_bi(e10);
             long diff = BigInteger.valueOf(val).multiply(multiplier).compareTo(BigInteger.valueOf(rightSum).shiftLeft(-sb));
             if (diff > 0 || (diff == 0 && (mantissa0 & 1) == 1)) {
                 ++mantissa0;
@@ -459,7 +499,7 @@ public final class NumberUtils {
                 }
                 return dv0;
             }
-            BigInteger divisor = POW5_BI_VALUES[scale];
+            BigInteger divisor = pow5_bi(scale);
             long e2, mantissa0 = h >>> sr;
             boolean oddFlag = (mantissa0 & 1) == 1;
             if (e52 < -1074) {
@@ -544,7 +584,7 @@ public final class NumberUtils {
      *    float result = Float.intBitsToFloat(floatBits);
      * </pre>
      *
-     * @param val ensure val > 0, otherwise return 0
+     * @param val   ensure val > 0, otherwise return 0
      * @param scale
      * @return
      * @author wycst
@@ -635,7 +675,7 @@ public final class NumberUtils {
      * @return
      */
     public static Scientific doubleToScientific(double doubleValue) {
-        if(doubleValue == Double.MIN_VALUE) {
+        if (doubleValue == Double.MIN_VALUE) {
             // Double.MIN_VALUE JDK转化最小double为4.9e-324， 本方法转化为5.0e-324 , 由于此值特殊为了和JDK转化一致
             return Scientific.DOUBLE_MIN;
         }
@@ -654,7 +694,7 @@ public final class NumberUtils {
             mantissa0 = 1L << 52 | mantissa0;
             e52 = e2 - 1075;
         } else {
-            if(mantissa0 == 0) {
+            if (mantissa0 == 0) {
                 // Dealing with error issues with doubleValue=0.0(-0.0) Or make sure doubleValue is greater than 0 before calling
                 return bits == 0 ? Scientific.ZERO : Scientific.NEGATIVE_ZERO;
             }
@@ -764,7 +804,7 @@ public final class NumberUtils {
     /**
      * ieee float to Scientific notation.
      * better to ensure that floatValue>0.
-     *
+     * <p>
      * if floatValue is less than 0, the absolute value of Scientific notation will be return
      *
      * @param floatValue != 0
@@ -786,7 +826,7 @@ public final class NumberUtils {
             e23 = e2 - 150;   // - 127 - 23
         } else {
             // e2 == 0
-            if(mantissa0 == 0) {
+            if (mantissa0 == 0) {
                 return bits == 0 ? Scientific.ZERO : Scientific.NEGATIVE_ZERO;
             }
             int l = Integer.numberOfLeadingZeros(mantissa0) - 8;
@@ -807,7 +847,7 @@ public final class NumberUtils {
             if (o5 < 0) {
                 // mantissa0 * 2^(e23 + o5) * 5^o5 -> mantissa0 * 2^sb / 5^(-o5)
                 // rawOutput = BigInteger.valueOf(mantissa0).shiftLeft(sb).divide(POW5_BI_VALUES[-o5]).longValue();
-                if(sb < 40) {
+                if (sb < 40) {
                     rawOutput = ((long) mantissa0 << sb) / POW5_LONG_VALUES[-o5];
                 } else {
                     ED5 d5 = ED5.ED5_A[-o5];
@@ -836,7 +876,7 @@ public final class NumberUtils {
             int sb = o5 + e23;
             if (sb < 0) {
                 // todo To be optimized
-                if(o5 < 17) {
+                if (o5 < 17) {
                     rawOutput = mantissa0 * POW5_LONG_VALUES[o5] >> -sb;
                 } else if (o5 < POW5_LONG_VALUES.length) {
                     rawOutput = multiplyHighAndShift(mantissa0, POW5_LONG_VALUES[o5], -sb);
@@ -853,8 +893,8 @@ public final class NumberUtils {
         }
 
         // todo if accurate Fast conversion ?
-        if(accurate) {
-        // 如果追求性能可以这里返回，但可能返回非最短数字序列（结果一定是正确的）
+        if (accurate) {
+            // 如果追求性能可以这里返回，但可能返回非最短数字序列（结果一定是正确的）
 //            rawOutput = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(rawOutput, 0x6b5fca6af2bd215fL) >> 22; // rawOutput / 10000000;
 //            if (adl == 7) {
 //                --adl;
@@ -863,7 +903,7 @@ public final class NumberUtils {
 //            return new Scientific(rawOutput, adl + 2, e10);
         }
 
-        if(rawOutput < 1000000000) {
+        if (rawOutput < 1000000000) {
             return new Scientific(EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(rawOutput, 0x6b5fca6af2bd215fL) >> 22, 2, e10); // rawOutput / 10000000
         }
         long div = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(rawOutput, 0x44b82fa09b5a52ccL) >> 28; // rawOutput / 1000000000;
@@ -1107,19 +1147,19 @@ public final class NumberUtils {
 //    }
 
     public static boolean equals(long val, String text) {
-        if(text == null || text.isEmpty()) return false;
-        if(val == Long.MIN_VALUE) {
+        if (text == null || text.isEmpty()) return false;
+        if (val == Long.MIN_VALUE) {
             return text.equals("-9223372036854775808");
         }
         long result = 0, len = text.length();
         int i = 0;
-        if(text.charAt(0) == '-') {
+        if (text.charAt(0) == '-') {
             ++i;
             val = -val;
         }
         for (; i < len; ++i) {
             int d = digitDecimal(text.charAt(i));
-            if(d == -1) {
+            if (d == -1) {
                 return false;
             }
             result = result * 10 + d;

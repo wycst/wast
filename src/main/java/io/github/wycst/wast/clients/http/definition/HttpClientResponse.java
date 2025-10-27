@@ -44,7 +44,7 @@ public interface HttpClientResponse {
 
     /**
      * 只有HttpClientConfig设置responseStream为true的场景会返回非空的流，否则返回null
-     * 
+     *
      * @return
      * @see HttpClientConfig#responseStream(boolean)
      */

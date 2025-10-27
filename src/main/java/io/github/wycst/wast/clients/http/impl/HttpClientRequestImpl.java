@@ -137,7 +137,7 @@ class HttpClientRequestImpl implements HttpClientRequest {
         httpClientConfig.setHeader(name, value);
     }
 
-    public void setHeaders(Map<String, String> headers) {
+    public void setHeaders(Map headers) {
         httpClientConfig.setHeaders(headers);
     }
 

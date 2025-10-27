@@ -2,7 +2,6 @@ package io.github.wycst.wast.common.beans.geo;
 
 /**
  * 几何集合类
- *
  */
 abstract class AbstractMultiGeometry extends Geometry {
 
@@ -17,18 +16,18 @@ abstract class AbstractMultiGeometry extends Geometry {
         // 读取points集合
         while (true) {
             // trim()
-            while ((ch = chars[++offset]) == ' ');
+            while ((ch = chars[++offset]) == ' ') ;
             checkElementPrefix(ch, offset);
             geometryContext.offset = offset;
             readElement(chars, geometryContext);
             offset = geometryContext.offset;
-            while ((ch = chars[++offset]) == ' ');
-            if(ch == ')') {
+            while ((ch = chars[++offset]) == ' ') ;
+            if (ch == ')') {
                 // 结束标记
                 geometryContext.offset = offset;
                 return;
             } else {
-                if(ch != ',') {
+                if (ch != ',') {
                     throw new IllegalArgumentException("Geometry syntax error, offset " + offset + " , expected ',', actual '" + ch + "'");
                 }
             }
@@ -42,7 +41,7 @@ abstract class AbstractMultiGeometry extends Geometry {
      * @param offset
      */
     protected void checkElementPrefix(char ch, int offset) {
-        if(ch != '(') {
+        if (ch != '(') {
             throw new IllegalArgumentException("Geometry syntax error, offset " + offset + " , expected '(', actual '" + ch + "'");
         }
     }

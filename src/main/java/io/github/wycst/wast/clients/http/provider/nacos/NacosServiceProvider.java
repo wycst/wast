@@ -101,7 +101,7 @@ public class NacosServiceProvider extends CloudServiceProvider {
 
     protected void fetchServiceInstanceList() {
         try {
-            String accessTokenKeyAndValue = this.accessTokenKeyAndValue  == null ? "" : this.accessTokenKeyAndValue;
+            String accessTokenKeyAndValue = this.accessTokenKeyAndValue == null ? "" : this.accessTokenKeyAndValue;
             String serviceListUrl = String.format("http://%s/nacos/v1/ns/service/list?pageNo=1&pageSize=100000&%s", this.nacosServerName, accessTokenKeyAndValue);
             if (this.instanceNamespaceId != null) {
                 serviceListUrl += "&namespaceId=" + this.instanceNamespaceId;
@@ -328,7 +328,7 @@ public class NacosServiceProvider extends CloudServiceProvider {
         }
         this.instanceNamespaceId = getProperty(CLOUD_NACOS_INSTANCE_NAMESPACE_ID_KEY);
         this.metadata = getProperty(CLOUD_NACOS_INSTANCE_METADATA_KEY);
-        if(metadata == null || metadata.length() == 0) {
+        if (metadata == null || metadata.length() == 0) {
             metadata = "{}";
         }
         this.instanceBeatByRegister = getProperty(CLOUD_NACOS_INSTANCE_BEAT_METHOD_KEY) != null;
@@ -340,7 +340,7 @@ public class NacosServiceProvider extends CloudServiceProvider {
             this.instanceCheckHealthyInterval = 30; // 30s
         }
 
-        if(this.instanceIp != null && this.instancePort != null && this.instanceServiceName != null) {
+        if (this.instanceIp != null && this.instancePort != null && this.instanceServiceName != null) {
             String enable = getProperty(CLOUD_NACOS_INSTANCE_ENABLE_KEY);
             this.instanceEnable = enable != null && !"false".equals(enable);
         } else {

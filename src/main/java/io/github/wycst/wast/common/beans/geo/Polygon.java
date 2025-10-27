@@ -5,7 +5,7 @@ import java.util.List;
 
 /**
  * example data: POLYGON((103 35,103 36,104 36,105 37,105 37,105 37,103 35))
- *
+ * <p>
  * note: Generally, it is a closed path, and there are no restrictions here
  */
 public class Polygon extends AbstractMultiGeometry {
@@ -20,7 +20,7 @@ public class Polygon extends AbstractMultiGeometry {
         elements.add(plane);
     }
 
-    public void addAll(PolygonPlane...elements) {
+    public void addAll(PolygonPlane... elements) {
         for (PolygonPlane plane : elements) {
             this.elements.add(plane);
         }

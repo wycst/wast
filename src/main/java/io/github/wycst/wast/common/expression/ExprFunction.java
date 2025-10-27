@@ -7,7 +7,7 @@ package io.github.wycst.wast.common.expression;
  * @Date: 2021/11/20 14:07
  * @Description:
  */
-public interface ExprFunction<I,O> {
+public interface ExprFunction<I, O> {
 
     /***
      * 函数接口

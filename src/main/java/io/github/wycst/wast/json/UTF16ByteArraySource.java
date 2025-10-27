@@ -1,4 +1,5 @@
 package io.github.wycst.wast.json;
+
 final class UTF16ByteArraySource implements CharSource {
 
     final String input;

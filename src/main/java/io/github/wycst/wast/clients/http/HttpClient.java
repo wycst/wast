@@ -13,6 +13,7 @@ import java.util.Map;
  * @Date: 2020/7/2 16:36
  * @Description:
  */
+@SuppressWarnings("ALL")
 public class HttpClient extends AbstractHttpClient {
 
     // 创建实例
@@ -82,7 +83,7 @@ public class HttpClient extends AbstractHttpClient {
      * @param headers
      * @return
      */
-    public HttpClientResponse get(String url, Map<String, String> headers) {
+    public HttpClientResponse get(String url, Map headers) {
         HttpClientConfig requestConfig = new HttpClientConfig();
         requestConfig.setHeaders(headers);
         HttpClientRequest httpRequest = new HttpClientGet(url, requestConfig);
@@ -97,7 +98,7 @@ public class HttpClient extends AbstractHttpClient {
      * @param headers
      * @return
      */
-    public HttpClientResponse get(String url, Map<String, Object> params, Map<String, String> headers) {
+    public HttpClientResponse get(String url, Map<String, Object> params, Map headers) {
         HttpClientConfig requestConfig = new HttpClientConfig();
         requestConfig.setHeaders(headers);
         HttpClientRequest httpRequest = new HttpClientGet(toStringifyUrl(url, params), requestConfig);
@@ -416,7 +417,7 @@ public class HttpClient extends AbstractHttpClient {
      * @param <E>
      * @return
      */
-    public <E> E postJson(String url, Class<E> rtnType, Object entity, Map<String, String> headers) {
+    public <E> E postJson(String url, Class<E> rtnType, Object entity, Map headers) {
         return doPostJson(url, rtnType, entity, headers == null ? EMPTY_HEADERS : headers, new HttpClientConfig());
     }
 
@@ -434,7 +435,7 @@ public class HttpClient extends AbstractHttpClient {
         return doPostJson(url, rtnType, entity, EMPTY_HEADERS, requestConfig);
     }
 
-    final <E> E doPostJson(String url, Class<E> rtnType, Object entity, Map<String, String> headers, HttpClientConfig requestConfig) {
+    final <E> E doPostJson(String url, Class<E> rtnType, Object entity, Map headers, HttpClientConfig requestConfig) {
         requestConfig.setHeaders(headers);
         requestConfig.setJsonBody(entity);
         HttpClientRequest httpRequest = new HttpClientPost(url, requestConfig);

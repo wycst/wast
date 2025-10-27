@@ -2,6 +2,7 @@ package com.wast.wiki.httpclient;
 
 import io.github.wycst.wast.clients.http.HttpClient;
 import io.github.wycst.wast.clients.http.definition.HttpClientConfig;
+import io.github.wycst.wast.clients.http.definition.ResponseCallback;
 
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -14,7 +15,7 @@ public class DownloadTest {
         String url = "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_linux-aarch64_bin.tar.gz";
         HttpClientConfig clientConfig = HttpClientConfig.
                 create()
-                .responseCallback(new HttpClientConfig.ResponseCallback() {
+                .responseCallback(new ResponseCallback() {
                     @Override
                     public void onDownloadProgress(long downloaded, long total) {
                         System.out.println("downloaded " + downloaded + " total " + total + " progress " + (downloaded * 100 / total) + "%");

@@ -36,7 +36,7 @@ public final class CSVTable {
     }
 
     void setRows(List<CSVRow> csvRows) {
-        if(csvRows.size() > 0) {
+        if (csvRows.size() > 0) {
             rows.clear();
             CSVRow header = csvRows.get(0);
             List<CSVRow> dataRows = csvRows.subList(1, csvRows.size());
@@ -93,8 +93,8 @@ public final class CSVTable {
      * 转化为列表数据
      *
      * @param eClass
-     * @return
      * @param <E>
+     * @return
      */
     public <E> List<E> asEntityList(Class<E> eClass) {
         return asEntityList(eClass, null);
@@ -105,8 +105,8 @@ public final class CSVTable {
      *
      * @param eClass
      * @param eClass
-     * @return
      * @param <E>
+     * @return
      */
     public <E> List<E> asEntityList(Class<E> eClass, Map<String, String> columnMapping) {
         List<E> list = new ArrayList<E>();
@@ -122,7 +122,7 @@ public final class CSVTable {
 
     public void writeTo(File file) {
         try {
-            if(!file.exists()) {
+            if (!file.exists()) {
                 file.createNewFile();
             }
             writeTo(new FileOutputStream(file));

@@ -4,6 +4,7 @@ import io.github.wycst.wast.common.annotation.MethodInvokePriority;
 import io.github.wycst.wast.common.exceptions.InvokeReflectException;
 import io.github.wycst.wast.common.tools.FNV;
 import io.github.wycst.wast.common.utils.ObjectUtils;
+import io.github.wycst.wast.common.utils.ReflectUtils;
 import io.github.wycst.wast.common.utils.StringUtils;
 
 import java.lang.annotation.Annotation;
@@ -487,29 +488,35 @@ public final class ClassStrucWrap {
                 if (!globalMIP && !annotationMap.containsKey(MethodInvokePriority.class)) {
                     try {
                         // declared field, not considering inheriting
-                        Field field = sourceClass.getDeclaredField(fieldName);
-                        if (!Modifier.isStatic(field.getModifiers())) {
-                            // 当声明属性的类型和getter方法返回的类型不一致时，如果触发invoke，则以method的call为准
-                            if (setAccessible(field) && compatibleType(returnType, field.getType())) {
-                                getterInfo.setField(field);
-                            }
-                        }
-                        addAnnotations(annotationMap, field.getAnnotations());
-                    } catch (Exception e) {
-                        if (boolGetter) {
-                            // isXXX
-                            try {
-                                Field field = sourceClass.getDeclaredField(methodName);
-                                if (!Modifier.isStatic(field.getModifiers())) {
-                                    // 当声明属性的类型和getter方法返回的类型不一致时，如果触发invoke，则以method的call为准
-                                    if (setAccessible(field) && field.getType() == boolean.class) {
-                                        getterInfo.setField(field);
-                                        getterInfo.setName(field.getName());
-                                    }
+                        Field refField = ReflectUtils.getField(declaringClass, fieldName);
+                        if (refField != null) {
+                            if (!Modifier.isStatic(refField.getModifiers())) {
+                                // 当声明属性的类型和getter方法返回的类型不一致时，如果触发invoke，则以method的call为准
+                                if (setAccessible(refField) && compatibleType(returnType, refField.getType())) {
+                                    getterInfo.setField(refField);
                                 }
-                            } catch (Exception exception) {
+                            }
+                            addAnnotations(annotationMap, refField.getAnnotations());
+                        } else {
+                            if (boolGetter) {
+                                // isXXX
+                                try {
+                                    Field field = ReflectUtils.getField(declaringClass, methodName);
+                                    if (field != null) {
+                                        if (!Modifier.isStatic(field.getModifiers())) {
+                                            // 当声明属性的类型和getter方法返回的类型不一致时，如果触发invoke，则以method的call为准
+                                            if (setAccessible(field) && field.getType() == boolean.class) {
+                                                getterInfo.setField(field);
+                                                getterInfo.setName(field.getName());
+                                                getterInfo.setUnderlineName(StringUtils.camelCaseToSymbol(field.getName()));
+                                            }
+                                        }
+                                    }
+                                } catch (Exception exception) {
+                                }
                             }
                         }
+                    } catch (Exception e) {
                     }
                 }
                 getterInfo.setAnnotations(annotationMap);

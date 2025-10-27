@@ -2,6 +2,11 @@ package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.json.options.ReadOption;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 /**
  * json解析上下文配置
  *
@@ -11,7 +16,8 @@ import io.github.wycst.wast.json.options.ReadOption;
  */
 public class JSONParseContext {
 
-    JSONParseContext() {}
+    JSONParseContext() {
+    }
 
     /***
      * 解析上下文结束位置
@@ -90,9 +96,11 @@ public class JSONParseContext {
     void setIgnoreEscapeCheck() {
         escape = false;
     }
+
     void setContextWriter(JSONCharArrayWriter writer) {
         this.writer = writer;
     }
+
     JSONCharArrayWriter getContextWriter() {
         if (writer != null) {
             writer.clear();
@@ -101,7 +109,7 @@ public class JSONParseContext {
     }
 
     String[] getContextStrings() {
-        if(strings == null) {
+        if (strings == null) {
             strings = new String[32];
         }
         return strings;
@@ -116,11 +124,11 @@ public class JSONParseContext {
     }
 
     final boolean checkEscapeBackslashJDK16(String input, int fromIndex, int endIndex) {
-        if(!escape || endIndex < escapeOffset) return false;
-        if(fromIndex > escapeOffset) {
+        if (!escape || endIndex < escapeOffset) return false;
+        if (fromIndex > escapeOffset) {
             escapeOffset = input.indexOf('\\', fromIndex);
             escape = escapeOffset > -1;
-            if(!escape) return false;
+            if (!escape) return false;
         }
         return endIndex > escapeOffset;
     }
@@ -172,5 +180,13 @@ public class JSONParseContext {
 
     protected final String getCacheKey(byte[] bytes, int offset, int len, long hashValue) {
         return JSONGeneral.getCacheKey(bytes, offset, len, hashValue, getTable32());
+    }
+
+    public Map defaultMap() {
+        return new LinkedHashMap(10);
+    }
+
+    public List defaultList() {
+        return new ArrayList(10);
     }
 }

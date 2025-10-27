@@ -50,7 +50,7 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
             hour = twoDigitsValue(c1, c2);
             ++i;
         } else {
-            if(isDigitFlag) {
+            if (isDigitFlag) {
                 hour = c1 & 0xf;
             } else {
                 String errorContextTextAt = createErrorContextText(buf, i);
@@ -61,7 +61,7 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
             minute = twoDigitsValue(c1, c2);
             ++i;
         } else {
-            if(isDigitFlag) {
+            if (isDigitFlag) {
                 minute = c1 & 0xf;
             } else {
                 String errorContextTextAt = createErrorContextText(buf, i);
@@ -72,7 +72,7 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
             second = twoDigitsValue(c1, c2);
             ++i;
         } else {
-            if(isDigitFlag) {
+            if (isDigitFlag) {
                 second = c1 & 0xf;
             } else {
                 String errorContextTextAt = createErrorContextText(buf, i);
@@ -85,9 +85,10 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
             int cnt = 9;
             while ((isDigitFlag = NumberUtils.isDigit(c = buf[++i])) && NumberUtils.isDigit(c1 = buf[++i])) {
                 cnt -= 2;
-                nanoOfSecond = nanoOfSecond * 100 + twoDigitsValue(c, c1);;
+                nanoOfSecond = nanoOfSecond * 100 + twoDigitsValue(c, c1);
+                ;
             }
-            if(isDigitFlag) {
+            if (isDigitFlag) {
                 nanoOfSecond = (nanoOfSecond << 3) + (nanoOfSecond << 1) + (c & 0xf);
                 c = c1;
                 --cnt;
@@ -114,7 +115,7 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
             hour = twoDigitsValue(b1, b2);
             ++i;
         } else {
-            if(isDigitFlag) {
+            if (isDigitFlag) {
                 hour = b1 & 0xf;
             } else {
                 String errorContextTextAt = createErrorContextText(buf, i);
@@ -125,7 +126,7 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
             minute = twoDigitsValue(b1, b2);
             ++i;
         } else {
-            if(isDigitFlag) {
+            if (isDigitFlag) {
                 minute = b1 & 0xf;
             } else {
                 String errorContextTextAt = createErrorContextText(buf, i);
@@ -136,7 +137,7 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
             second = twoDigitsValue(b1, b2);
             ++i;
         } else {
-            if(isDigitFlag) {
+            if (isDigitFlag) {
                 second = b1 & 0xf;
             } else {
                 String errorContextTextAt = createErrorContextText(buf, i);

@@ -1,5 +1,5 @@
 /*
- * Copyright [2020-2024] [wangyunchao]
+ * Copyright [2020-2026] [wangyunchao]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ public class YamlJSON extends YamlGeneral {
         builder.append("{");
         int size = obj.size();
         int i = 0;
-        for (Map.Entry entry : ((Map<?,?>) obj).entrySet()) {
+        for (Map.Entry entry : ((Map<?, ?>) obj).entrySet()) {
             Object key = entry.getKey();
             Object value = entry.getValue();
             builder.append(key);

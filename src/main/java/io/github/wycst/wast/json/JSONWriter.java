@@ -24,8 +24,9 @@ public abstract class JSONWriter extends Writer {
     final static int MAX_CACHE_BUFFER_SIZE;
     final static int AVAILABLE_PROCESSORS = Runtime.getRuntime().availableProcessors();
     // Safe skip over boundary check space
-    final static int SECURITY_UNCHECK_SPACE = 128;
+    final static int SECURITY_UNCHECK_SPACE = 160;
     final static int CACHE_COUNT;
+    final static int INIT_CACHE_COUNT = Math.max(2, AVAILABLE_PROCESSORS >> 3);
     final static AtomicInteger AUTO_SEQ = new AtomicInteger();
     final static int EMPTY_ARRAY_INT;
     final static short EMPTY_ARRAY_SHORT;
@@ -54,8 +55,8 @@ public abstract class JSONWriter extends Writer {
     final static BigInteger BI_MAX_VALUE_FOR_LONG = BigInteger.valueOf(Long.MAX_VALUE);
 
     static {
-        // init memory:  16KB * 2 * 8 -> 256KB
-        CACHE_BUFFER_SIZE = EnvUtils.JDK_VERSION >= 1.8f ? 1 << 14 : 1 << 12;
+        // init memory:  4KB * 2 * Runtime.getRuntime().availableProcessors() / 8 -> 核心个数KB（最小2kb）
+        CACHE_BUFFER_SIZE = /*EnvUtils.JDK_VERSION >= 1.8f ? 1 << 14 :*/ 1 << 12;
         // max memory:   3MB * 2 * 16 -> 96MB
         MAX_CACHE_BUFFER_SIZE = (1 << 20) * 3;
 
@@ -222,12 +223,12 @@ public abstract class JSONWriter extends Writer {
         int seg2 = div1 - 100 * seg1;
         // 3
         int seg3 = nano - div1 * 1000;
-        off += JSONUnsafe.putLong(buf, off, FOUR_DIGITS_64_BITS[seg1]);
+        off += JSONMemoryHandle.putLong(buf, off, FOUR_DIGITS_64_BITS[seg1]);
         if (seg3 > 0) {
-            off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[seg2]);
+            off += JSONMemoryHandle.putInt(buf, off, TWO_DIGITS_32_BITS[seg2]);
             int pos = --off;
             char last = buf[pos];
-            off += JSONUnsafe.putLong(buf, pos, FOUR_DIGITS_64_BITS[seg3]); // writeFourDigits(seg3, buf, pos);
+            off += JSONMemoryHandle.putLong(buf, pos, FOUR_DIGITS_64_BITS[seg3]); // writeFourDigits(seg3, buf, pos);
             buf[pos] = last;
         } else {
             if (seg2 == 0 && (seg1 & 1) == 0 && seg1 % 5 == 0) {
@@ -235,7 +236,7 @@ public abstract class JSONWriter extends Writer {
                 --off;
             } else {
                 // 4 + 2
-                off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[seg2]);
+                off += JSONMemoryHandle.putInt(buf, off, TWO_DIGITS_32_BITS[seg2]);
             }
         }
         return off;
@@ -534,10 +535,10 @@ public abstract class JSONWriter extends Writer {
      */
     public final void writeJSONString(String value) throws IOException {
         if (EnvUtils.JDK_9_PLUS) {
-            byte[] bytes = (byte[]) JSONUnsafe.getStringValue(value.toString());
+            byte[] bytes = (byte[]) JSONMemoryHandle.getStringValue(value.toString());
             writeJSONStringBytes(value, bytes);
         } else {
-            writeJSONChars((char[]) JSONUnsafe.getStringValue(value.toString()));
+            writeJSONChars((char[]) JSONMemoryHandle.getStringValue(value.toString()));
         }
     }
 
@@ -607,7 +608,7 @@ public abstract class JSONWriter extends Writer {
      */
     void writeMemory(long fourChars, int fourBytes, int len) throws IOException {
         char[] chars = new char[4];
-        JSONUnsafe.putLong(chars, 0, fourChars);
+        JSONMemoryHandle.putLong(chars, 0, fourChars);
         write(chars, 0, len);
     }
 
@@ -622,8 +623,8 @@ public abstract class JSONWriter extends Writer {
      */
     void writeMemory(long fourChars1, long fourChars2, long fourBytes, int len) throws IOException {
         char[] chars = new char[8];
-        JSONUnsafe.putLong(chars, 0, fourChars1);
-        JSONUnsafe.putLong(chars, 4, fourChars2);
+        JSONMemoryHandle.putLong(chars, 0, fourChars1);
+        JSONMemoryHandle.putLong(chars, 4, fourChars2);
         write(chars, 0, len);
     }
 
@@ -640,7 +641,7 @@ public abstract class JSONWriter extends Writer {
         char[] chars = new char[n << 2];
         int offset = 0;
         for (long fourChar : fourChars) {
-            JSONUnsafe.putLong(chars, offset, fourChar);
+            JSONMemoryHandle.putLong(chars, offset, fourChar);
             offset += 4;
         }
         write(chars, 0, totalCount);
@@ -671,12 +672,12 @@ public abstract class JSONWriter extends Writer {
                 v3 = (long) HEX_DIGITS_INT32[b6] << 32 | HEX_DIGITS_INT32[b5];
                 v4 = (long) HEX_DIGITS_INT32[b8] << 32 | HEX_DIGITS_INT32[b7];
             }
-            offset += JSONUnsafe.putLong(buf, offset, v1);
-            offset += JSONUnsafe.putLong(buf, offset, v2);
+            offset += JSONMemoryHandle.putLong(buf, offset, v1);
+            offset += JSONMemoryHandle.putLong(buf, offset, v2);
             buf[offset++] = '-';
-            offset += JSONUnsafe.putLong(buf, offset, v3);
+            offset += JSONMemoryHandle.putLong(buf, offset, v3);
             buf[offset++] = '-';
-            offset += JSONUnsafe.putLong(buf, offset, v4);
+            offset += JSONMemoryHandle.putLong(buf, offset, v4);
         }
         long leastSigBits = uuid.getLeastSignificantBits();
         {
@@ -694,11 +695,11 @@ public abstract class JSONWriter extends Writer {
                 v4 = (long) HEX_DIGITS_INT32[b8] << 32 | HEX_DIGITS_INT32[b7];
             }
             buf[offset++] = '-';
-            offset += JSONUnsafe.putLong(buf, offset, v1);
+            offset += JSONMemoryHandle.putLong(buf, offset, v1);
             buf[offset++] = '-';
-            offset += JSONUnsafe.putLong(buf, offset, v2);
-            offset += JSONUnsafe.putLong(buf, offset, v3);
-            JSONUnsafe.putLong(buf, offset, v4);
+            offset += JSONMemoryHandle.putLong(buf, offset, v2);
+            offset += JSONMemoryHandle.putLong(buf, offset, v3);
+            JSONMemoryHandle.putLong(buf, offset, v4);
         }
         return 36;
     }
@@ -718,11 +719,11 @@ public abstract class JSONWriter extends Writer {
                 v2 = HEX_DIGITS_INT16[b5] << 16 | HEX_DIGITS_INT16[b6];
                 v3 = HEX_DIGITS_INT16[b7] << 16 | HEX_DIGITS_INT16[b8];
             }
-            offset += JSONUnsafe.putLong(buf, offset, v1);
+            offset += JSONMemoryHandle.putLong(buf, offset, v1);
             buf[offset++] = '-';
-            offset += JSONUnsafe.putInt(buf, offset, (int) v2);
+            offset += JSONMemoryHandle.putInt(buf, offset, (int) v2);
             buf[offset++] = '-';
-            offset += JSONUnsafe.putInt(buf, offset, (int) v3);
+            offset += JSONMemoryHandle.putInt(buf, offset, (int) v3);
         }
         long leastSigBits = uuid.getLeastSignificantBits();
         {
@@ -739,10 +740,10 @@ public abstract class JSONWriter extends Writer {
                 v3 = HEX_DIGITS_INT16[b5] << 48 | HEX_DIGITS_INT16[b6] << 32 | HEX_DIGITS_INT16[b7] << 16 | HEX_DIGITS_INT16[b8];
             }
             buf[offset++] = '-';
-            offset += JSONUnsafe.putInt(buf, offset, (int) v1);
+            offset += JSONMemoryHandle.putInt(buf, offset, (int) v1);
             buf[offset++] = '-';
-            offset += JSONUnsafe.putInt(buf, offset, (int) v2);
-            JSONUnsafe.putLong(buf, offset, v3);
+            offset += JSONMemoryHandle.putInt(buf, offset, (int) v2);
+            JSONMemoryHandle.putLong(buf, offset, v3);
         }
         return 36;
     }
@@ -756,7 +757,7 @@ public abstract class JSONWriter extends Writer {
                 buf[off++] = '-';
             }
             buf[off++] = '0';
-            off += JSONUnsafe.putInt(buf, off, DOT_ZERO_32); // .0
+            off += JSONMemoryHandle.putInt(buf, off, DOT_ZERO_32); // .0
             return off - beginIndex;
         }
         boolean sign = doubleValue < 0;
@@ -777,7 +778,7 @@ public abstract class JSONWriter extends Writer {
             return writeDecimal(scientific.output, scientific.count, e10, buf, beginIndex, off);
         }
         if (scientific == Scientific.SCIENTIFIC_NULL) {
-            off += JSONUnsafe.putLong(buf, off, JSONGeneral.NULL_LONG);
+            off += JSONMemoryHandle.putLong(buf, off, JSONGeneral.NULL_LONG);
             return off - beginIndex;
         }
 
@@ -808,7 +809,7 @@ public abstract class JSONWriter extends Writer {
      */
     final static int writeFloat(float floatValue, char[] buf, int off) {
         if (Float.isNaN(floatValue) || floatValue == Float.POSITIVE_INFINITY || floatValue == Float.NEGATIVE_INFINITY) {
-            return JSONUnsafe.putLong(buf, off, JSONGeneral.NULL_LONG);
+            return JSONMemoryHandle.putLong(buf, off, JSONGeneral.NULL_LONG);
         }
         final int beginIndex = off;
         int bits;
@@ -818,7 +819,7 @@ public abstract class JSONWriter extends Writer {
                 buf[off++] = '-';
             }
             buf[off++] = '0';
-            off += JSONUnsafe.putInt(buf, off, DOT_ZERO_32); // .0
+            off += JSONMemoryHandle.putInt(buf, off, DOT_ZERO_32); // .0
             return off - beginIndex;
         }
         boolean sign = floatValue < 0;
@@ -850,7 +851,7 @@ public abstract class JSONWriter extends Writer {
         if (useScientific) {
             if (digitCnt == 1) {
                 buf[off++] = (char) (value + 48);
-                off += JSONUnsafe.putInt(buf, off, DOT_ZERO_32); // .0
+                off += JSONMemoryHandle.putInt(buf, off, DOT_ZERO_32); // .0
             } else {
                 int pos = digitCnt - 2;
                 // 获取首位数字
@@ -875,10 +876,10 @@ public abstract class JSONWriter extends Writer {
                 int n = e10 / 100;
                 buf[off++] = (char) (n + 48);
                 e10 = e10 - n * 100;
-                off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[e10]);
+                off += JSONMemoryHandle.putInt(buf, off, TWO_DIGITS_32_BITS[e10]);
             } else {
                 if (e10 > 9) {
-                    off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[e10]);
+                    off += JSONMemoryHandle.putInt(buf, off, TWO_DIGITS_32_BITS[e10]);
                 } else {
                     buf[off++] = (char) (e10 + 48);
                 }
@@ -887,11 +888,11 @@ public abstract class JSONWriter extends Writer {
             // 非科学计数法例如12345, 在size = decimalExp时写入小数点.
             if (e10 < 0) {
                 // -1/-2/-3
-                off += JSONUnsafe.putInt(buf, off, ZERO_DOT_32); // 0.
+                off += JSONMemoryHandle.putInt(buf, off, ZERO_DOT_32); // 0.
                 if (e10 == -2) {
                     buf[off++] = '0';
                 } else if (e10 == -3) {
-                    off += JSONUnsafe.putInt(buf, off, ZERO_ZERO_32); // 00
+                    off += JSONMemoryHandle.putInt(buf, off, ZERO_ZERO_32); // 00
                 }
                 off += writeLong(value, buf, off);
             } else {
@@ -917,7 +918,7 @@ public abstract class JSONWriter extends Writer {
                             buf[off++] = '0';
                         }
                     }
-                    off += JSONUnsafe.putInt(buf, off, DOT_ZERO_32); // .0
+                    off += JSONMemoryHandle.putInt(buf, off, DOT_ZERO_32); // .0
                 }
             }
         }
@@ -943,7 +944,7 @@ public abstract class JSONWriter extends Writer {
                 buf[off++] = '-';
             }
             buf[off++] = '0';
-            off += JSONUnsafe.putShort(buf, off, DOT_ZERO_16); // .0
+            off += JSONMemoryHandle.putShort(buf, off, DOT_ZERO_16); // .0
             return off - beginIndex;
         }
         boolean sign = doubleValue < 0;
@@ -962,7 +963,7 @@ public abstract class JSONWriter extends Writer {
             return writeDecimal(scientific.output, scientific.count, scientific.e10, buf, beginIndex, off);
         }
         if (scientific == Scientific.SCIENTIFIC_NULL) {
-            off += JSONUnsafe.putInt(buf, off, JSONGeneral.NULL_INT);
+            off += JSONMemoryHandle.putInt(buf, off, JSONGeneral.NULL_INT);
             return off - beginIndex;
         }
 
@@ -996,7 +997,7 @@ public abstract class JSONWriter extends Writer {
      */
     final static int writeFloat(float floatValue, byte[] buf, int off) {
         if (Float.isNaN(floatValue) || floatValue == Float.POSITIVE_INFINITY || floatValue == Float.NEGATIVE_INFINITY) {
-            return JSONUnsafe.putInt(buf, off, JSONGeneral.NULL_INT);
+            return JSONMemoryHandle.putInt(buf, off, JSONGeneral.NULL_INT);
         }
         final int beginIndex = off;
         int bits;
@@ -1006,7 +1007,7 @@ public abstract class JSONWriter extends Writer {
                 buf[off++] = '-';
             }
             buf[off++] = '0';
-            off += JSONUnsafe.putShort(buf, off, DOT_ZERO_16); // .0
+            off += JSONMemoryHandle.putShort(buf, off, DOT_ZERO_16); // .0
             return off - beginIndex;
         }
         boolean sign = floatValue < 0;
@@ -1038,7 +1039,7 @@ public abstract class JSONWriter extends Writer {
         if (useScientific) {
             if (digitCnt == 1) {
                 buf[off++] = (byte) (value + 48);
-                off += JSONUnsafe.putShort(buf, off, DOT_ZERO_16); // .0
+                off += JSONMemoryHandle.putShort(buf, off, DOT_ZERO_16); // .0
             } else {
                 int pos = digitCnt - 2;
                 // 获取首位数字
@@ -1063,10 +1064,10 @@ public abstract class JSONWriter extends Writer {
                 int n = e10 / 100;
                 buf[off++] = (byte) (n + 48);
                 e10 = e10 - n * 100;
-                off += JSONUnsafe.putShort(buf, off, TWO_DIGITS_16_BITS[e10]);
+                off += JSONMemoryHandle.putShort(buf, off, TWO_DIGITS_16_BITS[e10]);
             } else {
                 if (e10 > 9) {
-                    off += JSONUnsafe.putShort(buf, off, TWO_DIGITS_16_BITS[e10]);
+                    off += JSONMemoryHandle.putShort(buf, off, TWO_DIGITS_16_BITS[e10]);
                 } else {
                     buf[off++] = (byte) (e10 + 48);
                 }
@@ -1075,11 +1076,11 @@ public abstract class JSONWriter extends Writer {
             // 非科学计数法例如12345, 在size = decimalExp时写入小数点.
             if (e10 < 0) {
                 // -1/-2/-3
-                off += JSONUnsafe.putShort(buf, off, ZERO_DOT_16); // 0.
+                off += JSONMemoryHandle.putShort(buf, off, ZERO_DOT_16); // 0.
                 if (e10 == -2) {
                     buf[off++] = '0';
                 } else if (e10 == -3) {
-                    off += JSONUnsafe.putShort(buf, off, ZERO_ZERO_16); // 00
+                    off += JSONMemoryHandle.putShort(buf, off, ZERO_ZERO_16); // 00
                 }
                 off += writeLong(value, buf, off);
             } else {
@@ -1105,7 +1106,7 @@ public abstract class JSONWriter extends Writer {
                             buf[off++] = '0';
                         }
                     }
-                    off += JSONUnsafe.putShort(buf, off, DOT_ZERO_16); // .0
+                    off += JSONMemoryHandle.putShort(buf, off, DOT_ZERO_16); // .0
                 }
             }
         }
@@ -1203,13 +1204,13 @@ public abstract class JSONWriter extends Writer {
             return 1;
         }
         if (val < 100) {
-            JSONUnsafe.putInt(chars, off, TWO_DIGITS_32_BITS[val]);
+            JSONMemoryHandle.putInt(chars, off, TWO_DIGITS_32_BITS[val]);
             return 2;
         }
         int v = (int) (val * 1374389535L >> 37); // EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(val, 0x28f5c28f5c28f5dL);  // val / 100;
         int v1 = val - v * 100;
         chars[off++] = (char) (v + 48);
-        JSONUnsafe.putInt(chars, off, TWO_DIGITS_32_BITS[v1]);
+        JSONMemoryHandle.putInt(chars, off, TWO_DIGITS_32_BITS[v1]);
         return 3;
     }
 
@@ -1219,13 +1220,13 @@ public abstract class JSONWriter extends Writer {
             return 1;
         }
         if (val < 100) {
-            JSONUnsafe.putShort(buf, off, TWO_DIGITS_16_BITS[val]);
+            JSONMemoryHandle.putShort(buf, off, TWO_DIGITS_16_BITS[val]);
             return 2;
         }
         int v = (int) (val * 1374389535L >> 37); // EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(val, 0x28f5c28f5c28f5dL);  // val / 100;
         int v1 = val - v * 100;
         buf[off++] = (byte) (v + 48);
-        JSONUnsafe.putShort(buf, off, TWO_DIGITS_16_BITS[v1]);
+        JSONMemoryHandle.putShort(buf, off, TWO_DIGITS_16_BITS[v1]);
         return 3;
     }
 
@@ -1271,7 +1272,7 @@ public abstract class JSONWriter extends Writer {
      * @return
      */
     final static int writeLong(long val, char[] chars, int off) {
-        if(val < 0x80000000L) {
+        if (val < 0x80000000L) {
             return writeInteger((int) val, chars, off);
         }
         int v, v1, v2, v3, v4;
@@ -1306,10 +1307,10 @@ public abstract class JSONWriter extends Writer {
             if (v < 1000) {
                 off += writeThreeDigits(v, chars, off);
             } else {
-                off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v]);
+                off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v]);
             }
-            off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v2]);
-            off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
+            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v2]);
+            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
             return off - beginIndex;
         }
 
@@ -1321,11 +1322,11 @@ public abstract class JSONWriter extends Writer {
             if (v < 1000) {
                 off += writeThreeDigits(v, chars, off);
             } else {
-                off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v]);
+                off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v]);
             }
-            off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v3]);
-            off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v2]);
-            off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
+            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v3]);
+            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v2]);
+            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
             return off - beginIndex;
         }
 
@@ -1334,17 +1335,17 @@ public abstract class JSONWriter extends Writer {
         v4 = (int) (numValue - val * 10000);
 
         off += writeThreeDigits((int) val, chars, off);
-        off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v4]);
-        off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v3]);
-        off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v2]);
-        off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
+        off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v4]);
+        off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v3]);
+        off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v2]);
+        off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
         return off - beginIndex;
     }
 
     /**
      * ensure val >= 0 && chars.length > off + 10
      *
-     * @param val max 10 digits
+     * @param val   max 10 digits
      * @param chars
      * @param off
      * @return
@@ -1356,7 +1357,7 @@ public abstract class JSONWriter extends Writer {
             if (v < 1000) {
                 return writeThreeDigits(v, chars, off);
             } else {
-                return JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v]);
+                return JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v]);
             }
         }
         final int beginIndex = off;
@@ -1368,9 +1369,9 @@ public abstract class JSONWriter extends Writer {
             if (v < 1000) {
                 off += writeThreeDigits(v, chars, off);
             } else {
-                off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v]);
+                off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v]);
             }
-            off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
+            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
             return off - beginIndex;
         } else {
             numValue = val;
@@ -1380,10 +1381,10 @@ public abstract class JSONWriter extends Writer {
             if (val < 10) {
                 chars[off++] = (char) (val + 48);
             } else {
-                off += JSONUnsafe.putInt(chars, off, TWO_DIGITS_32_BITS[val]);
+                off += JSONMemoryHandle.putInt(chars, off, TWO_DIGITS_32_BITS[val]);
             }
-            off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v2]);
-            off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
+            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v2]);
+            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
             return off - beginIndex;
         }
     }
@@ -1397,7 +1398,7 @@ public abstract class JSONWriter extends Writer {
      * @return
      */
     final static int writeLong(long val, byte[] buf, int off) {
-        if(val < 0x80000000L) {
+        if (val < 0x80000000L) {
             return writeInteger((int) val, buf, off);
         }
         int v, v1, v2, v3, v4;
@@ -1432,9 +1433,9 @@ public abstract class JSONWriter extends Writer {
             if (v < 1000) {
                 off += writeThreeDigits(v, buf, off);
             } else {
-                off += JSONUnsafe.putInt(buf, off, FOUR_DIGITS_32_BITS[v]);
+                off += JSONMemoryHandle.putInt(buf, off, FOUR_DIGITS_32_BITS[v]);
             }
-            off += JSONUnsafe.putLong(buf, off, mergeInt64(v2, v1));
+            off += JSONMemoryHandle.putLong(buf, off, mergeInt64(v2, v1));
             return off - beginIndex;
         }
 
@@ -1445,11 +1446,11 @@ public abstract class JSONWriter extends Writer {
             v = (int) val;
             if (v < 1000) {
                 off += writeThreeDigits(v, buf, off);
-                off += JSONUnsafe.putInt(buf, off, FOUR_DIGITS_32_BITS[v3]);
+                off += JSONMemoryHandle.putInt(buf, off, FOUR_DIGITS_32_BITS[v3]);
             } else {
-                off += JSONUnsafe.putLong(buf, off, mergeInt64(v, v3));
+                off += JSONMemoryHandle.putLong(buf, off, mergeInt64(v, v3));
             }
-            off += JSONUnsafe.putLong(buf, off, mergeInt64(v2, v1));
+            off += JSONMemoryHandle.putLong(buf, off, mergeInt64(v2, v1));
             return off - beginIndex;
         }
 
@@ -1457,8 +1458,8 @@ public abstract class JSONWriter extends Writer {
         val = numValue * 1759218605L >> 44; // EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710ccL); // numValue / 10000;
         v4 = (int) (numValue - val * 10000);
         off += writeThreeDigits((int) val, buf, off);
-        off += JSONUnsafe.putLong(buf, off, mergeInt64(v4, v3));
-        off += JSONUnsafe.putLong(buf, off, mergeInt64(v2, v1));
+        off += JSONMemoryHandle.putLong(buf, off, mergeInt64(v4, v3));
+        off += JSONMemoryHandle.putLong(buf, off, mergeInt64(v2, v1));
         return off - beginIndex;
     }
 
@@ -1477,7 +1478,7 @@ public abstract class JSONWriter extends Writer {
             if (v < 1000) {
                 return writeThreeDigits(v, buf, off);
             } else {
-                return JSONUnsafe.putInt(buf, off, FOUR_DIGITS_32_BITS[v]);
+                return JSONMemoryHandle.putInt(buf, off, FOUR_DIGITS_32_BITS[v]);
             }
         }
         final int beginIndex = off;
@@ -1488,9 +1489,9 @@ public abstract class JSONWriter extends Writer {
             v = val;
             if (v < 1000) {
                 off += writeThreeDigits(v, buf, off);
-                off += JSONUnsafe.putInt(buf, off, FOUR_DIGITS_32_BITS[v1]);
+                off += JSONMemoryHandle.putInt(buf, off, FOUR_DIGITS_32_BITS[v1]);
             } else {
-                off += JSONUnsafe.putLong(buf, off, mergeInt64(v, v1));
+                off += JSONMemoryHandle.putLong(buf, off, mergeInt64(v, v1));
             }
             return off - beginIndex;
         } else {
@@ -1501,9 +1502,9 @@ public abstract class JSONWriter extends Writer {
             if (val < 10) {
                 buf[off++] = (byte) (val + 48);
             } else {
-                off += JSONUnsafe.putShort(buf, off, TWO_DIGITS_16_BITS[val]);
+                off += JSONMemoryHandle.putShort(buf, off, TWO_DIGITS_16_BITS[val]);
             }
-            off += JSONUnsafe.putLong(buf, off, mergeInt64(v2, v1));
+            off += JSONMemoryHandle.putLong(buf, off, mergeInt64(v2, v1));
             return off - beginIndex;
         }
     }
@@ -1532,7 +1533,7 @@ public abstract class JSONWriter extends Writer {
         char[] buf = new char[src.length << 1];
         int count = 0;
         for (byte b : src) {
-            count += JSONUnsafe.putInt(buf, count, HEX_DIGITS_INT32[b & 0xff]);
+            count += JSONMemoryHandle.putInt(buf, count, HEX_DIGITS_INT32[b & 0xff]);
         }
         write(buf, 0, count);
         writeJSONToken('"');

@@ -18,7 +18,7 @@ public class MultiLineString extends AbstractMultiGeometry {
         elements.add(lineString);
     }
 
-    public void addAll(LineString...lineStringList) {
+    public void addAll(LineString... lineStringList) {
         for (LineString lineString : lineStringList) {
             elements.add(lineString);
         }

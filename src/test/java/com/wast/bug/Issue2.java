@@ -44,7 +44,7 @@ public class Issue2 {
                 while ((v & 0x7ff0000000000000L) == 0x7ff0000000000000L); // 排除Infinity,NaN
                 d = Double.longBitsToDouble(v);
                 try {
-                    double d1 = JSON.parseAs(String.valueOf(d));
+                    double d1 = JSON.parseDouble(JSON.toString(d));
                     if (d != d1)
                         throw new AssertionError("testRandomWastParser[" + i + "]: " + d + " != " + d1);
                 } catch (Throwable throwable) {

@@ -47,7 +47,6 @@ public enum WriteOption {
 
     /**
      * 过滤null字段(缺省配置)
-     *
      */
     IgnoreNullProperty,
 

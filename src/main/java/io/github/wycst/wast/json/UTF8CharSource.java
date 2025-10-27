@@ -1,6 +1,7 @@
 package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.common.utils.EnvUtils;
+
 final class UTF8CharSource implements CharSource {
 
     final String input;

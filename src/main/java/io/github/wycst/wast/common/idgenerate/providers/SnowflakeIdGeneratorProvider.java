@@ -125,17 +125,17 @@ class SnowflakeIdGeneratorProvider extends IdGenerator {
             InetAddress addr = InetAddress.getLocalHost();
             String hostIP = addr.getHostAddress();
             int nSplitIndex = hostIP.lastIndexOf('.');
-            int mSplitIndex = hostIP.lastIndexOf('.',nSplitIndex - 1);
+            int mSplitIndex = hostIP.lastIndexOf('.', nSplitIndex - 1);
             int n = Integer.parseInt(hostIP.substring(nSplitIndex + 1));
-            int m = Integer.parseInt(hostIP.substring(mSplitIndex + 1,nSplitIndex));
-            if(m < 5) {
+            int m = Integer.parseInt(hostIP.substring(mSplitIndex + 1, nSplitIndex));
+            if (m < 5) {
                 instance = (m - 1) * (1 << (instanceBitLen - 2)) + n;
             } else {
                 String hostName = addr.getHostName().trim();
-                if(hostName.matches(".*[-]\\d\\d?")) {
+                if (hostName.matches(".*[-]\\d\\d?")) {
                     int splitIndex = hostName.lastIndexOf('-');
                     int insTmp = Integer.parseInt(hostName.substring(splitIndex + 1));
-                    if(instance <= maxInstance) {
+                    if (instance <= maxInstance) {
                         instance = insTmp;
                     } else {
                         instance = insTmp % (int) (maxInstance + 1);
@@ -143,7 +143,7 @@ class SnowflakeIdGeneratorProvider extends IdGenerator {
                 } else {
                     char ch = hostName.charAt(hostName.length() - 1);
                     int insTmp = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$_".indexOf(ch);
-                    if(insTmp > -1) {
+                    if (insTmp > -1) {
                         instance = insTmp;
                     }
                 }
@@ -152,7 +152,7 @@ class SnowflakeIdGeneratorProvider extends IdGenerator {
         } catch (UnknownHostException e) {
             e.printStackTrace();
         }
-        if(instance == -1) {
+        if (instance == -1) {
             // 获取IP
             instance = 0;
         }

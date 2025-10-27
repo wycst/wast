@@ -117,7 +117,7 @@ public class LoggerManagerHandler {
         // 通过class匹配文件handler
         String logClassName = logCls.getName();
         if (matchPackages(logClassName, consolePackages)) {
-            if(consoleHandler != null) {
+            if (consoleHandler != null) {
                 fileHandlers.add(consoleHandler);
             }
         }

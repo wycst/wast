@@ -34,11 +34,13 @@ public class EvaluatorContext {
         final ElVariableInvoker one;
         Object oneValue;
         Object otherValue;
+
         TwinsImpl(final ElVariableInvoker one, Object oneValue, Object otherValue) {
             this.one = one;
             this.oneValue = oneValue;
             this.otherValue = otherValue;
         }
+
         @Override
         public final Object getContextValue(ElVariableInvoker variableInvoker) {
             return variableInvoker == one ? oneValue : otherValue;
@@ -49,6 +51,7 @@ public class EvaluatorContext {
         public ParametersImpl(Object[] params) {
             this.variableValues = params;
         }
+
         @Override
         public Object getContextValue(ElVariableInvoker variableInvoker) {
             try {
@@ -59,7 +62,7 @@ public class EvaluatorContext {
         }
     }
 
-//    final static class MapImpl extends EvaluatorContext {
+    //    final static class MapImpl extends EvaluatorContext {
 //        private final Map context;
 //        MapImpl(Map context) {
 //            this.context = context;
@@ -84,18 +87,23 @@ public class EvaluatorContext {
 //
     final static class MapRootImpl extends EvaluatorContext {
         private final Map context;
+
         MapRootImpl(Map context) {
             this.context = context;
         }
+
         public Object getContextValue(ElVariableInvoker variableInvoker) {
             return context.get(variableInvoker.key);
         }
     }
+
     final static class ObjectRootImpl extends EvaluatorContext {
         private final Object context;
+
         ObjectRootImpl(Object context) {
             this.context = context;
         }
+
         public Object getContextValue(ElVariableInvoker variableInvoker) {
             return variableInvoker.invokeValue(context);
         }
@@ -105,7 +113,9 @@ public class EvaluatorContext {
         SingleVariableImpl(Object variableValue) {
             this.variableValue = variableValue;
         }
+
         final Object variableValue;
+
         @Override
         public Object getContextValue(ElVariableInvoker variableInvoker) {
             return variableValue;

@@ -17,6 +17,7 @@ import java.util.Map;
  * @Date: 2020/7/2 16:10
  * @Description:
  */
+@SuppressWarnings("ALL")
 public final class HttpClientConfig {
 
     private static boolean defaultFollowRedirect = false;
@@ -36,7 +37,7 @@ public final class HttpClientConfig {
     // use by loadblance
     private boolean keepAliveOnTimeout;
 
-    private final Map<String, Serializable> headers = new HashMap<String, Serializable>();
+    private final Map<String, Object> headers = new HashMap<String, Object>();
     private final List<HttpClientParameter> parameterList = new ArrayList<HttpClientParameter>();
 
     private boolean multipart;
@@ -55,6 +56,12 @@ public final class HttpClientConfig {
     private String downloadFileName;
     private boolean responseStream;
     private ResponseCallback responseCallback;
+    // SSE有效 失败默认重试3次,如果为-1代表不限次数
+    private int errorRetryCount = 3;
+    // SSE有效 失败重试间隔秒数默认5秒
+    private int retryIntervalSeconds = 5;
+    private boolean retryIfServerClosed;
+
     public long getMaxContentLength() {
         return maxContentLength;
     }
@@ -67,15 +74,15 @@ public final class HttpClientConfig {
         parameterList.clear();
     }
 
-    public void addTextParameters(HttpClientParameter...clientParameters) {
-        for(HttpClientParameter clientParameter : clientParameters) {
-            if(clientParameter != null) {
+    public void addTextParameters(HttpClientParameter... clientParameters) {
+        for (HttpClientParameter clientParameter : clientParameters) {
+            if (clientParameter != null) {
                 parameterList.add(clientParameter);
             }
         }
     }
 
-    public HttpClientConfig textParameters(HttpClientParameter...clientParameters) {
+    public HttpClientConfig textParameters(HttpClientParameter... clientParameters) {
         addTextParameters(clientParameters);
         return this;
     }
@@ -158,13 +165,13 @@ public final class HttpClientConfig {
         return this;
     }
 
-    public void setHeaders(Map<String, String> headerMap) {
-        if(headerMap != null) {
+    public void setHeaders(Map headerMap) {
+        if (headerMap != null) {
             headers.putAll(headerMap);
         }
     }
 
-    public HttpClientConfig headers(Map<String, String> headerMap) {
+    public HttpClientConfig headers(Map headerMap) {
         setHeaders(headerMap);
         return this;
     }
@@ -173,7 +180,7 @@ public final class HttpClientConfig {
         headers.remove(name);
     }
 
-    public Map<String, Serializable> getHeaders() {
+    public Map<String, Object> getHeaders() {
         return headers;
     }
 
@@ -374,6 +381,7 @@ public final class HttpClientConfig {
     public boolean isHeaderNameToLowerCase() {
         return headerNameToLowerCase;
     }
+
     public HttpClientConfig headerNameToLowerCase(boolean headerNameToLowerCase) {
         this.headerNameToLowerCase = headerNameToLowerCase;
         return this;
@@ -455,8 +463,41 @@ public final class HttpClientConfig {
         return responseCallback;
     }
 
-    public interface ResponseCallback {
-        void onDownloadProgress(long downloaded, long total);
+    public int getErrorRetryCount() {
+        return errorRetryCount;
+    }
+
+    public void setErrorRetryCount(int errorRetryCount) {
+        this.errorRetryCount = errorRetryCount;
+    }
+
+    public int getRetryIntervalSeconds() {
+        return retryIntervalSeconds;
+    }
+
+    public void setRetryIntervalSeconds(int retryIntervalSeconds) {
+        this.retryIntervalSeconds = retryIntervalSeconds;
+    }
+
+    public boolean isRetryIfServerClosed() {
+        return retryIfServerClosed;
+    }
+
+    public void setRetryIfServerClosed(boolean retryIfServerClosed) {
+        this.retryIfServerClosed = retryIfServerClosed;
+    }
+
+    public HttpClientConfig retry(int errorRetryCount, int retryIntervalSeconds) {
+        this.errorRetryCount = errorRetryCount;
+        this.retryIntervalSeconds = retryIntervalSeconds;
+        return this;
+    }
+
+    public HttpClientConfig retry(int errorRetryCount, int retryIntervalSeconds, boolean retryIfServerClosed) {
+        this.errorRetryCount = errorRetryCount;
+        this.retryIntervalSeconds = retryIntervalSeconds;
+        this.retryIfServerClosed = retryIfServerClosed;
+        return this;
     }
 }
 

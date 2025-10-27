@@ -1,5 +1,5 @@
 /*
- * Copyright [2020-2024] [wangyunchao]
+ * Copyright [2020-2026] [wangyunchao]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -726,7 +726,7 @@ public class YamlNode extends YamlLine {
         if (val instanceof Map || val instanceof List) {
             value = YamlJSON.stringify(val);
         } else {
-            value = val.toString();
+            value = val == null ? "" : val.toString();
             // 普通文本字符串添加单引号
             if (valueType == 1 && !this.textBlock) {
                 value = "'" + value + "'";

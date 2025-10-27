@@ -29,7 +29,7 @@ public abstract class JSONTemporalSerializer extends JSONTypeSerializer {
         this.temporalClass = temporalClass;
         if (property != null) {
             String pattern = property.pattern().trim();
-            if(pattern.length() > 0) {
+            if (pattern.length() > 0) {
                 dateFormatter = DateFormatter.of(pattern);
             }
         }
@@ -52,7 +52,7 @@ public abstract class JSONTemporalSerializer extends JSONTypeSerializer {
             case TemporalZonedDateTime: {
                 return new TemporalZonedDateTimeSerializer(temporalClass, property);
             }
-            case TemporalOffsetDateTime:{
+            case TemporalOffsetDateTime: {
                 return new TemporalOffsetDateTimeSerializer(temporalClass, property);
             }
             case TemporalInstant: {

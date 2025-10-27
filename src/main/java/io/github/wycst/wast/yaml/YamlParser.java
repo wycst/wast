@@ -62,10 +62,10 @@ class YamlParser extends YamlGeneral {
             // begin from 0
             int lineIndex = this.lineNum;
 
-            if(rootIndent == -1) {
+            if (rootIndent == -1) {
                 rootIndent = indent;
             } else {
-                if(indent < rootIndent) {
+                if (indent < rootIndent) {
                     throw new YamlParseException("indent value " + indent + " error, cannot less then the root indent " + rootIndent + ", at lineNum " + (lineNum + 1));
                 }
             }
@@ -354,7 +354,7 @@ class YamlParser extends YamlGeneral {
                         blockValue.append(appendChar);
 
                         // 遇到\r处理
-                        if(ch == '\r') {
+                        if (ch == '\r') {
                             i++;
                             lineNum++;
                         }
@@ -373,7 +373,7 @@ class YamlParser extends YamlGeneral {
                             if (ch != SPACE_CHAR) {
                                 // 空行
                                 blockValue.append(appendChar);
-                                if(ch == '\r') {
+                                if (ch == '\r') {
                                     i++;
                                     lineNum++;
                                 }

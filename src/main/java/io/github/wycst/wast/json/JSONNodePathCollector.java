@@ -333,7 +333,7 @@ public abstract class JSONNodePathCollector {
         public ExactImpl(Serializable path) {
             super(path);
             this.preparedSize = path instanceof Integer && (Integer) path < 0;
-            this.pathBytes = JSONUnsafe.getStringUTF8Bytes(path.toString());
+            this.pathBytes = JSONMemoryHandle.getStringUTF8Bytes(path.toString());
         }
 
         @Override

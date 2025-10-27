@@ -18,7 +18,7 @@ public class GeometryCollection extends AbstractMultiGeometry {
         elements.add(child);
     }
 
-    public void addAll(Geometry...childList) {
+    public void addAll(Geometry... childList) {
         for (Geometry child : childList) {
             elements.add(child);
         }

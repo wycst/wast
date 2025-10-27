@@ -46,6 +46,15 @@ public final class HttpHeaderValues {
     public static final String TRAILERS = "trailers";
     public static final String UPGRADE = "upgrade";
     public static final String WEBSOCKET = "websocket";
+    public static final String APPLICATION_XHTML = "application/xhtml+xml";
+    public static final String APPLICATION_XML = "application/xml";
+    public static final String APPLICATION_ZSTD = "application/zstd";
+    public static final String BR = "br";
+    public static final String ZSTD = "zstd";
+    public static final String TEXT_CSS = "text/css";
+    public static final String TEXT_HTML = "text/html";
+    public static final String TEXT_EVENT_STREAM = "text/event-stream";
+    public static final String XML_HTTP_REQUEST = "XMLHttpRequest";
 
     private HttpHeaderValues() {
     }

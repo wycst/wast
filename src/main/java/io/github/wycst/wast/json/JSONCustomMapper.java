@@ -62,7 +62,7 @@ public final class JSONCustomMapper {
 
     <T> T parseCustomObject(String json, Class<T> actualType, ReadOption[] readOptions) throws Exception {
         JSONTypeMapper<T> typeMapper = typeMapperMap.get(actualType);
-        if(typeMapper == null) {
+        if (typeMapper == null) {
             return JSON.parseObject(json, actualType, readOptions);
         }
         Object result = JSONDefaultParser.parse(json, readOptions);

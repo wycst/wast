@@ -18,6 +18,7 @@ public final class GenericParameterizedType<T> {
 
     private GenericParameterizedType() {
     }
+
     // cache
     private static final Map<Class, GenericParameterizedType> GENERIC_PARAMETERIZED_TYPE_MAP = new ConcurrentHashMap<Class, GenericParameterizedType>();
 
@@ -120,7 +121,7 @@ public final class GenericParameterizedType<T> {
             genericParameterizedType = new GenericParameterizedType();
             genericParameterizedType.setActualType(actualType);
             genericParameterizedType.actualClassCategory = ReflectConsts.getClassCategory(actualType);
-            if(actualType.isArray()) {
+            if (actualType.isArray()) {
                 genericParameterizedType.valueType = actualType(actualType.getComponentType());
             }
             GENERIC_PARAMETERIZED_TYPE_MAP.put(actualType, genericParameterizedType);
@@ -135,16 +136,16 @@ public final class GenericParameterizedType<T> {
      * @return
      */
     static GenericParameterizedType createInternal(Class actualType) {
-        if(actualType == Object.class) {
+        if (actualType == Object.class) {
             return AnyType;
         }
-        if(actualType == String.class) {
+        if (actualType == String.class) {
             return StringType;
         }
-        if(actualType == Integer.class || actualType == int.class) {
+        if (actualType == Integer.class || actualType == int.class) {
             return IntType;
         }
-        if(actualType == Long.class || actualType == long.class) {
+        if (actualType == Long.class || actualType == long.class) {
             return LongType;
         }
         GenericParameterizedType genericParameterizedType = new GenericParameterizedType();

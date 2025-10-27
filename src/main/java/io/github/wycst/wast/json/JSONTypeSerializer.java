@@ -364,7 +364,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
         @Override
         protected void serialize(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
             String stringVal = value.toString();
-            writer.writeJSONChars((char[]) JSONUnsafe.getStringValue(stringVal));
+            writer.writeJSONChars((char[]) JSONMemoryHandle.getStringValue(stringVal));
         }
     }
 
@@ -374,7 +374,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
         @Override
         protected void serialize(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
             String stringVal = value.toString();
-            byte[] bytes = (byte[]) JSONUnsafe.getStringValue(stringVal);
+            byte[] bytes = (byte[]) JSONMemoryHandle.getStringValue(stringVal);
             writer.writeJSONStringBytes(stringVal, bytes);
         }
     }
@@ -548,7 +548,7 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
                     String enumNameTokenStr = new String(chars);
                     boolean useUnsafe = enumNameTokenStr.getBytes().length == chars.length;
                     if (useUnsafe) {
-                        enumFieldNameDatas[i] = new EnumFieldNameData(null, null, UnsafeHelper.getCharLongs(enumNameTokenStr), UnsafeHelper.getByteLongs(enumNameTokenStr), chars.length);
+                        enumFieldNameDatas[i] = new EnumFieldNameData(null, null, JSONMemoryHandle.getCharLongs(enumNameTokenStr), JSONMemoryHandle.getByteLongs(enumNameTokenStr), chars.length);
                     } else {
                         if (EnvUtils.JDK_9_PLUS) {
                             enumFieldNameDatas[i] = new EnumFieldNameData(enumNameTokenStr, null, null, null, chars.length);
@@ -1127,9 +1127,20 @@ public abstract class JSONTypeSerializer extends JSONGeneral {
             if (clazz == Object.class) {
                 writer.write(EMPTY_OBJECT);
             } else {
-                ReflectConsts.ClassCategory classCategory = ReflectConsts.getClassCategory(clazz);
-                int ordinal = classCategory.ordinal();
-                JSONTypeSerializer.TYPE_SERIALIZERS[ordinal].serialize(value, writer, jsonConfig, indent);
+                JSONTypeSerializer typeSerializer = getTypeSerializer(clazz);
+                if (typeSerializer != this) {
+                    typeSerializer.serialize(value, writer, jsonConfig, indent);
+                } else {
+                    writer.writeNull();
+                }
+//                if(typeSerializer != null) {
+//                    typeSerializer.serialize(value, writer, jsonConfig, indent);
+//                } else {
+//                    ReflectConsts.ClassCategory classCategory = ReflectConsts.getClassCategory(clazz);
+//                    int ordinal = classCategory.ordinal();
+//                    typeSerializer = JSONTypeSerializer.TYPE_SERIALIZERS[ordinal];
+//
+//                }
             }
         }
     }

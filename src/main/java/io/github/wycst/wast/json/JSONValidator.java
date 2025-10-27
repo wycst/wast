@@ -18,7 +18,7 @@ final class JSONValidator extends JSONGeneral {
 
     static boolean validate(String json, ReadOption[] readOptions) {
         if (EnvUtils.JDK_9_PLUS) {
-            byte[] bytes = (byte[]) JSONUnsafe.getStringValue(json);
+            byte[] bytes = (byte[]) JSONMemoryHandle.getStringValue(json);
             if (bytes.length == json.length()) {
                 return validate(AsciiStringSource.of(json), bytes, readOptions);
             } else {
@@ -26,14 +26,14 @@ final class JSONValidator extends JSONGeneral {
                 return validate(UTF16ByteArraySource.of(json), chars, readOptions);
             }
         }
-        char[] chars = (char[]) JSONUnsafe.getStringValue(json);
+        char[] chars = (char[]) JSONMemoryHandle.getStringValue(json);
         return validate(null, chars, readOptions);
     }
 
     static boolean validate(char[] buf, ReadOption[] readOptions) {
         if (EnvUtils.JDK_9_PLUS) {
             String json = new String(buf);
-            byte[] bytes = (byte[]) JSONUnsafe.getStringValue(json);
+            byte[] bytes = (byte[]) JSONMemoryHandle.getStringValue(json);
             if (bytes.length == json.length()) {
                 return validate(AsciiStringSource.of(json), bytes, readOptions);
             } else {
@@ -45,7 +45,7 @@ final class JSONValidator extends JSONGeneral {
 
     public static boolean validate(byte[] buf, ReadOption[] readOptions) {
         if (EnvUtils.JDK_9_PLUS) {
-            return validate(AsciiStringSource.of(JSONUnsafe.createAsciiString(buf)), buf, readOptions);
+            return validate(AsciiStringSource.of(JSONMemoryHandle.createAsciiString(buf)), buf, readOptions);
         }
         return validate(null, buf, readOptions);
     }

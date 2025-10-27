@@ -81,7 +81,7 @@ public final class CSV {
         try {
             String line;
             while ((line = bufferedReader.readLine()) != null) {
-                if((line = line.trim()).length() > 0) {
+                if ((line = line.trim()).length() > 0) {
                     // 读取行
                     csvRows.add(readRow(csvTable, line));
                 }
@@ -289,7 +289,7 @@ public final class CSV {
      * @return
      */
     public static String toCSVString(List<?> objList) {
-        if(objList == null || objList.size() == 0) return null;
+        if (objList == null || objList.size() == 0) return null;
         StringBuilder builder = new StringBuilder();
         try {
             writeObjectTo(builder, objList);
@@ -307,7 +307,7 @@ public final class CSV {
      * @param charset
      */
     static void writeObjectTo(List<?> objList, OutputStream os, Charset charset) {
-        if(objList == null || objList.size() == 0) return;
+        if (objList == null || objList.size() == 0) return;
         BufferedWriter bufferedWriter = new BufferedWriter(new OutputStreamWriter(os, charset));
         try {
             writeObjectTo(bufferedWriter, objList);
@@ -354,13 +354,13 @@ public final class CSV {
                 csvColumnNames.add(String.valueOf(key));
             }
             objectKeys.addAll(csvColumnNames);
-        } else if(classCategory == ReflectConsts.ClassCategory.ObjectCategory) {
+        } else if (classCategory == ReflectConsts.ClassCategory.ObjectCategory) {
             ClassStrucWrap classStrucWrap = ClassStrucWrap.get(aClass);
             List<GetterInfo> getterInfos = classStrucWrap.getGetterInfos(classStrucWrap.isForceUseFields());
             for (GetterInfo getterInfo : getterInfos) {
                 CSVColumn csvColumn = (CSVColumn) getterInfo.getAnnotation(CSVColumn.class);
                 String name;
-                if(csvColumn != null && (name = csvColumn.value().trim()).length() > 0) {
+                if (csvColumn != null && (name = csvColumn.value().trim()).length() > 0) {
                     csvColumnNames.add(name);
                 } else {
                     csvColumnNames.add(getterInfo.getName());

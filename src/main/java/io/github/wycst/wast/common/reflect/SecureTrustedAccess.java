@@ -14,7 +14,7 @@ public abstract class SecureTrustedAccess {
 
     protected SecureTrustedAccess() {
         String implTrustedAccessName = this.getClass().getName();
-        if (TRUSTED_ACCESS_NAME_LIST.indexOf(implTrustedAccessName) == -1) {
+        if (!TRUSTED_ACCESS_NAME_LIST.contains(implTrustedAccessName)) {
             throw new UnsupportedOperationException();
         }
         this.implTrustedAccessName = implTrustedAccessName;

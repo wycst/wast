@@ -86,7 +86,7 @@ public final class StringUtils {
                     appendChar = ch;
                 }
                 upperCaseFlag = false;
-            } else if (ch >= 'A' && ch <= 'Z') {
+            } else if (i == 0 && !upperCaseFirstChar && ch >= 'A' && ch <= 'Z') {
                 appendChar = (char) (ch + 32);
             } else {
                 appendChar = ch;

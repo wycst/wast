@@ -24,17 +24,17 @@ public class StringTemplateManager {
      * @return
      */
     public static synchronized StringTemplate getStringTemplate(String resource) {
-        if(StringUtils.isEmpty(resource)) {
+        if (StringUtils.isEmpty(resource)) {
             return null;
         }
-        if(!resource.startsWith("/")) {
+        if (!resource.startsWith("/")) {
             resource = "/" + resource;
         }
-        if(resourceTemplates.containsKey(resource)) {
+        if (resourceTemplates.containsKey(resource)) {
             return resourceTemplates.get(resource);
         }
         String templateSource = StringUtils.fromResource(resource);
-        if(templateSource == null) {
+        if (templateSource == null) {
             return null;
         }
         StringTemplate template = new StringTemplate(templateSource);
@@ -42,5 +42,5 @@ public class StringTemplateManager {
         return template;
     }
 
-    
+
 }

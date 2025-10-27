@@ -123,21 +123,21 @@ class JSONWrapWriter extends JSONWriter {
             year = -year;
         }
         if (year < 10000) {
-            off += JSONUnsafe.putLong(buf, off, FOUR_DIGITS_64_BITS[year]);
+            off += JSONMemoryHandle.putLong(buf, off, FOUR_DIGITS_64_BITS[year]);
         } else {
             off += writeInteger(year, buf, off);
         }
-        off += JSONUnsafe.putLong(buf, off, ((long) '-') << 48 | ((long) TWO_DIGITS_32_BITS[month]) << 16 | '-');
-        off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[day]);
-        off += JSONUnsafe.putLong(buf, off, mergeInt64(hour, 'T', ':'));
-        off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[minute]);
+        off += JSONMemoryHandle.putLong(buf, off, ((long) '-') << 48 | ((long) TWO_DIGITS_32_BITS[month]) << 16 | '-');
+        off += JSONMemoryHandle.putInt(buf, off, TWO_DIGITS_32_BITS[day]);
+        off += JSONMemoryHandle.putLong(buf, off, mergeInt64(hour, 'T', ':'));
+        off += JSONMemoryHandle.putInt(buf, off, TWO_DIGITS_32_BITS[minute]);
         buf[off++] = ':';
-        off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[second]);
+        off += JSONMemoryHandle.putInt(buf, off, TWO_DIGITS_32_BITS[second]);
         if (nano > 0) {
             off = writeNano(nano, buf, off);
         }
         if (zoneId.length() == 1) {
-            off += JSONUnsafe.putInt(buf, off, Z_QUOT_INT);
+            off += JSONMemoryHandle.putInt(buf, off, Z_QUOT_INT);
             writer.write(buf, 0, off);
         } else {
             writer.write(buf, 0, off);
@@ -156,12 +156,12 @@ class JSONWrapWriter extends JSONWriter {
             year = -year;
         }
         if (year < 10000) {
-            off += JSONUnsafe.putLong(buf, off, FOUR_DIGITS_64_BITS[year]);
+            off += JSONMemoryHandle.putLong(buf, off, FOUR_DIGITS_64_BITS[year]);
         } else {
             off += writeLong(year, buf, off);
         }
-        off += JSONUnsafe.putLong(buf, off, ((long) '-') << 48 | ((long) TWO_DIGITS_32_BITS[month]) << 16 | '-');
-        off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[day]);
+        off += JSONMemoryHandle.putLong(buf, off, ((long) '-') << 48 | ((long) TWO_DIGITS_32_BITS[month]) << 16 | '-');
+        off += JSONMemoryHandle.putInt(buf, off, TWO_DIGITS_32_BITS[day]);
         buf[off++] = '"';
         writer.write(buf, 0, off);
     }
@@ -170,9 +170,9 @@ class JSONWrapWriter extends JSONWriter {
     public void writeTime(int hourOfDay, int minute, int second) throws IOException {
         char[] buf = JSONGeneral.CACHED_CHARS_36.get();
         int off = 0;
-        off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[hourOfDay]);
-        off += JSONUnsafe.putLong(buf, off, mergeInt64(minute, ':', ':'));
-        off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[second]);
+        off += JSONMemoryHandle.putInt(buf, off, TWO_DIGITS_32_BITS[hourOfDay]);
+        off += JSONMemoryHandle.putLong(buf, off, mergeInt64(minute, ':', ':'));
+        off += JSONMemoryHandle.putInt(buf, off, TWO_DIGITS_32_BITS[second]);
         writer.write(buf, 0, off);
     }
 
@@ -181,9 +181,9 @@ class JSONWrapWriter extends JSONWriter {
         char[] buf = JSONGeneral.CACHED_CHARS_36.get();
         int off = 0;
         buf[off++] = '"';
-        off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[hourOfDay]);
-        off += JSONUnsafe.putLong(buf, off, mergeInt64(minute, ':', ':')); // writeTwoDigitsAndPreSuffix(minute, ':', ':', buf, off);
-        off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[second]);
+        off += JSONMemoryHandle.putInt(buf, off, TWO_DIGITS_32_BITS[hourOfDay]);
+        off += JSONMemoryHandle.putLong(buf, off, mergeInt64(minute, ':', ':')); // writeTwoDigitsAndPreSuffix(minute, ':', ':', buf, off);
+        off += JSONMemoryHandle.putInt(buf, off, TWO_DIGITS_32_BITS[second]);
         if (nano > 0) {
             off = writeNano(nano, buf, off);
         }
@@ -200,16 +200,16 @@ class JSONWrapWriter extends JSONWriter {
             year = -year;
         }
         if (year < 10000) {
-            off += JSONUnsafe.putLong(buf, off, FOUR_DIGITS_64_BITS[year]);
+            off += JSONMemoryHandle.putLong(buf, off, FOUR_DIGITS_64_BITS[year]);
         } else {
             off += writeLong(year, buf, off);
         }
-        off += JSONUnsafe.putLong(buf, off, mergeInt64(month, '-', '-'));
-        off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[day]);
-        off += JSONUnsafe.putLong(buf, off, mergeInt64(hourOfDay, ' ', ':'));
-        off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[minute]);
+        off += JSONMemoryHandle.putLong(buf, off, mergeInt64(month, '-', '-'));
+        off += JSONMemoryHandle.putInt(buf, off, TWO_DIGITS_32_BITS[day]);
+        off += JSONMemoryHandle.putLong(buf, off, mergeInt64(hourOfDay, ' ', ':'));
+        off += JSONMemoryHandle.putInt(buf, off, TWO_DIGITS_32_BITS[minute]);
         buf[off++] = ':';
-        off += JSONUnsafe.putInt(buf, off, TWO_DIGITS_32_BITS[second]);
+        off += JSONMemoryHandle.putInt(buf, off, TWO_DIGITS_32_BITS[second]);
         writer.write(buf, 0, off);
     }
 

@@ -217,6 +217,9 @@ public abstract class JSONNodePathFilter {
                 }
             } else {
                 context = new HashMap();
+                if (node.leaf) {
+                    context.put("value", any);
+                }
                 context.put("$", node.root.any());
                 context.put("self", any);
                 context.put("this", node);

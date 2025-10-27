@@ -1,5 +1,5 @@
 /*
- * Copyright [2020-2024] [wangyunchao]
+ * Copyright [2020-2026] [wangyunchao]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +20,10 @@ import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.utils.ObjectUtils;
 import io.github.wycst.wast.common.utils.ReflectUtils;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.List;
 
 /**
  * 常量、变量、操作执行器
@@ -71,118 +72,6 @@ public class ExprEvaluator {
 
     public final ExprEvaluator getRight() {
         return right;
-    }
-
-    // Not the best performance issue
-    String[] parseStringArr(String splitStr, AtomicInteger atomicInteger, AtomicBoolean strArr, AtomicBoolean doubleArr) {
-        int length = splitStr.length();
-        boolean isStrArr = false, isDoubleArr = false;
-        String[] strings = new String[10];
-        int beginIndex = 0;
-        int arrLen = 0;
-        int bracketCount = 0;
-        int bigBracketCount = 0;
-        for (int i = 0; i < length; ++i) {
-            char ch = splitStr.charAt(i);
-            if (!isStrArr && (/*ch == '"' || */ch == '\'')) {
-                isStrArr = true;
-            }
-            if (!isDoubleArr && ch == '.') {
-                isDoubleArr = true;
-            }
-            if (ch == '(') {
-                ++bracketCount;
-            } else if (ch == ')') {
-                --bracketCount;
-            } else if (ch == '{') {
-                ++bigBracketCount;
-            } else if (ch == '}') {
-                --bigBracketCount;
-            } else {
-                if (bracketCount == 0 && bigBracketCount == 0 && ch == ',') {
-                    if (arrLen == strings.length) {
-                        Object[] tmp = strings;
-                        strings = new String[strings.length << 1];
-                        System.arraycopy(tmp, 0, strings, 0, tmp.length);
-                    }
-                    String val = new String(splitStr.substring(beginIndex, i).trim());
-                    strings[arrLen++] = val;
-                    beginIndex = i + 1;
-                }
-            }
-        }
-        if (arrLen == strings.length) {
-            Object[] tmp = strings;
-            strings = new String[strings.length << 1];
-            System.arraycopy(tmp, 0, strings, 0, tmp.length);
-        }
-        // 添加最后一个
-        strings[arrLen++] = new String(splitStr.substring(beginIndex, length).trim());
-        // 设置输出长度
-        atomicInteger.set(arrLen);
-        strArr.set(isStrArr);
-        doubleArr.set(isDoubleArr);
-        return strings;
-    }
-
-
-    /**
-     * 设置数组常量，常量数组仅支持number数组和字符串数组
-     * 去掉了开始和结束的标记，使用逗号分割进行解析
-     *
-     * @param splitStr
-     */
-    public void setArrayValue(String splitStr) {
-        this.constant = true;
-        splitStr = splitStr.trim();
-
-        int length = splitStr.length();
-        if (length == 0) {
-            this.result = EMPTY_ARGS;
-            return;
-        }
-
-        AtomicInteger atomicInteger = new AtomicInteger();
-        AtomicBoolean strArr = new AtomicBoolean();
-        AtomicBoolean doubleArr = new AtomicBoolean();
-        String[] strings = parseStringArr(splitStr, atomicInteger, strArr, doubleArr);
-
-        int arrLen = atomicInteger.get();
-        boolean isStrArr = strArr.get(), isDoubleArr = doubleArr.get();
-
-        // 结果
-        Object[] result;
-        if (isStrArr) {
-            result = new String[arrLen];
-        } else {
-            if (isDoubleArr) {
-                result = new Double[arrLen];
-            } else {
-                result = new Long[arrLen];
-            }
-        }
-
-        for (int i = 0; i < arrLen; ++i) {
-            String val = strings[i];
-            if (isStrArr) {
-                // 字符串数组
-                if (val.startsWith("'") && val.endsWith("'")) {
-                    val = new String(val.substring(1, val.length() - 1));
-                } /*else if (val.startsWith("\"") && val.endsWith("\"")) {
-                    val = val.substring(1, val.length() - 1);
-                } */ else {
-                    throw new ExpressionException("无效的字符串数组元素: " + val + ", 数组片段： '" + splitStr + "'");
-                }
-                result[i] = val;
-            } else {
-                if (isDoubleArr) {
-                    result[i] = Double.parseDouble(val.trim());
-                } else {
-                    result[i] = Long.parseLong(val.trim());
-                }
-            }
-        }
-        this.result = result;
     }
 
     public boolean isNegate() {
@@ -351,7 +240,7 @@ public class ExprEvaluator {
                 right.throwNotAllowNullException();
             }
         } else {
-            if(exception instanceof ExpressionException) {
+            if (exception instanceof ExpressionException) {
                 throw exception;
             } else {
                 throw new ExpressionException("ElRunError: execution of operation symbol '" + operator.symbol + "' failed, left " + leftValue + ", right " + rightValue, exception);
@@ -584,6 +473,48 @@ public class ExprEvaluator {
                 return builder.append("\"").append(strValue).append("\"").toString();
             }
             return String.valueOf(result);
+        }
+    }
+
+    // 数组
+    final static class ListImpl extends ExprEvaluator {
+        private final List<Object> list;
+
+        ListImpl(List<Object> list) {
+            boolean isConstant = true;
+            for (Object obj : list) {
+                if (obj instanceof ExprParser) {
+                    isConstant = false;
+                    break;
+                }
+            }
+            this.constant = isConstant;
+            this.list = list;
+        }
+
+        @Override
+        public Object evaluate(EvaluatorContext context, EvaluateEnvironment evaluateEnvironment) {
+            if (constant) {
+                return list;
+            }
+            List<Object> result = new ArrayList<Object>();
+            for (Object obj : list) {
+                result.add(obj instanceof ExprParser ? ((ExprParser) obj).doEvaluate(context, evaluateEnvironment) : obj);
+            }
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return String.valueOf(result);
+        }
+
+        @Override
+        public String code() {
+            StringBuilder builder = new StringBuilder("java.util.Arrays.asList(");
+            codeParams(builder, list);
+            builder.append(")");
+            return builder.toString();
         }
     }
 
@@ -1105,21 +1036,22 @@ public class ExprEvaluator {
 
     static class FunctionImpl extends ExprEvaluator {
         // 函数名称
-        String functionName;
-        // 参数表达式数组
-        String[] paramExprs;
+        final String functionName;
         // 参数数组长度
-        int paramLength;
+        final int paramLength;
         // 参数表达式数组
-        ExprParser[] paramExprParsers;
-
-        public FunctionImpl() {
-            this.evalType = EVAL_TYPE_FUN;
-        }
+        final Object[] methodParams;
 
         @Override
         public String toString() {
             return "FunctionImpl{@function}";
+        }
+
+        public FunctionImpl(String functionName, List<Object> params) {
+            this.evalType = EVAL_TYPE_FUN;
+            this.functionName = functionName;
+            this.methodParams = params == null ? new Object[0] : params.toArray();
+            this.paramLength = methodParams.length;
         }
 
         @Override
@@ -1128,47 +1060,17 @@ public class ExprEvaluator {
             StringBuilder builder = new StringBuilder();
             builder.append(functionName)
                     .append("(");
-            for (int i = 0; i < paramLength; ++i) {
-                builder.append(paramExprParsers[i].getEvaluator().code());
-                if (i < paramLength - 1) {
-                    builder.append(",");
-                }
-            }
+            codeParams(builder, Arrays.asList(methodParams));
             builder.append(")");
             return builder.toString();
-        }
-
-        // 以@作为标记
-        public void setFunction(String funName, String params, ExprParser global) {
-
-            this.functionName = funName.trim();
-            if (params.isEmpty()) {
-                this.paramLength = 0;
-                this.paramExprs = new String[0];
-                return;
-            }
-
-            // 解析数据
-            AtomicInteger atomicInteger = new AtomicInteger();
-            AtomicBoolean strArr = new AtomicBoolean(true);
-            AtomicBoolean doubleArr = new AtomicBoolean(true);
-            String[] paramExprs = parseStringArr(params, atomicInteger, strArr, doubleArr);
-
-            this.paramExprs = paramExprs;
-            this.paramLength = atomicInteger.get();
-
-            ExprParser[] paramExprParsers = new ExprParser[paramLength];
-            for (int i = 0; i < paramLength; ++i) {
-                paramExprParsers[i] = new ExprChildParser(paramExprs[i], global);
-            }
-            this.paramExprParsers = paramExprParsers;
         }
 
         protected final Object[] invokeParams(EvaluatorContext evaluatorContext, EvaluateEnvironment evaluateEnvironment) {
             if (paramLength == 0) return EMPTY_ARGS;
             Object[] params = new Object[paramLength];
             for (int i = 0; i < paramLength; ++i) {
-                params[i] = paramExprParsers[i].doEvaluate(evaluatorContext, evaluateEnvironment);
+                Object obj = methodParams[i];
+                params[i] = obj instanceof ExprParser ? ((ExprParser) obj).doEvaluate(evaluatorContext, evaluateEnvironment) : obj;
             }
             return params;
         }
@@ -1209,6 +1111,11 @@ public class ExprEvaluator {
             return "MethodImpl{@method}";
         }
 
+        public MethodImpl(ElVariableInvoker variableInvoker, String functionName, List<Object> params) {
+            super(functionName, params);
+            this.variableInvoker = variableInvoker;
+        }
+
         @Override
         public String code() {
             // template: "_$%d.%s(%s)"
@@ -1218,33 +1125,18 @@ public class ExprEvaluator {
                     .append(".")
                     .append(functionName)
                     .append("(");
-            for (int i = 0; i < paramLength; ++i) {
-                builder.append(paramExprParsers[i].getEvaluator().code());
-                if (i < paramLength - 1) {
-                    builder.append(",");
-                }
-            }
+            codeParams(builder, Arrays.asList(methodParams));
             builder.append(")");
             return builder.toString();
         }
 
-        // 以@作为标记
-        public void setMethod(ElVariableInvoker variableInvoker, String methodName, String params, ExprParser global) {
-            this.variableInvoker = variableInvoker;
-            setFunction(methodName, params, global);
-        }
-
         Object evaluateMethod(EvaluatorContext evaluatorContext, EvaluateEnvironment evaluateEnvironment) {
             // 获取方法调用者
-            Object invokeObj = null;
+            Object invokeObj;
             try {
                 invokeObj = evaluatorContext.getContextValue(variableInvoker);
             } catch (RuntimeException e) {
-                if (invokeObj == null) {
-                    throw new ExpressionException("unresolved property or variable: '" + variableInvoker + "' from context");
-                } else {
-                    throw e;
-                }
+                throw new ExpressionException("unresolved property or variable: '" + variableInvoker + "' from context", e);
             }
             try {
                 if (invokeObj == null && evaluateEnvironment.allowVariableNull) {
@@ -1270,6 +1162,98 @@ public class ExprEvaluator {
                 return functionValue == Boolean.FALSE || functionValue == null;
             }
             return functionValue;
+        }
+    }
+
+    /**
+     * java成员访问包括属性或者方法
+     */
+    final static class MemberImpl extends ExprEvaluator {
+        final ExprEvaluator host;
+        final boolean isMethod;
+        final String memberName;
+        final List<Object> methodParams;
+
+        @Override
+        public String toString() {
+            if (isMethod) {
+                return "MemberImpl{." + memberName + "()}";
+            } else {
+                return "MemberImpl{." + memberName + "}";
+            }
+        }
+
+        public MemberImpl(ExprEvaluator host, boolean isMethod, String memberName, List<Object> methodParams) {
+            this.host = host;
+            this.isMethod = isMethod;
+            this.memberName = memberName;
+            this.methodParams = methodParams;
+        }
+
+        @Override
+        public String code() {
+            StringBuilder builder = new StringBuilder(host.code());
+            builder.append(".");
+            if (isMethod) {
+                builder.append(memberName)
+                        .append("(");
+                codeParams(builder, methodParams);
+                builder.append(")");
+            } else {
+                builder.append(memberName);
+            }
+            return builder.toString();
+        }
+
+        Object evaluateMember(EvaluatorContext evaluatorContext, EvaluateEnvironment evaluateEnvironment) {
+            // 获取成员的host
+            Object target;
+            try {
+                target = this.host.evaluate(evaluatorContext, evaluateEnvironment);
+            } catch (RuntimeException e) {
+                throw new ExpressionException("unresolved member host from context ", e);
+            }
+            try {
+                if (target == null) {
+                    return null;
+                }
+                if (isMethod) {
+                    Object[] params = new Object[methodParams.size()];
+                    int i = 0;
+                    for (Object obj : methodParams) {
+                        params[i++] = obj instanceof ExprParser ? ((ExprParser) obj).doEvaluate(evaluatorContext, evaluateEnvironment) : obj;
+                    }
+                    return ReflectUtils.invoke(target, memberName, params);
+                } else {
+                    Object value = ObjectUtils.get(target, memberName);
+                    if (value == null) {
+                        if (evaluateEnvironment.allowVariableNull) {
+                            return null;
+                        } else {
+                            throw new ExpressionException("unresolved member: '" + memberName + "' from context");
+                        }
+                    }
+                    return value;
+                }
+            } catch (Throwable throwable) {
+                if (!ObjectUtils.contains(target, memberName)) {
+                    throw new ExpressionException("unresolved member '" + memberName + "' not exist in " + target.getClass());
+                }
+                throw new ExpressionException("unresolved member: '" + memberName + "' from context", throwable);
+            }
+        }
+
+        @Override
+        public Object evaluate(EvaluatorContext evaluatorContext, EvaluateEnvironment evaluateEnvironment) {
+            // 执行函数
+            Object memberValue = evaluateMember(evaluatorContext, evaluateEnvironment);
+            if (negate) {
+                return ExprCalculateUtils.negate(memberValue);
+            }
+            if (logicalNot) {
+                return memberValue == Boolean.FALSE || memberValue == null;
+            }
+            return memberValue;
         }
     }
 
@@ -1367,4 +1351,24 @@ public class ExprEvaluator {
         throw new UnsupportedOperationException("non compiled executor are not supported code()");
     }
 
+    final static void codeParams(StringBuilder builder, List<Object> params) {
+        int i = 0;
+        for (Object obj : params) {
+            if (i > 0) {
+                builder.append(",");
+            }
+            if (obj instanceof String) {
+                String strValue = (String) obj;
+                if (strValue.indexOf('"') > -1) {
+                    strValue = strValue.replace("\"", "\\\"");
+                }
+                builder.append("\"").append(strValue).append("\"");
+            } else if (obj instanceof ExprParser) {
+                builder.append(((ExprParser) obj).getEvaluator().code());
+            } else {
+                builder.append(obj);
+            }
+            ++i;
+        }
+    }
 }

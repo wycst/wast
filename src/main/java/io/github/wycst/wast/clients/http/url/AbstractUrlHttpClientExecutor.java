@@ -57,7 +57,7 @@ abstract class AbstractUrlHttpClientExecutor extends HttpClientExecutor {
                         if (count == len) break;
                         len -= count;
                     }
-                    if(offset != contentLength) {
+                    if (offset != contentLength) {
                         // The actual length of the read content is less than the content length declared in the header
                         // whether to throw an error
                     }

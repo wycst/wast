@@ -5,7 +5,7 @@ import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 /**
  * branch optimization, unpacking, and JIT optimization for commonly used entity classes (JDK9+ has a slightly noticeable effect +5%~20%)
  * currently still using reflection, will consider using bytecode for JIT optimization in the future.
- *
+ * <p>
  * all fields in POJO are encoded in ASCII.
  * if there are Chinese fields, it will increase the coding complexity and optimization is not currently supported
  *
@@ -18,12 +18,19 @@ public abstract class JSONPojoOptimizeDeserializer<T> extends JSONTypeDeserializ
     final GenericParameterizedType<T> genericType;
     final JSONKeyValueMap.EntryNode<JSONPojoFieldDeserializer>[] valueEntryNodes;
     final int mask;
+
     JSONPojoOptimizeDeserializer(JSONPojoStructure pojoStructure) {
         this.pojoStructure = pojoStructure;
         this.genericType = pojoStructure.getGenericType();
         this.fieldDeserializerMap = pojoStructure.fieldDeserializerMatcher.valueMapForChars;
         this.valueEntryNodes = fieldDeserializerMap.valueEntryNodes;
         this.mask = fieldDeserializerMap.mask;
+    }
+
+    @Override
+    protected final boolean checkIfSupportedStartsWith(int c) {
+        // null
+        return c == '{' || c == 'n';
     }
 
     abstract static class GenericImpl extends JSONPojoOptimizeDeserializer {
@@ -283,6 +290,50 @@ public abstract class JSONPojoOptimizeDeserializer<T> extends JSONTypeDeserializ
             throwUnexpectedException(buf, i, c, ':');
         }
 
+        fieldDeserializer = c == DOUBLE_QUOTATION || c == '\'' ? matchDeserializer(buf, i + 1, c, parseContext) : matchUnquoted(buf, i, c, parseContext);
+        c = buf[i = skipWhiteSpacesOrComment(buf, parseContext.endIndex, allowComment, parseContext)];
+        if (c == COLON_SIGN) {
+            i = skipWhiteSpacesOrComment(buf, i, allowComment, parseContext);
+            if (fieldDeserializer != null) {
+                Object value = fieldDeserializer.deserializer.deserialize(charSource, buf, i, fieldDeserializer.genericParameterizedType, null, END_OBJECT, parseContext);
+                JSON_SECURE_TRUSTED_ACCESS.set(fieldDeserializer.setterInfo, entity, value);
+            } else {
+                JSONTypeDeserializer.ANY.skip(charSource, buf, i, END_OBJECT, parseContext);
+            }
+            c = buf[i = skipWhiteSpacesOrComment(buf, parseContext.endIndex, allowComment, parseContext)];
+            if (c == END_OBJECT || ((isComma = c == COMMA) && ((c = buf[i = skipWhiteSpacesOrComment(buf, i, allowComment, parseContext)]) == END_OBJECT) && allowLastEndComma)) {
+                parseContext.endIndex = i;
+                return entity;
+            }
+            if (!isComma) {
+                throwUnexpectedException(buf, i, c, ',', '}');
+            }
+        } else {
+            throwUnexpectedException(buf, i, c, ':');
+        }
+
+        fieldDeserializer = c == DOUBLE_QUOTATION || c == '\'' ? matchDeserializer(buf, i + 1, c, parseContext) : matchUnquoted(buf, i, c, parseContext);
+        c = buf[i = skipWhiteSpacesOrComment(buf, parseContext.endIndex, allowComment, parseContext)];
+        if (c == COLON_SIGN) {
+            i = skipWhiteSpacesOrComment(buf, i, allowComment, parseContext);
+            if (fieldDeserializer != null) {
+                Object value = fieldDeserializer.deserializer.deserialize(charSource, buf, i, fieldDeserializer.genericParameterizedType, null, END_OBJECT, parseContext);
+                JSON_SECURE_TRUSTED_ACCESS.set(fieldDeserializer.setterInfo, entity, value);
+            } else {
+                JSONTypeDeserializer.ANY.skip(charSource, buf, i, END_OBJECT, parseContext);
+            }
+            c = buf[i = skipWhiteSpacesOrComment(buf, parseContext.endIndex, allowComment, parseContext)];
+            if (c == END_OBJECT || ((isComma = c == COMMA) && ((c = buf[i = skipWhiteSpacesOrComment(buf, i, allowComment, parseContext)]) == END_OBJECT) && allowLastEndComma)) {
+                parseContext.endIndex = i;
+                return entity;
+            }
+            if (!isComma) {
+                throwUnexpectedException(buf, i, c, ',', '}');
+            }
+        } else {
+            throwUnexpectedException(buf, i, c, ':');
+        }
+
         for (; ; ) {
             fieldDeserializer = c == DOUBLE_QUOTATION || c == '\'' ? matchDeserializer(buf, i + 1, c, parseContext) : matchUnquoted(buf, i, c, parseContext);
             c = buf[i = skipWhiteSpacesOrComment(buf, parseContext.endIndex, allowComment, parseContext)];
@@ -350,11 +401,11 @@ public abstract class JSONPojoOptimizeDeserializer<T> extends JSONTypeDeserializ
 
     static JSONPojoOptimizeDeserializer optimize(JSONPojoStructure pojoStructure) {
 
-        if(pojoStructure.fieldDeserializerMatcher.isPlhv()) {
+        if (pojoStructure.fieldDeserializerMatcher.isPlhv()) {
             final JSONKeyValueMap<JSONPojoFieldDeserializer> fieldDeserializerMap = pojoStructure.fieldDeserializerMatcher.valueMapForChars;
 
             final int size = pojoStructure.fieldDeserializers.size();
-            if(size == 1) {
+            if (size == 1) {
                 final JSONKeyValueMap.EntryNode<JSONPojoFieldDeserializer> one = fieldDeserializerMap.first();
                 final JSONPojoFieldDeserializer value = one.value;
                 final int hv = (int) one.hash;
@@ -447,7 +498,7 @@ public abstract class JSONPojoOptimizeDeserializer<T> extends JSONTypeDeserializ
                     return skipIfNotMatch(buf, endToken, parseContext);
                 }
             };
-        } else if(pojoStructure.fieldDeserializerMatcher.isPrhv()) {
+        } else if (pojoStructure.fieldDeserializerMatcher.isPrhv()) {
             final long primeValue = pojoStructure.fieldDeserializerMatcher.valueMapForChars.primeValue;
             final long primeSquare = primeValue * primeValue;
             return new GenericImpl(pojoStructure) {
@@ -489,7 +540,7 @@ public abstract class JSONPojoOptimizeDeserializer<T> extends JSONTypeDeserializ
                     return hashValue;
                 }
             };
-        } else if(pojoStructure.fieldDeserializerMatcher.isBihv()) {
+        } else if (pojoStructure.fieldDeserializerMatcher.isBihv()) {
             final int bits = pojoStructure.fieldDeserializerMatcher.valueMapForChars.getBits();
             final int bitsTwice = bits << 1;
             return new GenericImpl(pojoStructure) {

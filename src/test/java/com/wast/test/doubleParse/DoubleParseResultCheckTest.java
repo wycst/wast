@@ -17,8 +17,8 @@ public class DoubleParseResultCheckTest {
             if(d0 == Double.POSITIVE_INFINITY || d0 == Double.NEGATIVE_INFINITY || Double.isNaN(d0)) {
                 continue;
             }
-            String jdkString = Double.toString(d0);
-            double d1 = JSON.parseNumberAs(jdkString, double.class);
+            String jdkString = JSON.toString(d0);
+            double d1 = JSON.parseDouble(jdkString);
             if(d0 != d1) {
                 System.out.println(i + "======================1 diff " +  jdkString);
                 System.out.println(i + "======================2 diff " +  d1);
