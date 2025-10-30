@@ -30,7 +30,8 @@ WAST是一个高性能Java工具集库包，包括JSON、YAML、CSV、HttpClient
 > 2 支持IO流文件读写，JSON节点树按需解析，序列化格式化，驼峰下划线自动转换,实体类解析绑定；<br>
 > 3 支持自定义序列化和反序列化；<br>
 > 4 支持JSON的xpath提取功能；<br>
-> 5 没有漏洞风险；<br>
+> 5 支持基本JSONSchema校验；<br>
+> 6 没有漏洞风险；<br>
 
 ## YAML
 
@@ -48,9 +49,9 @@ WAST是一个高性能Java工具集库包，包括JSON、YAML、CSV、HttpClient
 > 4 支持函数以及自定义函数实现； <br>
 > 5 科学记数法支持，16进制，8进制等解析，支持大数运算(BigDecimal)；<br>
 > 6 支持三目运算；<br>
-> 7 没有漏洞风险；<br>
-> 8 支持超长文本表达式执行；<br>
-> 9 支持表达式编译模式运行；<br>
+> 7 支持超长文本表达式执行；<br>
+> 8 支持表达式编译模式运行；<br>
+> 9 没有漏洞风险；<br>
 
 ## JDBC
 
@@ -66,6 +67,7 @@ WAST是一个高性能Java工具集库包，包括JSON、YAML、CSV、HttpClient
 > 3 支持文件上传(已封装API)，文件下载也能轻松处理支持；<br>
 > 4 支持nacos和consul作为ServerZone提供源，可以通过服务实例来访问请求；<br>
 > 5 支持负载均衡(客户端)和高可用访问调用；<br>
+> 6 支持SSE调用；<br>
 
 ## JSON
 
@@ -273,6 +275,46 @@ System.out.println(map);
   
 ```
 
+### JSONSchema
+
+schemaJson
+```
+{
+	"properties": {
+		"name": {
+			"must": true,
+			"rules": [
+				{
+					"expression": "value.indexOf('test') > -1",
+					"message": "必须包含test"
+				}
+			],
+			"type": "string"
+		},
+		"age": {
+			"maximum": 100,
+			"minimum": 20,
+			"type": "number"
+		},
+		"key": {
+			"type": [
+				"number",
+				"boolean"
+			]
+		}
+	},
+	"type": "object"
+}
+```
+校验
+```
+        String schemaJson = "...";  // schemaJson
+        JSONSchema schema = JSONSchema.of(schemaJson);
+        JSONSchemaResult result = schema.validate("{\"name\":\"wyctesRtst\",\"age\": 33, \"key\": false}");
+        System.out.println(result);
+```
+
+
 ### SpringBoot(Spring MVC) 集成
 
 supports/json-springmvc/JSONHttpMessageConverter.java
@@ -326,6 +368,16 @@ supports/json-springmvc/JSONHttpMessageConverter.java
 | UseBigDecimalAsDefaultNumber   | 开启后在不确定number类型情况下，统一转化为BigDecimal；默认自动判断number类型转化为int或long或者double                                            | |
 | AllowLastEndComma   | 支持对象或者数组最后一个属性或者元素后面存在逗号，比如[1,2,3,]开启后也能正常解析                                                                    |
 | UnMatchedEmptyAsNull   | 解析到空字符串但目标类型又不是字符串时，返回null，否则抛出异常                                                                               |
+
+
+JSON模块为了高性能，内部大量使用UNSAFE相关的API，在缺省情况下通常没有问题，如果某些硬件架构需要内存对齐要求，请设置如下VM参数（v0.0.27）:
+  ```
+  -Dwast.json.required-memory-alignment=true
+  ```
+或者使用编码
+   ```
+  JSONVmOptions.forceRequiredMemoryAlignment();
+  ```
 
 ## YAML
 
@@ -658,6 +710,69 @@ fos.write(content);
 fos.flush();
 fos.close();
 
+```
+
+### 流式下载
+
+超大文件比如超过2g的文件，普通下载方式会占用大量内存，此时可以使用流式下载，将文件内容写入文件。
+
+```
+        // 异步下载(支持下载进度显示)
+        String url = "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_linux-aarch64_bin.tar.gz";
+        HttpClientConfig clientConfig = HttpClientConfig.
+                create()
+                .responseCallback(new ResponseCallback() {
+                    @Override
+                    public void onDownloadProgress(long downloaded, long total) {
+                        System.out.println("downloaded " + downloaded + " total " + total + " progress " + (downloaded * 100 / total) + "%");
+                    }
+                });
+        // 指定输出文件流
+        OutputStream target = new FileOutputStream("E:/tmp/openjdk-21.0.2_linux-aarch64_bin-1.tar.gz");
+        HttpClient.create().download(url, clientConfig, target);
+
+        // 普通默认下载（${用户目录}/Downloads/${fileName}）
+        HttpClient.create().download(
+                "http://localhost:8818/rest/monitor-business-server/toml/downloadTemplate?tabCode=Redfish&gatherCode=0ee1318aa2394348b16c29182772e10d",
+                HttpClientConfig.create().downloadFileName("test.xlsx"));  // 如果不指定文件名，则使用服务端返回的Content-Disposition中的文件名或者url中的文件名
+```
+
+### SSE支持
+
+示例代码
+```
+        HttpClient httpClient = new HttpClient();
+        Map<String, Object> headers = new HashMap<String, Object>();
+        headers.put("authorization", "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1aWQiOiIxIiwicGNvZGUiOiI3MDAxIiwidW4iOiJkZXYiLCJybiI6IueuoeeQhuWRmCIsInJpZCI6ImF2bHNHYW1DY0dhdGNEYmlLUUkiLCJleHAiOjE3NTkxNTg2MDgsIm1ybGUiOiIwIiwidGlkIjoiZGVmYXVsdF90ZW5hbnQifQ.kl2oNVb2mlmSctPWCFC9MlhHS3pdatl2IptgyPCFZag");
+        headers.put("client-id", "f7cce9099aadc57e677e548f34d0a4a9");
+        headers.put("Connection", "keep-alive");
+        headers.put("assistant-key", "langchat-8c2f9bab5c1147fc90aa00dadc679382");
+
+        String json =  "{\"conversationId\":\"1c76578e-30ed-4eac-b5ba-b4f62a9ea004\",\"messages\":[{\"role\":\"user\",\"content\":\"你能做什么?\"}]}";
+        HttpClientConfig clientConfig = HttpClientConfig.create()
+                .headers(headers)
+                .contentType("application/json")
+                .jsonBody(json) // 自动设置 application/json，支持直接传入对象或者序列化好的JSON字符串（内部自动检测）
+                .retry(-1, 10) // 重试参数： -1代表无限次重连， 10为每次重连间隔
+                .responseStream(true);  // 开启流式
+
+        String url = "http://192.168.1.146:30080/v1/chat/completions";
+        EventSourceHandler eventSourceHandler = httpClient.eventSource(url, HttpClientMethod.POST, clientConfig, new EventSourceCallback() {
+            @Override
+            public void onmessage(EventSourceMessage message) {
+                System.out.println("data: " + message.getData());
+            }
+
+            @Override
+            public void onopen(HttpClientResponse response) {
+                System.out.println("open " + response);
+            }
+
+            @Override
+            public void onclose() {
+                System.out.println("close");
+            }
+        });
 ```
 
 ### nacos集成案例
