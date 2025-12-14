@@ -2,13 +2,38 @@
 
 WAST是一个高性能Java工具集库包，包括JSON、YAML、CSV、HttpClient、JDBC和EL引擎.
 
-此分支底层弃用sun.misc.Unsafe类，取而代之的是jdk.internal.misc.Unsafe, 使用jdk.internal.misc.Unsafe需要添加VM参数:
+性能评测数据(github: https://github.com/wycst/wast-jmh-test) <br>
+[https://gitee.com/xiaoch0209/wast-jmh-test](https://gitee.com/xiaoch0209/wast-jmh-test)
 
+2022-09-25 json性能测试数据 <br>
+[https://gitee.com/xiaoch0209/wast-jmh-test/blob/main/README_0925_json.md](https://gitee.com/xiaoch0209/wast-jmh-test/blob/main/README_0925_json.md)
+
+2022-12-14 表达式引擎<br>
+[https://gitee.com/xiaoch0209/wast-jmh-test/blob/main/README_1214_EL.md](https://gitee.com/xiaoch0209/wast-jmh-test/blob/main/README_1214_EL.md)
+
+此库不依赖任何第三方库，对JDK版本要求1.6及以上即可。注: JDK25+控制台sun.misc.Unsafe类相关API弃用警告不影响正常使用，实在不想打印可以使用VM参数关闭
+```
+-Dsun.misc.unsafe.memory.access=allow
+```
+
+JDK25+上还可以使用wast-jdk25版本(支持JDK23+)，代码分支在wast-jdk25上，此分支底层弃用sun.misc.Unsafe类，取而代之的是jdk.internal.misc.Unsafe, 使用jdk.internal.misc.Unsafe必须需要添加VM参数:
 ```
 --add-exports java.base/jdk.internal.misc=ALL-UNNAMED
 ```
 
 ## Maven
+
+通用maven坐标
+
+```xml
+<dependency>
+    <groupId>io.github.wycst</groupId>
+    <artifactId>wast</artifactId>
+    <version>0.0.27</version>
+</dependency>
+```
+
+JDK23+开始支持
 
 ```xml
 <dependency>
