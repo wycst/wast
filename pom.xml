@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
     <groupId>io.github.wycst</groupId>
-    <artifactId>wast</artifactId>
+    <artifactId>wast-jdk25</artifactId>
     <version>0.0.27</version>
     <modelVersion>4.0.0</modelVersion>
     <packaging>jar</packaging>
@@ -15,8 +15,8 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <org.javassist.version>3.30.2-GA</org.javassist.version>
-        <maven.compiler.source>9</maven.compiler.source>
-        <maven.compiler.target>9</maven.compiler.target>
+        <maven.compiler.source>23</maven.compiler.source>
+        <maven.compiler.target>23</maven.compiler.target>
         <maven.compiler.args>--add-opens java.base/jdk.internal.misc=ALL-UNNAMED</maven.compiler.args>
     </properties>
 
@@ -63,6 +63,21 @@
             <build>
                 <plugins>
                     <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <version>3.14.0</version>
+                        <configuration>
+                            <source>23</source>
+                            <target>23</target>
+                            <compilerArgs>
+                                <!-- 允许访问jdk.internal.misc所在的模块 -->
+                                <arg>--add-exports</arg>
+                                <arg>java.base/jdk.internal.misc=ALL-UNNAMED</arg>
+                            </compilerArgs>
+                        </configuration>
+                    </plugin>
+
+                    <plugin>
                         <groupId>org.sonatype.central</groupId>
                         <artifactId>central-publishing-maven-plugin</artifactId>
                         <version>0.8.0</version>
@@ -89,14 +104,17 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-javadoc-plugin</artifactId>
-                        <version>2.9.1</version>
+                        <version>3.10.0</version>
                         <configuration>
-                            <aggregate>true</aggregate>
-                            <charset>UTF-8</charset>
-                            <encoding>UTF-8</encoding>
-                            <docencoding>UTF-8</docencoding>
-                            <!-- -Xdoclint:none maven忽视javadoc过程中警告和错误 -->
-                            <additionalparam>-Xdoclint:none</additionalparam>
+                            <source>23</source>
+                            <doclint>none</doclint>
+                            <!-- 传递给 Javadoc 工具的参数 -->
+                            <additionalOptions>
+                                <additionalOption>--add-exports</additionalOption>
+                                <additionalOption>java.base/jdk.internal.misc=ALL-UNNAMED</additionalOption>
+                                <additionalOption>--add-opens</additionalOption>
+                                <additionalOption>java.base/jdk.internal.misc=ALL-UNNAMED</additionalOption>
+                            </additionalOptions>
                         </configuration>
                         <executions>
                             <execution>

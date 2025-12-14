@@ -2,7 +2,7 @@
 
 WAST是一个高性能Java工具集库包，包括JSON、YAML、CSV、HttpClient、JDBC和EL引擎.
 
-此分支底层弃用sun.misc.Unsafe类(JDK25+运行时默认第一次控制台会打印弃用警告，可以使用-Dsun.misc.unsafe.memory.access=allow清除警告)，取而代之的是jdk.internal.misc.Unsafe, 使用jdk.internal.misc.Unsafe需要添加vm参数:
+此分支底层弃用sun.misc.Unsafe类，取而代之的是jdk.internal.misc.Unsafe, 使用jdk.internal.misc.Unsafe需要添加VM参数:
 
 ```
 --add-exports java.base/jdk.internal.misc=ALL-UNNAMED
