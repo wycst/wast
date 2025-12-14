@@ -1,6 +1,6 @@
 package io.github.wycst.wast.common.reflect;
 
-import sun.misc.Unsafe;
+import jdk.internal.misc.Unsafe;
 
 import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Field;
@@ -30,9 +30,19 @@ public final class UnsafeHelper {
     public static final long ARRAYLIST_SIZE_OFFSET;
     private static final long OVERRIDE_OFFSET;
 
-    static final Unsafe UNSAFE;
-
+    static final Unsafe UNSAFE = Unsafe.getUnsafe();
+    static final Method ARRAY_BASE_OFFSET_METHOD;
     static final Field modifierField;
+
+    static {
+        Method arrayBaseOffsetMethod = null;
+        try {
+            arrayBaseOffsetMethod = Unsafe.class.getDeclaredMethod("arrayBaseOffset", Class.class);
+            // setAccessible(arrayBaseOffsetMethod);
+        } catch (NoSuchMethodException e) {
+        }
+        ARRAY_BASE_OFFSET_METHOD = arrayBaseOffsetMethod;
+    }
 
     static {
         Field field = null;
@@ -64,26 +74,6 @@ public final class UnsafeHelper {
             } catch (Exception e) {
             }
         }
-    }
-
-    static {
-        Field theUnsafeField;
-        try {
-            theUnsafeField = Unsafe.class.getDeclaredField("theUnsafe");
-            theUnsafeField.setAccessible(true);
-        } catch (NoSuchFieldException exception) {
-            theUnsafeField = null;
-        }
-
-        Unsafe instance = null;
-        if (theUnsafeField != null) {
-            try {
-                instance = (Unsafe) theUnsafeField.get(null);
-            } catch (IllegalAccessException exception) {
-                throw new RuntimeException(exception);
-            }
-        }
-        UNSAFE = instance;
     }
 
     public static final long CHAR_ARRAY_OFFSET = arrayBaseOffset(char[].class);
@@ -296,7 +286,7 @@ public final class UnsafeHelper {
         if (STRING_CODER_OFFSET > -1) {
             utf16Bytes.getClass();
             String result = new String();
-            UNSAFE.putObject(result, STRING_VALUE_OFFSET, utf16Bytes);
+            UNSAFE.putReference(result, STRING_VALUE_OFFSET, utf16Bytes);
             UNSAFE.putByte(result, STRING_CODER_OFFSET, (byte) 1);
             return result;
         }
@@ -312,7 +302,7 @@ public final class UnsafeHelper {
     public static int[] getMag(BigInteger value) {
         if (BIGINTEGER_MAG_OFFSET > -1) {
             value.getClass();
-            return (int[]) UNSAFE.getObject(value, BIGINTEGER_MAG_OFFSET);
+            return (int[]) UNSAFE.getReference(value, BIGINTEGER_MAG_OFFSET);
         }
         throw new UnsupportedOperationException();
     }
@@ -327,7 +317,7 @@ public final class UnsafeHelper {
     public static Object[] getArrayListData(ArrayList value) {
         if (ARRAYLIST_ELEMENT_DATA_OFFSET > -1) {
             value.getClass();
-            return (Object[]) UNSAFE.getObject(value, ARRAYLIST_ELEMENT_DATA_OFFSET);
+            return (Object[]) UNSAFE.getReference(value, ARRAYLIST_ELEMENT_DATA_OFFSET);
         } else {
             return value.toArray();
         }
@@ -368,7 +358,7 @@ public final class UnsafeHelper {
     public static TimeZone getDefaultTimeZone() {
         if (DEFAULT_TIME_ZONE_OFFSET > -1) {
             try {
-                TimeZone timeZone = (TimeZone) UNSAFE.getObject(TimeZone.class, DEFAULT_TIME_ZONE_OFFSET);
+                TimeZone timeZone = (TimeZone) UNSAFE.getReference(TimeZone.class, DEFAULT_TIME_ZONE_OFFSET);
                 if (timeZone != null) {
                     return timeZone;
                 }
@@ -454,12 +444,12 @@ public final class UnsafeHelper {
 
     static void putObjectValue(Object target, long fieldOffset, Object value) {
         target.getClass();
-        UNSAFE.putObject(target, fieldOffset, value);
+        UNSAFE.putReference(target, fieldOffset, value);
     }
 
     static Object getObjectValue(Object target, long fieldOffset) {
         target.getClass();
-        return UNSAFE.getObject(target, fieldOffset);
+        return UNSAFE.getReference(target, fieldOffset);
     }
 
     public static Object newInstance(Class<?> targetClass) {
@@ -485,10 +475,16 @@ public final class UnsafeHelper {
     }
 
     static int arrayBaseOffset(Class arrayCls) {
-        if (UNSAFE != null) {
+        try {
             return UNSAFE.arrayBaseOffset(arrayCls);
+        } catch (Throwable e1) {
+            try {
+                long offset = (long) ARRAY_BASE_OFFSET_METHOD.invoke(UNSAFE, arrayCls);
+                return (int) offset;
+            } catch (Throwable e2) {
+                return -1;
+            }
         }
-        return -1;
     }
 
     static int arrayIndexScale(Class arrayCls) {
@@ -501,24 +497,6 @@ public final class UnsafeHelper {
 //    public static final long NEGATIVE_MASK = 0x8080808080808080L;
 
     public static boolean hasNegativesUnsafe(byte[] bytes, int offset, int len) {
-//        if (offset > -1 && offset + len <= bytes.length) {
-//            if (len > 7) {
-//                do {
-//                    long val = UNSAFE.getLong(bytes, BYTE_ARRAY_OFFSET + offset);
-//                    if ((val & NEGATIVE_MASK) != 0) return true;
-//                    offset += 8;
-//                    len -= 8;
-//                } while (len > 7);
-//                if (len == 0) return false;
-//                return (UNSAFE.getLong(bytes, BYTE_ARRAY_OFFSET + offset + len - 8) & NEGATIVE_MASK) != 0;
-//            } else {
-//                for (int i = offset, end = offset + len; i < end; ++i) {
-//                    if (bytes[i] < 0) return true;
-//                }
-//                return false;
-//            }
-//        }
-//        throw new IndexOutOfBoundsException("offset " + offset);
         for (int i = offset, end = offset + len; i < end; ++i) {
             if (bytes[i] < 0) return true;
         }
@@ -528,7 +506,7 @@ public final class UnsafeHelper {
     public static boolean setRequestMethod(HttpURLConnection urlConnection, String method) {
         urlConnection.getClass();
         if (HTTP_URL_CONNECTION_METHOD_OFFSET > -1) {
-            UNSAFE.putObject(urlConnection, HTTP_URL_CONNECTION_METHOD_OFFSET, method);
+            UNSAFE.putReference(urlConnection, HTTP_URL_CONNECTION_METHOD_OFFSET, method);
             return true;
         }
         return false;

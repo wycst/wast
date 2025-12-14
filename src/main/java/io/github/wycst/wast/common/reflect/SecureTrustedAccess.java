@@ -29,7 +29,7 @@ public abstract class SecureTrustedAccess {
     }
 
     public final Object getObjectValue(Object target, long fieldOffset) {
-        return UnsafeHelper.UNSAFE.getObject(target, fieldOffset);
+        return UnsafeHelper.UNSAFE.getReference(target, fieldOffset);
     }
 
     public final Object getPrimitiveValue(ReflectConsts.PrimitiveType primitiveType, Object target, long fieldOffset) {

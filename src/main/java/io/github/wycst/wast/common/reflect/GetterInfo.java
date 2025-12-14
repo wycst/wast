@@ -59,7 +59,7 @@ public class GetterInfo {
             if (fieldPrimitive) {
                 return primitiveType.getValue(target, fieldOffset);
             } else {
-                return UnsafeHelper.UNSAFE.getObject(target, fieldOffset);
+                return UnsafeHelper.UNSAFE.getReference(target, fieldOffset);
             }
         }
         return invokeObjectValue(target);

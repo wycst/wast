@@ -1,34 +1,13 @@
 package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.common.reflect.UnsafeHelper;
-import sun.misc.Unsafe;
-
-import java.lang.reflect.Field;
+import jdk.internal.misc.Unsafe;
 
 abstract class JSONEndianUnsafe extends JSONEndian {
-    protected static final Unsafe UNSAFE;
+    protected static final Unsafe UNSAFE = Unsafe.getUnsafe();
     static final long BYTE_ARRAY_OFFSET = UnsafeHelper.BYTE_ARRAY_OFFSET;
     static final long CHAR_ARRAY_OFFSET = UnsafeHelper.CHAR_ARRAY_OFFSET;
     static final long STRING_VALUE_OFFSET = UnsafeHelper.STRING_VALUE_OFFSET;
-
-    static {
-        Field theUnsafeField;
-        try {
-            theUnsafeField = Unsafe.class.getDeclaredField("theUnsafe");
-            theUnsafeField.setAccessible(true);
-        } catch (NoSuchFieldException exception) {
-            theUnsafeField = null;
-        }
-        Unsafe instance = null;
-        if (theUnsafeField != null) {
-            try {
-                instance = (Unsafe) theUnsafeField.get(null);
-            } catch (IllegalAccessException exception) {
-                throw new RuntimeException(exception);
-            }
-        }
-        UNSAFE = instance;
-    }
 
     @Override
     public final short getShort(byte[] buf, int offset) {
@@ -87,20 +66,20 @@ abstract class JSONEndianUnsafe extends JSONEndian {
 
     @Override
     public Object getStringValue(String value) {
-        return UNSAFE.getObject(value, STRING_VALUE_OFFSET);
+        return UNSAFE.getReference(value, STRING_VALUE_OFFSET);
     }
 
     @Override
     public final String createAsciiString(byte[] asciiBytes) {
         String result = new String();
-        UNSAFE.putObject(result, STRING_VALUE_OFFSET, asciiBytes);
+        UNSAFE.putReference(result, STRING_VALUE_OFFSET, asciiBytes);
         return result;
     }
 
     @Override
     public final String createStringJDK8(char[] buf) {
         String target = new String();
-        UNSAFE.putObject(target, STRING_VALUE_OFFSET, buf);
+        UNSAFE.putReference(target, STRING_VALUE_OFFSET, buf);
         return target;
     }
 

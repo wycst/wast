@@ -15,8 +15,9 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <org.javassist.version>3.30.2-GA</org.javassist.version>
-        <maven.compiler.source>1.6</maven.compiler.source>
-        <maven.compiler.target>1.6</maven.compiler.target>
+        <maven.compiler.source>9</maven.compiler.source>
+        <maven.compiler.target>9</maven.compiler.target>
+        <maven.compiler.args>--add-opens java.base/jdk.internal.misc=ALL-UNNAMED</maven.compiler.args>
     </properties>
 
     <licenses>

@@ -59,7 +59,7 @@ public class SetterInfo {
     }
 
     void invokeInternal(Object target, Object value) {
-        UnsafeHelper.UNSAFE.putObject(target, fieldOffset, value);
+        UnsafeHelper.UNSAFE.putReference(target, fieldOffset, value);
     }
 
     public final String getName() {
