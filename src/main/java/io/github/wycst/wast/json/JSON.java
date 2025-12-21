@@ -1413,34 +1413,64 @@ public final class JSON extends JSONGeneral {
 
     // Faster than toJsonString
     public static String toString(float value) {
-        char[] chars = JSONGeneral.CACHED_CHARS_36.get();
-        int len = JSONWriter.writeFloat(value, chars, 0);
-        if (chars[0] == 'n') {
-            if (value == Float.POSITIVE_INFINITY) {
-                return "Infinity";
-            } else if (value == Float.NEGATIVE_INFINITY) {
-                return "-Infinity";
-            } else {
-                return "NaN";
+        if (EnvUtils.JDK_9_PLUS) {
+            byte[] bytes = JSONGeneral.CACHED_BYTES_36.get();
+            int len = JSONWriter.writeFloat(value, bytes, 0);
+            if (bytes[0] == 'n') {
+                if (value == Float.POSITIVE_INFINITY) {
+                    return "Infinity";
+                } else if (value == Float.NEGATIVE_INFINITY) {
+                    return "-Infinity";
+                } else {
+                    return "NaN";
+                }
             }
+            return JSONMemoryHandle.createAsciiString(bytes, 0, len);
+        } else {
+            char[] chars = JSONGeneral.CACHED_CHARS_36.get();
+            int len = JSONWriter.writeFloat(value, chars, 0);
+            if (chars[0] == 'n') {
+                if (value == Float.POSITIVE_INFINITY) {
+                    return "Infinity";
+                } else if (value == Float.NEGATIVE_INFINITY) {
+                    return "-Infinity";
+                } else {
+                    return "NaN";
+                }
+            }
+            return new String(chars, 0, len);
         }
-        return new String(chars, 0, len);
     }
 
     // Faster than toJsonString
     public static String toString(double value) {
-        char[] chars = JSONGeneral.CACHED_CHARS_36.get();
-        int len = JSONWriter.writeDouble(value, chars, 0);
-        if (chars[0] == 'n') {
-            if (value == Double.POSITIVE_INFINITY) {
-                return "Infinity";
-            } else if (value == Double.NEGATIVE_INFINITY) {
-                return "-Infinity";
-            } else {
-                return "NaN";
+        if (EnvUtils.JDK_9_PLUS) {
+            byte[] bytes = JSONGeneral.CACHED_BYTES_36.get();
+            int len = JSONWriter.writeDouble(value, bytes, 0);
+            if (bytes[0] == 'n') {
+                if (value == Double.POSITIVE_INFINITY) {
+                    return "Infinity";
+                } else if (value == Double.NEGATIVE_INFINITY) {
+                    return "-Infinity";
+                } else {
+                    return "NaN";
+                }
             }
+            return JSONMemoryHandle.createAsciiString(bytes, 0, len);
+        } else {
+            char[] chars = JSONGeneral.CACHED_CHARS_36.get();
+            int len = JSONWriter.writeDouble(value, chars, 0);
+            if (chars[0] == 'n') {
+                if (value == Double.POSITIVE_INFINITY) {
+                    return "Infinity";
+                } else if (value == Double.NEGATIVE_INFINITY) {
+                    return "-Infinity";
+                } else {
+                    return "NaN";
+                }
+            }
+            return new String(chars, 0, len);
         }
-        return new String(chars, 0, len);
     }
 
     // Faster than toJsonString
@@ -1448,14 +1478,25 @@ public final class JSON extends JSONGeneral {
         if (value == Long.MIN_VALUE) {
             return "-9223372036854775808";
         }
-        char[] chars = JSONGeneral.CACHED_CHARS_36.get();
-        int offset = 0;
-        if (value < 0) {
-            chars[offset++] = '-';
-            value = -value;
+        if (EnvUtils.JDK_9_PLUS) {
+            byte[] bytes = JSONGeneral.CACHED_BYTES_36.get();
+            int offset = 0;
+            if (value < 0) {
+                bytes[offset++] = '-';
+                value = -value;
+            }
+            offset += JSONWriter.writeLong(value, bytes, offset);
+            return JSONMemoryHandle.createAsciiString(bytes, 0, offset);
+        } else {
+            char[] chars = JSONGeneral.CACHED_CHARS_36.get();
+            int offset = 0;
+            if (value < 0) {
+                chars[offset++] = '-';
+                value = -value;
+            }
+            offset += JSONWriter.writeLong(value, chars, offset);
+            return new String(chars, 0, offset);
         }
-        offset += JSONWriter.writeLong(value, chars, offset);
-        return new String(chars, 0, offset);
     }
 
     /**

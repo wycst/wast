@@ -111,6 +111,14 @@ class JSONGeneral {
         }
     };
 
+    // 36
+    final static ThreadLocal<byte[]> CACHED_BYTES_36 = new ThreadLocal<byte[]>() {
+        @Override
+        protected byte[] initialValue() {
+            return new byte[36];
+        }
+    };
+
     final static ThreadLocal<double[]> DOUBLE_ARRAY_TL = new ThreadLocal<double[]>() {
         @Override
         protected double[] initialValue() {

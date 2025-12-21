@@ -59,35 +59,35 @@ abstract class JSONSchemaBase {
         return root;
     }
 
-    public static void main(String[] args) {
-        String schemaJson = "{\n" +
-                "\t\"type\": \"object\",\n" +
-                "\t\"properties\": {\n" +
-                "\t\t\"name\": {\n" +
-                "\t\t\t\"type\": \"string\",\n" +
-                "\t\t\t\"must\": true,\n" +
-//                "\t\t\t\"format\": \"url\",\n" +
-                "\t\t\t\"rules\": [{\n" +
-                "\t\t\t\t\"expression\": \"value.indexOf('test') > -1\",\n" +
-                "\t\t\t\t\"message\": \"必须包含test\"\n" +
-                "\t\t\t}]\n" +
-                "\t\t},\n" +
-                "\t\t\"age\": {\n" +
-                "\t\t\t\"type\": \"number\",\n" +
-                "\t\t\t\"maximum\": 100,\n" +
-                "\t\t\t\"minimum\": 20\n" +
-                "\t\t},\n" +
-                "\t\t\"key\": {\n" +
-                "\t\t\t\"type\": [\"number\", \"boolean1\"]\n" +
-                "\t\t}\n" +
-                "\t}\n" +
-                "}";
-
-        JSONSchema schema = JSONSchema.of(schemaJson);
-        System.out.println(schema);
-        System.out.println(JSON.toPrettifyJsonString(schema));
-
-        JSONSchemaResult result = schema.validate("{\"name\":\"wyctesRtst\",\"age\": 33, \"key\": false}");
-        System.out.println(result);
-    }
+//    public static void main(String[] args) {
+//        String schemaJson = "{\n" +
+//                "\t\"type\": \"object\",\n" +
+//                "\t\"properties\": {\n" +
+//                "\t\t\"name\": {\n" +
+//                "\t\t\t\"type\": \"string\",\n" +
+//                "\t\t\t\"must\": true,\n" +
+////                "\t\t\t\"format\": \"url\",\n" +
+//                "\t\t\t\"rules\": [{\n" +
+//                "\t\t\t\t\"expression\": \"value.indexOf('test') > -1\",\n" +
+//                "\t\t\t\t\"message\": \"必须包含test\"\n" +
+//                "\t\t\t}]\n" +
+//                "\t\t},\n" +
+//                "\t\t\"age\": {\n" +
+//                "\t\t\t\"type\": \"number\",\n" +
+//                "\t\t\t\"maximum\": 100,\n" +
+//                "\t\t\t\"minimum\": 20\n" +
+//                "\t\t},\n" +
+//                "\t\t\"key\": {\n" +
+//                "\t\t\t\"type\": [\"number\", \"boolean1\"]\n" +
+//                "\t\t}\n" +
+//                "\t}\n" +
+//                "}";
+//
+//        JSONSchema schema = JSONSchema.of(schemaJson);
+//        System.out.println(schema);
+//        System.out.println(JSON.toPrettifyJsonString(schema));
+//
+//        JSONSchemaResult result = schema.validate("{\"name\":\"wyctesRtst\",\"age\": 33, \"key\": false}");
+//        System.out.println(result);
+//    }
 }

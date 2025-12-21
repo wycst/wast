@@ -20,17 +20,23 @@ public final class JSONVmOptions {
     static boolean incubatorVectorDisabled;
     static boolean requiredMemoryAlignment;
 
-    // force disabled
+    /**
+     * force disabled <br> -> -Dwast.json.intrinsic-candidate.disabled=true
+     */
     public static void disableIntrinsicCandidate() {
         intrinsicCandidateDisabled = true;
     }
 
-    // force disabled
+    /**
+     * force disabled <br> -> -Dwast.json.incubator.vector.disabled=true
+     */
     public static void disableIncubatorVector() {
         incubatorVectorDisabled = true;
     }
 
-    // 设置需要内存对齐（JSON第一次调用之前）
+    /**
+     * force required memory align <br> -> -Dwast.json.required-memory-alignment=true
+     */
     public static void forceRequiredMemoryAlignment() {
         requiredMemoryAlignment = true;
     }
