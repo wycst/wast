@@ -682,8 +682,9 @@ public final class NumberUtils {
         long bits = Double.doubleToRawLongBits(doubleValue);
         int e2 = (int) (bits >> 52) & MOD_DOUBLE_EXP;
         long mantissa0 = bits & MOD_DOUBLE_MANTISSA;
-        // boolean flagForUp = mantissa0 < MOD_DOUBLE_MANTISSA;
-        boolean flagForDown = mantissa0 > 0;
+        if (mantissa0 == 0) {
+            return bits != 0x8000000000000000L ? ScientificMantissaZeroTable.DOUBLE_MANTISSA_ZERO_TABLE[e2] : Scientific.NEGATIVE_ZERO;
+        }
         int e52;
         long output;
         long rawOutput, /*d2, */d3, d4;
@@ -694,15 +695,11 @@ public final class NumberUtils {
             mantissa0 = 1L << 52 | mantissa0;
             e52 = e2 - 1075;
         } else {
-            if (mantissa0 == 0) {
-                // Dealing with error issues with doubleValue=0.0(-0.0) Or make sure doubleValue is greater than 0 before calling
-                return bits == 0 ? Scientific.ZERO : Scientific.NEGATIVE_ZERO;
-            }
             int lz52 = Long.numberOfLeadingZeros(mantissa0) - 11;
             mantissa0 <<= lz52;
             e52 = -1074 - lz52;
         }
-        boolean /*tflag = true,*/ accurate = false;
+        // boolean /*tflag = true,*/ accurate = false;
         if (e52 >= 0) {
             ED d = ED.E2_D_A[e52];
             e10 = d.e10;   // e10 > 15
@@ -728,12 +725,12 @@ public final class NumberUtils {
                 int rb = sb - 10 - d5.ob;
                 // rawOutput = BigInteger.valueOf(mantissa0).shiftLeft(sb).divide(POW5_BI_VALUES[-o5]).longValue();
                 rawOutput = multiplyHighAndShift(mantissa0 << 10, d5.oy, d5.of, 32 - rb);
-                accurate = o5 == -1 && sb < 11;
+                // accurate = o5 == -1 && sb < 11;
             } else {
                 // o5 > 0 -> sb > 0
                 // accurate
                 rawOutput = (mantissa0 * POW5_LONG_VALUES[o5]) << sb;
-                accurate = true;
+                // accurate = true;
             }
         } else {
             // e52 >= -1074 -> p5 <= 1074
@@ -773,32 +770,22 @@ public final class NumberUtils {
                 rawOutput = POW5_LONG_VALUES[o5] * mantissa0 << sb;
             }
         }
-        if (accurate) {
-            rawOutput = rawOutput / 10;
-            if (adl == 16) {
-                --adl;
-                rawOutput = (rawOutput + 5) / 10; // rawOutput = rawOutput / 10 + ((rawOutput % 10) >= 5 ? 1 : 0);
-            }
-            return new Scientific(rawOutput, adl + 2, e10);
-        }
-
         // rem <= Actual Rem Value
+//        long div = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(rawOutput, 0x4189374bc6a7ef9eL) >> 8; // rawOutput / 1000;
         long div = rawOutput / 1000;
         long rem = rawOutput - div * 1000;
-        long remUp = (10001 - rem * 10) << 1;
-        boolean up;
-        if ((up = (remUp <= d4)) || ((rem + 1) << (flagForDown ? 1 : 2)) <= d3) {
-            output = div + (up ? 1 : 0);
-            --adl;
+        boolean down;
+        if ((down = ((rem + 1) << 1) <= d3) || ((10001 - rem * 10) << 1) <= d4) {
+            output = div + (down ? 0 : 1);
+            return new Scientific(output, adl, e10);
         } else {
-            if (flagForDown) {
-                output = (rawOutput + 50) / 100; // rawOutput / 100 + ((rawOutput % 100) >= 50 ? 1 : 0)
-            } else {
-                output = (rawOutput + 5) / 10; // rawOutput / 10 + ((rawOutput % 10) >= 5 ? 1 : 0)
-                ++adl;
+            int scale = -e10 + adl - 1;
+            if (scientificToIEEEDouble(output = rem > 500 ? div + 1 : div, scale) == doubleValue) {
+                return new Scientific(output, adl, e10);
             }
+            output = (rawOutput + 50) / 100;
+            return new Scientific(output, adl + 1, e10);
         }
-        return new Scientific(output, adl + 1, e10);
     }
 
     /**
@@ -814,21 +801,18 @@ public final class NumberUtils {
         final int bits = Float.floatToRawIntBits(floatValue);
         int e2 = (bits >> 23) & MOD_FLOAT_EXP;
         int mantissa0 = bits & MOD_FLOAT_MANTISSA;
-        boolean nonZeroFlag = mantissa0 > 0;
+        if (mantissa0 == 0) {
+            return bits != 0x80000000 ? ScientificMantissaZeroTable.FLOAT_MANTISSA_ZERO_TABLE[e2] : Scientific.NEGATIVE_ZERO;
+        }
         int e23;
         long output, rawOutput;
         long d4;
         int e10, adl;
-        boolean accurate = false;
         if (e2 > 0) {
             if (e2 == MOD_FLOAT_EXP) return Scientific.SCIENTIFIC_NULL;
             mantissa0 = 1 << 23 | mantissa0;
             e23 = e2 - 150;   // - 127 - 23
         } else {
-            // e2 == 0
-            if (mantissa0 == 0) {
-                return bits == 0 ? Scientific.ZERO : Scientific.NEGATIVE_ZERO;
-            }
             int l = Integer.numberOfLeadingZeros(mantissa0) - 8;
             mantissa0 <<= l;
             e23 = -149 - l;
@@ -857,9 +841,7 @@ public final class NumberUtils {
                 // o5 > 0 -> sb > 0
                 // accurate
                 rawOutput = mantissa0 * POW5_LONG_VALUES[o5] << sb;
-                accurate = true;
             }
-
         } else {
             // e52 >= -149 -> p5 <= 149
             int e5 = -e23;
@@ -871,7 +853,6 @@ public final class NumberUtils {
                 ++e10;
                 ++adl;
             }
-
             int o5 = d.o5 + 6; // 相对double(adl + 2 - e10)多加6个数字增加命中概率
             int sb = o5 + e23;
             if (sb < 0) {
@@ -888,21 +869,8 @@ public final class NumberUtils {
                 }
             } else {
                 rawOutput = POW5_LONG_VALUES[o5] * mantissa0 << sb;
-                accurate = true;
             }
         }
-
-        // todo if accurate Fast conversion ?
-        if (accurate) {
-            // 如果追求性能可以这里返回，但可能返回非最短数字序列（结果一定是正确的）
-//            rawOutput = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(rawOutput, 0x6b5fca6af2bd215fL) >> 22; // rawOutput / 10000000;
-//            if (adl == 7) {
-//                --adl;
-//                rawOutput = (rawOutput + 5) / 10; // rawOutput = rawOutput / 10 + ((rawOutput % 10) >= 5 ? 1 : 0);
-//            }
-//            return new Scientific(rawOutput, adl + 2, e10);
-        }
-
         if (rawOutput < 1000000000) {
             return new Scientific(EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(rawOutput, 0x6b5fca6af2bd215fL) >> 22, 2, e10); // rawOutput / 10000000
         }
@@ -910,28 +878,21 @@ public final class NumberUtils {
         long rem = rawOutput - div * 1000000000;
         long remUp = (1000000001 - rem) << 1;
         boolean up = remUp <= d4;
-        if (up || ((rem + 1) << (nonZeroFlag ? 1 : 2)) <= d4) {
+        if (up || ((rem + 1) << 1) <= d4) {
             output = div + (up ? 1 : 0);
-            --adl;
-            if (up) {
-                if (POW10_LONG_VALUES[adl] == output) {
-                    ++e10;
-                    output = 1;
-                    adl = 0;
-                }
+            if (up && POW10_LONG_VALUES[adl - 1] == output) {
+                return new Scientific(1, 1, e10 + 1);
             }
+            return new Scientific(output, adl, e10);
         } else {
-            if (nonZeroFlag) {
-                long div0 = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(rawOutput, 0x55e63b88c230e77fL) >> 25; // rawOutput / 100000000
-                output = div0 + (rem % 100000000 >= 50000000 ? 1 : 0);
-            } else {
-                long div0 = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(rawOutput, 0x6b5fca6af2bd215fL) >> 22; // rawOutput / 10000000
-                output = div0 + (rem % 10000000 >= 5000000 ? 1 : 0);
-                ++adl;
+            int scale = -e10 + adl - 1;
+            if (scientificToIEEEFloat(output = rem > 500000000 ? div + 1 : div, scale) == floatValue /*|| scientificToIEEEFloat(output = div, scale) == floatValue*/) {
+                return new Scientific(output, adl, e10);
             }
+            long div0 = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(rawOutput, 0x55e63b88c230e77fL) >> 25; // rawOutput / 100000000
+            output = div0 + (rem % 100000000 >= 50000000 ? 1 : 0);
+            return new Scientific(output, adl + 1, e10);
         }
-
-        return new Scientific(output, adl + 1, e10);
     }
 
 //    public static void writePositiveLong(long val, Appendable appendable) throws IOException {

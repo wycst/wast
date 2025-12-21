@@ -766,11 +766,11 @@ public abstract class JSONWriter extends Writer {
             doubleValue = -doubleValue;
         }
 
-        if (doubleValue == (long) doubleValue) {
-            long output = (long) doubleValue;
-            int numLength = NumberUtils.stringSize(output);
-            return writeDecimal(output, numLength, numLength - 1, buf, beginIndex, off);
-        }
+//        if (doubleValue == (long) doubleValue) {
+//            long output = (long) doubleValue;
+//            int numLength = NumberUtils.stringSize(output);
+//            return writeDecimal(output, numLength, numLength - 1, buf, beginIndex, off);
+//        }
 
         Scientific scientific = NumberUtils.doubleToScientific(doubleValue);
         int e10 = scientific.e10;
@@ -952,11 +952,11 @@ public abstract class JSONWriter extends Writer {
             buf[off++] = '-';
             doubleValue = -doubleValue;
         }
-        if (doubleValue == (long) doubleValue) {
-            long output = (long) doubleValue;
-            int numLength = NumberUtils.stringSize(output);
-            return writeDecimal(output, numLength, numLength - 1, buf, beginIndex, off);
-        }
+//        if (doubleValue == (long) doubleValue) {
+//            long output = (long) doubleValue;
+//            int numLength = NumberUtils.stringSize(output);
+//            return writeDecimal(output, numLength, numLength - 1, buf, beginIndex, off);
+//        }
         Scientific scientific = NumberUtils.doubleToScientific(doubleValue);
         int e10 = scientific.e10;
         if (!scientific.b) {
