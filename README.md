@@ -29,7 +29,7 @@ JDK25+上还可以使用wast-jdk25版本(支持JDK23+)，代码分支在wast-jdk
 <dependency>
     <groupId>io.github.wycst</groupId>
     <artifactId>wast</artifactId>
-    <version>0.0.27</version>
+    <version>0.0.28</version>
 </dependency>
 ```
 
@@ -39,7 +39,7 @@ JDK23+开始支持
 <dependency>
     <groupId>io.github.wycst</groupId>
     <artifactId>wast-jdk25</artifactId>
-    <version>0.0.27</version>
+    <version>0.0.28</version>
 </dependency>
 ```
 
