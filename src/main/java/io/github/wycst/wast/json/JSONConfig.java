@@ -40,7 +40,7 @@ public final class JSONConfig {
     public boolean formatOut;
 
     /**
-     * 格式化输出
+     * 格式化输出(冒号补一个空格)
      */
     public boolean formatOutColonSpace;
 
@@ -52,7 +52,12 @@ public final class JSONConfig {
     /**
      * 缩进空格数量,默认4个空格
      */
-    public int formatIndentSpaceNum = Math.max(defaultFormatIndentSpaceNum, 1);
+    int formatIndentSpaceNum = Math.max(defaultFormatIndentSpaceNum, 1);
+
+    /**
+     * 最大缩进级别（默认不限制,最小为1）
+     */
+    int maxIndentLevel = Integer.MAX_VALUE;
 
     /**
      * 输出全属性
@@ -78,11 +83,6 @@ public final class JSONConfig {
      * 是否将数字类序列化位字符串
      */
     boolean writeNumberAsString;
-
-    /**
-     * 是否使用toString序列化浮点数
-     */
-    boolean writeDecimalUseToString;
 
     /**
      * 跳过循环序列化
@@ -150,12 +150,16 @@ public final class JSONConfig {
     public JSONConfig() {
     }
 
-    public JSONConfig(WriteOption[] writeOptions) {
+    public JSONConfig(WriteOption... writeOptions) {
         JSONOptions.writeOptions(writeOptions, this);
     }
 
-    public static JSONConfig config(WriteOption... options) {
+    public static JSONConfig of(WriteOption... options) {
         return new JSONConfig(options);
+    }
+
+    public static JSONConfig formatOf() {
+        return new JSONConfig(WriteOption.FormatOutColonSpace);
     }
 
     public boolean isFormatIndentUseSpace() {
@@ -172,6 +176,20 @@ public final class JSONConfig {
 
     public void setFormatIndentSpaceNum(int formatIndentSpaceNum) {
         this.formatIndentSpaceNum = Math.max(formatIndentSpaceNum, 1);
+    }
+
+    public JSONConfig formatIndentSpaceNum(int formatIndentSpaceNum) {
+        setFormatIndentSpaceNum(formatIndentSpaceNum);
+        return this;
+    }
+
+    public void setMaxIndentLevel(int maxIndentLevel) {
+        this.maxIndentLevel = Math.max(maxIndentLevel, 1);
+    }
+
+    public JSONConfig maxIndentLevel(int maxFormatOutIndentLevel) {
+        setMaxIndentLevel(maxFormatOutIndentLevel);
+        return this;
     }
 
     public boolean isWriteDateAsTime() {
@@ -354,14 +372,5 @@ public final class JSONConfig {
                 identityHashCodes.clear();
             }
         }
-    }
-
-    public void setWriteDecimalUseToString(boolean writeDecimalUseToString) {
-        this.writeDecimalUseToString = writeDecimalUseToString;
-    }
-
-    @Deprecated
-    public boolean isWriteDecimalUseToString() {
-        return writeDecimalUseToString;
     }
 }

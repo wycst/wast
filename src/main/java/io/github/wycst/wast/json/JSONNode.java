@@ -86,6 +86,7 @@ import java.util.regex.Pattern;
  *
  * @Author: wangyunchao
  */
+@SuppressWarnings({"all"})
 public abstract class JSONNode implements Comparable<JSONNode> {
 
     final JSONNode root;
@@ -929,7 +930,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                         // parseContext.allowUnquotedFieldNames
                         int begin = i;
                         while (i + 1 < toIndex && buf[++i] != ':') ;
-                        key = String.valueOf(JSONDefaultParser.parseKeyOfMap(buf, begin, i, true));
+                        key = String.valueOf(JSONGeneral.parseKeyOfMap(buf, begin, i, true));
                     }
                 }
                 while ((ch = buf[i]) <= ' ') {
@@ -1060,7 +1061,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             switch (ch) {
                 case '{': {
                     if (lazy) {
-                        JSONTypeDeserializer.MAP.skip(charSource, buf, beginIndex, parseContext);
+                        JSONStore.INSTANCE.MAP_DESER.skip(charSource, buf, beginIndex, parseContext);
                         node = new C(charSource, buf, beginIndex, parseContext.endIndex + 1, OBJECT, parseContext, root);
                     } else {
                         node = completeObjectNode(charSource, buf, beginIndex, createObj);
@@ -1069,7 +1070,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 case '[': {
                     if (lazy) {
-                        JSONTypeDeserializer.COLLECTION.skip(charSource, buf, beginIndex, parseContext);
+                        JSONStore.INSTANCE.COLLECTION_DESER.skip(charSource, buf, beginIndex, parseContext);
                         node = new C(charSource, buf, beginIndex, parseContext.endIndex + 1, ARRAY, parseContext, root);
                     } else {
                         node = completeArrayNode(charSource, buf, beginIndex, createObj);
@@ -1544,7 +1545,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             switch (ch) {
                 case '{': {
                     if (lazy) {
-                        JSONTypeDeserializer.MAP.skip(charSource, buf, beginIndex, parseContext);
+                        JSONStore.INSTANCE.MAP_DESER.skip(charSource, buf, beginIndex, parseContext);
                         node = new B(charSource, buf, beginIndex, parseContext.endIndex + 1, OBJECT, parseContext, root);
                     } else {
                         node = completeObjectNode(charSource, buf, beginIndex, createObj);
@@ -1553,7 +1554,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 case '[': {
                     if (lazy) {
-                        JSONTypeDeserializer.COLLECTION.skip(charSource, buf, beginIndex, parseContext);
+                        JSONStore.INSTANCE.COLLECTION_DESER.skip(charSource, buf, beginIndex, parseContext);
                         node = new B(charSource, buf, beginIndex, parseContext.endIndex + 1, ARRAY, parseContext, root);
                     } else {
                         node = completeArrayNode(charSource, buf, beginIndex, createObj);
@@ -2114,7 +2115,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 switch (ch) {
                     case '{': {
                         if (isSkipValue || isLastPathLevel) {
-                            JSONTypeDeserializer.MAP.skip(charSource, buf, i, parseContext);
+                            JSONStore.INSTANCE.MAP_DESER.skip(charSource, buf, i, parseContext);
                             node = isSkipValue ? null : new C(charSource, buf, i, parseContext.endIndex + 1, OBJECT, parseContext, null);
                         } else {
                             node = parseObjectPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
@@ -2123,7 +2124,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     }
                     case '[': {
                         if (isSkipValue || isLastPathLevel) {
-                            JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, parseContext);
+                            JSONStore.INSTANCE.COLLECTION_DESER.skip(charSource, buf, i, parseContext);
                             node = isSkipValue ? null : new C(charSource, buf, i, parseContext.endIndex + 1, ARRAY, parseContext, null);
                         } else {
                             node = parseArrayPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
@@ -2187,7 +2188,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                         return null;
                     } else {
                         if (skipNext) {
-                            JSONTypeDeserializer.MAP.skip(charSource, buf, i, parseContext);
+                            JSONStore.INSTANCE.MAP_DESER.skip(charSource, buf, i, parseContext);
                             return null;
                         }
                     }
@@ -2267,7 +2268,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 switch (b) {
                     case '{': {
                         if (isSkipValue || isLastPathLevel) {
-                            JSONTypeDeserializer.MAP.skip(charSource, buf, i, parseContext);
+                            JSONStore.INSTANCE.MAP_DESER.skip(charSource, buf, i, parseContext);
                             node = isSkipValue ? null : new B(charSource, buf, i, parseContext.endIndex + 1, OBJECT, parseContext, null);
                         } else {
                             node = parseObjectPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
@@ -2276,7 +2277,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     }
                     case '[': {
                         if (isSkipValue || isLastPathLevel) {
-                            JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, parseContext);
+                            JSONStore.INSTANCE.COLLECTION_DESER.skip(charSource, buf, i, parseContext);
                             node = isSkipValue ? null : new B(charSource, buf, i, parseContext.endIndex + 1, ARRAY, parseContext, null);
                         } else {
                             node = parseArrayPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
@@ -2340,7 +2341,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                         return null;
                     } else {
                         if (skipNext) {
-                            JSONTypeDeserializer.MAP.skip(charSource, buf, i, parseContext);
+                            JSONStore.INSTANCE.MAP_DESER.skip(charSource, buf, i, parseContext);
                             return null;
                         }
                     }
@@ -2364,7 +2365,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         boolean isLastPathLevel = pathCollector.next == null;
         boolean matched;
         if (pathCollector.preparedSize()) {
-            JSONTypeDeserializer.COLLECTION.skip(charSource, buf, fromIndex, parseContext);
+            JSONStore.INSTANCE.COLLECTION_DESER.skip(charSource, buf, fromIndex, parseContext);
             size = parseContext.elementSize;
         }
         for (int i = beginIndex; /*i < toIndex*/ ; ++i) {
@@ -2389,7 +2390,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             switch (ch) {
                 case '{': {
                     if (isSkipValue || isLastPathLevel) {
-                        JSONTypeDeserializer.MAP.skip(charSource, buf, i, parseContext);
+                        JSONStore.INSTANCE.MAP_DESER.skip(charSource, buf, i, parseContext);
                         node = isSkipValue ? null : new C(charSource, buf, i, parseContext.endIndex + 1, OBJECT, parseContext, null);
                     } else {
                         node = parseObjectPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
@@ -2398,7 +2399,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 case '[': {
                     if (isSkipValue || isLastPathLevel) {
-                        JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, parseContext);
+                        JSONStore.INSTANCE.COLLECTION_DESER.skip(charSource, buf, i, parseContext);
                         node = isSkipValue ? null : new C(charSource, buf, i, parseContext.endIndex + 1, ARRAY, parseContext, null);
                     } else {
                         node = parseArrayPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
@@ -2461,7 +2462,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     return null;
                 } else {
                     if (skipNext) {
-                        JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, parseContext);
+                        JSONStore.INSTANCE.COLLECTION_DESER.skip(charSource, buf, i, parseContext);
                         return null;
                     }
                 }
@@ -2482,7 +2483,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
         boolean isLastPathLevel = pathCollector.next == null;
         boolean matched;
         if (pathCollector.preparedSize()) {
-            JSONTypeDeserializer.COLLECTION.skip(charSource, buf, fromIndex, parseContext);
+            JSONStore.INSTANCE.COLLECTION_DESER.skip(charSource, buf, fromIndex, parseContext);
             size = parseContext.elementSize;
         }
         for (int i = beginIndex; ; ++i) {
@@ -2507,7 +2508,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             switch (b) {
                 case '{': {
                     if (isSkipValue || isLastPathLevel) {
-                        JSONTypeDeserializer.MAP.skip(charSource, buf, i, parseContext);
+                        JSONStore.INSTANCE.MAP_DESER.skip(charSource, buf, i, parseContext);
                         node = isSkipValue ? null : new B(charSource, buf, i, parseContext.endIndex + 1, OBJECT, parseContext, null);
                     } else {
                         node = parseObjectPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
@@ -2516,7 +2517,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                 }
                 case '[': {
                     if (isSkipValue || isLastPathLevel) {
-                        JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, parseContext);
+                        JSONStore.INSTANCE.COLLECTION_DESER.skip(charSource, buf, i, parseContext);
                         node = isSkipValue ? null : new B(charSource, buf, i, parseContext.endIndex + 1, ARRAY, parseContext, null);
                     } else {
                         node = parseArrayPathNode(charSource, buf, i, toIndex, nodePath, pathCollector.next, returnIfMatched && returnValueIfMatched, parseContext);
@@ -2579,7 +2580,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
                     return null;
                 } else {
                     if (skipNext) {
-                        JSONTypeDeserializer.COLLECTION.skip(charSource, buf, i, parseContext);
+                        JSONStore.INSTANCE.COLLECTION_DESER.skip(charSource, buf, i, parseContext);
                         return null;
                     }
                 }
@@ -3441,7 +3442,7 @@ public abstract class JSONNode implements Comparable<JSONNode> {
             try {
                 Object result = ObjectUtils.toType(source(), eClass);
                 if (result != null) return (E) result;
-                JSONTypeDeserializer typeDeserializer = JSONTypeDeserializer.getTypeDeserializer(eClass);
+                JSONTypeDeserializer typeDeserializer = JSONStore.INSTANCE.getTypeDeserializer(eClass);
                 if (typeDeserializer != null) {
                     return (E) typeDeserializer.valueOf(value != null ? String.valueOf(value) : source(), eClass);
                 }

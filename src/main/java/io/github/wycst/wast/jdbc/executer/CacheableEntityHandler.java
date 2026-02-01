@@ -17,7 +17,7 @@ final class CacheableEntityHandler extends EntityHandler {
     boolean cachedAllFlag = false;
     List<?> cachedFullEntityList = null;
 
-    private Object lock = new Object();
+    private final Object lock = new Object();
 
     @Override
     <E> E getById(DefaultSqlExecuter sqlExecuter, Class<E> entityCls, Serializable id) {

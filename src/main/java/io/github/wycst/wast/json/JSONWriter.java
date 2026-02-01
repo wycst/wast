@@ -194,24 +194,6 @@ public abstract class JSONWriter extends Writer {
     public void clear() {
     }
 
-//    final static void writeNano(int nano, Writer content) throws IOException {
-//        if (nano > 0) {
-//            content.write('.');
-//            int stringSize = NumberUtils.stringSize(nano);
-//            int n = 9 - stringSize;
-//            while (n > 0) {
-//                content.write('0');
-//                --n;
-//            }
-//            while (nano % 1000 == 0) {
-//                nano = nano / 1000;
-//            }
-//            char[] buf = JSONGeneral.CACHED_CHARS_36.get();
-//            int count = writeInteger(nano, buf, 0);
-//            content.write(buf, 0, count);
-//        }
-//    }
-
     final static int writeNano(int nano, char[] buf, int off) {
         // 4 + 2 + 3
         buf[off++] = '.';
@@ -287,6 +269,19 @@ public abstract class JSONWriter extends Writer {
 
     public abstract void writeLong(long numValue) throws IOException;
 
+    /**
+     * supported write number as string
+     */
+    public final void writeLong(long numValue, JSONConfig jsonConfig) throws IOException {
+        if (jsonConfig.isWriteNumberAsString()) {
+            writeJSONToken('"');
+            writeLong(numValue);
+            writeJSONToken('"');
+        } else {
+            writeLong(numValue);
+        }
+    }
+
     public abstract void writeInt(int numValue) throws IOException;
 
     public abstract void writeUUID(UUID uuid) throws IOException;
@@ -300,7 +295,7 @@ public abstract class JSONWriter extends Writer {
     }
 
     // only use by JIT pojo compact
-    public final void writeLongArray(long[] values) throws IOException {
+    public final void writeLongArray(long[] values, JSONConfig jsonConfig) throws IOException {
         int len = values.length;
         if (len > 0) {
             writeJSONToken('[');
@@ -308,11 +303,11 @@ public abstract class JSONWriter extends Writer {
             writeLong(values[0]);
             if ((len & 1) == 0) {
                 writeJSONToken(',');
-                writeLong(values[1]);
+                writeLong(values[1], jsonConfig);
                 ++i;
             }
             for (; i < len; i = i + 2) {
-                writeCommaLongValues(values[i], values[i + 1]);
+                writeCommaLongValues(values[i], values[i + 1], jsonConfig);
             }
             writeJSONToken(']');
         } else {
@@ -320,11 +315,11 @@ public abstract class JSONWriter extends Writer {
         }
     }
 
-    protected void writeCommaLongValues(long val1, long val2) throws IOException {
+    protected void writeCommaLongValues(long val1, long val2, JSONConfig jsonConfig) throws IOException {
         writeJSONToken(',');
-        writeLong(val1);
+        writeLong(val1, jsonConfig);
         writeJSONToken(',');
-        writeLong(val2);
+        writeLong(val2, jsonConfig);
     }
 
     // only use by JIT compact
@@ -418,60 +413,89 @@ public abstract class JSONWriter extends Writer {
      * format "yyyy-MM-ddTHH:mm:ss.SSSSSSSSS"
      * format "yyyy-MM-ddTHH:mm:ss.SSSSSSSSSZ"
      * format "yyyy-MM-ddTHH:mm:ss.SSSSSSSSS+08:00"
-     *
-     * @param year
-     * @param month
-     * @param day
-     * @param hour
-     * @param minute
-     * @param second
-     * @param nano
-     * @param zoneId
-     * @throws IOException
      */
     public abstract void writeJSONLocalDateTime(int year, int month, int day, int hour, int minute, int second, int nano, String zoneId) throws IOException;
 
     /**
      * write default format "yyyy-MM-dd"
-     *
-     * @param year
-     * @param month
-     * @param day
-     * @throws IOException
      */
     public abstract void writeJSONLocalDate(int year, int month, int day) throws IOException;
 
     /**
      * HH:mm:ss
-     *
-     * @param hourOfDay
-     * @param minute
-     * @param second
-     * @throws IOException
      */
     public abstract void writeTime(int hourOfDay, int minute, int second) throws IOException;
 
     /**
      * "HH:mm:ss.SSSS"
-     *
-     * @param hourOfDay
-     * @param minute
-     * @param second
-     * @param nano
-     * @throws IOException
      */
     public abstract void writeJSONTimeWithNano(int hourOfDay, int minute, int second, int nano) throws IOException;
 
     /**
+     * 序列化java.time.Duration类
+     */
+    public abstract void writeJSONDuration(long seconds, int nano) throws IOException;
+
+    /**
+     * 序列化java.time.Period类
+     */
+    public void writeJSONPeriod(int years, int months, int days) throws IOException {
+        if (years == 0 && months == 0 && days == 0) {
+            write("\"P0D\"");
+            return;
+        }
+        writeJSONToken('"');
+        writeJSONToken('P');
+        if (years != 0) {
+            writeInt(years);
+            writeJSONToken('Y');
+        }
+        if (months != 0) {
+            writeInt(months);
+            writeJSONToken('M');
+        }
+        if (days != 0) {
+            writeInt(days);
+            writeJSONToken('D');
+        }
+        writeJSONToken('"');
+    }
+
+    /**
+     * -> "YYYY-MM"
+     */
+    public void writeJSONYearMonth(int year, int monthValue) throws IOException {
+        writeJSONToken('"');
+        writeInt(year);
+        writeJSONToken('-');
+        if (monthValue < 10) {
+            writeJSONToken('0');
+        }
+        writeInt(monthValue);
+        writeJSONToken('"');
+    }
+
+    /**
+     * -> "--MM-dd"
+     */
+    public void writeJSONDefaultMonthDay(int monthValue, int dayOfMonth) throws IOException {
+        writeJSONToken('"');
+        writeJSONToken('-');
+        writeJSONToken('-');
+        if (monthValue < 10) {
+            writeJSONToken('0');
+        }
+        writeInt(monthValue);
+        writeJSONToken('-');
+        if (dayOfMonth < 10) {
+            writeJSONToken('0');
+        }
+        writeInt(dayOfMonth);
+        writeJSONToken('"');
+    }
+
+    /**
      * yyyy-MM-dd HH:mm:ss
-     *
-     * @param year
-     * @param month
-     * @param day
-     * @param hourOfDay
-     * @param minute
-     * @param second
-     * @throws IOException
      */
     public abstract void writeDate(int year, int month, int day, int hourOfDay, int minute, int second) throws IOException;
 
@@ -499,8 +523,34 @@ public abstract class JSONWriter extends Writer {
 
     public abstract void writeBigInteger(BigInteger bigInteger) throws IOException;
 
+    /**
+     * 支持数字转字符串
+     */
+    public final void writeBigInteger(BigInteger bigInteger, JSONConfig jsonConfig) throws IOException {
+        if (jsonConfig.isWriteNumberAsString()) {
+            writeJSONToken('"');
+            writeBigInteger(bigInteger);
+            writeJSONToken('"');
+        } else {
+            writeBigInteger(bigInteger);
+        }
+    }
+
     public void writeLatinString(String str) throws IOException {
         write(str);
+    }
+
+    /**
+     * 支持数字转字符串
+     */
+    public final void writeLatinString(String str, JSONConfig jsonConfig) throws IOException {
+        if (jsonConfig.isWriteNumberAsString()) {
+            writeJSONToken('"');
+            writeLatinString(str);
+            writeJSONToken('"');
+        } else {
+            writeLatinString(str);
+        }
     }
 
     // only for map key
@@ -530,8 +580,7 @@ public abstract class JSONWriter extends Writer {
     }
 
     /**
-     * @param value
-     * @throws IOException
+     * json string
      */
     public final void writeJSONString(String value) throws IOException {
         if (EnvUtils.JDK_9_PLUS) {
@@ -544,10 +593,6 @@ public abstract class JSONWriter extends Writer {
 
     /**
      * When the bytes are determined, one reflection can be reduced
-     *
-     * @param value
-     * @param bytes
-     * @throws IOException
      */
     public final void writeJSONStringBytes(String value, byte[] bytes) throws IOException {
         if (bytes.length == value.length()) {
@@ -600,11 +645,6 @@ public abstract class JSONWriter extends Writer {
 
     /**
      * 通过unsafe写入4 * n个字符（4 * n 字节）
-     *
-     * @param fourChars
-     * @param fourBytes
-     * @param len
-     * @throws IOException
      */
     void writeMemory(long fourChars, int fourBytes, int len) throws IOException {
         char[] chars = new char[4];
@@ -614,12 +654,6 @@ public abstract class JSONWriter extends Writer {
 
     /**
      * 一次性写入6-8个字符(字节)
-     *
-     * @param fourChars1
-     * @param fourChars2
-     * @param fourBytes
-     * @param len
-     * @throws IOException
      */
     void writeMemory(long fourChars1, long fourChars2, long fourBytes, int len) throws IOException {
         char[] chars = new char[8];
@@ -630,11 +664,6 @@ public abstract class JSONWriter extends Writer {
 
     /**
      * 通过unsafe写入totalCount个字节
-     *
-     * @param fourChars
-     * @param fourBytes
-     * @param totalCount 实际长度
-     * @throws IOException
      */
     void writeMemory(long[] fourChars, long[] fourBytes, int totalCount) throws IOException {
         int n = fourChars.length;
@@ -765,12 +794,11 @@ public abstract class JSONWriter extends Writer {
             buf[off++] = '-';
             doubleValue = -doubleValue;
         }
-
-//        if (doubleValue == (long) doubleValue) {
-//            long output = (long) doubleValue;
-//            int numLength = NumberUtils.stringSize(output);
-//            return writeDecimal(output, numLength, numLength - 1, buf, beginIndex, off);
-//        }
+        long output = (long) doubleValue;
+        if (doubleValue == output && output < 10000000000000000L) {
+            int numLength = NumberUtils.stringSize(output);
+            return writeDecimal(output, numLength, numLength - 1, buf, beginIndex, off);
+        }
 
         Scientific scientific = NumberUtils.doubleToScientific(doubleValue);
         int e10 = scientific.e10;
@@ -801,11 +829,6 @@ public abstract class JSONWriter extends Writer {
 
     /**
      * float写入buf
-     *
-     * @param floatValue
-     * @param buf
-     * @param off
-     * @return
      */
     final static int writeFloat(float floatValue, char[] buf, int off) {
         if (Float.isNaN(floatValue) || floatValue == Float.POSITIVE_INFINITY || floatValue == Float.NEGATIVE_INFINITY) {
@@ -928,11 +951,6 @@ public abstract class JSONWriter extends Writer {
 
     /**
      * 将double值写入到字节数组(保留16位有效数字)
-     *
-     * @param doubleValue
-     * @param buf
-     * @param off
-     * @return
      */
     final static int writeDouble(double doubleValue, byte[] buf, int off) {
 
@@ -952,11 +970,11 @@ public abstract class JSONWriter extends Writer {
             buf[off++] = '-';
             doubleValue = -doubleValue;
         }
-//        if (doubleValue == (long) doubleValue) {
-//            long output = (long) doubleValue;
-//            int numLength = NumberUtils.stringSize(output);
-//            return writeDecimal(output, numLength, numLength - 1, buf, beginIndex, off);
-//        }
+        long output = (long) doubleValue;
+        if (doubleValue == output && output < 10000000000000000L) {
+            int numLength = NumberUtils.stringSize(output);
+            return writeDecimal(output, numLength, numLength - 1, buf, beginIndex, off);
+        }
         Scientific scientific = NumberUtils.doubleToScientific(doubleValue);
         int e10 = scientific.e10;
         if (!scientific.b) {
@@ -989,11 +1007,6 @@ public abstract class JSONWriter extends Writer {
 
     /**
      * float写入buf（保留7位有效数字）
-     *
-     * @param floatValue
-     * @param buf
-     * @param off
-     * @return
      */
     final static int writeFloat(float floatValue, byte[] buf, int off) {
         if (Float.isNaN(floatValue) || floatValue == Float.POSITIVE_INFINITY || floatValue == Float.NEGATIVE_INFINITY) {
@@ -1265,90 +1278,86 @@ public abstract class JSONWriter extends Writer {
 
     /**
      * ensure val >= 0 && chars.length > off + 19
-     *
-     * @param val
-     * @param chars
-     * @param off
-     * @return
      */
     final static int writeLong(long val, char[] chars, int off) {
         if (val < 0x80000000L) {
             return writeInteger((int) val, chars, off);
         }
-        int v, v1, v2, v3, v4;
-//        if (val < 10000) {
-//            v = (int) val;
-//            if (v < 1000) {
-//                return writeThreeDigits(v, chars, off);
-//            } else {
-//                return JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v]);
-//            }
-//        }
         final int beginIndex = off;
-        long numValue = val;
-        val = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710cb296L) >> 12; // numValue / 10000;
-        v1 = (int) (numValue - val * 10000);
+        long high = EnvUtils.JDK_AGENT_INSTANCE.multiplyHigh(val, 0x55e63b88c230e77fL) >> 25, low = val - high * 100000000L;  // value / 100000000L
+        int l1 = (int) (low * 1759218605L >> 44), l2 = (int) (low - l1 * 10000);
+        if (high < 0x80000000L) {
+            off += writeInteger((int) high, chars, off);
+            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[l1]);
+            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[l2]);
+            return off - beginIndex;
+        } else {
+            // high(10-11) -> h0(2-3) h1(4) h2(4)
+            int v = (int) EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(high, 0x68db8bac710ccL), h2 = (int) (high - v * 10000L), h0 = (int) (v * 1759218605L >> 44), h1 = (v - h0 * 10000);
+            off += writeThreeDigits(h0, chars, off);
+            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[h1]);
+            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[h2]);
+            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[l1]);
+            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[l2]);
+            return off - beginIndex;
+        }
+
+//        if (val < 0x80000000L) {
+//            return writeInteger((int) val, chars, off);
+//        }
+//        int v, v1, v2, v3, v4;
+//        final int beginIndex = off;
+//        long numValue = val;
+//        val = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710cb296L) >> 12; // numValue / 10000;
+//        v1 = (int) (numValue - val * 10000);
+//
+//        numValue = val;
+//        val = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710ccL); // numValue / 10000;
+//        v2 = (int) (numValue - val * 10000);
 //        if (val < 10000) {
 //            v = (int) val;
 //            if (v < 1000) {
 //                off += writeThreeDigits(v, chars, off);
 //            } else {
-//                off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v]);
+//                off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v]);
 //            }
-//            off += JSONUnsafe.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
+//            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v2]);
+//            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
 //            return off - beginIndex;
 //        }
-
-        numValue = val;
-        val = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710ccL); // numValue / 10000;
-        v2 = (int) (numValue - val * 10000);
-        if (val < 10000) {
-            v = (int) val;
-            if (v < 1000) {
-                off += writeThreeDigits(v, chars, off);
-            } else {
-                off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v]);
-            }
-            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v2]);
-            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
-            return off - beginIndex;
-        }
-
-        numValue = val;
-        val = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710ccL); // numValue / 10000;
-        v3 = (int) (numValue - val * 10000);
-        if (val < 10000) {
-            v = (int) val;
-            if (v < 1000) {
-                off += writeThreeDigits(v, chars, off);
-            } else {
-                off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v]);
-            }
-            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v3]);
-            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v2]);
-            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
-            return off - beginIndex;
-        }
-
-        numValue = val;
-        val = numValue * 1759218605L >> 44; // EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710ccL); // numValue / 10000;
-        v4 = (int) (numValue - val * 10000);
-
-        off += writeThreeDigits((int) val, chars, off);
-        off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v4]);
-        off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v3]);
-        off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v2]);
-        off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
-        return off - beginIndex;
+//
+//        numValue = val;
+//        val = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710ccL); // numValue / 10000;
+//        v3 = (int) (numValue - val * 10000);
+//        if (val < 10000) {
+//            v = (int) val;
+//            if (v < 1000) {
+//                off += writeThreeDigits(v, chars, off);
+//            } else {
+//                off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v]);
+//            }
+//            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v3]);
+//            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v2]);
+//            off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
+//            return off - beginIndex;
+//        }
+//
+//        numValue = val;
+//        val = numValue * 1759218605L >> 44; // EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710ccL); // numValue / 10000;
+//        v4 = (int) (numValue - val * 10000);
+//
+//        off += writeThreeDigits((int) val, chars, off);
+//        off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v4]);
+//        off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v3]);
+//        off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v2]);
+//        off += JSONMemoryHandle.putLong(chars, off, FOUR_DIGITS_64_BITS[v1]);
+//        return off - beginIndex;
     }
 
     /**
      * ensure val >= 0 && chars.length > off + 10
      *
-     * @param val   max 10 digits
-     * @param chars
-     * @param off
-     * @return
+     * @param val max 10 digits
      */
     final static int writeInteger(int val, char[] chars, int off) {
         int v, v1, v2;
@@ -1391,85 +1400,74 @@ public abstract class JSONWriter extends Writer {
 
     /**
      * ensure val >= 0 && buf.length > off + 19
-     *
-     * @param val
-     * @param buf
-     * @param off
-     * @return
      */
     final static int writeLong(long val, byte[] buf, int off) {
         if (val < 0x80000000L) {
             return writeInteger((int) val, buf, off);
         }
-        int v, v1, v2, v3, v4;
-//        if (val < 10000) {
-//            v = (int) val;
-//            if (v < 1000) {
-//                return writeThreeDigits(v, buf, off);
-//            } else {
-//                return JSONUnsafe.putInt(buf, off, FOUR_DIGITS_32_BITS[v]);
-//            }
-//        }
         final int beginIndex = off;
-        long numValue = val;
-        val = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710cb296L) >> 12; // numValue / 10000;
-        v1 = (int) (numValue - val * 10000);
+        long high = EnvUtils.JDK_AGENT_INSTANCE.multiplyHigh(val, 0x55e63b88c230e77fL) >> 25, low = val - high * 100000000L;  // value / 100000000L
+        int l1 = (int) (low * 1759218605L >> 44), l2 = (int) (low - l1 * 10000);
+        if (high < 0x80000000L) {
+            off += writeInteger((int) high, buf, off);
+            off += JSONMemoryHandle.putLong(buf, off, mergeInt64(l1, l2));
+            return off - beginIndex;
+        } else {
+            // high(10-11) -> h0(2-3) h1(4) h2(4)
+            int v = (int) EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(high, 0x68db8bac710ccL), h2 = (int) (high - v * 10000L), h0 = (int) (v * 1759218605L >> 44), h1 = (v - h0 * 10000);
+            off += writeThreeDigits(h0, buf, off);
+            off += JSONMemoryHandle.putLong(buf, off, mergeInt64(h1, h2));
+            off += JSONMemoryHandle.putLong(buf, off, mergeInt64(l1, l2));
+            return off - beginIndex;
+        }
+//        int v, v1, v2, v3, v4;
+//        final int beginIndex = off;
+//        long numValue = val;
+//        val = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710cb296L) >> 12; // numValue / 10000;
+//        v1 = (int) (numValue - val * 10000);
+//
+//        numValue = val;
+//        val = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710ccL); // numValue / 10000;
+//        v2 = (int) (numValue - val * 10000);
 //        if (val < 10000) {
 //            v = (int) val;
 //            if (v < 1000) {
 //                off += writeThreeDigits(v, buf, off);
-//                off += JSONUnsafe.putInt(buf, off, FOUR_DIGITS_32_BITS[v1]);
 //            } else {
-//                off += JSONUnsafe.putLong(buf, off, mergeInt64(v, v1));
+//                off += JSONMemoryHandle.putInt(buf, off, FOUR_DIGITS_32_BITS[v]);
 //            }
+//            off += JSONMemoryHandle.putLong(buf, off, mergeInt64(v2, v1));
 //            return off - beginIndex;
 //        }
-
-        numValue = val;
-        val = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710ccL); // numValue / 10000;
-        v2 = (int) (numValue - val * 10000);
-        if (val < 10000) {
-            v = (int) val;
-            if (v < 1000) {
-                off += writeThreeDigits(v, buf, off);
-            } else {
-                off += JSONMemoryHandle.putInt(buf, off, FOUR_DIGITS_32_BITS[v]);
-            }
-            off += JSONMemoryHandle.putLong(buf, off, mergeInt64(v2, v1));
-            return off - beginIndex;
-        }
-
-        numValue = val;
-        val = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710ccL); // numValue / 10000;
-        v3 = (int) (numValue - val * 10000);
-        if (val < 10000) {
-            v = (int) val;
-            if (v < 1000) {
-                off += writeThreeDigits(v, buf, off);
-                off += JSONMemoryHandle.putInt(buf, off, FOUR_DIGITS_32_BITS[v3]);
-            } else {
-                off += JSONMemoryHandle.putLong(buf, off, mergeInt64(v, v3));
-            }
-            off += JSONMemoryHandle.putLong(buf, off, mergeInt64(v2, v1));
-            return off - beginIndex;
-        }
-
-        numValue = val;
-        val = numValue * 1759218605L >> 44; // EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710ccL); // numValue / 10000;
-        v4 = (int) (numValue - val * 10000);
-        off += writeThreeDigits((int) val, buf, off);
-        off += JSONMemoryHandle.putLong(buf, off, mergeInt64(v4, v3));
-        off += JSONMemoryHandle.putLong(buf, off, mergeInt64(v2, v1));
-        return off - beginIndex;
+//
+//        numValue = val;
+//        val = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710ccL); // numValue / 10000;
+//        v3 = (int) (numValue - val * 10000);
+//        if (val < 10000) {
+//            v = (int) val;
+//            if (v < 1000) {
+//                off += writeThreeDigits(v, buf, off);
+//                off += JSONMemoryHandle.putInt(buf, off, FOUR_DIGITS_32_BITS[v3]);
+//            } else {
+//                off += JSONMemoryHandle.putLong(buf, off, mergeInt64(v, v3));
+//            }
+//            off += JSONMemoryHandle.putLong(buf, off, mergeInt64(v2, v1));
+//            return off - beginIndex;
+//        }
+//
+//        numValue = val;
+//        val = numValue * 1759218605L >> 44; // EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(numValue, 0x68db8bac710ccL); // numValue / 10000;
+//        v4 = (int) (numValue - val * 10000);
+//        off += writeThreeDigits((int) val, buf, off);
+//        off += JSONMemoryHandle.putLong(buf, off, mergeInt64(v4, v3));
+//        off += JSONMemoryHandle.putLong(buf, off, mergeInt64(v2, v1));
+//        return off - beginIndex;
     }
 
     /**
      * ensure val >= 0 && buf.length > off + 10
      *
      * @param val max 10 digits
-     * @param buf
-     * @param off
-     * @return
      */
     final static int writeInteger(int val, byte[] buf, int off) {
         int v, v1, v2;

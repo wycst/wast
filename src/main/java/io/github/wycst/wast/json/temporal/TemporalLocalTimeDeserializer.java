@@ -25,7 +25,7 @@ public class TemporalLocalTimeDeserializer extends JSONTemporalDeserializer {
         super(temporalConfig);
     }
 
-    protected void checkClass(GenericParameterizedType genericParameterizedType) {
+    protected void checkClass(GenericParameterizedType<?> genericParameterizedType) {
     }
 
     protected Object deserializeTemporal(char[] buf, int fromIndex, int endIndex, JSONParseContext jsonParseContext) throws Exception {

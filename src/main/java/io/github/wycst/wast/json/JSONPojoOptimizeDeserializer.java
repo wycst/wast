@@ -11,11 +11,11 @@ import io.github.wycst.wast.common.reflect.GenericParameterizedType;
  *
  * @param <T>
  */
-public abstract class JSONPojoOptimizeDeserializer<T> extends JSONTypeDeserializer {
+public abstract class JSONPojoOptimizeDeserializer<T> extends JSONPojoDeserializer {
 
     protected final JSONPojoStructure pojoStructure;
-    protected final JSONKeyValueMap<JSONPojoFieldDeserializer> fieldDeserializerMap;
-    final GenericParameterizedType<T> genericType;
+    final JSONKeyValueMap<JSONPojoFieldDeserializer> fieldDeserializerMap;
+    final GenericParameterizedType<?> genericType;
     final JSONKeyValueMap.EntryNode<JSONPojoFieldDeserializer>[] valueEntryNodes;
     final int mask;
 
@@ -25,6 +25,15 @@ public abstract class JSONPojoOptimizeDeserializer<T> extends JSONTypeDeserializ
         this.fieldDeserializerMap = pojoStructure.fieldDeserializerMatcher.valueMapForChars;
         this.valueEntryNodes = fieldDeserializerMap.valueEntryNodes;
         this.mask = fieldDeserializerMap.mask;
+    }
+
+    protected final Object createPojo() throws Exception {
+        return pojoStructure.newInstance();
+    }
+
+    @Override
+    protected final Object pojo(Object value) {
+        return value;
     }
 
     @Override
@@ -47,8 +56,10 @@ public abstract class JSONPojoOptimizeDeserializer<T> extends JSONTypeDeserializ
                 if (entryNode != null && (!parseContext.strictMode ? entryNode.hash == hashValue : entryNode.equals(buf, offset, parseContext.endIndex - offset))) {
                     return entryNode.value;
                 }
+                return skipIfNotMatch(buf, endToken, parseContext);
             }
-            return skipIfNotMatch(buf, endToken, parseContext);
+            parseContext.endIndex = offset;
+            return null;
         }
 
         final JSONPojoFieldDeserializer matchDeserializer(byte[] buf, int offset, int endToken, JSONParseContext parseContext) {
@@ -59,8 +70,10 @@ public abstract class JSONPojoOptimizeDeserializer<T> extends JSONTypeDeserializ
                 if (entryNode != null && (!parseContext.strictMode ? entryNode.hash == hashValue : entryNode.equals(buf, offset, parseContext.endIndex - offset))) {
                     return entryNode.value;
                 }
+                return skipIfNotMatch(buf, endToken, parseContext);
             }
-            return skipIfNotMatch(buf, endToken, parseContext);
+            parseContext.endIndex = offset;
+            return null;
         }
     }
 
@@ -70,7 +83,7 @@ public abstract class JSONPojoOptimizeDeserializer<T> extends JSONTypeDeserializ
         return this;
     }
 
-    protected final T deserialize(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object entity, int endToken, JSONParseContext parseContext) throws Exception {
+    protected final T deserialize(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType<?> parameterizedType, Object entity, int endToken, JSONParseContext parseContext) throws Exception {
         char c = buf[fromIndex];
         if (c == '{') {
             return (T) deserializePojo(charSource, buf, fromIndex, parameterizedType, entity, parseContext);
@@ -78,7 +91,7 @@ public abstract class JSONPojoOptimizeDeserializer<T> extends JSONTypeDeserializ
             parseNull(buf, fromIndex, parseContext);
             return null;
         } else {
-            if (parseContext.unMatchedEmptyAsNull && c == '"' && buf[fromIndex + 1] == '"') {
+            if (parseContext.unMatchedEmptyAsNull && (c == '"' || c == '\'') && buf[fromIndex + 1] == c) {
                 parseContext.endIndex = fromIndex + 1;
                 return null;
             }
@@ -87,7 +100,7 @@ public abstract class JSONPojoOptimizeDeserializer<T> extends JSONTypeDeserializ
         }
     }
 
-    protected final T deserialize(CharSource charSource, byte[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object entity, int endToken, JSONParseContext parseContext) throws Exception {
+    protected final T deserialize(CharSource charSource, byte[] buf, int fromIndex, GenericParameterizedType<?> parameterizedType, Object entity, int endToken, JSONParseContext parseContext) throws Exception {
         byte c = buf[fromIndex];
         if (c == '{') {
             return (T) deserializePojo(charSource, buf, fromIndex, parameterizedType, entity, parseContext);
@@ -95,7 +108,7 @@ public abstract class JSONPojoOptimizeDeserializer<T> extends JSONTypeDeserializ
             parseNull(buf, fromIndex, parseContext);
             return null;
         } else {
-            if (parseContext.unMatchedEmptyAsNull && c == DOUBLE_QUOTATION && buf[fromIndex + 1] == DOUBLE_QUOTATION) {
+            if (parseContext.unMatchedEmptyAsNull && (c == DOUBLE_QUOTATION || c == '\'') && buf[fromIndex + 1] == c) {
                 parseContext.endIndex = fromIndex + 1;
                 return null;
             }
@@ -148,7 +161,7 @@ public abstract class JSONPojoOptimizeDeserializer<T> extends JSONTypeDeserializ
         }
     }
 
-    final Object deserializePojo(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object entity, JSONParseContext parseContext) throws Exception {
+    final Object deserializePojo(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType<?> parameterizedType, Object entity, JSONParseContext parseContext) throws Exception {
         if (entity == null) {
             entity = pojoStructure.newInstance();
         }
@@ -231,7 +244,7 @@ public abstract class JSONPojoOptimizeDeserializer<T> extends JSONTypeDeserializ
         }
     }
 
-    final Object deserializePojo(CharSource charSource, byte[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object entity, JSONParseContext parseContext) throws Exception {
+    final Object deserializePojo(CharSource charSource, byte[] buf, int fromIndex, GenericParameterizedType<?> parameterizedType, Object entity, JSONParseContext parseContext) throws Exception {
         if (entity == null) {
             entity = pojoStructure.newInstance();
         }
@@ -359,7 +372,7 @@ public abstract class JSONPojoOptimizeDeserializer<T> extends JSONTypeDeserializ
         }
     }
 
-    protected final <T> GenericParameterizedType getGenericParameterizedType(Class<T> actualType) {
+    protected final <T> GenericParameterizedType<?> getGenericParameterizedType(Class<T> actualType) {
         return genericType;
     }
 
@@ -399,7 +412,7 @@ public abstract class JSONPojoOptimizeDeserializer<T> extends JSONTypeDeserializ
         return hashValue;
     }
 
-    static JSONPojoOptimizeDeserializer optimize(JSONPojoStructure pojoStructure) {
+    static JSONPojoOptimizeDeserializer<?> optimize(JSONPojoStructure pojoStructure) {
 
         if (pojoStructure.fieldDeserializerMatcher.isPlhv()) {
             final JSONKeyValueMap<JSONPojoFieldDeserializer> fieldDeserializerMap = pojoStructure.fieldDeserializerMatcher.valueMapForChars;
@@ -417,8 +430,10 @@ public abstract class JSONPojoOptimizeDeserializer<T> extends JSONTypeDeserializ
                             if ((!parseContext.strictMode ? hv == hashValue : one.equals(buf, offset, parseContext.endIndex - offset))) {
                                 return value;
                             }
+                            return skipIfNotMatch(buf, endToken, parseContext);
                         }
-                        return skipIfNotMatch(buf, endToken, parseContext);
+                        parseContext.endIndex = offset;
+                        return null;
                     }
 
                     JSONPojoFieldDeserializer matchDeserializer(byte[] buf, int offset, int endToken, JSONParseContext parseContext) {
@@ -428,8 +443,10 @@ public abstract class JSONPojoOptimizeDeserializer<T> extends JSONTypeDeserializ
                             if ((!parseContext.strictMode ? hv == hashValue : one.equals(buf, offset, parseContext.endIndex - offset))) {
                                 return value;
                             }
+                            return skipIfNotMatch(buf, endToken, parseContext);
                         }
-                        return skipIfNotMatch(buf, endToken, parseContext);
+                        parseContext.endIndex = offset;
+                        return null;
                     }
                 };
             }
@@ -482,8 +499,10 @@ public abstract class JSONPojoOptimizeDeserializer<T> extends JSONTypeDeserializ
                         if (entryNode != null && (!parseContext.strictMode ? entryNode.hash == hashValue : entryNode.equals(buf, offset, parseContext.endIndex - offset))) {
                             return entryNode.value;
                         }
+                        return skipIfNotMatch(buf, endToken, parseContext);
                     }
-                    return skipIfNotMatch(buf, endToken, parseContext);
+                    parseContext.endIndex = offset;
+                    return null;
                 }
 
                 JSONPojoFieldDeserializer matchDeserializer(byte[] buf, int offset, int endToken, JSONParseContext parseContext) {
@@ -494,8 +513,10 @@ public abstract class JSONPojoOptimizeDeserializer<T> extends JSONTypeDeserializ
                         if (entryNode != null && (!parseContext.strictMode ? entryNode.hash == hashValue : entryNode.equals(buf, offset, parseContext.endIndex - offset))) {
                             return entryNode.value;
                         }
+                        return skipIfNotMatch(buf, endToken, parseContext);
                     }
-                    return skipIfNotMatch(buf, endToken, parseContext);
+                    parseContext.endIndex = offset;
+                    return null;
                 }
             };
         } else if (pojoStructure.fieldDeserializerMatcher.isPrhv()) {

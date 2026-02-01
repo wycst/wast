@@ -47,7 +47,9 @@ public final class EntitySqlMapping {
     private String selectByPrimarySql;
     private String selectSql;
     private String insertSql;
+    private String replaceSql;
     private String insertSqlPrefix;
+    private String replaceSqlPrefix;
     private String insertSqlSuffix;
     private String updateByPrimarySql;
     private String deleteByPrimarySql;
@@ -365,6 +367,7 @@ public final class EntitySqlMapping {
     private void initInsertSql() {
         this.insertColumns.clear();
         String insertTemplate = "INSERT INTO %s(%s) VALUES(%s)";
+        String replaceTemplate = "REPLACE INTO %s(%s) VALUES(%s)";
         StringBuilder columnsNameBuilder = new StringBuilder();
         StringBuilder columnsValueBuilder = new StringBuilder();
         int deleteDotOfNameIndex = -1;
@@ -404,8 +407,10 @@ public final class EntitySqlMapping {
         }
 
         this.insertSqlPrefix = StringUtils.replacePlaceholder("INSERT INTO %s(%s) VALUES", "%s", tableName, columnsNameBuilder.toString());
+        this.replaceSqlPrefix = StringUtils.replacePlaceholder("REPLACE INTO %s(%s) VALUES", "%s", tableName, columnsNameBuilder.toString());
         this.insertSqlSuffix = "(" + columnsValueBuilder + ")";
         this.insertSql = StringUtils.replacePlaceholder(insertTemplate, "%s", tableName, columnsNameBuilder.toString(), columnsValueBuilder.toString());
+        this.replaceSql = StringUtils.replacePlaceholder(replaceTemplate, "%s", tableName, columnsNameBuilder.toString(), columnsValueBuilder.toString());
     }
 
     private void initUpdateSql() {
@@ -836,14 +841,19 @@ public final class EntitySqlMapping {
     }
 
     <E> Sql getInsertSqlObject(E entity) {
+        return getInsertSqlObject(entity, false);
+    }
+
+    <E> Sql getInsertSqlObject(E entity, boolean replace) {
         Sql sql = new Sql();
-        sql.setFormalSql(getInsertSql(entity));
+        sql.setFormalSql(getInsertSql(entity, replace));
         sql.setParamValues(getInsertValues(entity));
         return sql;
     }
 
-    <E> String getInsertSql(E entity) {
-        return this.usePlaceholderOnInsert ? renderPlaceholder(insertSql, entity) : insertSql;
+    <E> String getInsertSql(E entity, boolean replace) {
+        String sql = replace ? replaceSql : insertSql;
+        return this.usePlaceholderOnInsert ? renderPlaceholder(sql, entity) : sql;
     }
 
     /**
@@ -864,10 +874,28 @@ public final class EntitySqlMapping {
         return sql;
     }
 
+    /**
+     * not support placeholder
+     */
+    <E> Sql getUpdateSqlObjectList(String updateSqlFormat, List<E> entityList) {
+        Sql sql = new Sql();
+        sql.setFormalSql(updateSqlFormat == null ? updateByPrimarySql : getUpdateSql(updateSqlFormat));
+        List<Object[]> paramValuesList = new ArrayList<Object[]>(entityList.size());
+        for (E entity : entityList) {
+            paramValuesList.add(getUpdateValues(entity));
+        }
+        sql.setParamValuesList(paramValuesList);
+        return sql;
+    }
+
     <E> Sql getBatchInsertSqlObject(List<E> entityList) {
+        return getBatchInsertSqlObject(entityList, false);
+    }
+
+    <E> Sql getBatchInsertSqlObject(List<E> entityList, boolean replace) {
         Sql sqlObject = new Sql();
         // INSERT INTO %s(%s) VALUES
-        StringBuilder builder = new StringBuilder(insertSqlPrefix);
+        StringBuilder builder = new StringBuilder(replace ? replaceSqlPrefix : insertSqlPrefix);
         Object[] paramValues = new Object[entityList.size() * insertColumns.size()];
         int index = -1;
         StringBuilder columnsValueBuilder = new StringBuilder();

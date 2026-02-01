@@ -34,7 +34,7 @@ public class JDKCompiler {
             JavaFileObject javaFileObject = javaFileManager.createJavaFileObject(sourceObject.className + ".java", sourceObject.javaSourceCode);
             JavaCompiler.CompilationTask task = JAVA_COMPILER.getTask(null, javaFileManager, null,
                     options, null,
-                    Arrays.asList(javaFileObject));
+                    Collections.singletonList(javaFileObject));
             boolean bl = task.call();
             if (bl) {
                 MemoryJavaFileObject memoryJavaFileObject = javaFileManager.getLastMemoryJavaFileObject();
@@ -49,7 +49,7 @@ public class JDKCompiler {
         } finally {
             try {
                 javaFileManager.close();
-            } catch (IOException e) {
+            } catch (IOException ignored) {
             }
         }
     }
@@ -87,7 +87,7 @@ public class JDKCompiler {
         } finally {
             try {
                 javaFileManager.close();
-            } catch (IOException e) {
+            } catch (IOException ignored) {
             }
         }
     }

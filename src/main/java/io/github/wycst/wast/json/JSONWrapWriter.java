@@ -1,5 +1,7 @@
 package io.github.wycst.wast.json;
 
+import io.github.wycst.wast.common.utils.EnvUtils;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.Writer;
@@ -187,6 +189,58 @@ class JSONWrapWriter extends JSONWriter {
         if (nano > 0) {
             off = writeNano(nano, buf, off);
         }
+        buf[off++] = '"';
+        writer.write(buf, 0, off);
+    }
+
+    @Override
+    public void writeJSONDuration(long seconds, int nano) throws IOException {
+        if (seconds == 0 && nano == 0) {
+            writer.write("\"PT0S\"");
+            return;
+        }
+        writer.write("\"PT");
+        final boolean negative = seconds < 0;
+        if (negative) {
+            seconds = -seconds;
+        }
+        long hour = seconds / 3600; // 暂不优化: seconds < 5146971002711999L ? EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(seconds, 0x123456789abce0L) : seconds / 3600 ( // ((2^64 - 3599 * 0x123456789abce0L) / 3584) * 3600 + 3599 * 2 + 1 -> 5146971002711999L)
+        if (hour > 0) {
+            if (negative) {
+                writer.write('-');
+            }
+            writeLong(hour);
+            writer.write('H');
+        }
+
+        char[] buf = JSONGeneral.CACHED_CHARS_36.get();
+        int off = 0;
+        int secondsOfDay = (int) (seconds - hour * 3600);
+        int minute = (int) EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(secondsOfDay, 0x444444444444445L); // secondsOfDay / 60;
+        if (minute > 0) {
+            if (negative) {
+                buf[off++] = '-';
+            }
+            off += writeInteger(minute, buf, off);
+            buf[off++] = 'M';
+        }
+        int second = secondsOfDay - minute * 60;
+        if (second == 0 && nano == 0) {
+            buf[off++] = '"';
+            writer.write(buf, 0, off);
+            return;
+        }
+        if (negative) {
+            buf[off++] = '-';
+        }
+        off += writeInteger(second, buf, off);
+        if (nano > 0) {
+            off = writeNano(nano, buf, off);
+            while (buf[off - 1] == '0') {
+                --off;
+            }
+        }
+        buf[off++] = 'S';
         buf[off++] = '"';
         writer.write(buf, 0, off);
     }

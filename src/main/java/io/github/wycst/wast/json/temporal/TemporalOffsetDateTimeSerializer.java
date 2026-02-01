@@ -2,9 +2,9 @@ package io.github.wycst.wast.json.temporal;
 
 import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.json.JSONConfig;
+import io.github.wycst.wast.json.JSONPropertyDefinition;
 import io.github.wycst.wast.json.JSONTemporalSerializer;
 import io.github.wycst.wast.json.JSONWriter;
-import io.github.wycst.wast.json.annotations.JsonProperty;
 
 import java.time.OffsetDateTime;
 
@@ -19,7 +19,7 @@ import java.time.OffsetDateTime;
  */
 public class TemporalOffsetDateTimeSerializer extends JSONTemporalSerializer {
 
-    public TemporalOffsetDateTimeSerializer(Class<?> temporalClass, JsonProperty property) {
+    public TemporalOffsetDateTimeSerializer(Class<?> temporalClass, JSONPropertyDefinition property) {
         super(temporalClass, property);
     }
 

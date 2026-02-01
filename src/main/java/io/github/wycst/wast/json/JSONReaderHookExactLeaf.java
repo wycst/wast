@@ -10,9 +10,9 @@ import io.github.wycst.wast.common.utils.ObjectUtils;
 final class JSONReaderHookExactLeaf extends JSONReaderHook {
 
     private final String exactPath;
-    private final GenericParameterizedType parameterizedType;
+    private final GenericParameterizedType<?> parameterizedType;
 
-    public JSONReaderHookExactLeaf(String exactPath, GenericParameterizedType parameterizedType) {
+    public JSONReaderHookExactLeaf(String exactPath, GenericParameterizedType<?> parameterizedType) {
         this.exactPath = exactPath;
         this.parameterizedType = parameterizedType;
         parameterizedType.getClass();

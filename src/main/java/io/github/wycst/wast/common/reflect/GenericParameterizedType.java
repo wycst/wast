@@ -44,11 +44,13 @@ public final class GenericParameterizedType<T> {
      * int类型
      */
     public static final GenericParameterizedType<Integer> IntType = GenericParameterizedType.actualType(int.class);
+    public static final GenericParameterizedType<Integer> IntWrapType = GenericParameterizedType.actualType(Integer.class);
 
     /***
      * long类型
      */
     public static final GenericParameterizedType<Long> LongType = GenericParameterizedType.actualType(long.class);
+    public static final GenericParameterizedType<Long> LongWrapType = GenericParameterizedType.actualType(Long.class);
 
     /***
      * double类型
@@ -81,7 +83,7 @@ public final class GenericParameterizedType<T> {
     /**
      * map类的泛型value类型或者Collection类型的元素泛型
      */
-    GenericParameterizedType valueType;
+    GenericParameterizedType<?> valueType;
 
     /**
      * 是否泛型
@@ -110,15 +112,12 @@ public final class GenericParameterizedType<T> {
 
     /**
      * 根据实际类型构建泛型结构对象
-     *
-     * @param actualType
-     * @return
      */
     public static <T> GenericParameterizedType<T> actualType(Class<T> actualType) {
         if (actualType == null) return AnyType;
-        GenericParameterizedType genericParameterizedType = GENERIC_PARAMETERIZED_TYPE_MAP.get(actualType);
+        GenericParameterizedType<?> genericParameterizedType = GENERIC_PARAMETERIZED_TYPE_MAP.get(actualType);
         if (genericParameterizedType == null) {
-            genericParameterizedType = new GenericParameterizedType();
+            genericParameterizedType = new GenericParameterizedType<Object>();
             genericParameterizedType.setActualType(actualType);
             genericParameterizedType.actualClassCategory = ReflectConsts.getClassCategory(actualType);
             if (actualType.isArray()) {
@@ -126,16 +125,13 @@ public final class GenericParameterizedType<T> {
             }
             GENERIC_PARAMETERIZED_TYPE_MAP.put(actualType, genericParameterizedType);
         }
-        return genericParameterizedType;
+        return (GenericParameterizedType<T>) genericParameterizedType;
     }
 
     /**
      * 通过new构建,场景需要隔离时使用
-     *
-     * @param actualType
-     * @return
      */
-    static GenericParameterizedType createInternal(Class actualType) {
+    static GenericParameterizedType<?> createInternal(Class<?> actualType) {
         if (actualType == Object.class) {
             return AnyType;
         }
@@ -143,18 +139,18 @@ public final class GenericParameterizedType<T> {
             return StringType;
         }
         if (actualType == Integer.class || actualType == int.class) {
-            return IntType;
+            return actualType == Integer.class ? IntWrapType : IntType;
         }
         if (actualType == Long.class || actualType == long.class) {
-            return LongType;
+            return actualType == Long.class ? LongWrapType : LongType;
         }
-        GenericParameterizedType genericParameterizedType = new GenericParameterizedType();
+        GenericParameterizedType<?> genericParameterizedType = new GenericParameterizedType<Object>();
         genericParameterizedType.setActualType(actualType);
         genericParameterizedType.actualClassCategory = ReflectConsts.getClassCategory(actualType);
         return genericParameterizedType;
     }
 
-    public static GenericParameterizedType mapOf(Class<? extends Map> mapClass) {
+    public static GenericParameterizedType<?> mapOf(Class<? extends Map> mapClass) {
         Type type = mapClass.getGenericSuperclass();
         if (type instanceof ParameterizedType) {
             ParameterizedType parameterizedType = (ParameterizedType) type;
@@ -169,7 +165,7 @@ public final class GenericParameterizedType<T> {
         return actualType(mapClass);
     }
 
-    public static GenericParameterizedType collectionOf(Class<? extends Collection> collectionClass) {
+    public static GenericParameterizedType<?> collectionOf(Class<? extends Collection> collectionClass) {
         Type type = collectionClass.getGenericSuperclass();
         if (type instanceof ParameterizedType) {
             ParameterizedType parameterizedType = (ParameterizedType) type;
@@ -197,26 +193,21 @@ public final class GenericParameterizedType<T> {
         return this == AnyType;
     }
 
-    private <T> void setActualType(Class<T> actualType) {
+    private void setActualType(Class<?> actualType) {
         this.actualType = actualType;
     }
 
     /**
      * 构建map类型的泛型结构对象, value为简单类型（无泛型）
-     *
-     * @param mapClass
-     * @param mapKeyClass
-     * @param valueActualType
-     * @return
      */
-    public static GenericParameterizedType mapType(Class<? extends Map> mapClass, Class<?> mapKeyClass, Class<?> valueActualType) {
-        GenericParameterizedType parameterizedType = new GenericParameterizedType();
+    public static GenericParameterizedType<?> mapType(Class<? extends Map> mapClass, Class<?> mapKeyClass, Class<?> valueActualType) {
+        GenericParameterizedType<?> parameterizedType = new GenericParameterizedType<Object>();
         parameterizedType.generic = true;
         parameterizedType.setActualType(mapClass);
 
         parameterizedType.mapKeyClass = mapKeyClass;
 
-        GenericParameterizedType valueType = new GenericParameterizedType();
+        GenericParameterizedType<?> valueType = new GenericParameterizedType<Object>();
         valueType.setActualType(valueActualType);
 
         parameterizedType.valueType = valueType;
@@ -225,14 +216,9 @@ public final class GenericParameterizedType<T> {
 
     /**
      * 构建map类型的泛型结构, value也可能存在泛型
-     *
-     * @param mapClass
-     * @param mapKeyClass
-     * @param valueType
-     * @return
      */
-    public static GenericParameterizedType mapType(Class<? extends Map> mapClass, Class<?> mapKeyClass, GenericParameterizedType valueType) {
-        GenericParameterizedType parameterizedType = new GenericParameterizedType();
+    public static GenericParameterizedType<?> mapType(Class<? extends Map> mapClass, Class<?> mapKeyClass, GenericParameterizedType<?> valueType) {
+        GenericParameterizedType<?> parameterizedType = new GenericParameterizedType<Object>();
         parameterizedType.generic = true;
         parameterizedType.setActualType(mapClass);
         parameterizedType.mapKeyClass = mapKeyClass;
@@ -245,16 +231,14 @@ public final class GenericParameterizedType<T> {
      * 构建数组类型的泛型结构，元素为简单类型
      *
      * @param componentType 数组元素泛型
-     * @return
      */
-    public static GenericParameterizedType arrayType(Class<?> componentType) {
-        GenericParameterizedType parameterizedType = new GenericParameterizedType();
+    public static GenericParameterizedType<?> arrayType(Class<?> componentType) {
+        GenericParameterizedType<?> parameterizedType = new GenericParameterizedType<Object>();
         parameterizedType.actualType = Array.newInstance(componentType, 0).getClass();
         parameterizedType.generic = true;
         parameterizedType.array = true;
 
-        GenericParameterizedType valueType = actualType(componentType);
-        parameterizedType.valueType = valueType;
+        parameterizedType.valueType = actualType(componentType);
         return parameterizedType;
     }
 
@@ -274,31 +258,22 @@ public final class GenericParameterizedType<T> {
 
     /**
      * 构建Collection类型的泛型结构，元素为简单类型
-     *
-     * @param collectionClass
-     * @param valueActualType
-     * @return
      */
     public static <E> GenericParameterizedType<E> collectionType(Class<E> collectionClass, Class<?> valueActualType) {
 
-        GenericParameterizedType parameterizedType = new GenericParameterizedType();
+        GenericParameterizedType<E> parameterizedType = new GenericParameterizedType<E>();
         parameterizedType.generic = true;
         parameterizedType.setActualType(collectionClass == null ? ArrayList.class : collectionClass);
 
-        GenericParameterizedType valueType = actualType(valueActualType);
-        parameterizedType.valueType = valueType;
+        parameterizedType.valueType = actualType(valueActualType);
         return parameterizedType;
     }
 
     /**
      * 构建Collection类型的泛型结构，元素也可能存在泛型
-     *
-     * @param collectionClass
-     * @param valueType
-     * @return
      */
-    public static <E> GenericParameterizedType<E> collectionType(Class<E> collectionClass, GenericParameterizedType valueType) {
-        GenericParameterizedType parameterizedType = new GenericParameterizedType();
+    public static <E> GenericParameterizedType<E> collectionType(Class<E> collectionClass, GenericParameterizedType<?> valueType) {
+        GenericParameterizedType<E> parameterizedType = new GenericParameterizedType<E>();
         parameterizedType.generic = true;
         parameterizedType.setActualType(collectionClass);
         parameterizedType.valueType = valueType;
@@ -308,10 +283,6 @@ public final class GenericParameterizedType<T> {
     /**
      * 构建普通实体类型的泛型结构
      * (ps:单泛型模式)
-     *
-     * @param entityClass
-     * @param genericClass
-     * @return
      */
     public static <E> GenericParameterizedType<E> entityType(Class<E> entityClass, Class<?> genericClass) {
         GenericParameterizedType<E> parameterizedType = new GenericParameterizedType<E>();
@@ -325,13 +296,9 @@ public final class GenericParameterizedType<T> {
     /**
      * 构建普通实体类型的泛型结构
      * 支持n个泛型，通过名称进行映射
-     *
-     * @param entityClass
-     * @param genericClassMap
-     * @return
      */
     public static <E> GenericParameterizedType<E> entityType(Class<E> entityClass, Map<String, Class<?>> genericClassMap) {
-        GenericParameterizedType parameterizedType = new GenericParameterizedType();
+        GenericParameterizedType<E> parameterizedType = new GenericParameterizedType<E>();
         parameterizedType.setActualType(entityClass);
         parameterizedType.genericClassMap = genericClassMap;
         return parameterizedType;
@@ -339,13 +306,9 @@ public final class GenericParameterizedType<T> {
 
     /**
      * 递归解析Collection的泛型结构
-     *
-     * @param parameterType
-     * @param genericType
-     * @return
      */
-    static GenericParameterizedType genericCollectionType(Class<?> parameterType, Type genericType) {
-        GenericParameterizedType genericParameterizedType = new GenericParameterizedType();
+    static GenericParameterizedType<?> genericCollectionType(Class<?> parameterType, Type genericType) {
+        GenericParameterizedType<?> genericParameterizedType = new GenericParameterizedType<Object>();
         genericParameterizedType.setActualType(parameterType);
         genericParameterizedType.generic = true;
         parseValueType(genericParameterizedType, genericType);
@@ -354,26 +317,17 @@ public final class GenericParameterizedType<T> {
 
     /**
      * 递归解析数组的泛型结构
-     *
-     * @param genericComponentType
-     * @return
      */
-    static GenericParameterizedType genericArrayType(Type genericComponentType) {
-        GenericParameterizedType genericParameterizedType = new GenericParameterizedType();
+    static GenericParameterizedType<?> genericArrayType(Type genericComponentType) {
+        GenericParameterizedType<?> genericParameterizedType = new GenericParameterizedType<Object>();
         genericParameterizedType.array = true;
         genericParameterizedType.generic = true;
         parseValueType(genericParameterizedType, genericComponentType);
         return genericParameterizedType;
     }
 
-    /**
-     * @param parameterType
-     * @param key           <p> map的key值不支持泛型
-     * @param value
-     * @return
-     */
-    static GenericParameterizedType genericMapType(Class<?> parameterType, Type key, Type value) {
-        GenericParameterizedType genericParameterizedType = new GenericParameterizedType();
+    static GenericParameterizedType<?> genericMapType(Class<?> parameterType, Type key, Type value) {
+        GenericParameterizedType<?> genericParameterizedType = new GenericParameterizedType<Object>();
         genericParameterizedType.setActualType(parameterType);
         genericParameterizedType.generic = true;
         genericParameterizedType.mapKeyClass = !(key instanceof Class<?>) ? Object.class : (Class<?>) key;
@@ -384,19 +338,18 @@ public final class GenericParameterizedType<T> {
     /**
      * 通过类上的伪泛型构建泛型结构
      *
-     * @param parameterType
+     * @param parameterType 类
      * @param genericName   伪泛型名称
-     * @return
      */
-    static GenericParameterizedType genericEntityType(Class<?> parameterType, String genericName) {
-        GenericParameterizedType genericParameterizedType = new GenericParameterizedType();
+    static GenericParameterizedType<?> genericEntityType(Class<?> parameterType, String genericName) {
+        GenericParameterizedType<?> genericParameterizedType = new GenericParameterizedType<Object>();
         genericParameterizedType.setActualType(parameterType);
         genericParameterizedType.genericName = genericName;
         genericParameterizedType.camouflage = true;
         return genericParameterizedType;
     }
 
-    private static void parseValueType(GenericParameterizedType genericParameterizedType, Type genericType) {
+    private static void parseValueType(GenericParameterizedType<?> genericParameterizedType, Type genericType) {
         if (genericType instanceof Class) {
             // 实体类型
             Class<?> entityClass = (Class<?>) genericType;
@@ -440,7 +393,7 @@ public final class GenericParameterizedType<T> {
                     try {
                         Class<?> cls = (Class<?>) types[0];
                         genericParameterizedType.valueType = entityType(genericClazz, cls);
-                    } catch (Throwable throwable) {
+                    } catch (Throwable ignored) {
                     }
                 }
             }
@@ -452,12 +405,9 @@ public final class GenericParameterizedType<T> {
 
     /**
      * 接口或者抽象类使用属性默认值时，可以替换实例类型，并保留其泛型结构
-     *
-     * @param actualType
-     * @return
      */
     public GenericParameterizedType<?> copyAndReplaceActualType(Class<?> actualType) {
-        GenericParameterizedType genericParameterizedType = new GenericParameterizedType();
+        GenericParameterizedType<?> genericParameterizedType = new GenericParameterizedType<Object>();
         genericParameterizedType.setActualType(actualType);
         genericParameterizedType.valueType = this.valueType;
         genericParameterizedType.mapKeyClass = this.mapKeyClass;
@@ -473,7 +423,7 @@ public final class GenericParameterizedType<T> {
         return mapKeyClass;
     }
 
-    public GenericParameterizedType getValueType() {
+    public GenericParameterizedType<?> getValueType() {
         return valueType;
     }
 
@@ -516,11 +466,8 @@ public final class GenericParameterizedType<T> {
 
     /**
      * 通过Type构建GenericParameterizedType实例
-     *
-     * @param type
-     * @return
      */
-    public static GenericParameterizedType of(Type type) {
+    public static GenericParameterizedType<?> of(Type type) {
         if (type instanceof Class<?>) {
             Class typeClass = (Class<?>) type;
             if (Map.class.isAssignableFrom(typeClass)) {
@@ -554,7 +501,7 @@ public final class GenericParameterizedType<T> {
                 return GenericParameterizedType.genericArrayType(genericComponentType);
             }
             if (type instanceof TypeVariable) {
-                TypeVariable typeVariable = (TypeVariable) type;
+                TypeVariable<?> typeVariable = (TypeVariable<?>) type;
                 Type[] bounds = typeVariable.getBounds();
                 if (bounds.length > 0) {
                     return of(bounds[bounds.length - 1]);

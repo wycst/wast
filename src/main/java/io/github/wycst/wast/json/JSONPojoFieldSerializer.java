@@ -4,23 +4,20 @@ import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.GetterInfo;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.utils.EnvUtils;
-import io.github.wycst.wast.json.annotations.JsonProperty;
-import io.github.wycst.wast.json.annotations.JsonSerialize;
-import io.github.wycst.wast.json.custom.JsonSerializer;
 
 import java.io.IOException;
 import java.lang.reflect.Modifier;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @Author: wangy
  * @Description:
  */
-public class JSONPojoFieldSerializer extends JSONTypeSerializer {
-
+public class JSONPojoFieldSerializer {
+    final JSONStore store;
     final GetterInfo getterInfo;
-    final JsonProperty jsonProperty;
+    final JSONPropertyDefinition propertyDefinition;
     final String name;
     final ReflectConsts.ClassCategory classCategory;
     JSONTypeSerializer serializer;
@@ -30,17 +27,17 @@ public class JSONPojoFieldSerializer extends JSONTypeSerializer {
     private long[] fieldNameCharLongs;
     private long[] fieldNameByteLongs;
     private boolean flag;
-    /**
-     * 自定义序列化器
-     */
-    private final static Map<Class<? extends JsonSerializer>, JsonSerializer> customSerializers = new HashMap<Class<? extends JsonSerializer>, JsonSerializer>();
+    private boolean customSerialize;
 
-    JSONPojoFieldSerializer(GetterInfo getterInfo, String name) {
+    // 自定义序列化器
+    private final static Map<Class<? extends JSONTypeFieldMapper>, JSONTypeSerializer> customSerializers = new ConcurrentHashMap<Class<? extends JSONTypeFieldMapper>, JSONTypeSerializer>();
+
+    JSONPojoFieldSerializer(JSONStore store, GetterInfo getterInfo, String name, JSONPropertyDefinition propertyDefinition) {
+        this.store = store;
         this.getterInfo = getterInfo;
         this.classCategory = getterInfo.getClassCategory();
         this.name = name;
-        JsonProperty jsonProperty = (JsonProperty) getterInfo.getAnnotation(JsonProperty.class);
-        this.jsonProperty = jsonProperty;
+        this.propertyDefinition = propertyDefinition;
         setFieldNameToken();
     }
 
@@ -53,48 +50,54 @@ public class JSONPojoFieldSerializer extends JSONTypeSerializer {
     }
 
     private JSONTypeSerializer createSerializer() {
-        // check custom Deserializer
-        JsonSerialize jsonSerialize = (JsonSerialize) getterInfo.getAnnotation(JsonSerialize.class);
-        if (jsonSerialize != null) {
-            Class<? extends JsonSerializer> jsonSerializerClass = jsonSerialize.value();
+        // check custom Serializer
+        if (propertyDefinition != null) {
             try {
-                if (jsonSerialize.singleton()) {
-                    JsonSerializer jsonSerializer = customSerializers.get(jsonSerializerClass);
-                    if (jsonSerializer == null) {
-                        jsonSerializer = jsonSerializerClass.newInstance();
-                        customSerializers.put(jsonSerializerClass, jsonSerializer);
+                Class<? extends JSONTypeFieldMapper> fieldMapperClass = propertyDefinition.mapper();
+                if (fieldMapperClass != JSONTypeFieldMapper.class) {
+                    JSONTypeSerializer serializer = customSerializers.get(fieldMapperClass);
+                    if (serializer != null) {
+                        customSerialize = true;
+                        return serializer;
                     }
-                    return jsonSerializer;
+                    JSONTypeFieldMapper<?> fieldMapper = fieldMapperClass.newInstance();
+                    if (fieldMapper.serialize()) {
+                        serializer = store.buildSerializer(fieldMapper);
+                        if (fieldMapper.singleton()) {
+                            customSerializers.put(fieldMapperClass, serializer);
+                        }
+                        customSerialize = true;
+                        return serializer;
+                    }
                 }
-                return jsonSerializerClass.newInstance();
             } catch (Throwable e) {
                 e.printStackTrace();
             }
         }
         Class<?> returnType = getterInfo.getReturnType();
         if (returnType == String.class) {
-            return CHAR_SEQUENCE_STRING;
+            return store.STRING_SER;
         } else if (classCategory == ReflectConsts.ClassCategory.NumberCategory) {
             // From cache by different number types (int/float/double/long...)
-            return JSONTypeSerializer.getTypeSerializer(returnType);
+            return store.getTypeSerializer(returnType);
         } else {
-            GenericParameterizedType genericParameterizedType = getterInfo.getGenericParameterizedType();
+            GenericParameterizedType<?> genericParameterizedType = getterInfo.getGenericParameterizedType();
             if (classCategory == ReflectConsts.ClassCategory.CollectionCategory && genericParameterizedType != null) {
-                GenericParameterizedType valueType = genericParameterizedType.getValueType();
+                GenericParameterizedType<?> valueType = genericParameterizedType.getValueType();
                 if (valueType != null) {
                     Class<?> valueClass = valueType.getActualType();
                     if (Modifier.isFinal(valueClass.getModifiers())) {
-                        return JSONTypeSerializer.createCollectionSerializer(valueClass);
+                        return store.createCollectionSerializer(valueClass);
                     }
                 }
             }
-            return JSONTypeSerializer.getFieldTypeSerializer(classCategory, returnType, jsonProperty);
+            return store.getFieldTypeSerializer(classCategory, returnType, propertyDefinition);
         }
     }
 
     public boolean isStringCollection() {
         if (classCategory == ReflectConsts.ClassCategory.CollectionCategory) {
-            GenericParameterizedType parameterizedType = getterInfo.getGenericParameterizedType();
+            GenericParameterizedType<?> parameterizedType = getterInfo.getGenericParameterizedType();
             return parameterizedType != null && parameterizedType.getValueType() == GenericParameterizedType.StringType;
         }
         return false;
@@ -158,14 +161,15 @@ public class JSONPojoFieldSerializer extends JSONTypeSerializer {
         return serializer;
     }
 
-    protected void serialize(Object value, JSONWriter writer, JSONConfig jsonConfig, int indent) throws Exception {
+    public boolean isCustomSerialize() {
+        return customSerialize;
     }
 
     public String getName() {
         return name;
     }
 
-    public JsonProperty getJsonProperty() {
-        return jsonProperty;
+    public JSONPropertyDefinition getPropertyDefinition() {
+        return propertyDefinition;
     }
 }

@@ -5,27 +5,32 @@ import io.github.wycst.wast.common.compiler.JavaSourceObject;
 import io.github.wycst.wast.common.idgenerate.providers.IdGenerator;
 import io.github.wycst.wast.common.reflect.GetterInfo;
 import io.github.wycst.wast.common.utils.EnvUtils;
-import io.github.wycst.wast.json.annotations.JsonProperty;
 
 import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Date;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @Created by wangyc
  */
+@SuppressWarnings({"all"})
 final class JSONPojoSerializerCodeGen {
 
     final static String IMPORT_CODE_TEXT =
             "import io.github.wycst.wast.json.JSONConfig;\n" +
                     "import io.github.wycst.wast.json.JSONPojoFieldSerializer;\n" +
-                    "import io.github.wycst.wast.json.JSONPojoStructure;\n\n" +
-                    "import io.github.wycst.wast.json.JSONWriter;\n\n";
+                    "import io.github.wycst.wast.json.JSONPojoStructure;\n" +
+                    "import io.github.wycst.wast.json.JSONWriter;\n";
 
-    final static AtomicLong SEQ = new AtomicLong(1);
+    static String getCanonicalName(Class<?> targetClass) {
+        String canonicalName = targetClass.getCanonicalName();
+        if (canonicalName.startsWith("java.lang.")) {
+            return targetClass.getSimpleName();
+        }
+        return canonicalName;
+    }
 
     static JavaSourceObject generateJavaCodeSource(JSONPojoStructure jsonPojoStructure, boolean printSource, boolean runtime) {
         final Class<?> pojoClass = jsonPojoStructure.getSourceClass();
@@ -34,12 +39,12 @@ final class JSONPojoSerializerCodeGen {
         final String genClassName = "__JPS_" + simpleName + "_" + IdGenerator.hex();
         final String packageName = pojoClass.getPackage().getName();
         StringBuilder codeBuilder = new StringBuilder(2048);
-        codeBuilder.append("package ").append(packageName).append(";\n\n");
+        codeBuilder.append("package ").append(packageName).append(";\n");
         codeBuilder.append(IMPORT_CODE_TEXT);
         if (!runtime) {
             codeBuilder.append("/**\n");
             codeBuilder.append(" * pojo serializer \n");
-            codeBuilder.append(" * @Date " + new GregorianDate() + "\n");
+            codeBuilder.append(" * @Date ").append(new GregorianDate()).append("\n");
             codeBuilder.append(" * @Created by code generator\n");
             codeBuilder.append(" */\n");
         }
@@ -48,10 +53,10 @@ final class JSONPojoSerializerCodeGen {
         StringBuilder fieldsDefinitionBuilder = new StringBuilder(64);
         StringBuilder fieldSetBuilder = new StringBuilder(64);
 
-        StringBuilder compactHeaderBuilder = new StringBuilder(1024);
+        StringBuilder compactHeaderBuilder = new StringBuilder(512);
         StringBuilder compactBodyBuilder = new StringBuilder(1024);
 
-        StringBuilder fmatOutHeaderBuilder = new StringBuilder(1024);
+        StringBuilder fmatOutHeaderBuilder = new StringBuilder(512);
         StringBuilder fmatOutBodyBuilder = new StringBuilder(1024);
 
         if (!jsonPojoStructure.isForceUseFields()) {
@@ -72,7 +77,7 @@ final class JSONPojoSerializerCodeGen {
         fmatOutHeaderBuilder.append("\t\tboolean formatOutColonSpace = jsonConfig.formatOutColonSpace;\n");
 
         JSONPojoFieldSerializer[] fieldSerializerUseMethods = jsonPojoStructure.getFieldSerializers(false);
-        fieldsDefinitionBuilder.append("\n");
+        // fieldsDefinitionBuilder.append("\n");
 
         StringBuilder fieldNameTempBuilder = new StringBuilder();
 
@@ -135,8 +140,8 @@ final class JSONPojoSerializerCodeGen {
                 }
 
                 if (accessFlag) {
-                    compactBodyBuilder.append("\t\t" + returnType.getCanonicalName() + " " + valueVar + " = entity." + getterInfo.generateCode() + ";\n");
-                    fmatOutBodyBuilder.append("\t\t" + returnType.getCanonicalName() + " " + valueVar + " = entity." + getterInfo.generateCode() + ";\n");
+                    compactBodyBuilder.append("\t\t" + getCanonicalName(returnType) + " " + valueVar + " = entity." + getterInfo.generateCode() + ";\n");
+                    fmatOutBodyBuilder.append("\t\t" + getCanonicalName(returnType) + " " + valueVar + " = entity." + getterInfo.generateCode() + ";\n");
 
                     // generate format code
                     generateSerializeFieldFormatOutCode(ensureNotEmptyFlag, primitive, fieldSerializerName, fieldKey, valueVar, nameEqualUnderlineName, underlineName, useUnsafe, longsFormatOut, intsFormatOut, fieldNameFormatOutTokenLength, returnType, fieldSerializer, runtime, fmatOutBodyBuilder);
@@ -209,7 +214,7 @@ final class JSONPojoSerializerCodeGen {
                                 } else if (returnType == float.class) {
                                     compactBodyBuilder.append("\t\twriter.writeFloat(" + valueVar + ");\n");
                                 } else if (returnType == long.class) {
-                                    compactBodyBuilder.append("\t\twriter.writeLong(" + valueVar + ");\n");
+                                    compactBodyBuilder.append("\t\twriter.writeLong(" + valueVar + ", jsonConfig);\n");
                                 } else if (returnType == int.class || returnType == short.class || returnType == byte.class) {
                                     compactBodyBuilder.append("\t\twriter.writeInt(" + valueVar + ");\n");
                                 } else {
@@ -651,7 +656,7 @@ final class JSONPojoSerializerCodeGen {
                                 } else if (returnType == float.class) {
                                     compactBodyBuilder.append("\t\twriter.writeFloat(" + valueVar + ");\n");
                                 } else if (returnType == long.class) {
-                                    compactBodyBuilder.append("\t\twriter.writeLong(" + valueVar + ");\n");
+                                    compactBodyBuilder.append("\t\twriter.writeLong(" + valueVar + ", jsonConfig);\n");
                                 } else if (returnType == int.class || returnType == short.class || returnType == byte.class) {
                                     compactBodyBuilder.append("\t\twriter.writeInt(" + valueVar + ");\n");
                                 } else {
@@ -928,7 +933,9 @@ final class JSONPojoSerializerCodeGen {
                         }
                         boolean useSerializerInvokeFlag = false;
                         // field value
-                        if (returnType == String.class) {
+                        if (fieldSerializer.isCustomSerialize()) {
+                            useSerializerInvokeFlag = true;
+                        } else if (returnType == String.class) {
                             if (runtime) {
                                 if (EnvUtils.JDK_9_PLUS) {
                                     compactBodyBuilder.append("\t\t\twriter.writeJSONStringBytes(" + valueVar + ", (byte[]) getStringValue(" + valueVar + "));\n");
@@ -945,27 +952,27 @@ final class JSONPojoSerializerCodeGen {
                         } else if (returnType == Character.class) {
                             compactBodyBuilder.append("\t\t\twriter.writeJSONChar(" + valueVar + ");\n");
                         } else if (returnType == Long.class) {
-                            compactBodyBuilder.append("\t\t\twriter.writeLong(" + valueVar + ");\n");
+                            compactBodyBuilder.append("\t\t\twriter.writeLong(" + valueVar + ", jsonConfig);\n");
                         } else if (returnType == Integer.class || returnType == Short.class || returnType == Byte.class) {
                             compactBodyBuilder.append("\t\t\twriter.writeInt(" + valueVar + ");\n");
                         } else if (returnType == BigDecimal.class) {
-                            compactBodyBuilder.append("\t\t\twriter.writeLatinString(" + valueVar + ".toString());\n");
+                            compactBodyBuilder.append("\t\t\twriter.writeLatinString(" + valueVar + ".toString(), jsonConfig);\n");
                         } else if (returnType == BigInteger.class) {
-                            compactBodyBuilder.append("\t\t\twriter.writeBigInteger(" + valueVar + ");\n");
+                            compactBodyBuilder.append("\t\t\twriter.writeBigInteger(" + valueVar + ", jsonConfig);\n");
                         } else if (returnType == String[].class) {
                             compactBodyBuilder.append("\t\t\twriter.writeStringArray(" + valueVar + ");\n");
                         } else if (returnType == double[].class) {
                             compactBodyBuilder.append("\t\t\twriter.writeDoubleArray(" + valueVar + ");\n");
                         } else if (returnType == long[].class) {
-                            compactBodyBuilder.append("\t\t\twriter.writeLongArray(" + valueVar + ");\n");
+                            compactBodyBuilder.append("\t\t\twriter.writeLongArray(" + valueVar + ", jsonConfig);\n");
                         } else if (fieldSerializer.isStringCollection()) {
                             compactBodyBuilder.append("\t\t\twriter.writeStringCollection(" + valueVar + ");\n");
                         } else if (returnType == UUID.class) {
                             compactBodyBuilder.append("\t\t\twriter.writeUUID(" + valueVar + ");\n");
                         } else if (Date.class.isAssignableFrom(returnType)) {
-                            JsonProperty jsonProperty = fieldSerializer.getJsonProperty();
-                            boolean asTimestamp = jsonProperty != null && jsonProperty.asTimestamp();
-                            if (jsonProperty == null || jsonProperty.pattern().isEmpty() || jsonProperty.pattern().trim().equalsIgnoreCase("yyyy-MM-dd HH:mm:ss")) {
+                            JSONPropertyDefinition propertyDefinition = fieldSerializer.getPropertyDefinition();
+                            boolean asTimestamp = propertyDefinition != null && propertyDefinition.asTimestamp();
+                            if (propertyDefinition == null || propertyDefinition.pattern().isEmpty() || propertyDefinition.pattern().trim().equalsIgnoreCase("yyyy-MM-dd HH:mm:ss")) {
                                 if (asTimestamp) {
                                     compactBodyBuilder.append("\t\t\twriter.writeLong(" + valueVar + ".getTime());\n");
                                 } else {
@@ -975,35 +982,55 @@ final class JSONPojoSerializerCodeGen {
                             } else {
                                 useSerializerInvokeFlag = true;
                             }
+                        } else if (returnTypeName == "java.time.ZoneId" || returnTypeName == "java.time.ZoneOffset") {
+                            compactBodyBuilder.append("\t\t\twriter.writeJSONString(" + valueVar + ".getId());\n");
+                        } else if (returnTypeName == "java.time.Duration") {
+                            compactBodyBuilder.append("\t\t\twriter.writeJSONDuration(" + valueVar + ".getSeconds(), " + valueVar + ".getNano());\n");
+                        } else if (returnTypeName == "java.time.Period") {
+                            compactBodyBuilder.append("\t\t\twriter.writeJSONPeriod(" + valueVar + ".getYears(), " + valueVar + ".getMonths(), " + valueVar + ".getDays());\n");
+                        } else if (returnTypeName == "java.time.MonthDay") {
+                            if (fieldSerializer.getPropertyDefinition() == null || fieldSerializer.getPropertyDefinition().pattern().length() == 0) {
+                                compactBodyBuilder.append("\t\t\twriter.writeJSONDefaultMonthDay(" + valueVar + ".getMonthValue(), " + valueVar + ".getDayOfMonth());\n");
+                            } else {
+                                useSerializerInvokeFlag = true;
+                            }
+                        } else if (returnTypeName == "java.time.YearMonth") {
+                            if (fieldSerializer.getPropertyDefinition() == null || fieldSerializer.getPropertyDefinition().pattern().length() == 0) {
+                                compactBodyBuilder.append("\t\t\twriter.writeJSONYearMonth(" + valueVar + ".getYear(), " + valueVar + ".getMonthValue());\n");
+                            } else {
+                                useSerializerInvokeFlag = true;
+                            }
+                        } else if (returnTypeName == "java.time.Year") {
+                            compactBodyBuilder.append("\t\t\twriter.writeInt(" + valueVar + ".getValue());\n");
                         } else if (returnTypeName == "java.time.Instant") {
-                            JsonProperty jsonProperty = fieldSerializer.getJsonProperty();
-                            if (jsonProperty == null || (jsonProperty.pattern().length() == 0 && !jsonProperty.asTimestamp())) {
+                            JSONPropertyDefinition propertyDefinition = fieldSerializer.getPropertyDefinition();
+                            if (propertyDefinition == null || (propertyDefinition.pattern().length() == 0 && !propertyDefinition.asTimestamp())) {
                                 // use default pattern
                                 compactBodyBuilder.append("\t\t\twriter.writeJSONInstant(" + valueVar + ".getEpochSecond(), " + valueVar + ".getNano());\n");
                             } else {
                                 useSerializerInvokeFlag = true;
                             }
                         } else if (returnTypeName == "java.time.LocalTime") {
-                            if (fieldSerializer.getJsonProperty() == null || fieldSerializer.getJsonProperty().pattern().length() == 0) {
+                            if (fieldSerializer.getPropertyDefinition() == null || fieldSerializer.getPropertyDefinition().pattern().length() == 0) {
                                 compactBodyBuilder.append("\t\t\twriter.writeJSONTimeWithNano(" + valueVar + ".getHour(), " + valueVar + ".getMinute(), " + valueVar + ".getSecond(), " + valueVar + ".getNano());\n");
                             } else {
                                 useSerializerInvokeFlag = true;
                             }
                         } else if (returnTypeName == "java.time.LocalDate") {
-                            if (fieldSerializer.getJsonProperty() == null || fieldSerializer.getJsonProperty().pattern().length() == 0) {
+                            if (fieldSerializer.getPropertyDefinition() == null || fieldSerializer.getPropertyDefinition().pattern().length() == 0) {
                                 compactBodyBuilder.append("\t\t\twriter.writeJSONLocalDate(" + valueVar + ".getYear(), " + valueVar + ".getMonthValue(), " + valueVar + ".getDayOfMonth());\n");
                             } else {
                                 useSerializerInvokeFlag = true;
                             }
                         } else if (returnTypeName == "java.time.LocalDateTime") {
-                            JsonProperty jsonProperty = fieldSerializer.getJsonProperty();
-                            if (jsonProperty == null || (jsonProperty.pattern().length() == 0 && !jsonProperty.asTimestamp())) {
+                            JSONPropertyDefinition propertyDefinition = fieldSerializer.getPropertyDefinition();
+                            if (propertyDefinition == null || (propertyDefinition.pattern().length() == 0 && !propertyDefinition.asTimestamp())) {
                                 compactBodyBuilder.append("\t\t\twriter.writeJSONLocalDateTime(" + valueVar + ".getYear(), " + valueVar + ".getMonthValue(), " + valueVar + ".getDayOfMonth(), " + valueVar + ".getHour(), " + valueVar + ".getMinute(), " + valueVar + ".getSecond(), " + valueVar + ".getNano(), \"\");\n");
                             } else {
                                 useSerializerInvokeFlag = true;
                             }
                         } else if (returnTypeName == "java.time.ZonedDateTime" || returnTypeName == "java.time.OffsetDateTime") {
-                            if (fieldSerializer.getJsonProperty() == null || fieldSerializer.getJsonProperty().pattern().length() == 0) {
+                            if (fieldSerializer.getPropertyDefinition() == null || fieldSerializer.getPropertyDefinition().pattern().length() == 0) {
                                 if (returnTypeName == "java.time.ZonedDateTime") {
                                     compactBodyBuilder.append("\t\t\twriter.writeJSONLocalDateTime(" + valueVar + ".getYear(), " + valueVar + ".getMonthValue(), " + valueVar + ".getDayOfMonth(), " + valueVar + ".getHour(), " + valueVar + ".getMinute(), " + valueVar + ".getSecond(), " + valueVar + ".getNano(), " + valueVar + ".getZone().getId());\n");
                                 } else {
@@ -1042,9 +1069,9 @@ final class JSONPojoSerializerCodeGen {
                     // generate format code
                     if (Modifier.isPublic(returnType.getModifiers())) {
                         if (EnvUtils.JDK_7_BELOW) {
-                            fmatOutBodyBuilder.append("\t\t" + returnType.getCanonicalName() + " " + valueVar + " = invokeValue(" + fieldSerializerName + ", entity, " + returnType.getCanonicalName() + ".class);\n");
+                            fmatOutBodyBuilder.append("\t\t" + getCanonicalName(returnType) + " " + valueVar + " = invokeValue(" + fieldSerializerName + ", entity, " + getCanonicalName(returnType) + ".class);\n");
                         } else {
-                            fmatOutBodyBuilder.append("\t\t" + returnType.getCanonicalName() + " " + valueVar + " = (" + returnType.getCanonicalName() + ") invokeValue(" + fieldSerializerName + ", entity);\n");
+                            fmatOutBodyBuilder.append("\t\t" + getCanonicalName(returnType) + " " + valueVar + " = (" + getCanonicalName(returnType) + ") invokeValue(" + fieldSerializerName + ", entity);\n");
                         }
                     } else {
                         fmatOutBodyBuilder.append("\t\tObject " + valueVar + " = invokeValue(" + fieldSerializerName + ", entity);\n");
@@ -1115,10 +1142,10 @@ final class JSONPojoSerializerCodeGen {
                 fieldIndex++;
             }
             if (ensureNotEmptyFlag) {
-                fmatOutBodyBuilder.append("\t\twriteFormatOutSymbols(writer, indentLevel, jsonConfig);\n");
+                fmatOutBodyBuilder.append("\t\twriteEndFormatOutSymbols(writer, indentLevel, true, jsonConfig);\n");
             } else {
                 fmatOutBodyBuilder.append("\t\tif (!isEmptyFlag) {\n");
-                fmatOutBodyBuilder.append("\t\t\twriteFormatOutSymbols(writer, indentLevel, jsonConfig);\n");
+                fmatOutBodyBuilder.append("\t\t\twriteEndFormatOutSymbols(writer, indentLevel, true, jsonConfig);\n");
                 fmatOutBodyBuilder.append("\t\t}\n");
             }
         }
@@ -1140,25 +1167,26 @@ final class JSONPojoSerializerCodeGen {
         codeBuilder.append("\tprotected ").append(genClassName).append("(JSONPojoStructure pojoStructure) {\n");
         codeBuilder.append("\t\tsuper(pojoStructure);\n");
         codeBuilder.append(fieldSetBuilder);
-        codeBuilder.append("\t}\n");
+        codeBuilder.append("\t}\n\n");
 
         // fieldset
-        codeBuilder.append(fieldsDefinitionBuilder).append("\n");
+        if (fieldsDefinitionBuilder.length() > 0) {
+            codeBuilder.append(fieldsDefinitionBuilder).append("\n");
+        }
 
         // compact method code
-        codeBuilder.append("\tpublic void serializePojoCompact(").append(canonicalName).append(" entity, JSONWriter writer, JSONConfig jsonConfig, int indentLevel) throws Exception {\n\n");
+        codeBuilder.append("\tpublic void serializePojoCompact(").append(canonicalName).append(" entity, JSONWriter writer, JSONConfig jsonConfig, int indentLevel) throws Exception {\n");
         codeBuilder.append(compactHeaderBuilder);
         codeBuilder.append(compactBodyBuilder);
         codeBuilder.append("\t}\n\n");
 
         // formatOut method code
-        codeBuilder.append("\tpublic void serializePojoFormatOut(").append(canonicalName).append(" entity, JSONWriter writer, JSONConfig jsonConfig, int indentLevel) throws Exception {\n\n");
+        codeBuilder.append("\tpublic void serializePojoFormatOut(").append(canonicalName).append(" entity, JSONWriter writer, JSONConfig jsonConfig, int indentLevel) throws Exception {\n");
         codeBuilder.append(fmatOutHeaderBuilder);
         codeBuilder.append(fmatOutBodyBuilder);
         codeBuilder.append("\t}\n");
 
-        codeBuilder.append("}\n");
-        codeBuilder.append("\n");
+        codeBuilder.append("}\n\n");
 
         String code = codeBuilder.toString();
         if (printSource) {
@@ -1258,7 +1286,9 @@ final class JSONPojoSerializerCodeGen {
         boolean useSerializerInvokeFlag = false;
         String returnTypeName = returnType.getName().intern();
         // field value
-        if (returnType == String.class) {
+        if (fieldSerializer.isCustomSerialize()) {
+            useSerializerInvokeFlag = true;
+        } else if (returnType == String.class) {
             if (runtime) {
                 if (EnvUtils.JDK_9_PLUS) {
                     fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeJSONStringBytes(" + valueVar + ", (byte[]) getStringValue(" + valueVar + "));\n");
@@ -1275,15 +1305,15 @@ final class JSONPojoSerializerCodeGen {
         } else if (returnType == Character.class || returnType == char.class) {
             fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeJSONChar(" + valueVar + ");\n");
         } else if (returnType == Long.class || returnType == long.class) {
-            fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeLong(" + valueVar + ");\n");
+            fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeLong(" + valueVar + ", jsonConfig);\n");
         } else if (returnType == Integer.class || returnType == Short.class || returnType == Byte.class || returnType == int.class || returnType == short.class || returnType == byte.class) {
             fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeInt(" + valueVar + ");\n");
         } else if (returnType == boolean.class || returnType == Boolean.class) {
             fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.write(String.valueOf(" + valueVar + "));\n");
         } else if (returnType == BigDecimal.class) {
-            fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeLatinString(" + valueVar + ".toString());\n");
+            fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeLatinString(" + valueVar + ".toString(), jsonConfig);\n");
         } else if (returnType == BigInteger.class) {
-            fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeBigInteger(" + valueVar + ");\n");
+            fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeBigInteger(" + valueVar + ", jsonConfig);\n");
         } else if (returnType == String[].class) {
             fmatOutBodyBuilder.append(tabFlag).append("\t\twriteStringArrayFormatOut(writer, " + valueVar + ", jsonConfig, indentPlus);\n");
         } else if (returnType == double[].class) {
@@ -1295,9 +1325,9 @@ final class JSONPojoSerializerCodeGen {
         } else if (returnType == UUID.class) {
             fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeUUID(" + valueVar + ");\n");
         } else if (Date.class.isAssignableFrom(returnType)) {
-            JsonProperty jsonProperty = fieldSerializer.getJsonProperty();
-            boolean asTimestamp = jsonProperty != null && jsonProperty.asTimestamp();
-            if (jsonProperty == null || jsonProperty.pattern().isEmpty() || jsonProperty.pattern().trim().equalsIgnoreCase("yyyy-MM-dd HH:mm:ss")) {
+            JSONPropertyDefinition propertyDefinition = fieldSerializer.getPropertyDefinition();
+            boolean asTimestamp = propertyDefinition != null && propertyDefinition.asTimestamp();
+            if (propertyDefinition == null || propertyDefinition.pattern().isEmpty() || propertyDefinition.pattern().trim().equalsIgnoreCase("yyyy-MM-dd HH:mm:ss")) {
                 if (asTimestamp) {
                     fmatOutBodyBuilder.append("\t\t\twriter.writeLong(" + valueVar + ".getTime());\n");
                 } else {
@@ -1307,35 +1337,55 @@ final class JSONPojoSerializerCodeGen {
             } else {
                 useSerializerInvokeFlag = true;
             }
+        } else if (returnTypeName == "java.time.ZoneId" || returnTypeName == "java.time.ZoneOffset") {
+            fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeJSONString(" + valueVar + ".getId());\n");
+        } else if (returnTypeName == "java.time.Duration") {
+            fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeJSONDuration(" + valueVar + ".getSeconds(), " + valueVar + ".getNano());\n");
+        } else if (returnTypeName == "java.time.Period") {
+            fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeJSONPeriod(" + valueVar + ".getYears(), " + valueVar + ".getMonths(), " + valueVar + ".getDays());\n");
+        } else if (returnTypeName == "java.time.MonthDay") {
+            if (fieldSerializer.getPropertyDefinition() == null || fieldSerializer.getPropertyDefinition().pattern().isEmpty()) {
+                fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeJSONDefaultMonthDay(" + valueVar + ".getMonthValue(), " + valueVar + ".getDayOfMonth());\n");
+            } else {
+                useSerializerInvokeFlag = true;
+            }
+        } else if (returnTypeName == "java.time.YearMonth") {
+            if (fieldSerializer.getPropertyDefinition() == null || fieldSerializer.getPropertyDefinition().pattern().isEmpty()) {
+                fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeJSONYearMonth(" + valueVar + ".getYear(), " + valueVar + ".getMonthValue());\n");
+            } else {
+                useSerializerInvokeFlag = true;
+            }
+        } else if (returnTypeName == "java.time.Year") {
+            fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeInt(" + valueVar + ".getValue());\n");
         } else if (returnTypeName == "java.time.Instant") {
-            JsonProperty jsonProperty = fieldSerializer.getJsonProperty();
-            if (jsonProperty == null || (jsonProperty.pattern().length() == 0 && !jsonProperty.asTimestamp())) {
+            JSONPropertyDefinition propertyDefinition = fieldSerializer.getPropertyDefinition();
+            if (propertyDefinition == null || (propertyDefinition.pattern().isEmpty() && !propertyDefinition.asTimestamp())) {
                 // use default pattern
                 fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeJSONInstant(" + valueVar + ".getEpochSecond(), " + valueVar + ".getNano());\n");
             } else {
                 useSerializerInvokeFlag = true;
             }
         } else if (returnTypeName == "java.time.LocalTime") {
-            if (fieldSerializer.getJsonProperty() == null || fieldSerializer.getJsonProperty().pattern().length() == 0) {
+            if (fieldSerializer.getPropertyDefinition() == null || fieldSerializer.getPropertyDefinition().pattern().isEmpty()) {
                 fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeJSONTimeWithNano(" + valueVar + ".getHour(), " + valueVar + ".getMinute(), " + valueVar + ".getSecond(), " + valueVar + ".getNano());\n");
             } else {
                 useSerializerInvokeFlag = true;
             }
         } else if (returnTypeName == "java.time.LocalDate") {
-            if (fieldSerializer.getJsonProperty() == null || fieldSerializer.getJsonProperty().pattern().length() == 0) {
+            if (fieldSerializer.getPropertyDefinition() == null || fieldSerializer.getPropertyDefinition().pattern().isEmpty()) {
                 fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeJSONLocalDate(" + valueVar + ".getYear(), " + valueVar + ".getMonthValue(), " + valueVar + ".getDayOfMonth());\n");
             } else {
                 useSerializerInvokeFlag = true;
             }
         } else if (returnTypeName == "java.time.LocalDateTime") {
-            JsonProperty jsonProperty = fieldSerializer.getJsonProperty();
-            if (jsonProperty == null || (jsonProperty.pattern().length() == 0 && !jsonProperty.asTimestamp())) {
+            JSONPropertyDefinition propertyDefinition = fieldSerializer.getPropertyDefinition();
+            if (propertyDefinition == null || (propertyDefinition.pattern().isEmpty() && !propertyDefinition.asTimestamp())) {
                 fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeJSONLocalDateTime(" + valueVar + ".getYear(), " + valueVar + ".getMonthValue(), " + valueVar + ".getDayOfMonth(), " + valueVar + ".getHour(), " + valueVar + ".getMinute(), " + valueVar + ".getSecond(), " + valueVar + ".getNano(), \"\");\n");
             } else {
                 useSerializerInvokeFlag = true;
             }
         } else if (returnTypeName == "java.time.ZonedDateTime" || returnTypeName == "java.time.OffsetDateTime") {
-            if (fieldSerializer.getJsonProperty() == null || fieldSerializer.getJsonProperty().pattern().length() == 0) {
+            if (fieldSerializer.getPropertyDefinition() == null || fieldSerializer.getPropertyDefinition().pattern().isEmpty()) {
                 if (returnTypeName == "java.time.ZonedDateTime") {
                     fmatOutBodyBuilder.append(tabFlag).append("\t\twriter.writeJSONLocalDateTime(" + valueVar + ".getYear(), " + valueVar + ".getMonthValue(), " + valueVar + ".getDayOfMonth(), " + valueVar + ".getHour(), " + valueVar + ".getMinute(), " + valueVar + ".getSecond(), " + valueVar + ".getNano(), " + valueVar + ".getZone().getId());\n");
                 } else {

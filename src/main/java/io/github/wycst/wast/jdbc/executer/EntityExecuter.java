@@ -202,11 +202,21 @@ public final class EntityExecuter implements OqlExecuter {
     }
 
     @Override
+    public <E> Serializable replace(E entity) {
+        Class<?> entityCls = entity.getClass();
+        checkEntityClass(entityCls);
+        EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
+
+        Sql sqlObject = entitySqlMapping.getInsertSqlObject(entity, true);
+        return sqlExecuter.insertWithContext(sqlObject.getFormalSql(), true, entitySqlMapping.createContext("EntityExecuter#replace"), sqlObject.getParamValues());
+    }
+
+    @Override
     public <E> void insertList(List<E> entityList) {
-        if (entityList.size() == 0) {
+        if (entityList.isEmpty()) {
             return;
         }
-        Class entityCls = entityList.get(0).getClass();
+        Class<?> entityCls = entityList.get(0).getClass();
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
         SqlExecuteContext context = entitySqlMapping.createContext("EntityExecuter#insertList");
@@ -227,19 +237,61 @@ public final class EntityExecuter implements OqlExecuter {
     }
 
     @Override
+    public <E> void updateList(List<E> entityList) {
+        if (entityList.isEmpty()) {
+            return;
+        }
+        Class<?> entityCls = entityList.get(0).getClass();
+        checkEntityClass(entityCls);
+        EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
+        SqlExecuteContext context = entitySqlMapping.createContext("EntityExecuter#updateList");
+//        if (entitySqlMapping.isUsePlaceholderOnInsert()) {
+//            if (isSupportBatchInsert()) {
+//                Sql batchInsertSqlObject = entitySqlMapping.getBatchInsertSqlObject(entityList);
+//                sqlExecuter.updateWithContext(batchInsertSqlObject.getFormalSql(), context, batchInsertSqlObject.getParamValues());
+//            } else {
+//                for (E e : entityList) {
+//                    Sql sqlObject = entitySqlMapping.getInsertSqlObject(e);
+//                    sqlExecuter.insertWithContext(sqlObject.getFormalSql(), true, context, sqlObject.getParamValues());
+//                }
+//            }
+//        } else {
+//        }
+        String sqlStringFormat = sqlExecuter.sqlTemplates[SqlType.UPDATE.ordinal()];
+        Sql sqlObject = entitySqlMapping.getUpdateSqlObjectList(sqlStringFormat, entityList);
+        sqlExecuter.updateCollectionWithContext(sqlObject.getFormalSql(), sqlObject.getParamValuesList(), context);
+    }
+
+    @Override
     public <E> int mysqlBatchInsert(List<E> entityList) {
         if (!isSupportBatchInsert()) {
             throw new SqlExecuteException("the current database does not support batchInsert");
         }
-        if (entityList.size() == 0) {
+        if (entityList.isEmpty()) {
             return 0;
         }
-        Class entityCls = entityList.get(0).getClass();
+        Class<?> entityCls = entityList.get(0).getClass();
         checkEntityClass(entityCls);
         EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
 
         Sql batchInsertSqlObject = entitySqlMapping.getBatchInsertSqlObject(entityList);
         return sqlExecuter.updateWithContext(batchInsertSqlObject.getFormalSql(), entitySqlMapping.createContext("EntityExecuter#mysqlBatchInsert"), batchInsertSqlObject.getParamValues());
+    }
+
+    @Override
+    public <E> int mysqlBatchReplace(List<E> entityList) {
+        if (!isSupportBatchInsert()) {
+            throw new SqlExecuteException("the current database does not support batchReplace");
+        }
+        if (entityList.isEmpty()) {
+            return 0;
+        }
+        Class<?> entityCls = entityList.get(0).getClass();
+        checkEntityClass(entityCls);
+        EntitySqlMapping entitySqlMapping = getEntitySqlMapping(entityCls);
+
+        Sql batchInsertSqlObject = entitySqlMapping.getBatchInsertSqlObject(entityList, true);
+        return sqlExecuter.updateWithContext(batchInsertSqlObject.getFormalSql(), entitySqlMapping.createContext("EntityExecuter#mysqlBatchReplace"), batchInsertSqlObject.getParamValues());
     }
 
     @Override

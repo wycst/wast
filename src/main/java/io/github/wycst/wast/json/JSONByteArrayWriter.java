@@ -103,8 +103,6 @@ class JSONByteArrayWriter extends JSONWriter {
      * <p> 5 special JSON tokens such as '{', '}', '[', ']', ',' or other single character </p>
      * <p> Ensure to reserve 3 additional locations for each expansion </p>
      * <p> Avoid writing consecutive token characters such as "{}" or "[]", or "[{}, {}]" </p>
-     *
-     * @param c
      */
     @Override
     public void writeJSONToken(char c) {
@@ -275,7 +273,7 @@ class JSONByteArrayWriter extends JSONWriter {
 
     @Override
     protected boolean endsWith(int c) {
-        return count == 0 ? false : buf[count - 1] == c;
+        return count != 0 && buf[count - 1] == c;
     }
 
     @Override
@@ -304,9 +302,6 @@ class JSONByteArrayWriter extends JSONWriter {
 
     /**
      * run on jdk8 output is bytes
-     *
-     * @param chars
-     * @throws IOException
      */
     @Override
     public void writeJSONChars(char[] chars) throws IOException {
@@ -625,40 +620,40 @@ class JSONByteArrayWriter extends JSONWriter {
         count += writeInteger(numValue, buf, count);
     }
 
-    @Override
-    protected final void writeCommaLongValues(long val1, long val2) throws IOException {
-        ensureCapacity(42 + SECURITY_UNCHECK_SPACE);
-        int off = count;
-        if (val1 < 0) {
-            if (val1 == Long.MIN_VALUE) {
-                write(",-9223372036854775808");
-                off = count;
-            } else {
-                val1 = -val1;
-                buf[off++] = ',';
-                buf[off++] = '-';
-                off += writeLong(val1, buf, off);
-            }
-        } else {
-            buf[off++] = ',';
-            off += writeLong(val1, buf, off);
-        }
-        if (val2 < 0) {
-            if (val2 == Long.MIN_VALUE) {
-                write(",-9223372036854775808");
-                off = count;
-            } else {
-                val2 = -val2;
-                buf[off++] = ',';
-                buf[off++] = '-';
-                off += writeLong(val2, buf, off);
-            }
-        } else {
-            buf[off++] = ',';
-            off += writeLong(val2, buf, off);
-        }
-        count = off;
-    }
+//    @Override
+//    protected final void writeCommaLongValues(long val1, long val2) throws IOException {
+//        ensureCapacity(42 + SECURITY_UNCHECK_SPACE);
+//        int off = count;
+//        if (val1 < 0) {
+//            if (val1 == Long.MIN_VALUE) {
+//                write(",-9223372036854775808");
+//                off = count;
+//            } else {
+//                val1 = -val1;
+//                buf[off++] = ',';
+//                buf[off++] = '-';
+//                off += writeLong(val1, buf, off);
+//            }
+//        } else {
+//            buf[off++] = ',';
+//            off += writeLong(val1, buf, off);
+//        }
+//        if (val2 < 0) {
+//            if (val2 == Long.MIN_VALUE) {
+//                write(",-9223372036854775808");
+//                off = count;
+//            } else {
+//                val2 = -val2;
+//                buf[off++] = ',';
+//                buf[off++] = '-';
+//                off += writeLong(val2, buf, off);
+//            }
+//        } else {
+//            buf[off++] = ',';
+//            off += writeLong(val2, buf, off);
+//        }
+//        count = off;
+//    }
 
     @Override
     public void writeUUID(UUID uuid) {
@@ -785,6 +780,134 @@ class JSONByteArrayWriter extends JSONWriter {
         if (nano > 0) {
             off = writeNano(nano, off);
         }
+        buf[off++] = '"';
+        count = off;
+    }
+
+    /**
+     * 序列化java.time.Period类
+     */
+    public void writeJSONPeriod(int years, int months, int days) throws IOException {
+        ensureCapacity(24 + SECURITY_UNCHECK_SPACE);
+        int off = count;
+        buf[off++] = '"';
+        buf[off++] = 'P';
+        if (years == 0 && months == 0 && days == 0) {
+            buf[off++] = '0';
+            buf[off++] = 'D';
+            buf[off++] = '"';
+            count = off;
+            return;
+        }
+        if (years != 0) {
+            if (years < 0) {
+                buf[off++] = '-';
+                years = -years;
+            }
+            off += writeInteger(years, buf, off);
+            buf[off++] = 'Y';
+        }
+        if (months != 0) {
+            if (months < 0) {
+                buf[off++] = '-';
+                months = -months;
+            }
+            off += writeInteger(months, buf, off);
+            buf[off++] = 'M';
+        }
+        if (days != 0) {
+            if (days < 0) {
+                buf[off++] = '-';
+                days = -days;
+            }
+            off += writeInteger(days, buf, off);
+            buf[off++] = 'D';
+        }
+        buf[off++] = '"';
+        count = off;
+    }
+
+    @Override
+    public void writeJSONDuration(long seconds, int nano) {
+        ensureCapacity(24 + SECURITY_UNCHECK_SPACE);
+        int off = count;
+        buf[off++] = '"';
+        if (seconds == 0 && nano == 0) {
+            off += JSONMemoryHandle.putInt(buf, off, JSONGeneral.DURATION_ZERO_INT); // PT0S
+            buf[off++] = '"';
+            count = off;
+            return;
+        }
+        off += JSONMemoryHandle.putShort(buf, off, JSONGeneral.DURATION_PT_SHORT); // PT
+        final boolean negative = seconds < 0;
+        if (negative) {
+            seconds = -seconds;
+        }
+        long hour = seconds / 3600; // 暂不优化: seconds < 5146971002711999L ? EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(seconds, 0x123456789abce0L) : seconds / 3600 ( // ((2^64 - 3599 * 0x123456789abce0L) / 3584) * 3600 + 3599 * 2 + 1 -> 5146971002711999L)
+        if (hour > 0) {
+            if (negative) {
+                buf[off++] = '-';
+            }
+            off += writeLong(hour, buf, off);
+            buf[off++] = 'H';
+        }
+        int secondsOfDay = (int) (seconds - hour * 3600);
+        int minute = (int) EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(secondsOfDay, 0x444444444444445L); // secondsOfDay / 60;
+        if (minute > 0) {
+            if (negative) {
+                buf[off++] = '-';
+            }
+            off += writeInteger(minute, buf, off);
+            buf[off++] = 'M';
+        }
+        int second = secondsOfDay - minute * 60;
+        if (second == 0 && nano == 0) {
+            buf[off++] = '"';
+            count = off;
+            return;
+        }
+        if (negative) {
+            buf[off++] = '-';
+        }
+        off += writeInteger(second, buf, off);
+        if (nano > 0) {
+            off = writeNano(nano, off);
+            while (buf[off - 1] == '0') {
+                --off;
+            }
+        }
+        buf[off++] = 'S';
+        buf[off++] = '"';
+        count = off;
+    }
+
+    public void writeJSONYearMonth(int year, int monthValue) throws IOException {
+        ensureCapacity(9 + SECURITY_UNCHECK_SPACE);
+        int off = count;
+        buf[off++] = '"';
+
+        if (year < 0) {
+            buf[off++] = '-';
+            year = -year;
+        }
+        if (year < 10000) {
+            off += JSONMemoryHandle.putLong(buf, off, JSONMemoryHandle.JSON_ENDIAN.mergeYearAndMonth(year, monthValue)) - 1;
+        } else {
+            off += writeLong(year, buf, off);
+            off += JSONMemoryHandle.putInt(buf, off, mergeInt32(monthValue, '-', '-')) - 1;
+        }
+
+        buf[off++] = '"';
+        count = off;
+    }
+
+    public void writeJSONDefaultMonthDay(int monthValue, int dayOfMonth) throws IOException {
+        ensureCapacity(8 + SECURITY_UNCHECK_SPACE);
+        int off = count;
+        buf[off++] = '"';
+        buf[off++] = '-';
+        off += JSONMemoryHandle.putInt(buf, off, mergeInt32(monthValue, '-', '-'));
+        off += JSONMemoryHandle.putShort(buf, off, TWO_DIGITS_16_BITS[dayOfMonth]);
         buf[off++] = '"';
         count = off;
     }

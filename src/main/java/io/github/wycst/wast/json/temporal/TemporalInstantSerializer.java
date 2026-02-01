@@ -3,9 +3,9 @@ package io.github.wycst.wast.json.temporal;
 import io.github.wycst.wast.common.beans.GeneralDate;
 import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.json.JSONConfig;
+import io.github.wycst.wast.json.JSONPropertyDefinition;
 import io.github.wycst.wast.json.JSONTemporalSerializer;
 import io.github.wycst.wast.json.JSONWriter;
-import io.github.wycst.wast.json.annotations.JsonProperty;
 
 import java.time.Instant;
 import java.util.TimeZone;
@@ -24,10 +24,10 @@ public class TemporalInstantSerializer extends JSONTemporalSerializer {
     final TimeZone timeZone;
     final boolean asTimestamp;
 
-    public TemporalInstantSerializer(Class<?> temporalClass, JsonProperty property) {
+    public TemporalInstantSerializer(Class<?> temporalClass, JSONPropertyDefinition property) {
         super(temporalClass, property);
         TimeZone timeZone = ZERO_TIME_ZONE;
-        if (dateFormatter != null && property.timezone().length() > 0) {
+        if (dateFormatter != null && !property.timezone().isEmpty()) {
             timeZone = getTimeZone(property.timezone());
         }
         this.timeZone = timeZone;

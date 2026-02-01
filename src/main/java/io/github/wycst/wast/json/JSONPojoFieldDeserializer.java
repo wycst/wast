@@ -4,9 +4,6 @@ import io.github.wycst.wast.common.expression.Expression;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.reflect.ReflectConsts;
 import io.github.wycst.wast.common.reflect.SetterInfo;
-import io.github.wycst.wast.json.annotations.JsonDeserialize;
-import io.github.wycst.wast.json.annotations.JsonProperty;
-import io.github.wycst.wast.json.custom.JsonDeserializer;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -17,15 +14,15 @@ import java.util.concurrent.ConcurrentHashMap;
  * @Author wangyunchao
  */
 public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implements Comparable<JSONPojoFieldDeserializer> {
-
+    final JSONStore store;
     final String name;
     final int fieldIndex;
     final SetterInfo setterInfo;
-    final JsonProperty jsonProperty;
+    final JSONPropertyDefinition propertyDefinition;
     /**
      * 类型信息
      */
-    GenericParameterizedType genericParameterizedType;
+    GenericParameterizedType<?> genericParameterizedType;
 
     /**
      * 类型分类
@@ -48,17 +45,16 @@ public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implem
     final String timezone;
     boolean flag;
 
-    /**
-     * 自定义反序列化器
-     */
-    private final static Map<Class<? extends JsonDeserializer>, JsonDeserializer> customDeserializers = new ConcurrentHashMap<Class<? extends JsonDeserializer>, JsonDeserializer>();
+    // 自定义反序列化器
+    private final static Map<Class<? extends JSONTypeFieldMapper>, JSONTypeDeserializer> customDeserializers = new ConcurrentHashMap<Class<? extends JSONTypeFieldMapper>, JSONTypeDeserializer>();
     private boolean priority;
 
-    JSONPojoFieldDeserializer(String name, SetterInfo setterInfo, JsonProperty jsonProperty) {
+    JSONPojoFieldDeserializer(JSONStore store, String name, SetterInfo setterInfo, JSONPropertyDefinition propertyDefinition) {
+        this.store = store;
         this.name = name;
         this.setterInfo = setterInfo;
         this.fieldIndex = setterInfo.getIndex();
-        this.jsonProperty = jsonProperty;
+        this.propertyDefinition = propertyDefinition;
         this.genericParameterizedType = setterInfo.getGenericParameterizedType();
 
         Class<?> actualClass = genericParameterizedType.getActualType();
@@ -66,13 +62,13 @@ public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implem
 
         String pattern = null;
         String timezone = null;
-        if (jsonProperty != null) {
-            pattern = jsonProperty.pattern().trim();
-            timezone = jsonProperty.timezone().trim();
-            if (pattern.length() == 0) {
+        if (propertyDefinition != null) {
+            pattern = propertyDefinition.pattern();
+            timezone = propertyDefinition.timezone();
+            if (pattern.isEmpty()) {
                 pattern = null;
             }
-            if (timezone.length() == 0) {
+            if (timezone.isEmpty()) {
                 timezone = null;
             }
         }
@@ -83,28 +79,28 @@ public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implem
     void initDeserializer() {
         if (!flag) {
             flag = true;
-            Class impl;
+            Class<?> impl;
             boolean unfixedType = false;
             Class<?>[] possibleTypes = null;
             String possibleExpression = null;
-            if (jsonProperty != null) {
-                possibleTypes = jsonProperty.possibleTypes();
-                possibleExpression = jsonProperty.possibleExpression().trim();
-                if ((impl = jsonProperty.impl()) != Object.class) {
+            if (propertyDefinition != null) {
+                possibleTypes = propertyDefinition.possibleTypes();
+                possibleExpression = propertyDefinition.possibleExpression();
+                if ((impl = propertyDefinition.impl()) != Object.class) {
                     if (isAvailableImpl(impl)) {
                         implClass = impl;
                     }
                 }
-                unfixedType = jsonProperty.unfixedType();
+                unfixedType = propertyDefinition.unfixedType();
             }
             if (possibleTypes != null && possibleTypes.length > 0) {
-                this.deserializer = getPossibleTypesTypeDeserializer(genericParameterizedType.getActualType(), possibleTypes, possibleExpression.isEmpty() ? null : Expression.parse(possibleExpression));
+                this.deserializer = store.getPossibleTypesTypeDeserializer(genericParameterizedType.getActualType(), possibleTypes, possibleExpression.isEmpty() ? null : Expression.parse(possibleExpression));
             } else if (implClass != null) {
-                this.deserializer = getTypeDeserializer(implClass);
+                this.deserializer = store.getTypeDeserializer(implClass);
                 this.genericParameterizedType = GenericParameterizedType.actualType(implClass);
             } else {
                 if (setterInfo.isNonInstanceType()) {
-                    this.deserializer = getCachedTypeDeserializer(genericParameterizedType.getActualType());
+                    this.deserializer = store.getCachedTypeDeserializer(genericParameterizedType.getActualType());
                 } else {
                     if (genericParameterizedType.getActualClassCategory() == ReflectConsts.ClassCategory.ObjectCategory && unfixedType) {
                         this.deserializer = null;
@@ -118,43 +114,48 @@ public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implem
 
     boolean ensuredTypeDeserializable() {
         if (setterInfo.isNonInstanceType()) {
-            JSONTypeDeserializer deserializer = getCachedTypeDeserializer(genericParameterizedType.getActualType());
+            JSONTypeDeserializer deserializer = store.getCachedTypeDeserializer(genericParameterizedType.getActualType());
             if (deserializer == null) {
                 return false;
             }
-            if (jsonProperty == null || jsonProperty.possibleTypes().length == 0) {
+            if (propertyDefinition == null || propertyDefinition.possibleTypes().length == 0) {
                 this.deserializer = deserializer;
                 flag = true;
             }
         }
-        boolean unfixedType = jsonProperty != null && jsonProperty.unfixedType();
+        boolean unfixedType = propertyDefinition != null && propertyDefinition.unfixedType();
         if (unfixedType && genericParameterizedType.getActualClassCategory() == ReflectConsts.ClassCategory.ObjectCategory) {
             return false;
         }
         return true;
     }
 
-    private JSONTypeDeserializer getDeserializer(GenericParameterizedType genericParameterizedType) {
+    private JSONTypeDeserializer getDeserializer(GenericParameterizedType<?> genericParameterizedType) {
         // check custom Deserializer
-        JsonDeserialize jsonDeserialize = (JsonDeserialize) setterInfo.getAnnotation(JsonDeserialize.class);
-        if (jsonDeserialize != null) {
-            Class<? extends JsonDeserializer> jsonDeserializerClass = jsonDeserialize.value();
-            this.customDeserialize = true;
+        if (propertyDefinition != null) {
             try {
-                if (jsonDeserialize.singleton()) {
-                    JsonDeserializer jsonDeserializer = customDeserializers.get(jsonDeserializerClass);
-                    if (jsonDeserializer == null) {
-                        jsonDeserializer = jsonDeserializerClass.newInstance();
-                        customDeserializers.put(jsonDeserializerClass, jsonDeserializer);
+                Class<? extends JSONTypeFieldMapper> fieldMapperClass = propertyDefinition.mapper();
+                if (fieldMapperClass != JSONTypeFieldMapper.class) {
+                    JSONTypeDeserializer customDeserializer = customDeserializers.get(fieldMapperClass);
+                    if (customDeserializer != null) {
+                        this.customDeserialize = true;
+                        return customDeserializer;
                     }
-                    return jsonDeserializer;
+                    JSONTypeFieldMapper<?> fieldMapper = fieldMapperClass.newInstance();
+                    if (fieldMapper.deserialize()) {
+                        customDeserializer = store.buildDeserializer(fieldMapper);
+                        if (fieldMapper.singleton()) {
+                            customDeserializers.put(fieldMapperClass, customDeserializer);
+                        }
+                        this.customDeserialize = true;
+                        return customDeserializer;
+                    }
                 }
-                return jsonDeserializerClass.newInstance();
-            } catch (Throwable e) {
-                e.printStackTrace();
+            } catch (Throwable throwable) {
+                throwable.printStackTrace();
             }
         }
-        return JSONTypeDeserializer.getFieldDeserializer(genericParameterizedType, jsonProperty);
+        return store.getFieldDeserializer(genericParameterizedType, propertyDefinition);
     }
 
     public String getName() {
@@ -173,11 +174,11 @@ public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implem
 //        return genericParameterizedType;
 //    }
 
-    protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, int endToken, JSONParseContext jsonParseContext) throws Exception {
+    protected Object deserialize(CharSource charSource, char[] buf, int fromIndex, GenericParameterizedType<?> parameterizedType, Object defaultValue, int endToken, JSONParseContext jsonParseContext) throws Exception {
         throw new UnsupportedOperationException();
     }
 
-    protected Object deserialize(CharSource charSource, byte[] buf, int fromIndex, GenericParameterizedType parameterizedType, Object defaultValue, int endToken, JSONParseContext jsonParseContext) throws Exception {
+    protected Object deserialize(CharSource charSource, byte[] buf, int fromIndex, GenericParameterizedType<?> parameterizedType, Object defaultValue, int endToken, JSONParseContext jsonParseContext) throws Exception {
         throw new UnsupportedOperationException();
     }
 
@@ -205,6 +206,7 @@ public final class JSONPojoFieldDeserializer extends JSONTypeDeserializer implem
             case MapCategory:
             case CollectionCategory:
             case ObjectCategory:
+            case NonInstance:
                 return true;
         }
         return false;

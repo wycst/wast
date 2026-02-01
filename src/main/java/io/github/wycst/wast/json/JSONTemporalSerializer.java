@@ -2,7 +2,6 @@ package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.common.beans.DateFormatter;
 import io.github.wycst.wast.common.reflect.ClassStrucWrap;
-import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.temporal.*;
 
 import java.util.TimeZone;
@@ -18,17 +17,18 @@ import java.util.TimeZone;
  * @Date: 2022/8/13 15:08
  * @Description:
  */
+@SuppressWarnings({"all"})
 public abstract class JSONTemporalSerializer extends JSONTypeSerializer {
 
     protected final Class<?> temporalClass;
     protected DateFormatter dateFormatter;
     protected final boolean useFormatter;
 
-    protected JSONTemporalSerializer(Class<?> temporalClass, JsonProperty property) {
+    protected JSONTemporalSerializer(Class<?> temporalClass, JSONPropertyDefinition property) {
         checkClass(temporalClass);
         this.temporalClass = temporalClass;
         if (property != null) {
-            String pattern = property.pattern().trim();
+            String pattern = property.pattern();
             if (pattern.length() > 0) {
                 dateFormatter = DateFormatter.of(pattern);
             }
@@ -36,27 +36,33 @@ public abstract class JSONTemporalSerializer extends JSONTypeSerializer {
         useFormatter = dateFormatter != null;
     }
 
-    static JSONTypeSerializer getTemporalSerializerInstance(ClassStrucWrap classStrucWrap, JsonProperty property) {
+    static JSONTypeSerializer getTemporalSerializerInstance(ClassStrucWrap classStrucWrap, JSONPropertyDefinition property) {
         ClassStrucWrap.ClassWrapperType classWrapperType = classStrucWrap.getClassWrapperType();
         Class<?> temporalClass = classStrucWrap.getSourceClass();
         switch (classWrapperType) {
+            case TemporalMonthDay: {
+                return new TemporalMonthDaySerializer(temporalClass, property);
+            }
+            case TemporalYearMonth: {
+                return new TemporalYearMonthSerializer(temporalClass, property);
+            }
             case TemporalLocalDate: {
                 return new TemporalLocalDateSerializer(temporalClass, property);
+            }
+            case TemporalLocalDateTime: {
+                return new TemporalLocalDateTimeSerializer(temporalClass, property);
             }
             case TemporalLocalTime: {
                 return new TemporalLocalTimeSerializer(temporalClass, property);
             }
-            case TemporalLocalDateTime: {
-                return new TemporalLocalDateTimeSerializer(temporalClass, property);
+            case TemporalInstant: {
+                return new TemporalInstantSerializer(temporalClass, property);
             }
             case TemporalZonedDateTime: {
                 return new TemporalZonedDateTimeSerializer(temporalClass, property);
             }
             case TemporalOffsetDateTime: {
                 return new TemporalOffsetDateTimeSerializer(temporalClass, property);
-            }
-            case TemporalInstant: {
-                return new TemporalInstantSerializer(temporalClass, property);
             }
             default: {
                 throw new UnsupportedOperationException();

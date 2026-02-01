@@ -17,7 +17,7 @@ public class JSONReaderHookDefault extends JSONReaderHook {
     }
 
     @Override
-    protected Collection createdCollection(String path) {
+    protected Collection<?> createdCollection(String path) {
         return new ArrayList();
     }
 

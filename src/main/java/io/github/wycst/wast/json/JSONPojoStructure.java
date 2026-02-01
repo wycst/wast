@@ -8,105 +8,137 @@ import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.annotations.JsonTypeSetting;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 对ClassStrucWrap的进一步包装，提供给json模块使用
  *
- * @Author wangyunchao
+ * @author wangyunchao
  */
 public final class JSONPojoStructure {
 
-    private final static Map<Class<?>, JSONPojoStructure> POJO_STRUCS = new ConcurrentHashMap<Class<?>, JSONPojoStructure>();
-
-    private final ClassStrucWrap classStrucWrap;
-    private ClassStrucWrap.ClassWrapperType classWrapperType;
-    private final GenericParameterizedType genericType;
+    final JSONStore store;
+    final ClassStrucWrap classStrucWrap;
+    private final ClassStrucWrap.ClassWrapperType classWrapperType;
+    private final GenericParameterizedType<?> genericType;
     final JSONValueMatcher<JSONPojoFieldDeserializer> fieldDeserializerMatcher;
     // deserializers
     final List<JSONPojoFieldDeserializer> fieldDeserializers;
 
     // getter methods
-    private JSONPojoFieldSerializer[] getterMethodSerializers;
+    private final JSONPojoFieldSerializer[] getterMethodSerializers;
     // field
-    private JSONPojoFieldSerializer[] getterFieldSerializers;
-    private boolean forceUseFields;
-    private JsonTypeSetting jsonTypeSetting;
+    private final JSONPojoFieldSerializer[] getterFieldSerializers;
+    private final boolean forceUseFields;
     volatile boolean fieldDeserializersInitialized;
     volatile boolean fieldSerializersInitialized;
     private final boolean supportedJavaBeanConvention;
     private final boolean enableJIT;
     final boolean supportedDeserOptimize;
+    final Map<String, JSONPropertyDefinition> propertyDefinitions;
 
-    private JSONPojoStructure(ClassStrucWrap classStrucWrap) {
-        classStrucWrap.getClass();
-        this.classStrucWrap = classStrucWrap;
-        this.classWrapperType = classStrucWrap.getClassWrapperType();
-        this.forceUseFields = classStrucWrap.isForceUseFields();
-        this.jsonTypeSetting = (JsonTypeSetting) classStrucWrap.getDeclaredAnnotation(JsonTypeSetting.class);
+    JSONPojoStructure(JSONStore store, ClassStrucWrap strucWrap) {
+        this(store, strucWrap, null);
+    }
+
+    JSONPojoStructure(JSONStore store, ClassStrucWrap strucWrap, Map<String, JSONPropertyDefinition> propertyDefinitions) {
+        strucWrap.getClass();
+        this.store = store;
+        this.classStrucWrap = strucWrap;
+        this.classWrapperType = strucWrap.getClassWrapperType();
+        this.forceUseFields = strucWrap.isForceUseFields();
+        JsonTypeSetting jsonTypeSetting = (JsonTypeSetting) strucWrap.getDeclaredAnnotation(JsonTypeSetting.class);
+        if (propertyDefinitions == null) {
+            propertyDefinitions = new HashMap<String, JSONPropertyDefinition>();
+        }
+        this.propertyDefinitions = propertyDefinitions;
         // serializer info
-        List<GetterInfo> getterInfos = classStrucWrap.getGetterInfos();
+        List<GetterInfo> getterInfos = strucWrap.getGetterInfos();
         List<JSONPojoFieldSerializer> fieldSerializers = new ArrayList<JSONPojoFieldSerializer>();
         Map<String, JSONPojoFieldSerializer> fieldSerializerHashMap = new HashMap<String, JSONPojoFieldSerializer>();
         for (GetterInfo getterInfo : getterInfos) {
-            JsonProperty jsonProperty = (JsonProperty) getterInfo.getAnnotation(JsonProperty.class);
+            if (store.isNoneStringMode() && isStringParameterizedType(getterInfo.getGenericParameterizedType()))
+                continue;
             String name = getterInfo.getName();
-            if (jsonProperty != null) {
-                if (!jsonProperty.serialize()) {
+            JsonProperty jsonProperty = (JsonProperty) getterInfo.getAnnotation(JsonProperty.class);
+            JSONPropertyDefinition annotationedProperty = JSONPropertyDefinition.of(jsonProperty);
+            JSONPropertyDefinition definition = propertyDefinitions.get(name);
+            if (definition == null) {
+                definition = annotationedProperty;
+            } else {
+                definition.merge(annotationedProperty);
+            }
+            if (definition != null) {
+                if (!definition.serialize()) {
                     continue;
                 }
                 String aliasName;
-                if ((aliasName = jsonProperty.name().trim()).length() > 0) {
+                if (!(aliasName = definition.name()).isEmpty()) {
                     name = aliasName;
                 }
             }
-            JSONPojoFieldSerializer fieldSerializer = new JSONPojoFieldSerializer(getterInfo, name);
+            JSONPojoFieldSerializer fieldSerializer = new JSONPojoFieldSerializer(store, getterInfo, name, definition);
             fieldSerializers.add(fieldSerializer);
             fieldSerializerHashMap.put(name, fieldSerializer);
         }
         getterMethodSerializers = fieldSerializers.toArray(new JSONPojoFieldSerializer[fieldSerializers.size()]);
 
         fieldSerializers.clear();
-        List<GetterInfo> getterByFieldInfos = classStrucWrap.getGetterInfos(true);
+        List<GetterInfo> getterByFieldInfos = strucWrap.getGetterInfos(true);
         for (GetterInfo getterInfo : getterByFieldInfos) {
-            JsonProperty jsonProperty = (JsonProperty) getterInfo.getAnnotation(JsonProperty.class);
+            if (store.isNoneStringMode() && isStringParameterizedType(getterInfo.getGenericParameterizedType()))
+                continue;
             String name = getterInfo.getName();
-            if (jsonProperty != null) {
-                if (!jsonProperty.serialize()) {
+            JsonProperty jsonProperty = (JsonProperty) getterInfo.getAnnotation(JsonProperty.class);
+            JSONPropertyDefinition annotationedProperty = JSONPropertyDefinition.of(jsonProperty);
+            JSONPropertyDefinition definition = propertyDefinitions.get(name);
+            if (definition == null) {
+                definition = annotationedProperty;
+            } else {
+                definition.merge(annotationedProperty);
+            }
+            if (definition != null) {
+                if (!definition.serialize()) {
                     continue;
                 }
                 String aliasName;
-                if ((aliasName = jsonProperty.name().trim()).length() > 0) {
+                if (!(aliasName = definition.name()).isEmpty()) {
                     name = aliasName;
                 }
             }
-            JSONPojoFieldSerializer fieldSerializer = new JSONPojoFieldSerializer(getterInfo, name);
+            JSONPojoFieldSerializer fieldSerializer = new JSONPojoFieldSerializer(store, getterInfo, name, definition);
             fieldSerializers.add(fieldSerializer);
         }
         getterFieldSerializers = fieldSerializers.toArray(new JSONPojoFieldSerializer[fieldSerializers.size()]);
         supportedJavaBeanConvention = checkJavaBeanConvention(fieldSerializerHashMap);
 
         // 反序列化初始化
-        this.genericType = GenericParameterizedType.actualType(classStrucWrap.getSourceClass());
-        Set<String> setterNames = classStrucWrap.setterNames();
+        this.genericType = GenericParameterizedType.actualType(strucWrap.getSourceClass());
+        Set<String> setterNames = strucWrap.setterNames();
 
         Map<String, JSONPojoFieldDeserializer> fieldDeserializerHashMap = new HashMap<String, JSONPojoFieldDeserializer>();
         boolean deserializeOptimizable = true;
         for (String setterName : setterNames) {
-            SetterInfo setterInfo = classStrucWrap.getSetterInfo(setterName);
-            JsonProperty jsonProperty = (JsonProperty) setterInfo.getAnnotation(JsonProperty.class);
+            SetterInfo setterInfo = strucWrap.getSetterInfo(setterName);
             String name = setterName;
             boolean priority = name.equals(setterInfo.getName());
-            if (jsonProperty != null) {
-                if (!jsonProperty.deserialize())
+            JsonProperty jsonProperty = (JsonProperty) setterInfo.getAnnotation(JsonProperty.class);
+            JSONPropertyDefinition annotationedProperty = JSONPropertyDefinition.of(jsonProperty);
+            JSONPropertyDefinition definition = propertyDefinitions.get(name);
+            if (definition == null) {
+                definition = annotationedProperty;
+            } else {
+                definition.merge(annotationedProperty);
+            }
+            if (definition != null) {
+                if (!definition.deserialize())
                     continue;
-                String mapperName = jsonProperty.name().trim();
-                if (mapperName.length() > 0) {
+                String mapperName = definition.name();
+                if (!mapperName.isEmpty()) {
                     name = mapperName;
                     priority = true;
                 }
             }
-            JSONPojoFieldDeserializer fieldDeserializer = new JSONPojoFieldDeserializer(name, setterInfo, jsonProperty);
+            JSONPojoFieldDeserializer fieldDeserializer = new JSONPojoFieldDeserializer(store, name, setterInfo, definition);
             fieldDeserializer.setPriority(priority);
             fieldDeserializerHashMap.put(name, fieldDeserializer);
 
@@ -121,11 +153,14 @@ public final class JSONPojoStructure {
         this.supportedDeserOptimize = /*this.enableJIT && */deserializeOptimizable;
     }
 
+    static boolean isStringParameterizedType(GenericParameterizedType<?> parameterizedType) {
+        if (parameterizedType == null) return false;
+        if (parameterizedType.getActualType() == String.class) return true;
+        return parameterizedType.getValueType() == GenericParameterizedType.StringType;
+    }
+
     /**
      * 检查pojo是否满足实体bean公约规范（每个属性都定义了相应的getter/setter方法）
-     *
-     * @param fieldSerializerHashMap
-     * @return
      */
     private boolean checkJavaBeanConvention(Map<String, JSONPojoFieldSerializer> fieldSerializerHashMap) {
         return !classStrucWrap.isPrivate();
@@ -180,34 +215,6 @@ public final class JSONPojoStructure {
         return classStrucWrap.createConstructorArgs();
     }
 
-    /**
-     * create structure
-     *
-     * @param pojoClass
-     * @return
-     */
-    static JSONPojoStructure get(Class<?> pojoClass) {
-        if (pojoClass == null) {
-            throw new IllegalArgumentException("pojoClass is null");
-        }
-        JSONPojoStructure pojoStructure = POJO_STRUCS.get(pojoClass);
-        if (pojoStructure != null) {
-            return pojoStructure;
-        }
-        synchronized (pojoClass) {
-            if (POJO_STRUCS.containsKey(pojoClass)) {
-                return POJO_STRUCS.get(pojoClass);
-            }
-            ClassStrucWrap wrapper = ClassStrucWrap.get(pojoClass);
-            if (wrapper == null) {
-                throw new IllegalArgumentException("pojoClass " + pojoClass + " is not supported !");
-            }
-            pojoStructure = new JSONPojoStructure(wrapper);
-            POJO_STRUCS.put(pojoClass, pojoStructure);
-        }
-        return pojoStructure;
-    }
-
     public Object newInstance() throws Exception {
         return classStrucWrap.newInstance();
     }
@@ -216,7 +223,7 @@ public final class JSONPojoStructure {
         return classStrucWrap.newInstance(constructorArgs);
     }
 
-    public GenericParameterizedType getGenericType() {
+    public GenericParameterizedType<?> getGenericType() {
         return genericType;
     }
 
@@ -242,8 +249,6 @@ public final class JSONPojoStructure {
 
     /**
      * supported java bean convention
-     *
-     * @return
      */
     public boolean isSupportedJavaBeanConvention() {
         return this.supportedJavaBeanConvention;
@@ -251,8 +256,6 @@ public final class JSONPojoStructure {
 
     /**
      * if supported JIT optimization
-     *
-     * @return
      */
     public boolean isSupportedJIT() {
         return isSupportedJavaBeanConvention() && isPublic() && enableJIT;

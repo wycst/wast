@@ -258,7 +258,7 @@ public class DefaultSqlExecuter {
                     sqlTemplates[SqlFunctionType.UPDATE_BY_PARAMS.ordinal()] = "ALTER TABLE %s t UPDATE %s %s";
                     sqlTemplates[SqlFunctionType.DELETE_BY_ID.ordinal()] = "ALTER TABLE %s DELETE WHERE %s = %s";
                     sqlTemplates[SqlFunctionType.DELETE_BY_PARAMS.ordinal()] = "ALTER TABLE %s DELETE %s";
-                } else if (upperName.contains("KINGBASEES")) {
+                } else if(upperName.contains("KINGBASEES")) {
                     // use mysql
                     kingbase = true;
                     this.dialect = new MySqlDialect();

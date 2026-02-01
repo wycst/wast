@@ -67,6 +67,7 @@ import java.io.*;
  * @see JSONNode
  * @see JSONCharArrayWriter
  */
+@SuppressWarnings({"all"})
 public class JSONReader extends JSONAbstractReader {
 
     /**
@@ -244,7 +245,7 @@ public class JSONReader extends JSONAbstractReader {
         try {
             this.readBuffer();
             if (!multiple && this.isCompleted()) {
-                return JSONDefaultParser.parse(buf, 0, count, readOptions);
+                return JSONStore.PARSER.parse(buf, 0, count, readOptions);
             }
             this.defaultRead();
         } catch (Exception e) {

@@ -15,6 +15,10 @@ public class KeyValuePair<K, V> {
         this.value = v;
     }
 
+    public static <K, V> KeyValuePair<K, V> of(K k, V v) {
+        return new KeyValuePair<K, V>(k, v);
+    }
+
     public K getKey() {
         return key;
     }

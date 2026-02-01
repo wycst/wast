@@ -1,12 +1,13 @@
 package io.github.wycst.wast.common.reflect;
 
+import io.github.wycst.wast.common.beans.ArrayQueueMap;
+
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.sql.Timestamp;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 反射常量
@@ -20,7 +21,7 @@ public final class ReflectConsts {
     /**
      * Cache type class classification
      */
-    private final static Map<Class, ClassCategory> classClassCategoryMap = new ConcurrentHashMap<Class, ClassCategory>();
+    private final static Map<Class, ClassCategory> classClassCategoryMap = new ArrayQueueMap<Class, ClassCategory>(8192);
 
     static {
 

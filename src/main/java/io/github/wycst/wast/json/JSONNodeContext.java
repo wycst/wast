@@ -25,7 +25,7 @@ public final class JSONNodeContext extends JSONParseContext {
     /**
      * 提取数据列表
      */
-    public List extractValues;
+    public List<Object> extractValues;
     JSONNodeCollector collector;
     private JSONKeyValueMap<String> KEY_32_TABLE;
     static final JSONKeyValueMap<String> GLOBAL_KEY_8_TABLE = new JSONKeyValueMap<String>(2048);
@@ -67,7 +67,7 @@ public final class JSONNodeContext extends JSONParseContext {
     void enableExtract(JSONNodeCollector nodeCollector) {
         collector = nodeCollector;
         extract = true;
-        extractValues = new ArrayList();
+        extractValues = new ArrayList<Object>();
     }
 
     public void reset() {
@@ -81,7 +81,7 @@ public final class JSONNodeContext extends JSONParseContext {
     }
 
     @Override
-    protected JSONKeyValueMap<String> getTable32() {
+    JSONKeyValueMap<String> getTable32() {
         if (KEY_32_TABLE == null) {
             KEY_32_TABLE = new JSONKeyValueMap<String>(128, new JSONKeyValueMap.EntryNode[128]);
         }
@@ -89,7 +89,7 @@ public final class JSONNodeContext extends JSONParseContext {
     }
 
     @Override
-    protected JSONKeyValueMap<String> getTable8() {
+    JSONKeyValueMap<String> getTable8() {
         return GLOBAL_KEY_8_TABLE;
     }
 }

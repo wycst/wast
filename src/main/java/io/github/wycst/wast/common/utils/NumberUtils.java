@@ -1,10 +1,9 @@
 package io.github.wycst.wast.common.utils;
 
-import java.math.BigInteger;
 import java.util.Arrays;
 
 /**
- * @Author: wangy
+ * @Author: wangy(wycst)
  * @Date: 2022/7/17 16:16
  * @Description:
  */
@@ -56,13 +55,13 @@ public final class NumberUtils {
     };
 
     final static long[] POW5_LONG_VALUES = new long[27];
-    final static BigInteger[] POW5_BI_VALUES = new BigInteger[343];
+//    final static BigInteger[] POW5_BI_VALUES = new BigInteger[343];
 
     static {
         // e0 ~ e360(e306)
         for (int i = 0, len = POSITIVE_DECIMAL_POWER.length; i < len; ++i) {
-            POSITIVE_DECIMAL_POWER[i] = Double.valueOf("1.0E" + i);
-            NEGATIVE_DECIMAL_POWER[i] = Double.valueOf("1.0E-" + i);
+            POSITIVE_DECIMAL_POWER[i] = Double.parseDouble("1.0E" + i);
+            NEGATIVE_DECIMAL_POWER[i] = Double.parseDouble("1.0E-" + i);
         }
         // 4.9e-324
         NEGATIVE_DECIMAL_POWER[NEGATIVE_DECIMAL_POWER.length - 1] = Double.MIN_VALUE;
@@ -72,13 +71,6 @@ public final class NumberUtils {
             POW5_LONG_VALUES[i] = val;
             val *= 5;
         }
-
-//        BigInteger five = BigInteger.valueOf(5);
-//        POW5_BI_VALUES[0] = BigInteger.ONE;
-//        for (int i = 1; i < POW5_BI_VALUES.length; ++i) {
-//            BigInteger pow5Value = five.pow(i);
-//            POW5_BI_VALUES[i] = pow5Value;
-//        }
     }
 
     static final int MOD_DOUBLE_EXP = (1 << 11) - 1;
@@ -95,26 +87,25 @@ public final class NumberUtils {
         return Arrays.copyOf(DigitTens, DigitTens.length);
     }
 
-    /**
-     * 实时获取5的指定次方对应的BigInteger对象，减少初始化POW5_BI_VALUES内存占用
-     *
-     * @param e5
-     * @return
-     */
-    static BigInteger pow5_bi(int e5) {
-        BigInteger pow5 = POW5_BI_VALUES[e5];
-        if (pow5 == null) {
-            pow5 = BigInteger.valueOf(5).pow(e5);
-            POW5_BI_VALUES[e5] = pow5;
-        }
-        return pow5;
-    }
+//    /**
+//     * 实时获取5的指定次方对应的BigInteger对象，减少初始化POW5_BI_VALUES内存占用
+//     *
+//     * @param e5
+//     * @return
+//     */
+//    static BigInteger pow5_bi(int e5) {
+//        BigInteger pow5 = POW5_BI_VALUES[e5];
+//        if (pow5 == null) {
+//            pow5 = BigInteger.valueOf(5).pow(e5);
+//            POW5_BI_VALUES[e5] = pow5;
+//        }
+//        return pow5;
+//    }
 
     /**
      * 获取以10为底数的指定数值（-1 < expValue > 310）指数值,
      *
      * @param expValue ensure expValue >= 0
-     * @return
      */
     public static double getDecimalPowerValue(int expValue) {
         if (expValue < POSITIVE_DECIMAL_POWER.length) {
@@ -123,25 +114,8 @@ public final class NumberUtils {
         return Math.pow(10, expValue);
     }
 
-//    /**
-//     * 获取以10为底数的指定数值（-1 < expValue > 310）指数值,
-//     *
-//     * @param expValue ensure expValue < 0
-//     * @return
-//     */
-//    public static double getNegativeDecimalPowerValue(int expValue) {
-//        int index = -expValue;
-//        if (index < NEGATIVE_DECIMAL_POWER.length) {
-//            return NEGATIVE_DECIMAL_POWER[index];
-//        }
-//        return Math.pow(10, expValue);
-//    }
-
     /**
      * 获取long值的字符串长度
-     *
-     * @param value
-     * @return
      */
     public static int stringSize(long value) {
         int i = 1;
@@ -162,7 +136,6 @@ public final class NumberUtils {
      * 十进制字符转数字
      *
      * @param ch 字符值（非数字）
-     * @return
      */
     public static int digitDecimal(int ch) {
         switch (ch) {
@@ -186,9 +159,6 @@ public final class NumberUtils {
 
     /**
      * 判断一个字符或者字节是否为数字(48-57)
-     *
-     * @param c
-     * @return
      */
     public static boolean isDigit(int c) {
         switch (c) {
@@ -210,9 +180,6 @@ public final class NumberUtils {
 
     /**
      * 字符转数字
-     *
-     * @param c
-     * @return
      */
     public static int digit(int c) {
         switch (c) {
@@ -234,10 +201,6 @@ public final class NumberUtils {
 
     /**
      * 转化为4位十进制数int数字
-     *
-     * @param buf
-     * @param fromIndex
-     * @return
      */
     public static int parseInt4(char[] buf, int fromIndex)
             throws NumberFormatException {
@@ -247,13 +210,13 @@ public final class NumberUtils {
     /**
      * 转化为4位十进制数int数字
      *
-     * @param buf
-     * @param fromIndex
-     * @return
+     * @param buf    源字节数组
+     * @param offset 读取的起始位置
+     * @return 4位十进制数
      */
-    public static int parseInt4(byte[] buf, int fromIndex)
+    public static int parseInt4(byte[] buf, int offset)
             throws NumberFormatException {
-        return parseInt4(buf[fromIndex++], buf[fromIndex++], buf[fromIndex++], buf[fromIndex]);
+        return parseInt4(buf[offset++], buf[offset++], buf[offset++], buf[offset]);
     }
 
     /**
@@ -263,7 +226,6 @@ public final class NumberUtils {
      * @param c2 百位
      * @param c3 十位
      * @param c4 个位
-     * @return
      */
     public static int parseInt4(int c1, int c2, int c3, int c4) {
         int v1 = digitDecimal(c1);
@@ -279,34 +241,34 @@ public final class NumberUtils {
     /**
      * 转化为2位十进制数
      *
-     * @param buf
-     * @param fromIndex
-     * @return
+     * @param buf    源字节数组
+     * @param offset 读取的起始位置
+     * @return 转换后的数字
      */
-    public static int parseInt2(char[] buf, int fromIndex)
+    public static int parseInt2(char[] buf, int offset)
             throws NumberFormatException {
-        return parseInt2(buf[fromIndex++], buf[fromIndex]);
+        return parseInt2(buf[offset++], buf[offset]);
     }
 
     /**
      * 转化为2位十进制数
      *
-     * @param buf
-     * @param fromIndex
-     * @return
+     * @param buf    源字节数组
+     * @param offset 读取的起始位置
+     * @return 转换后的数字
      */
-    public static int parseInt2(byte[] buf, int fromIndex)
+    public static int parseInt2(byte[] buf, int offset)
             throws NumberFormatException {
-        return parseInt2(buf[fromIndex++], buf[fromIndex]);
+        return parseInt2(buf[offset++], buf[offset]);
     }
 
     /**
      * 转化为2位十进制数
      *
-     * @param c1
-     * @param c2
-     * @return
-     * @throws NumberFormatException
+     * @param c1 十位
+     * @param c2 个位
+     * @return 转换后的数字
+     * @throws NumberFormatException 输入的字符串不是数字
      */
     public static int parseInt2(int c1, int c2)
             throws NumberFormatException {
@@ -322,15 +284,15 @@ public final class NumberUtils {
     /**
      * 转化为1位int数字
      *
-     * @param buf
-     * @param fromIndex
-     * @return
+     * @param buf    源字节数组
+     * @param offset 读取的起始位置
+     * @return 1位数字
      */
-    public static int parseInt1(char[] buf, int fromIndex)
+    public static int parseInt1(char[] buf, int offset)
             throws NumberFormatException {
-        int v1 = digitDecimal(buf[fromIndex]);
+        int v1 = digitDecimal(buf[offset]);
         if (v1 == -1) {
-            throw new NumberFormatException("For input string: \"" + new String(buf, fromIndex, 1) + "\"");
+            throw new NumberFormatException("For input string: \"" + new String(buf, offset, 1) + "\"");
         }
         return v1;
     }
@@ -338,15 +300,15 @@ public final class NumberUtils {
     /**
      * 转化为1位int数字
      *
-     * @param buf
-     * @param fromIndex
-     * @return
+     * @param buf    源字节数组
+     * @param offset 读取的起始位置
+     * @return 1位数字
      */
-    public static int parseInt1(byte[] buf, int fromIndex)
+    public static int parseInt1(byte[] buf, int offset)
             throws NumberFormatException {
-        int v1 = digitDecimal(buf[fromIndex]);
+        int v1 = digitDecimal(buf[offset]);
         if (v1 == -1) {
-            throw new NumberFormatException("For input string: \"" + new String(buf, fromIndex, 1) + "\"");
+            throw new NumberFormatException("For input string: \"" + new String(buf, offset, 1) + "\"");
         }
         return v1;
     }
@@ -354,8 +316,8 @@ public final class NumberUtils {
     /**
      * 将long类型的value转为长度为16的16进制字符串,缺省补字符0
      *
-     * @param value
-     * @return
+     * @param value long value
+     * @return 16进制字符串
      * @see Long#toHexString(long)
      */
     public static String toHexString16(long value) {
@@ -369,193 +331,67 @@ public final class NumberUtils {
     }
 
     /**
-     * Convert to double through 64 bit integer val and precision scale
+     * <p> Convert to double through 64 bit integer val and precision scale -> val / 10^scale;</p>
+     *
+     * <p> to simplify the code, code blocks that are considered to have an extremely low probability of occurrence have been temporarily removed (due to the inability to fully test within the double range).</p>
+     * <p> if any errors(up to one bit error) occur as a result, please provide the relevant parameters(the val and scale) and contact me(shallxiao@126.com).</p>
+     *
+     * <p>
+     * 注: 之前的版本缓存了一个BigInteger数组（POW5_BI_VALUES）存储5的指数幂，能确保结果100%正确. 考虑到占用内存有点大且只有极小概率可达就删除了. <br/>
+     * 简化后的代码通常情况下结果是正确的，如果有发现错误（一个bit的误差）请发送到我的邮箱(shallxiao@126.com)
+     * </p>
      *
      * <p> IEEEF Double 64 bits: 1 + 11 + 52  </p>
      * <p> ensure the parameter val is greater than 0, otherwise return 0 </p>
      *
-     * @param val
-     * @param scale
-     * @return
+     * @param val   value
+     * @param scale precision
      * @author wycst
      */
     public static double scientificToIEEEDouble(long val, int scale) {
         if (val < 1) {
             if (val == Long.MIN_VALUE) {
                 val = 9223372036854775807L;
-            } else {
-                return 0.0D;
-            }
+            } else return 0.0D;
         }
         int leadingZeros = Long.numberOfLeadingZeros(val);
+        long y, y32, e0;
         if (scale < 1) {
             if (scale == 0) return val;
-            int e10 = -scale;
-            if (e10 < 23 && val < 9007199254740993L) { // 1L << 53
-                return val * POSITIVE_DECIMAL_POWER[e10];
-            }
-            if (e10 > 308) return Double.POSITIVE_INFINITY;
-            ED5 ed5 = ED5.ED5_A[e10];
-            long left = val << (leadingZeros - 1);
-            // h is 61~62 bits
-            long h = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(left, ed5.y), l;
-            int sr, mask, mmask;
-            if (h > 0x1fffffffffffffffL) {// 62 bits
-                sr = 9;
-                mask = 0xFF;
-                mmask = 0x1FF;
-            } else {
-                sr = 8;
-                mask = 0x7F;
-                mmask = 0xFF;
-            }
-            /*if (e10 < POW5_LONG_VALUES.length) {
-                // accurate mode
-                long mantissa0 = h >>> sr;
-                long e2 = e10 - leadingZeros + multiplier.bitLength() + sr + 1077;
-                long mod = h & mmask;
-                boolean plus = mod > mask + 1 || (mod == mask + 1 && ((mantissa0 & 1) == 1 || left * ed5.y != 0));
-                if (plus) {
-                    ++mantissa0;
-                    if (mantissa0 == 1L << 53) {
-                        mantissa0 = 1L << 52;
-                        ++e2;
-                    }
-                }
-                long bits = (e2 << 52) | (mantissa0 & MOD_DOUBLE_MANTISSA);
-                return Double.longBitsToDouble(bits);
-            }*/
-            long e = e10 + ed5.dfb + 1140 - leadingZeros + sr;
-            if ((h & mmask) != mask || (l = left * ed5.y) > 0 || !checkLowCarry(l, left, ed5.f + 1) /*|| ((h >> sr - 1) & 1) == 0*/) {
-                return longBitsToIntegerDouble(h, e, sr);
-            }
-            // l < 0
-            if (checkLowCarry(l, left, ed5.f)) {
-                // tail h like 10000000
-                return longBitsToIntegerDouble(h + 1, e, sr);
-            }
-            // The code here is basically unreachable, as the double range is too large to fully cover the test.
-            // If it can be confirmed that the last method call checkLowCarry can also be optimized, it will greatly improve overall performance
-            // If it is reached, use the difference method to determine (the result is guaranteed to be correct)
-            int e52 = e10 - leadingZeros + ed5.dfb + sr + 65;
-            if (e52 >= 972) return Double.POSITIVE_INFINITY;
-            long mantissa0 = h >>> sr;
-            long rightSum = (mantissa0 << 1) + 1;
-            int sb = 1 - e52 + e10; // sb < 0
-            BigInteger multiplier = pow5_bi(e10);
-            long diff = BigInteger.valueOf(val).multiply(multiplier).compareTo(BigInteger.valueOf(rightSum).shiftLeft(-sb));
-            if (diff > 0 || (diff == 0 && (mantissa0 & 1) == 1)) {
-                ++mantissa0;
-                if (mantissa0 == 1L << 53) {
-                    mantissa0 = 1L << 52;
-                    ++e52;
-                }
-            }
-            long e2 = e52 + 1075;
-            long bits = (e2 << 52) | (mantissa0 & MOD_DOUBLE_MANTISSA);
-            return Double.longBitsToDouble(bits);
+            if (scale > -23 && val < 9007199254740993L) return val * POSITIVE_DECIMAL_POWER[-scale]; // 1L << 53
+            if (scale < -308) return Double.POSITIVE_INFINITY;
+            ED5 ed5 = ED5.ED5_A[-scale];
+            y = ed5.y;
+            y32 = ed5.f + 1;
+            e0 = 1140 + ed5.dfb;
         } else {
-            /*if (scale < 23 && val < 9007199254740993L) {
-                // 1L << 53
-                return ((double) val) / POSITIVE_DECIMAL_POWER[scale];
-            }*/
             if (scale > 342) return 0.0D;
             ED5 ed5 = ED5.ED5_A[scale];
-            long left = val << (leadingZeros - 1);
-            // h is 61~62 bits
-            long h = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(left, ed5.oy), l;
-            int sr, mask;
-            if (h > 0x1fffffffffffffffL) { // 62 bits
-                sr = 9;
-                mask = 0xFF;
-            } else {
-                sr = 8;
-                mask = 0x7F;
-            }
-            final int e52 = 33 - scale - ed5.ob - leadingZeros + sr;
-            if ((h & mask) != mask || (e52 > -1075 && ((h >> sr - 1) & 1) == 1) || (l = left * ed5.oy) > 0 || !checkLowCarry(l, left, ed5.of + 1) /*|| ((h >> sr - 1) & 1) == 0*/) {
-                return longBitsToDecimalDouble(h, e52, sr);
-            }
-            // ensure l < 0
-            if (checkLowCarry(l, left, ed5.of)) {
-                // tail h like 10000000
-                return longBitsToDecimalDouble(h + 1, e52, sr);
-            }
-            // The code here is basically unreachable, as the double range is too large to fully cover the test.
-            // If it can be confirmed that the last method call checkLowCarry can also be optimized, it will greatly improve overall performance
-            // If it is reached, use the difference method to determine (the result is guaranteed to be correct)
-            if (scale < POW5_LONG_VALUES.length) {
-                // if reach here, there is a high probability that val can be evenly divided by p5sv
-                long p5sv = POW5_LONG_VALUES[scale];
-                long mantissa0 = h >>> sr;
-                long e2 = e52 + 1075;
-                long bits = (e2 << 52) | (mantissa0 & MOD_DOUBLE_MANTISSA);
-                double dv0 = Double.longBitsToDouble(bits);
-                int sb = 1 - scale - e52;
-                // difference comparison method: diff = dv - dv0 >= 1/2 * 2^e52  -> val * 2^sb - mantissa0 * 2 * p5sv >= p5sv
-                long diff = sb > 0 ? (val << sb) - (mantissa0 << 1) * p5sv - p5sv : val - (mantissa0 << 1 - sb) * p5sv - (p5sv << -sb);
-                if (diff > 0 || (diff == 0 && (mantissa0 & 1) == 1)) {
-                    return Double.longBitsToDouble(bits + 1);
-                }
-                return dv0;
-            }
-            BigInteger divisor = pow5_bi(scale);
-            long e2, mantissa0 = h >>> sr;
-            boolean oddFlag = (mantissa0 & 1) == 1;
-            if (e52 < -1074) {
-                sr += -1074 - e52;
-                e2 = 0;
-                if (sr >= 62) {
-                    return 0.0D;
-                }
-            } else {
-                e2 = e52 + 1075;
-            }
-            long rightSum = (mantissa0 << 1) + 1;
-            int sb = 1 - e52 - scale;
-            long diff = BigInteger.valueOf(val).shiftLeft(sb).compareTo(divisor.multiply(BigInteger.valueOf(rightSum)));
-            if (diff > 0 || (diff == 0 && oddFlag)) {
-                ++mantissa0;
-                if (mantissa0 == 1L << 53) {
-                    mantissa0 = 1L << 52;
-                    ++e2;
-                }
-            }
-            long bits = (e2 << 52) | (mantissa0 & MOD_DOUBLE_MANTISSA);
-            return Double.longBitsToDouble(bits);
+            y = ed5.oy;
+            y32 = ed5.of + 1;
+            e0 = 1108 - ed5.ob;
         }
+        long x = val << (leadingZeros - 1);
+        long h = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(x, y), l; // h is 61~62 bits
+        int sr = h > 0x1fffffffffffffffL ? 9 : 8;
+        long e2 = e0 - scale - leadingZeros + sr;  // e52 + 1075
+        if (e2 < 1) {
+            if ((sr += 1 - (int) e2) > 61) return 0.0D;
+            e2 = 0;
+        } else if (e2 > 2046) return Double.POSITIVE_INFINITY;
+        long mmask = (1L << sr) - 1, mask = mmask >> 1;
+        if ((h & mmask) != mask || (l = x * y) > 0 || !checkLowCarry(l, x, y32)) {
+            return longBitsToDouble(h, e2, sr);
+        }
+        return longBitsToDouble(h + 1, e2, sr);
     }
 
+    // check whether a carry-over may occur in the lower bits
     private static boolean checkLowCarry(long l, long x, long y32) {
         return l + ((EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(x, y32) << 32) + ((x * y32) >>> 32)) > -1;
-        //        long h1 = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(x, y32), l1 = x * y32, carry = (h1 << 32) + (l1 >>> 32);
-        //        long l2 = l + carry;
-        //        return (l | carry) < 0 && ((l & carry) < 0 || l2 >= 0);
     }
 
-    static double longBitsToDecimalDouble(long l62, int e52, int sr) {
-        long e2, mantissa0;
-        if (e52 < -1074) {
-            sr += -1074 - e52;
-            e2 = 0;
-            if (sr > 61) {
-                return 0.0D;
-            }
-            mantissa0 = ((l62 >> sr - 1) + 1) >> 1;
-        } else {
-            e2 = e52 + 1075;
-            mantissa0 = ((l62 >>> sr - 1) + 1) >> 1;
-            if (mantissa0 == 1L << 53) {
-                mantissa0 = 1L << 52;
-                ++e2;
-            }
-        }
-        long bits = (e2 << 52) | (mantissa0 & MOD_DOUBLE_MANTISSA);
-        return Double.longBitsToDouble(bits);
-    }
-
-    static double longBitsToIntegerDouble(long l62, long e2, int sr) {
-        if (e2 > 2046) return Double.POSITIVE_INFINITY;
+    static double longBitsToDouble(long l62, long e2, int sr) {
         long mantissa0 = ((l62 >>> sr - 1) + 1) >> 1;
         if (mantissa0 == 1L << 53) {
             mantissa0 = 1L << 52;
@@ -566,7 +402,7 @@ public final class NumberUtils {
     }
 
     /**
-     * Convert to float through 64 bit integer val and precision scale
+     * Convert to float through 64 bit integer val and precision scale -> val / 10^scale
      *
      * <p> IEEEF Float 32 bits: 1 + 8 + 23  </p>
      * <p> cleverly convert using the double bit structure </p>
@@ -585,8 +421,8 @@ public final class NumberUtils {
      * </pre>
      *
      * @param val   ensure val > 0, otherwise return 0
-     * @param scale
-     * @return
+     * @param scale the scale of the number
+     * @return float
      * @author wycst
      */
     public static float scientificToIEEEFloat(long val, int scale) {
@@ -594,10 +430,9 @@ public final class NumberUtils {
             return 0.0f;
         }
         double dv;
-        float fv = val;
         float val0;
         if (scale < 1) {
-            if (scale == 0) return fv;
+            if (scale == 0) return (float) val;
             int e10 = -scale;
             if (e10 > 38) return Float.POSITIVE_INFINITY;
             dv = val * NumberUtils.getDecimalPowerValue(e10);
@@ -616,7 +451,6 @@ public final class NumberUtils {
      * @param x     > 0
      * @param y     > 0
      * @param shift > 0
-     * @return
      */
     static long multiplyHighAndShift(long x, long y, int shift) {
         long H = EnvUtils.JDK_AGENT_INSTANCE.multiplyHighKaratsuba(x, y);
@@ -637,7 +471,6 @@ public final class NumberUtils {
      * @param y   63bits
      * @param y32 unsigned int32 f(32bits)
      * @param s   s > 0
-     * @return
      */
     static long multiplyHighAndShift(long x, long y, long y32, int s) {
         // -> BigInteger.valueOf(y).shiftLeft(32).add(BigInteger.valueOf(y32 & MASK_32_BITS)).multiply(BigInteger.valueOf(x)).shiftRight(s + 32)
@@ -672,7 +505,6 @@ public final class NumberUtils {
      *                    otherwise the absolute value of Scientific notation will be returned if doubleValue < 0.
      *                    if doubleValue is NaN or POSIFINETY or NEGATIVE-INFINETY, it will directly return SCIENTIFIC_NULL
      *                    if doubleValue == 0, return SCIENTIFIC_ZERO or SCIENTIFIC_NEGATIVE_ZERO
-     * @return
      */
     public static Scientific doubleToScientific(double doubleValue) {
         if (doubleValue == Double.MIN_VALUE) {
@@ -795,7 +627,6 @@ public final class NumberUtils {
      * if floatValue is less than 0, the absolute value of Scientific notation will be return
      *
      * @param floatValue != 0
-     * @return
      */
     public static Scientific floatToScientific(float floatValue) {
         final int bits = Float.floatToRawIntBits(floatValue);
@@ -894,218 +725,6 @@ public final class NumberUtils {
             return new Scientific(output, adl + 1, e10);
         }
     }
-
-//    public static void writePositiveLong(long val, Appendable appendable) throws IOException {
-//        int v, v1, v2, v3, v4, v5, v6, v7, v8, v9;
-//        if (val < 100) {
-//            v = (int) val;
-//            if (v > 9) {
-//                appendable.append(DigitTens[v]);
-//            }
-//            appendable.append(DigitOnes[v]);
-//            return;
-//        }
-//        long numValue = val;
-//        val = numValue / 100;
-//        v1 = (int) (numValue - val * 100);
-//        if (val < 100) {
-//            v = (int) val;
-//            if (v > 9) {
-//                appendable.append(DigitTens[v]);
-//            }
-//            appendable.append(DigitOnes[v]);
-//            appendable.append(DigitTens[v1]);
-//            appendable.append(DigitOnes[v1]);
-//            return;
-//        }
-//
-//        numValue = val;
-//        val = numValue / 100;
-//        v2 = (int) (numValue - val * 100);
-//        if (val < 100) {
-//            v = (int) val;
-//            if (v > 9) {
-//                appendable.append(DigitTens[v]);
-//            }
-//            appendable.append(DigitOnes[v]);
-//            appendable.append(DigitTens[v2]);
-//            appendable.append(DigitOnes[v2]);
-//            appendable.append(DigitTens[v1]);
-//            appendable.append(DigitOnes[v1]);
-//            return;
-//        }
-//
-//        numValue = val;
-//        val = numValue / 100;
-//        v3 = (int) (numValue - val * 100);
-//        if (val < 100) {
-//            v = (int) val;
-//            if (v > 9) {
-//                appendable.append(DigitTens[v]);
-//            }
-//            appendable.append(DigitOnes[v]);
-//            appendable.append(DigitTens[v3]);
-//            appendable.append(DigitOnes[v3]);
-//            appendable.append(DigitTens[v2]);
-//            appendable.append(DigitOnes[v2]);
-//            appendable.append(DigitTens[v1]);
-//            appendable.append(DigitOnes[v1]);
-//            return;
-//        }
-//
-//        numValue = val;
-//        val = numValue / 100;
-//        v4 = (int) (numValue - val * 100);
-//        if (val < 100) {
-//            v = (int) val;
-//            if (v > 9) {
-//                appendable.append(DigitTens[v]);
-//            }
-//            appendable.append(DigitOnes[v]);
-//            appendable.append(DigitTens[v4]);
-//            appendable.append(DigitOnes[v4]);
-//            appendable.append(DigitTens[v3]);
-//            appendable.append(DigitOnes[v3]);
-//            appendable.append(DigitTens[v2]);
-//            appendable.append(DigitOnes[v2]);
-//            appendable.append(DigitTens[v1]);
-//            appendable.append(DigitOnes[v1]);
-//            return;
-//        }
-//
-//        numValue = val;
-//        val = numValue / 100;
-//        v5 = (int) (numValue - val * 100);
-//        if (val < 100) {
-//            v = (int) val;
-//            if (v > 9) {
-//                appendable.append(DigitTens[v]);
-//            }
-//            appendable.append(DigitOnes[v]);
-//            appendable.append(DigitTens[v5]);
-//            appendable.append(DigitOnes[v5]);
-//            appendable.append(DigitTens[v4]);
-//            appendable.append(DigitOnes[v4]);
-//            appendable.append(DigitTens[v3]);
-//            appendable.append(DigitOnes[v3]);
-//            appendable.append(DigitTens[v2]);
-//            appendable.append(DigitOnes[v2]);
-//            appendable.append(DigitTens[v1]);
-//            appendable.append(DigitOnes[v1]);
-//            return;
-//        }
-//
-//        numValue = val;
-//        val = numValue / 100;
-//        v6 = (int) (numValue - val * 100);
-//        if (val < 100) {
-//            v = (int) val;
-//            if (v > 9) {
-//                appendable.append(DigitTens[v]);
-//            }
-//            appendable.append(DigitOnes[v]);
-//            appendable.append(DigitTens[v6]);
-//            appendable.append(DigitOnes[v6]);
-//            appendable.append(DigitTens[v5]);
-//            appendable.append(DigitOnes[v5]);
-//            appendable.append(DigitTens[v4]);
-//            appendable.append(DigitOnes[v4]);
-//            appendable.append(DigitTens[v3]);
-//            appendable.append(DigitOnes[v3]);
-//            appendable.append(DigitTens[v2]);
-//            appendable.append(DigitOnes[v2]);
-//            appendable.append(DigitTens[v1]);
-//            appendable.append(DigitOnes[v1]);
-//            return;
-//        }
-//
-//        numValue = val;
-//        val = numValue / 100;
-//        v7 = (int) (numValue - val * 100);
-//        if (val < 100) {
-//            v = (int) val;
-//            if (v > 9) {
-//                appendable.append(DigitTens[v]);
-//            }
-//            appendable.append(DigitOnes[v]);
-//            appendable.append(DigitTens[v7]);
-//            appendable.append(DigitOnes[v7]);
-//            appendable.append(DigitTens[v6]);
-//            appendable.append(DigitOnes[v6]);
-//            appendable.append(DigitTens[v5]);
-//            appendable.append(DigitOnes[v5]);
-//            appendable.append(DigitTens[v4]);
-//            appendable.append(DigitOnes[v4]);
-//            appendable.append(DigitTens[v3]);
-//            appendable.append(DigitOnes[v3]);
-//            appendable.append(DigitTens[v2]);
-//            appendable.append(DigitOnes[v2]);
-//            appendable.append(DigitTens[v1]);
-//            appendable.append(DigitOnes[v1]);
-//            return;
-//        }
-//
-//        numValue = val;
-//        val = numValue / 100;
-//        v8 = (int) (numValue - val * 100);
-//        if (val < 100) {
-//            v = (int) val;
-//            if (v > 9) {
-//                appendable.append(DigitTens[v]);
-//            }
-//            appendable.append(DigitOnes[v]);
-//            appendable.append(DigitTens[v8]);
-//            appendable.append(DigitOnes[v8]);
-//            appendable.append(DigitTens[v7]);
-//            appendable.append(DigitOnes[v7]);
-//            appendable.append(DigitTens[v6]);
-//            appendable.append(DigitOnes[v6]);
-//            appendable.append(DigitTens[v5]);
-//            appendable.append(DigitOnes[v5]);
-//            appendable.append(DigitTens[v4]);
-//            appendable.append(DigitOnes[v4]);
-//            appendable.append(DigitTens[v3]);
-//            appendable.append(DigitOnes[v3]);
-//            appendable.append(DigitTens[v2]);
-//            appendable.append(DigitOnes[v2]);
-//            appendable.append(DigitTens[v1]);
-//            appendable.append(DigitOnes[v1]);
-//            return;
-//        }
-//
-//        numValue = val;
-//        val = numValue / 100;
-//        v9 = (int) (numValue - val * 100);
-//        if (val < 100) {
-//            v = (int) val;
-//            if (v > 9) {
-//                appendable.append(DigitTens[v]);
-//            }
-//            appendable.append(DigitOnes[v]);
-//            appendable.append(DigitTens[v9]);
-//            appendable.append(DigitOnes[v9]);
-//            appendable.append(DigitTens[v8]);
-//            appendable.append(DigitOnes[v8]);
-//            appendable.append(DigitTens[v7]);
-//            appendable.append(DigitOnes[v7]);
-//            appendable.append(DigitTens[v6]);
-//            appendable.append(DigitOnes[v6]);
-//            appendable.append(DigitTens[v5]);
-//            appendable.append(DigitOnes[v5]);
-//            appendable.append(DigitTens[v4]);
-//            appendable.append(DigitOnes[v4]);
-//            appendable.append(DigitTens[v3]);
-//            appendable.append(DigitOnes[v3]);
-//            appendable.append(DigitTens[v2]);
-//            appendable.append(DigitOnes[v2]);
-//            appendable.append(DigitTens[v1]);
-//            appendable.append(DigitOnes[v1]);
-//        }
-//    }
-//
-//    public static byte hexDigitAt(int c) {
-//        return HEX_DIGITS_REVERSE[c];
-//    }
 
     public static boolean equals(long val, String text) {
         if (text == null || text.isEmpty()) return false;

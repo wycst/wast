@@ -1,6 +1,7 @@
 package io.github.wycst.wast.common.reflect;
 
 import io.github.wycst.wast.common.annotation.MethodInvokePriority;
+import io.github.wycst.wast.common.beans.ArrayQueueMap;
 import io.github.wycst.wast.common.exceptions.InvokeReflectException;
 import io.github.wycst.wast.common.tools.FNV;
 import io.github.wycst.wast.common.utils.ObjectUtils;
@@ -10,7 +11,6 @@ import io.github.wycst.wast.common.utils.StringUtils;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.*;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * class序列化和反序列化结构包装
@@ -20,14 +20,10 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class ClassStrucWrap {
 
     // cache
-    private final static Map<Class<?>, ClassStrucWrap> CLASS_STRUC_WRAP_MAP = new ConcurrentHashMap<Class<?>, ClassStrucWrap>();
-    private static final Map<Class<?>, List> COMPATIBLE_TYPES = new HashMap<Class<?>, List>();
-    // 内置类默认使用field序列化，可维护名称列表控制使用getter method
-//    private static String[] USE_GETTER_METHOD_TYPE_NAME_LIST = {
-//    };
-
+    private final static Map<Class<?>, ClassStrucWrap> CLASS_STRUC_WRAP_MAP = new ArrayQueueMap<Class<?>, ClassStrucWrap>(8192);
+    private static final Map<Class<?>, List<?>> COMPATIBLE_TYPES = new HashMap<Class<?>, List<?>>();
     // 内置类默认使用field序列化，可维护超类列表控制使用getter method
-    private static Class[] USE_GETTER_METHOD_TYPE_LIST = {
+    private static final Class<?>[] USE_GETTER_METHOD_TYPE_LIST = {
             Throwable.class,
             Error.class
     };
@@ -38,14 +34,14 @@ public final class ClassStrucWrap {
         COMPATIBLE_TYPES.put(long.class, Arrays.asList(Long.class, Integer.class, int.class, Short.class, short.class, byte.class, Byte.class));
         COMPATIBLE_TYPES.put(int.class, Arrays.asList(Integer.class, Short.class, short.class, byte.class, Byte.class));
         COMPATIBLE_TYPES.put(short.class, Arrays.asList(Short.class, byte.class, Byte.class));
-        COMPATIBLE_TYPES.put(byte.class, Arrays.asList(Byte.class));
+        COMPATIBLE_TYPES.put(byte.class, Collections.singletonList(Byte.class));
 
-        COMPATIBLE_TYPES.put(Double.class, Arrays.asList(double.class));
-        COMPATIBLE_TYPES.put(Float.class, Arrays.asList(float.class));
-        COMPATIBLE_TYPES.put(Long.class, Arrays.asList(long.class));
-        COMPATIBLE_TYPES.put(Integer.class, Arrays.asList(int.class));
-        COMPATIBLE_TYPES.put(Short.class, Arrays.asList(short.class));
-        COMPATIBLE_TYPES.put(Byte.class, Arrays.asList(byte.class));
+        COMPATIBLE_TYPES.put(Double.class, Collections.singletonList(double.class));
+        COMPATIBLE_TYPES.put(Float.class, Collections.singletonList(float.class));
+        COMPATIBLE_TYPES.put(Long.class, Collections.singletonList(long.class));
+        COMPATIBLE_TYPES.put(Integer.class, Collections.singletonList(int.class));
+        COMPATIBLE_TYPES.put(Short.class, Collections.singletonList(short.class));
+        COMPATIBLE_TYPES.put(Byte.class, Collections.singletonList(byte.class));
     }
 
     private ClassStrucWrap(Class<?> sourceClass) {
@@ -58,11 +54,6 @@ public final class ClassStrucWrap {
         addAnnotations(annotationMap, sourceClass.getDeclaredAnnotations());
         this.annotationMap = annotationMap;
     }
-
-    /**
-     * 最大类结构缓存数（计划使用）
-     */
-    private static final int MAX_STRUCTURE_COUNT = 10000;
 
     // jdk invoke
     private final Class<?> sourceClass;
@@ -104,7 +95,7 @@ public final class ClassStrucWrap {
     private List<GetterInfo> getterInfoOfFields;
 
     // getter的属性和GetInfo映射
-    private Map<String, GetterInfo> getterInfoMap = new HashMap<String, GetterInfo>();
+    private final Map<String, GetterInfo> getterInfoMap = new HashMap<String, GetterInfo>();
 
     private Map<String, FieldInfo> fieldInfoMap = new HashMap<String, FieldInfo>();
 
@@ -149,9 +140,6 @@ public final class ClassStrucWrap {
 
     /**
      * If used to generate compiled code, the method takes priority
-     *
-     * @param name
-     * @return
      */
     public GetterInfo matchGenerateGetterInfo(String name) {
         for (GetterInfo getterInfo : getterInfos) {
@@ -174,6 +162,10 @@ public final class ClassStrucWrap {
                 FieldInfo fieldInfo = fieldInfoMap.get(name);
                 if (fieldInfo != null) {
                     getterInfo.setGenericParameterizedType(fieldInfo.getSetterInfo().getGenericParameterizedType());
+                }
+            } else {
+                if (getterInfo.getGenericParameterizedType() == null) {
+                    getterInfo.setGenericParameterizedType(GenericParameterizedType.actualType(getterInfo.getReturnType()));
                 }
             }
             getterInfoMap.put(getterInfo.getName(), getterInfo);
@@ -235,9 +227,7 @@ public final class ClassStrucWrap {
 
     public Object[] createConstructorArgs() {
         Object[] constructorArgs = new Object[fieldCount];
-        for (int i = 0; i < fieldCount; i++) {
-            constructorArgs[i] = this.constructorArgs[i];
-        }
+        System.arraycopy(this.constructorArgs, 0, constructorArgs, 0, fieldCount);
         return constructorArgs;
     }
 
@@ -252,14 +242,12 @@ public final class ClassStrucWrap {
         if (sourceClass.isInterface() || sourceClass.isEnum() || sourceClass.isArray() || sourceClass.isPrimitive()) {
             return null;
         }
-        if (wrapper == null) {
-            synchronized (sourceClass) {
-                if (CLASS_STRUC_WRAP_MAP.containsKey(sourceClass)) {
-                    return CLASS_STRUC_WRAP_MAP.get(sourceClass);
-                }
-                wrapper = createBy(sourceClass);
-                CLASS_STRUC_WRAP_MAP.put(sourceClass, wrapper);
+        synchronized (sourceClass) {
+            if (CLASS_STRUC_WRAP_MAP.containsKey(sourceClass)) {
+                return CLASS_STRUC_WRAP_MAP.get(sourceClass);
             }
+            wrapper = createBy(sourceClass);
+            CLASS_STRUC_WRAP_MAP.put(sourceClass, wrapper);
         }
         return wrapper;
     }
@@ -283,9 +271,9 @@ public final class ClassStrucWrap {
             ParameterizedType parameterizedType = (ParameterizedType) genericSuperclass;
             Type[] types = parameterizedType.getActualTypeArguments();
             Class<?> superclass = (Class<?>) parameterizedType.getRawType();
-            TypeVariable[] typeParameters = superclass.getTypeParameters();
+            TypeVariable<?>[] typeParameters = superclass.getTypeParameters();
             int i = 0;
-            for (TypeVariable typeVariable : typeParameters) {
+            for (TypeVariable<?> typeVariable : typeParameters) {
                 String name = typeVariable.getName();
                 Type actualTypeArgument = types[i++];
                 if (actualTypeArgument instanceof Class) {
@@ -396,7 +384,7 @@ public final class ClassStrucWrap {
             }
             wrapper.fieldInfoMap = fieldInfoMap;
             wrapper.fieldsCheckCode = fieldsCheckCode;
-        } catch (Throwable throwable) {
+        } catch (Throwable ignored) {
         }
     }
 
@@ -404,7 +392,6 @@ public final class ClassStrucWrap {
         // sourceClass
         Class<?> sourceClass = wrapper.sourceClass;
         boolean globalMIP = wrapper.annotationMap.containsKey(MethodInvokePriority.class);
-        /** 获取构造方法参数最少的作为默认构造方法 */
         Constructor<?>[] constructors = sourceClass.getDeclaredConstructors();
         Constructor<?> defaultConstructor = null;
         int minParamCount = -1;
@@ -447,7 +434,7 @@ public final class ClassStrucWrap {
         // public methods
         Method[] methods = sourceClass.getMethods();
         for (Method method : methods) {
-
+            if (method.isSynthetic()) continue;
             Class<?> declaringClass = method.getDeclaringClass();
             if (declaringClass == Object.class || Modifier.isStatic(method.getModifiers()))
                 continue;
@@ -471,6 +458,7 @@ public final class ClassStrucWrap {
                 // getter方法
                 setAccessible(method);
                 GetterMethodInfo getterInfo = new GetterMethodInfo(method);
+                getterInfo.setGenericParameterizedType(GenericParameterizedType.of(method.getGenericReturnType()));
 
                 String fieldName = new String(methodName.substring(startIndex));
                 char[] fieldNameChars = UnsafeHelper.getChars(fieldName);
@@ -512,11 +500,11 @@ public final class ClassStrucWrap {
                                             }
                                         }
                                     }
-                                } catch (Exception exception) {
+                                } catch (Exception ignored) {
                                 }
                             }
                         }
-                    } catch (Exception e) {
+                    } catch (Exception ignored) {
                     }
                 }
                 getterInfo.setAnnotations(annotationMap);
@@ -569,7 +557,7 @@ public final class ClassStrucWrap {
                         }
                         Annotation[] fieldAnnotations = field.getAnnotations();
                         addAnnotations(annotationMap, fieldAnnotations);
-                    } catch (Exception e) {
+                    } catch (Exception ignored) {
                     }
                 }
                 setterInfo.setAnnotations(annotationMap);
@@ -582,14 +570,6 @@ public final class ClassStrucWrap {
         // Sort output to prevent inconsistent serialization order after each restart of the JVM
         Collections.sort(getterInfos, new Comparator<GetterInfo>() {
             public int compare(GetterInfo o1, GetterInfo o2) {
-//                if(o1.getName().charAt(0) == o2.getName().charAt(0)) {
-//                    if(o1.isPrimitive()) {
-//                        return -1;
-//                    }
-//                    if(o2.isPrimitive()) {
-//                        return 1;
-//                    }
-//                }
                 return o1.getName().compareTo(o2.getName());
             }
         });
@@ -597,16 +577,16 @@ public final class ClassStrucWrap {
         wrapper.getterInfos = Collections.unmodifiableList(getterInfos);
         wrapper.setterInfos = Collections.unmodifiableMap(wrapper.setterInfos);
         wrapper.fillGetterInfoMap();
-        if (wrapper.getterInfos.size() == 0 && wrapper.getterInfoOfFields != null && wrapper.getterInfoOfFields.size() > 0) {
+        if (wrapper.getterInfos.isEmpty() && wrapper.getterInfoOfFields != null && wrapper.getterInfoOfFields.size() > 0) {
             wrapper.forceUseFields = true;
         }
     }
 
     private static boolean compatibleType(Class<?> type, Class<?> parameterType) {
         if (type.isAssignableFrom(parameterType)) return true;
-        List<Class<?>> types = COMPATIBLE_TYPES.get(type);
+        List<?> types = COMPATIBLE_TYPES.get(type);
         if (types == null) return false;
-        return types.indexOf(parameterType) > -1;
+        return types.contains(parameterType);
     }
 
     private static Object defaulTypeValue(Class<?> type) {
@@ -653,7 +633,7 @@ public final class ClassStrucWrap {
 
         if (javaBuiltInModule) {
             forceUseFields = true;
-            for (Class superClass : USE_GETTER_METHOD_TYPE_LIST) {
+            for (Class<?> superClass : USE_GETTER_METHOD_TYPE_LIST) {
                 if (superClass.isAssignableFrom(sourceClass)) {
                     forceUseFields = false;
                     break;
@@ -678,13 +658,19 @@ public final class ClassStrucWrap {
             } else if (className.equals("java.time.OffsetDateTime")) {
                 this.classWrapperType = ClassWrapperType.TemporalOffsetDateTime;
                 this.temporal = true;
+            } else if (className.equals("java.time.MonthDay")) {
+                this.classWrapperType = ClassWrapperType.TemporalMonthDay;
+                this.temporal = true;
+            } else if (className.equals("java.time.YearMonth")) {
+                this.classWrapperType = ClassWrapperType.TemporalYearMonth;
+                this.temporal = true;
             }
         }
     }
 
     private static void parseSetterGenericType(Map<String, Class<?>> superGenericClassMap, Class<?> sourceClass, Class<?> declaringClass, SetterInfo setterInfo, Type genericType, Class<?> parameterType) {
 
-        GenericParameterizedType genericParameterizedType = null;
+        GenericParameterizedType<?> genericParameterizedType = null;
         if (Collection.class.isAssignableFrom(parameterType)) {
             if (genericType instanceof ParameterizedType) {
                 ParameterizedType pt = (ParameterizedType) genericType;
@@ -694,8 +680,11 @@ public final class ClassStrucWrap {
                 }
                 genericParameterizedType = GenericParameterizedType.genericCollectionType(parameterType, type);
             } else {
-                // 没有泛型将集合视作普通实体类创建泛型结构
                 genericParameterizedType = GenericParameterizedType.createInternal(parameterType);
+                Class<?> valueClass = ReflectUtils.getActualType(parameterType);
+                if (valueClass != null) {
+                    genericParameterizedType.valueType = GenericParameterizedType.createInternal(valueClass);
+                }
             }
         } else if (parameterType.isArray()) {
             Class<?> componentType = parameterType.getComponentType();
@@ -729,7 +718,7 @@ public final class ClassStrucWrap {
             }
             if (genericType instanceof TypeVariable) {
                 // 伪泛型
-                TypeVariable typeVariable = (TypeVariable) genericType;
+                TypeVariable<?> typeVariable = (TypeVariable<?>) genericType;
                 String name = typeVariable.getName();
                 if (declaringClass != sourceClass) {
                     // maybe parent method
@@ -750,10 +739,10 @@ public final class ClassStrucWrap {
                         genericParameterizedType = GenericParameterizedType.createInternal(parameterType);
                     }
                 } else {
-                    TypeVariable[] typeParameters = parameterType.getTypeParameters();
+                    TypeVariable<?>[] typeParameters = parameterType.getTypeParameters();
                     int i = 0;
                     Map<String, Class<?>> genericClassMap = new HashMap<String, Class<?>>();
-                    for (TypeVariable typeVariable : typeParameters) {
+                    for (TypeVariable<?> typeVariable : typeParameters) {
                         String name = typeVariable.getName();
                         Type actualTypeArgument = actualTypeArguments[i++];
                         if (actualTypeArgument instanceof Class) {
@@ -762,7 +751,6 @@ public final class ClassStrucWrap {
                     }
                     genericParameterizedType = GenericParameterizedType.entityType(parameterType, genericClassMap);
                 }
-
             } else {
                 genericParameterizedType = GenericParameterizedType.createInternal(parameterType);
             }
@@ -876,7 +864,7 @@ public final class ClassStrucWrap {
                         break;
                     }
                 }
-            } catch (Throwable throwable) {
+            } catch (Throwable ignored) {
             }
         }
         modifierField = field;
@@ -887,7 +875,7 @@ public final class ClassStrucWrap {
             parametersMethod = Method.class.getMethod("getParameters");
             parametersMethod.setAccessible(true);
             setAccessible(parametersMethod);
-        } catch (Exception e) {
+        } catch (Exception ignored) {
         }
         getParametersMethod = parametersMethod;
     }
@@ -896,7 +884,7 @@ public final class ClassStrucWrap {
         if (modifierField != null) {
             try {
                 modifierField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
-            } catch (Exception e) {
+            } catch (Exception ignored) {
             }
         }
     }
@@ -908,20 +896,18 @@ public final class ClassStrucWrap {
             if (accessible) {
                 return true;
             }
-        } catch (Throwable e1) {
+        } catch (Throwable ignored) {
         }
         try {
             accessibleObject.setAccessible(true);
             return true;
-        } catch (Throwable e) {
+        } catch (Throwable ignored) {
         }
         return false;
     }
 
     /**
      * 获取所有setter信息的名称set
-     *
-     * @return
      */
     public Set<String> setterNames() {
         return setterInfos.keySet();
@@ -962,13 +948,13 @@ public final class ClassStrucWrap {
         try {
             if (nameMethods.size() == 1) {
                 final Method method = nameMethods.get(0);
-                Class[] parameterTypes = method.getParameterTypes();
+                Class<?>[] parameterTypes = method.getParameterTypes();
                 if (parameterTypes.length != params.length) {
                     throw new IllegalArgumentException("argument mismatch");
                 }
                 for (int i = 0, n = params.length; i < n; ++i) {
                     Object value = params[i];
-                    Class parameterType = parameterTypes[i];
+                    Class<?> parameterType = parameterTypes[i];
                     if (!ObjectUtils.isInstance(parameterType, value)) {
                         try {
                             params[i] = ObjectUtils.toType(value, parameterType, ReflectConsts.getClassCategory(parameterType));
@@ -980,7 +966,7 @@ public final class ClassStrucWrap {
                 return method.invoke(invoker, params);
             }
             for (Method method : nameMethods) {
-                Class[] parameterTypes = method.getParameterTypes();
+                Class<?>[] parameterTypes = method.getParameterTypes();
                 if (parameterTypes.length == params.length) {
                     boolean matched = true;
                     for (int i = 0; i < parameterTypes.length; i++) {
@@ -1041,12 +1027,22 @@ public final class ClassStrucWrap {
         Record,
 
         /**
+         * MonthDay(jdk8+) support
+         */
+        TemporalMonthDay,
+
+        /**
+         * YearMonth(jdk8+) support
+         */
+        TemporalYearMonth,
+
+        /**
          * LocalDate(jdk8+) support
          */
         TemporalLocalDate,
 
         /**
-         * LocalDate(jdk8+) support
+         * LocalDateTime(jdk8+) support
          */
         TemporalLocalDateTime,
 
@@ -1056,7 +1052,7 @@ public final class ClassStrucWrap {
         TemporalLocalTime,
 
         /**
-         * instant(jdk8+) support
+         * Instant(jdk8+) support
          */
         TemporalInstant,
 

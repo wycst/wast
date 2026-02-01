@@ -56,7 +56,7 @@ public class TemporalZonedDateTimeDeserializer extends JSONTemporalDeserializer 
         super(temporalConfig);
     }
 
-    protected void checkClass(GenericParameterizedType genericParameterizedType) {
+    protected void checkClass(GenericParameterizedType<?> genericParameterizedType) {
     }
 
     // use dateTemplate

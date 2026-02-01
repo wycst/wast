@@ -84,7 +84,7 @@ final class JSONL extends JSONGeneral {
         }
     }
 
-    static void writeNdJsonTo(JSONWriter content, Collection collection, JSONConfig jsonConfig) {
+    static void writeNdJsonTo(JSONStore store, JSONWriter content, Collection collection, JSONConfig jsonConfig) {
         try {
             int indentLevel = 0;
             Class<?> firstClass = null;
@@ -97,12 +97,12 @@ final class JSONL extends JSONGeneral {
                 JSONTypeSerializer typeSerializer;
                 if (firstClass == null) {
                     firstClass = objectClass;
-                    typeSerializer = firstSerializer = JSONTypeSerializer.getTypeSerializer(objectClass);
+                    typeSerializer = firstSerializer = store.getTypeSerializer(objectClass);
                 } else {
                     if (objectClass == firstClass) {
                         typeSerializer = firstSerializer;
                     } else {
-                        typeSerializer = JSONTypeSerializer.getTypeSerializer(objectClass);
+                        typeSerializer = store.getTypeSerializer(objectClass);
                     }
                 }
                 typeSerializer.serialize(object, content, jsonConfig, indentLevel);

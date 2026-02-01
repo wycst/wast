@@ -106,8 +106,7 @@ public final class JSONSchema extends JSONSchemaBase implements Serializable {
     /**
      * 根据字符串构建JSONSchema
      *
-     * @param schemaJson
-     * @return
+     * @param schemaJson JSONSchema字符串
      */
     public static JSONSchema of(String schemaJson) {
         JSONSchema schema = JSON.parseObject(schemaJson, JSONSchema.class, PERFECT_READ_OPTIONS);
@@ -470,8 +469,7 @@ public final class JSONSchema extends JSONSchemaBase implements Serializable {
     /**
      * schema校验
      *
-     * @param json
-     * @return
+     * @param json json字符串
      */
     public JSONSchemaResult validate(String json) {
         try {
@@ -484,8 +482,7 @@ public final class JSONSchema extends JSONSchemaBase implements Serializable {
     /**
      * schema校验
      *
-     * @param json
-     * @return
+     * @param json json字符串
      */
     public boolean validateSuccess(String json) {
         try {
@@ -499,7 +496,6 @@ public final class JSONSchema extends JSONSchemaBase implements Serializable {
      * schema校验
      *
      * @param node 节点
-     * @return
      */
     public JSONSchemaResult validate(JSONNode node) {
         try {
@@ -513,7 +509,6 @@ public final class JSONSchema extends JSONSchemaBase implements Serializable {
      * schema校验
      *
      * @param node 节点
-     * @return
      */
     public boolean validateSuccess(JSONNode node) {
         try {

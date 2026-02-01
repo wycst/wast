@@ -669,7 +669,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
                                 invokeValueOfObject(useHookValueParse, key, value, map, instance, setterInfo, nextPath, JSONNode.ARRAY);
                                 break;
                             case '"':
-                                value = parseStringTo(this.readString(), valueType, jsonProperty);
+                                value = parseStringTo(this.readString(), valueType, jsonProperty == null ? null : JSONPropertyDefinition.of(jsonProperty));
                                 invokeValueOfObject(useHookValueParse, key, value, map, instance, setterInfo, nextPath, JSONNode.STRING);
                                 break;
                             case 'n':
@@ -1021,7 +1021,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
         throw new JSONException("read simple value " + numValue + " is mismatch " + actualType);
     }
 
-    private Object parseStringTo(String value, GenericParameterizedType valueType, JsonProperty jsonProperty) throws Exception {
+    private Object parseStringTo(String value, GenericParameterizedType<?> valueType, JSONPropertyDefinition propertyDefinition) throws Exception {
         if (value == null) return null;
         if (valueType == null || valueType == GenericParameterizedType.AnyType) {
             return value;
@@ -1030,7 +1030,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
         if (actualType == String.class || actualType == CharSequence.class) {
             return value;
         }
-        JSONTypeDeserializer deserializer = JSONTypeDeserializer.getFieldDeserializer(valueType, jsonProperty);
+        JSONTypeDeserializer deserializer = JSONStore.INSTANCE.getFieldDeserializer(valueType, propertyDefinition);
         return deserializer.valueOf(value, actualType);
     }
 

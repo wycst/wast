@@ -51,8 +51,6 @@ public final class JSONVmOptions {
 
     /**
      * 是否需要内存对齐
-     *
-     * @return
      */
     public static boolean isRequiredMemoryAlignment() {
         return requiredMemoryAlignment || "true".equalsIgnoreCase(System.getProperty(VM_OPTION_REQUIRED_MEMORY_ALIGNMENT_KEY));

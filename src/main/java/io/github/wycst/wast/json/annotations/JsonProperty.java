@@ -1,6 +1,7 @@
 package io.github.wycst.wast.json.annotations;
 
 import io.github.wycst.wast.common.beans.GregorianDate;
+import io.github.wycst.wast.json.JSONTypeFieldMapper;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -17,29 +18,27 @@ public @interface JsonProperty {
 
     /**
      * 指定别名序列化或者反序列化名称
-     *
-     * @return
      */
     public String name() default "";
 
     /**
      * json序列化操作时，当前属性是否序列化
-     *
-     * @return
      */
     public boolean serialize() default true;
 
     /**
      * json解析时当前属性是否反序列化
-     *
-     * @return
      */
     public boolean deserialize() default true;
 
     /**
+     * <p> 自定义mapper, 序列化和反序列化(可控)；
+     */
+    public Class<? extends JSONTypeFieldMapper> mapper() default JSONTypeFieldMapper.class;
+
+    /**
      * 数据转换时日期序列化格式或字符串反序列化为日期
      *
-     * @return
      * @see GregorianDate#format(String)
      */
     public String pattern() default "";
@@ -54,7 +53,6 @@ public @interface JsonProperty {
      * 默认情况下使用TimeZone的默认时区
      * 支持格式: +1, +1:00, -8, +8:00, +08:30等使用GMT
      *
-     * @return
      * @see java.util.TimeZone#getTimeZone(String)
      */
     public String timezone() default "";
@@ -64,8 +62,6 @@ public @interface JsonProperty {
      * <p> 如果属性声明的类型为接口或者抽象类，可以为属性指定缺省实现类(如果不是属性声明的子类会被忽略)；
      * <p> 如果不是接口或抽象类，此配置忽略；
      * <p> 支持Map/List等指定实现类
-     *
-     * @return
      */
     public Class<?> impl() default Object.class;
 
@@ -74,8 +70,6 @@ public @interface JsonProperty {
      * <p> 取值可能为多个类型(联合类型)，比如字符串，数字，对象，数组，集合，map，对象等，常用于使用Object声明的类型，但又希望在反序列时能具体到某个对象类型；
      * <p> 如果多个类型都支持，则优先使用排在靠前的类型；
      * <p> 如果数组中某个类型不能适配Field类型会被忽略；
-     *
-     * @return
      */
     Class<?>[] possibleTypes() default {};
 
@@ -86,8 +80,6 @@ public @interface JsonProperty {
      * <p> 表达式返回int类型，将作为possibleTypes数组的下标类型；
      * <p> 场景1 - 三目运算符： type == 'user' ? 0 : 1；
      * <p> 场景2 - 数组索引：  ['User', 'Menu', 'Role'].indexOf(type)；
-     *
-     * @return
      */
     String possibleExpression() default "";
 
@@ -97,8 +89,6 @@ public @interface JsonProperty {
      * <p>1.序列化会写入字段类型(@c)</p>
      * <p>2.反序列化会第一时间读取类型（第一个字段@c）</p>
      * <p>3.只针对pojo类型的字段生效</p>
-     *
-     * @return
      */
     public boolean unfixedType() default false;
 }

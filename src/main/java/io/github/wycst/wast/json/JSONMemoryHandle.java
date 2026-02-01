@@ -127,32 +127,32 @@ final class JSONMemoryHandle {
         return new Optimizer() {
             @Override
             public char[] copyChars(char[] buf, int offset, int len) {
-                return new char[]{};
+                return JSONGeneral.EMPTY_CHARS;
             }
 
             @Override
             public byte[] copyBytes(byte[] buf, int offset, int len) {
-                return new byte[]{};
+                return JSONGeneral.EMPTY_BYTES;
             }
 
             @Override
             public String[] copy(String[] buf, int offset, int len) {
-                return new String[]{};
+                return JSONGeneral.EMPTY_STRINGS;
             }
 
             @Override
             public double[] copy(double[] buf, int offset, int len) {
-                return new double[]{};
+                return JSONGeneral.EMPTY_DOUBLES;
             }
 
             @Override
             public long[] copy(long[] buf, int offset, int len) {
-                return new long[]{};
+                return JSONGeneral.EMPTY_LONGS;
             }
 
             @Override
             public char[] asciiBytesToChars(byte[] buf, int offset, int len) {
-                return JSONGeneral.EMPTY_ARRAY;
+                return JSONGeneral.EMPTY_CHARS;
             }
         };
     }

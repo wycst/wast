@@ -71,10 +71,10 @@ final class JSONValidator extends JSONGeneral {
             boolean validate = true;
             switch (beginChar) {
                 case '{':
-                    validate = JSONTypeDeserializer.MAP.validate(source, chars, fromIndex, toIndex, (char) 0, parseContext);
+                    validate = JSONStore.INSTANCE.MAP_DESER.validate(source, chars, fromIndex, toIndex, (char) 0, parseContext);
                     break;
                 case '[':
-                    validate = JSONTypeDeserializer.COLLECTION.validate(source, chars, fromIndex, toIndex, (char) 0, parseContext);
+                    validate = JSONStore.INSTANCE.COLLECTION_DESER.validate(source, chars, fromIndex, toIndex, (char) 0, parseContext);
                     break;
                 case '\'':
                 case '"':
@@ -151,10 +151,10 @@ final class JSONValidator extends JSONGeneral {
             boolean validate = true;
             switch (beginByte) {
                 case '{':
-                    validate = JSONTypeDeserializer.MAP.validate(source, bytes, fromIndex, toIndex, JSONGeneral.ZERO, parseContext);
+                    validate = JSONStore.INSTANCE.MAP_DESER.validate(source, bytes, fromIndex, toIndex, JSONGeneral.ZERO, parseContext);
                     break;
                 case '[':
-                    validate = JSONTypeDeserializer.COLLECTION.validate(source, bytes, fromIndex, toIndex, JSONGeneral.ZERO, parseContext);
+                    validate = JSONStore.INSTANCE.COLLECTION_DESER.validate(source, bytes, fromIndex, toIndex, JSONGeneral.ZERO, parseContext);
                     break;
                 case '\'':
                 case '"':

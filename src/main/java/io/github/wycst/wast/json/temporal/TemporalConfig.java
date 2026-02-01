@@ -1,30 +1,30 @@
 package io.github.wycst.wast.json.temporal;
 
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
-import io.github.wycst.wast.json.annotations.JsonProperty;
+import io.github.wycst.wast.json.JSONPropertyDefinition;
 
 public class TemporalConfig {
 
-    final GenericParameterizedType genericParameterizedType;
+    final GenericParameterizedType<?> genericParameterizedType;
     final String pattern;
 
-    TemporalConfig(GenericParameterizedType genericParameterizedType, JsonProperty jsonProperty) {
+    TemporalConfig(GenericParameterizedType<?> genericParameterizedType, JSONPropertyDefinition propertyDefinition) {
         this.genericParameterizedType = genericParameterizedType;
         String pattern = null;
-        if (jsonProperty != null) {
-            pattern = jsonProperty.pattern().trim();
-            if (pattern.length() == 0) {
+        if (propertyDefinition != null) {
+            pattern = propertyDefinition.pattern().trim();
+            if (pattern.isEmpty()) {
                 pattern = null;
             }
         }
         this.pattern = pattern;
     }
 
-    public static TemporalConfig of(GenericParameterizedType genericParameterizedType, JsonProperty jsonProperty) {
-        return new TemporalConfig(genericParameterizedType, jsonProperty);
+    public static TemporalConfig of(GenericParameterizedType<?> genericParameterizedType, JSONPropertyDefinition propertyDefinition) {
+        return new TemporalConfig(genericParameterizedType, propertyDefinition);
     }
 
-    public GenericParameterizedType getGenericParameterizedType() {
+    public GenericParameterizedType<?> getGenericParameterizedType() {
         return genericParameterizedType;
     }
 

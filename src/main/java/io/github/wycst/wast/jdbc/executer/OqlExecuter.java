@@ -263,12 +263,29 @@ public interface OqlExecuter {
     public <E> Serializable insert(E e);
 
     /**
+     * 插入或者替换，表结构通过对象解析（REPLACE INTO）
+     *
+     * @param e
+     * @param <E>
+     * @return
+     */
+    public <E> Serializable replace(E e);
+
+    /**
      * 插入对象列表，表结构通过对象解析
      *
      * @param list
      * @param <E>
      */
     public <E> void insertList(List<E> list);
+
+    /**
+     * 更新对象列表，表结构通过对象解析
+     *
+     * @param list
+     * @param <E>
+     */
+    public <E> void updateList(List<E> list);
 
     /**
      * 支持mysql的values列表批量插入
@@ -278,6 +295,15 @@ public interface OqlExecuter {
      * @param <E>
      */
     public <E> int mysqlBatchInsert(List<E> list);
+
+    /**
+     * 支持mysql的values列表批量替换
+     * <p> 实体id策略可以自增或者指定，如果使用算法生成将回退到常规批量插入
+     *
+     * @param list
+     * @param <E>
+     */
+    public <E> int mysqlBatchReplace(List<E> list);
 
     /**
      * 更新对象，表结构通过对象解析

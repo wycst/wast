@@ -29,9 +29,9 @@ final class JSONReaderHookRegular extends JSONReaderHook {
     }
 
     @Override
-    protected Collection createdCollection(String path) {
+    protected Collection<?> createdCollection(String path) {
         if (onlyLeaf || !pattern.matcher(path).matches()) return null;
-        return new ArrayList();
+        return new ArrayList<Object>();
     }
 
     @Override

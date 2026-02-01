@@ -5,7 +5,6 @@ import io.github.wycst.wast.common.reflect.ClassStrucWrap;
 import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 import io.github.wycst.wast.common.utils.EnvUtils;
 import io.github.wycst.wast.common.utils.NumberUtils;
-import io.github.wycst.wast.json.annotations.JsonProperty;
 import io.github.wycst.wast.json.exceptions.JSONException;
 import io.github.wycst.wast.json.temporal.*;
 
@@ -23,6 +22,7 @@ import java.time.LocalDateTime;
  * @Date: 2022/8/13 15:08
  * @Description:
  */
+@SuppressWarnings({"all"})
 public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
 
     final protected int patternType;
@@ -42,26 +42,32 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
         }
     }
 
-    static JSONTypeDeserializer getTemporalDeserializerInstance(ClassStrucWrap.ClassWrapperType classWrapperType, GenericParameterizedType genericParameterizedType, JsonProperty property) {
+    static JSONTypeDeserializer getTemporalDeserializerInstance(ClassStrucWrap.ClassWrapperType classWrapperType, GenericParameterizedType genericParameterizedType, JSONPropertyDefinition property) {
         TemporalConfig temporalConfig = TemporalConfig.of(genericParameterizedType, property);
         switch (classWrapperType) {
+            case TemporalMonthDay: {
+                return new TemporalMonthDayDeserializer(temporalConfig);
+            }
+            case TemporalYearMonth: {
+                return new TemporalYearMonthDeserializer(temporalConfig);
+            }
             case TemporalLocalDate: {
                 return new TemporalLocalDateDeserializer(temporalConfig);
+            }
+            case TemporalLocalDateTime: {
+                return new TemporalLocalDateTimeDeserializer(temporalConfig);
             }
             case TemporalLocalTime: {
                 return new TemporalLocalTimeDeserializer(temporalConfig);
             }
-            case TemporalLocalDateTime: {
-                return new TemporalLocalDateTimeDeserializer(temporalConfig);
+            case TemporalInstant: {
+                return new TemporalInstantDeserializer(temporalConfig);
             }
             case TemporalZonedDateTime: {
                 return new TemporalZonedDateTimeDeserializer(temporalConfig);
             }
             case TemporalOffsetDateTime: {
                 return new TemporalOffsetDateTimeDeserializer(temporalConfig);
-            }
-            case TemporalInstant: {
-                return new TemporalInstantDeserializer(temporalConfig);
             }
             default: {
                 throw new UnsupportedOperationException();
@@ -73,7 +79,7 @@ public abstract class JSONTemporalDeserializer extends JSONTypeDeserializer {
     }
 
     // check
-    protected abstract void checkClass(GenericParameterizedType genericParameterizedType);
+    protected abstract void checkClass(GenericParameterizedType<?> genericParameterizedType);
 
     /**
      * Temporal 支持字符串("/')/null/时间戳

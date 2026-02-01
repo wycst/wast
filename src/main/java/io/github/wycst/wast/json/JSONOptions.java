@@ -27,6 +27,14 @@ final class JSONOptions {
                     jsonConfig.setFormatIndentUseSpace(true);
                     jsonConfig.setFormatIndentSpaceNum(8);
                     break;
+                case FormatMaxIndentLevelOne:
+                    jsonConfig.setFormatOut(true);
+                    jsonConfig.setMaxIndentLevel(1);
+                    break;
+                case FormatMaxIndentLevelTwo:
+                    jsonConfig.setFormatOut(true);
+                    jsonConfig.setMaxIndentLevel(2);
+                    break;
                 case FullProperty:
                     jsonConfig.setFullProperty(true);
                     break;
@@ -37,7 +45,7 @@ final class JSONOptions {
                     jsonConfig.setDateFormat(true);
                     jsonConfig.setDateFormatPattern("yyyy-MM-dd HH:mm:ss");
                     break;
-                case WriteDateAsTime:
+                case DateAsTime:
                     jsonConfig.setWriteDateAsTime(true);
                     break;
                 case WriteEnumAsOrdinal:
@@ -46,7 +54,7 @@ final class JSONOptions {
                 case WriteEnumAsName:
                     jsonConfig.setWriteEnumAsOrdinal(false);
                     break;
-                case WriteNumberAsString:
+                case NumberAsString:
                     jsonConfig.setWriteNumberAsString(true);
                     break;
                 case SkipCircularReference:

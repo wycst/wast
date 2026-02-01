@@ -46,22 +46,22 @@ public abstract class JSONReaderHook {
         return regularBuilder.toString();
     }
 
-    protected GenericParameterizedType getParameterizedType(String path) {
+    protected GenericParameterizedType<?> getParameterizedType(String path) {
         return null;
     }
 
     /**
      * 是否跳过
      *
-     * @param path
-     * @param type
-     * @return
+     * @param path JSON Absolute Path
+     * @param type 1. Object type; 2 Collection type; 3 String type; 4 Number type; 5 Boolean type; 6 Null
+     * @return true: continue; false: stop
      */
     protected boolean filter(String path, int type) {
         if (filterRegular == null) {
             return true;
         }
-        return path == "" || path.matches(filterRegular);
+        return "".equals(path) || path.matches(filterRegular);
     }
 
     /**
@@ -69,8 +69,6 @@ public abstract class JSONReaderHook {
      *
      * @param path JSON Absolute Path
      * @param type 1. Object type; 2 Collection type
-     * @return
-     * @throws Exception
      * @see #createdMap(String)
      * @see #createdCollection(String)
      */
@@ -85,10 +83,8 @@ public abstract class JSONReaderHook {
 
     /**
      * @param path JSON Absolute Path
-     * @return
-     * @throws Exception
      */
-    protected Collection createdCollection(String path) {
+    protected Collection<?> createdCollection(String path) {
         return null;
     }
 
@@ -101,8 +97,7 @@ public abstract class JSONReaderHook {
      * @param host         object or collection
      * @param elementIndex the index if collection, otherwise -1
      * @param path         JSON Absolute Path
-     * @param type
-     * @throws Exception
+     * @param type         1 Object; 2 Collection; 3 String; 4 Number; 5 Boolean; 6 Null;
      */
     protected abstract void parseValue(String key, Object value, Object host, int elementIndex, String path, int type) throws Exception;
 
@@ -116,7 +111,7 @@ public abstract class JSONReaderHook {
     /**
      * Parse completed callback
      *
-     * @param result
+     * @param result 解析结果
      */
     protected void onCompleted(Object result) {
     }
@@ -137,7 +132,7 @@ public abstract class JSONReaderHook {
      *
      * <p> 如果返回true则会终止读取；子类可重写实现自定义终止的时机;
      *
-     * @param value
+     * @param value 解析结果
      * @param path  JSON Absolute Path
      * @param type  1 对象； 2 数组；
      * @return abort if true;
@@ -150,7 +145,6 @@ public abstract class JSONReaderHook {
      * 构建JSONReaderCallback
      *
      * @param regular 正则表达式
-     * @return
      */
     public final static JSONReaderHook regularPath(String regular) {
         return new JSONReaderHookRegular(regular);
@@ -164,7 +158,6 @@ public abstract class JSONReaderHook {
      * 构建JSONReaderCallback
      *
      * @param exactPath 路径
-     * @return
      */
     public final static JSONReaderHook exactPath(String exactPath) {
         return new JSONReaderHookExact(exactPath);
@@ -175,7 +168,6 @@ public abstract class JSONReaderHook {
      *
      * @param exactPath  路径
      * @param actualType 目标类型
-     * @return
      */
     public final static JSONReaderHook exactPathAs(String exactPath, Class<?> actualType) {
         return exactPathAs(exactPath, GenericParameterizedType.actualType(actualType));
@@ -186,9 +178,8 @@ public abstract class JSONReaderHook {
      *
      * @param exactPath         路径
      * @param parameterizedType 目标类型
-     * @return
      */
-    public final static JSONReaderHook exactPathAs(String exactPath, GenericParameterizedType parameterizedType) {
+    public final static JSONReaderHook exactPathAs(String exactPath, GenericParameterizedType<?> parameterizedType) {
         ReflectConsts.ClassCategory classCategory = parameterizedType.getActualClassCategory();
         switch (classCategory) {
             case ANY:

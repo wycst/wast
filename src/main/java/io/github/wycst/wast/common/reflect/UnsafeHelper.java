@@ -1,5 +1,6 @@
 package io.github.wycst.wast.common.reflect;
 
+import io.github.wycst.wast.common.utils.JDKVersion;
 import sun.misc.Unsafe;
 
 import java.lang.reflect.AccessibleObject;
@@ -84,13 +85,20 @@ public final class UnsafeHelper {
             }
         }
         UNSAFE = instance;
+
+        if (JDKVersion.VERSION >= 25) {
+            try {
+                // suppress unsafe warnings
+                Field field = Unsafe.class.getDeclaredField("memoryAccessWarned");
+                field.setAccessible(true);
+                field.set(null, true);
+            } catch (Throwable e) {
+            }
+        }
     }
 
     public static final long CHAR_ARRAY_OFFSET = arrayBaseOffset(char[].class);
     public static final long BYTE_ARRAY_OFFSET = arrayBaseOffset(byte[].class);
-
-//    public final static long BAO_BUF_OFFSET = UnsafeHelper.getDeclaredFieldOffset(ByteArrayOutputStream.class, "buf");
-//    public final static long BAO_COUNT_OFFSET = UnsafeHelper.getDeclaredFieldOffset(ByteArrayOutputStream.class, "count");
 
     // String
     static {
@@ -173,30 +181,9 @@ public final class UnsafeHelper {
         OVERRIDE_OFFSET = overrideOffset;
     }
 
-//    /**
-//     * 获取静态属性的值
-//     *
-//     * @param targetClass
-//     * @param fieldName
-//     * @return
-//     */
-//    public static Object getStaticFieldValue(String targetClass, String fieldName) {
-//        try {
-//            Class target = Class.forName(targetClass);
-//            Field field = target.getDeclaredField(fieldName);
-//            long offset = UNSAFE.staticFieldOffset(field);
-//            return UNSAFE.getObject(target, offset);
-//        } catch (Exception e) {
-//            return null;
-//        }
-//    }
-
     /***
      * jdk version 9+ use toCharArray
      * jdk version <= 8 use unsafe
-     *
-     * @param string
-     * @return
      */
     public static char[] getChars(String string) {
         // note: jdk9+ value is byte[] and stringValueField will set to null
@@ -206,15 +193,6 @@ public final class UnsafeHelper {
         string.getClass();
         return (char[]) getObjectValue(string, STRING_VALUE_OFFSET);
     }
-
-//    /**
-//     * 获取字符串的coder的结构偏移
-//     *
-//     * @return -1 if version <= 8
-//     */
-//    public static long getStringCoderOffset() {
-//        return STRING_CODER_OFFSET;
-//    }
 
     public static long getDeclaredFieldOffset(Class<?> targetClass, String fieldName) {
         try {
@@ -227,34 +205,14 @@ public final class UnsafeHelper {
 
     /**
      * 获取字符串的value
-     *
-     * @param source
-     * @return
      */
     public static Object getStringValue(String source) {
         source.getClass();
         return getObjectValue(source, STRING_VALUE_OFFSET);
     }
 
-//    /**
-//     * 获取字符串的value
-//     *
-//     * @param source
-//     * @return
-//     */
-//    public static byte getStringCoder(String source) {
-//        source.getClass();
-//        if (STRING_CODER_OFFSET > -1) {
-//            return UNSAFE.getByte(source, STRING_CODER_OFFSET);
-//        }
-//        throw new UnsupportedOperationException();
-//    }
-
     /**
      * Build a string according to the character array to reduce the copy of the character array once
-     *
-     * @param buf
-     * @return
      */
     public static String getString(char[] buf) {
         if (STRING_CODER_OFFSET == -1) {
@@ -268,9 +226,6 @@ public final class UnsafeHelper {
 
     /**
      * ensure that buf is an ASCII byte array, no any check
-     *
-     * @param bytes ascii bytes
-     * @return
      */
     public static String getAsciiString(byte[] bytes) {
         // note: jdk9+ value is byte[] and direct setting
@@ -288,9 +243,6 @@ public final class UnsafeHelper {
     /**
      * 通过utf16的字节构建字符串
      * support by jdk9+
-     *
-     * @param utf16Bytes
-     * @return
      */
     public static String getUTF16String(byte[] utf16Bytes) {
         if (STRING_CODER_OFFSET > -1) {
@@ -305,9 +257,6 @@ public final class UnsafeHelper {
 
     /**
      * get mag of BigInteger
-     *
-     * @param value
-     * @return
      */
     public static int[] getMag(BigInteger value) {
         if (BIGINTEGER_MAG_OFFSET > -1) {
@@ -377,73 +326,6 @@ public final class UnsafeHelper {
         }
         return TimeZone.getDefault();
     }
-
-//    /**
-//     * 从offset开始读取4个字符
-//     *
-//     * @param buf
-//     * @param offset
-//     * @return
-//     */
-//    public static long getLong(char[] buf, int offset) {
-//        if (offset > -1 && offset < buf.length) {
-////            return UNSAFE.getLong(buf, CHAR_ARRAY_OFFSET + (offset << 1));
-//            if (ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN) {
-//                return (((long) buf[offset++] << 48) |
-//                        ((long) buf[offset++] << 32) |
-//                        ((long) buf[offset++] << 16) |
-//                        ((long) buf[offset]));
-//            } else {
-//                return (((long) buf[offset++]) |
-//                        ((long) buf[offset++] << 16) |
-//                        ((long) buf[offset++] << 32) |
-//                        ((long) buf[offset] << 48));
-//            }
-//        }
-//        throw new IndexOutOfBoundsException("offset " + offset);
-//    }
-
-//    /**
-//     * 从offset开始读取4个字节
-//     *
-//     * @param buf
-//     * @param offset
-//     * @return
-//     */
-//    static int getInt(byte[] buf, int offset) {
-//        return UNSAFE.getInt(buf, BYTE_ARRAY_OFFSET + offset);
-//    }
-
-//    /**
-//     * 从offset开始读取8个字节
-//     *
-//     * @param buf
-//     * @param offset
-//     * @return
-//     */
-//    public static long getLong(byte[] buf, int offset) {
-//        if (offset > -1 && offset < buf.length) {
-////            return UNSAFE.getLong(buf, BYTE_ARRAY_OFFSET + offset);
-//            if (ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN) {
-//                return (((long) buf[offset++] << 56) |
-//                        ((long) buf[offset++] << 48) |
-//                        ((long) buf[offset++] << 40) |
-//                        ((long) buf[offset++] << 32) |
-//                        ((long) buf[offset++] << 24) |
-//                        ((long) buf[offset++] << 16) |
-//                        ((long) buf[offset++] << 8) |
-//                        ((long) buf[offset]));
-//            } else {
-//                return (((long) buf[offset++] & 0xff) |
-//                        ((long) buf[offset++] << 8 & 0xff00L) |
-//                        ((long) buf[offset++] << 16 & 0xff0000L) |
-//                        ((long) buf[offset++] << 24 & 0xff000000L) |
-//                        ((long) buf[offset++] << 32 & 0xff00000000L) |
-//                        ((long) buf[offset] << 40 & 0xff0000000000L));
-//            }
-//        }
-//        throw new IndexOutOfBoundsException("offset " + offset);
-//    }
 
     static long objectFieldOffset(Field field) {
         if (UNSAFE != null) {

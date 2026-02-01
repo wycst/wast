@@ -18,7 +18,7 @@ public class JSONPojoSerializer<T> extends JSONTypeSerializer {
 
     protected JSONPojoSerializer(Class<T> pojoClass) {
         this.pojoClass = pojoClass;
-        pojoStructure = JSONPojoStructure.get(pojoClass);
+        pojoStructure = JSONStore.INSTANCE.getPojoStruc(pojoClass);
     }
 
     protected JSONPojoSerializer(JSONPojoStructure pojoStructure) {
@@ -126,7 +126,7 @@ public class JSONPojoSerializer<T> extends JSONTypeSerializer {
             }
         }
         if (!isEmptyFlag) {
-            writeFormatOutSymbols(writer, indentLevel, true, jsonConfig);
+            writeEndFormatOutSymbols(writer, indentLevel, true, jsonConfig);
         }
     }
 
@@ -155,7 +155,7 @@ public class JSONPojoSerializer<T> extends JSONTypeSerializer {
                 jsonConfig.setStatus(hashcode, -1);
             }
         } else {
-            JSONTypeSerializer serializer = getTypeSerializer(entityClass);
+            JSONTypeSerializer serializer = pojoStructure.store.getTypeSerializer(entityClass);
             serializer.serialize(obj, writer, jsonConfig, indentLevel);
         }
     }
@@ -202,7 +202,7 @@ public class JSONPojoSerializer<T> extends JSONTypeSerializer {
                 writeFormatOutSymbols(jsonWriter, levelPlus, jsonConfig);
                 jsonWriter.writeStringCompatibleNull(values[i + 1]);
             }
-            writeFormatOutSymbols(jsonWriter, level, true, jsonConfig);
+            writeEndFormatOutSymbols(jsonWriter, level, true, jsonConfig);
             jsonWriter.writeJSONToken(']');
         } else {
             jsonWriter.writeEmptyArray();
@@ -224,7 +224,7 @@ public class JSONPojoSerializer<T> extends JSONTypeSerializer {
                 writeFormatOutSymbols(jsonWriter, levelPlus, jsonConfig);
                 jsonWriter.writeStringCompatibleNull((String) value);
             }
-            writeFormatOutSymbols(jsonWriter, level, true, jsonConfig);
+            writeEndFormatOutSymbols(jsonWriter, level, true, jsonConfig);
             jsonWriter.writeJSONToken(']');
         } else {
             jsonWriter.writeEmptyArray();
@@ -242,18 +242,18 @@ public class JSONPojoSerializer<T> extends JSONTypeSerializer {
             if ((len & 1) == 0) {
                 jsonWriter.writeJSONToken(',');
                 writeFormatOutSymbols(jsonWriter, levelPlus, jsonConfig);
-                jsonWriter.writeLong(values[1]);
+                jsonWriter.writeLong(values[1], jsonConfig);
                 ++i;
             }
             for (; i < len; i = i + 2) {
                 jsonWriter.writeJSONToken(',');
                 writeFormatOutSymbols(jsonWriter, levelPlus, jsonConfig);
-                jsonWriter.writeLong(values[i]);
+                jsonWriter.writeLong(values[i], jsonConfig);
                 jsonWriter.writeJSONToken(',');
                 writeFormatOutSymbols(jsonWriter, levelPlus, jsonConfig);
-                jsonWriter.writeLong(values[i + 1]);
+                jsonWriter.writeLong(values[i + 1], jsonConfig);
             }
-            writeFormatOutSymbols(jsonWriter, level, jsonConfig);
+            writeEndFormatOutSymbols(jsonWriter, level, true, jsonConfig);
             jsonWriter.writeJSONToken(']');
         } else {
             jsonWriter.writeEmptyArray();
@@ -282,7 +282,7 @@ public class JSONPojoSerializer<T> extends JSONTypeSerializer {
                 writeFormatOutSymbols(jsonWriter, levelPlus, jsonConfig);
                 jsonWriter.writeDouble(values[i + 1]);
             }
-            writeFormatOutSymbols(jsonWriter, level, jsonConfig);
+            writeEndFormatOutSymbols(jsonWriter, level, true, jsonConfig);
             jsonWriter.writeJSONToken(']');
         } else {
             jsonWriter.writeEmptyArray();
@@ -301,9 +301,9 @@ public class JSONPojoSerializer<T> extends JSONTypeSerializer {
      * Generate serialized Java source code based on the pojo class
      * Using Java compilation can improve performance 20%
      *
-     * @param pojoClass
+     * @param pojoClass       pojo class
      * @param printJavaSource if print the gen code
-     * @return
+     * @return java source object
      */
     public static JavaSourceObject generateJavaCodeSource(Class<?> pojoClass, boolean printJavaSource) {
         return generateJavaCodeSource(pojoClass, printJavaSource, false);
@@ -313,17 +313,17 @@ public class JSONPojoSerializer<T> extends JSONTypeSerializer {
      * Generate serialized Java source code based on the pojo class
      * Using Java compilation can improve performance 20%
      *
-     * @param pojoClass
+     * @param pojoClass       pojo class
      * @param printJavaSource if print the gen code
-     * @param runtime
-     * @return
+     * @param runtime         if  runtime
+     * @return java source object
      */
     public static JavaSourceObject generateJavaCodeSource(Class<?> pojoClass, boolean printJavaSource, boolean runtime) {
         ReflectConsts.ClassCategory classCategory = ReflectConsts.getClassCategory(pojoClass);
         if (classCategory != ReflectConsts.ClassCategory.ObjectCategory) {
             throw new UnsupportedOperationException(pojoClass + " is not a pojo class");
         }
-        JSONPojoStructure jsonPojoStructure = JSONPojoStructure.get(pojoClass);
+        JSONPojoStructure jsonPojoStructure = JSONStore.INSTANCE.getPojoStruc(pojoClass);
         if (!jsonPojoStructure.isSupportedJavaBeanConvention()) {
             throw new UnsupportedOperationException(pojoClass + " is not supported for code generator");
         }
@@ -334,8 +334,8 @@ public class JSONPojoSerializer<T> extends JSONTypeSerializer {
      * Generate serialized Java source code based on the pojo class
      * Using Java compilation can improve performance 20%
      *
-     * @param pojoClass
-     * @return
+     * @param pojoClass pojo class
+     * @return java source object
      */
     public static JavaSourceObject generateJavaCodeSource(Class<?> pojoClass) {
         return generateJavaCodeSource(pojoClass, false);

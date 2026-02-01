@@ -3,9 +3,9 @@ package io.github.wycst.wast.json.temporal;
 import io.github.wycst.wast.common.beans.GeneralDate;
 import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.json.JSONConfig;
+import io.github.wycst.wast.json.JSONPropertyDefinition;
 import io.github.wycst.wast.json.JSONTemporalSerializer;
 import io.github.wycst.wast.json.JSONWriter;
-import io.github.wycst.wast.json.annotations.JsonProperty;
 
 import java.time.LocalDateTime;
 
@@ -22,7 +22,7 @@ public class TemporalLocalDateTimeSerializer extends JSONTemporalSerializer {
 
     final boolean asTimestamp;
 
-    public TemporalLocalDateTimeSerializer(Class<?> temporalClass, JsonProperty property) {
+    public TemporalLocalDateTimeSerializer(Class<?> temporalClass, JSONPropertyDefinition property) {
         super(temporalClass, property);
         this.asTimestamp = property != null && property.asTimestamp();
     }

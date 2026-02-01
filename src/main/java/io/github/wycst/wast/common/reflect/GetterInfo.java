@@ -13,7 +13,7 @@ public class GetterInfo {
     private long fieldOffset = -1;
     private boolean fieldPrimitive;
     private ReflectConsts.PrimitiveType primitiveType;
-    private GenericParameterizedType genericParameterizedType;
+    private GenericParameterizedType<?> genericParameterizedType;
     private String name;
     private String underlineName;
     private Map<Class<? extends Annotation>, Annotation> annotations;
@@ -137,11 +137,11 @@ public class GetterInfo {
         return fieldPrimitive;
     }
 
-    public GenericParameterizedType getGenericParameterizedType() {
+    public GenericParameterizedType<?> getGenericParameterizedType() {
         return genericParameterizedType;
     }
 
-    void setGenericParameterizedType(GenericParameterizedType genericParameterizedType) {
+    void setGenericParameterizedType(GenericParameterizedType<?> genericParameterizedType) {
         this.genericParameterizedType = genericParameterizedType;
     }
 

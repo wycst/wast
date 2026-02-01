@@ -18,7 +18,7 @@ public final class TemporalOffsetDateTimeDeserializer extends TemporalZonedDateT
         super(temporalConfig);
     }
 
-    protected void checkClass(GenericParameterizedType genericParameterizedType) {
+    protected void checkClass(GenericParameterizedType<?> genericParameterizedType) {
     }
 
     @Override

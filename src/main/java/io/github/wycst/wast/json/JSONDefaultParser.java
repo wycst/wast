@@ -33,7 +33,24 @@ import java.util.Map;
  * @Author wangyunchao
  * @Date 2022/5/31 21:28
  */
-public final class JSONDefaultParser extends JSONGeneral {
+@SuppressWarnings({"all"})
+final class JSONDefaultParser extends JSONGeneral {
+
+    JSONTypeDeserializer.CharSequenceImpl stringDeserializer;
+    JSONTypeDeserializer.NumberImpl numberDeserializer;
+
+    JSONDefaultParser() {
+        this.stringDeserializer = JSONTypeDeserializer.CHAR_SEQUENCE_STRING;
+        this.numberDeserializer = JSONTypeDeserializer.NUMBER;
+    }
+
+    void setStringDeserializer(JSONTypeDeserializer.CharSequenceImpl stringDeserializer) {
+        this.stringDeserializer = stringDeserializer;
+    }
+
+    public void setNumberDeserializer(JSONTypeDeserializer.NumberImpl numberDeserializer) {
+        this.numberDeserializer = numberDeserializer;
+    }
 
     /**
      * return Map or List
@@ -42,7 +59,7 @@ public final class JSONDefaultParser extends JSONGeneral {
      * @param readOptions
      * @return Map or List
      */
-    public static Object parse(String json, ReadOption... readOptions) {
+    public Object parse(String json, ReadOption... readOptions) {
         json.getClass();
         if (EnvUtils.JDK_9_PLUS) {
             byte[] bytes = (byte[]) JSONMemoryHandle.getStringValue(json);
@@ -64,7 +81,7 @@ public final class JSONDefaultParser extends JSONGeneral {
      * @param parseContext
      * @return Map or List
      */
-    public static Object parse(String json, JSONParseContext parseContext) {
+    public Object parse(String json, JSONParseContext parseContext) {
         json.getClass();
         if (EnvUtils.JDK_9_PLUS) {
             byte[] bytes = (byte[]) JSONMemoryHandle.getStringValue(json);
@@ -86,7 +103,7 @@ public final class JSONDefaultParser extends JSONGeneral {
      * @param readOptions
      * @return
      */
-    public static Object parse(char[] buf, ReadOption... readOptions) {
+    public Object parse(char[] buf, ReadOption... readOptions) {
         if (EnvUtils.JDK_9_PLUS) {
             String json = new String(buf);
             byte[] bytes = (byte[]) JSONMemoryHandle.getStringValue(json);
@@ -108,7 +125,7 @@ public final class JSONDefaultParser extends JSONGeneral {
      * @param readOptions
      * @return
      */
-    static Object parse(char[] buf, int offset, int len, ReadOption... readOptions) {
+    Object parse(char[] buf, int offset, int len, ReadOption... readOptions) {
         if (EnvUtils.JDK_9_PLUS) {
             String json = new String(buf, offset, len);
             byte[] bytes = (byte[]) JSONMemoryHandle.getStringValue(json);
@@ -130,7 +147,7 @@ public final class JSONDefaultParser extends JSONGeneral {
      * @param readOptions
      * @return
      */
-    static Map parseMap(String json, Class<? extends Map> mapCls, ReadOption... readOptions) {
+    Map parseMap(String json, Class<? extends Map> mapCls, ReadOption... readOptions) {
         json.getClass();
         if (EnvUtils.JDK_9_PLUS) {
             byte[] bytes = (byte[]) JSONMemoryHandle.getStringValue(json);
@@ -153,7 +170,7 @@ public final class JSONDefaultParser extends JSONGeneral {
      * @param readOptions
      * @return
      */
-    static Collection parseCollection(String json, Class<? extends Collection> listCls, ReadOption... readOptions) {
+    Collection parseCollection(String json, Class<? extends Collection> listCls, ReadOption... readOptions) {
         json.getClass();
         if (EnvUtils.JDK_9_PLUS) {
             byte[] bytes = (byte[]) JSONMemoryHandle.getStringValue(json);
@@ -172,7 +189,7 @@ public final class JSONDefaultParser extends JSONGeneral {
     //        return parseInternal(source, buf, fromIndex, toIndex, defaultValue, JSONParseContext.of(readOptions));
     //    }
 
-    static Object parseInternal(CharSource source, char[] buf, int fromIndex, int toIndex, Object defaultValue, JSONParseContext parseContext) {
+    Object parseInternal(CharSource source, char[] buf, int fromIndex, int toIndex, Object defaultValue, JSONParseContext parseContext) {
         char beginChar;
         try {
             while ((beginChar = buf[fromIndex]) <= ' ') {
@@ -201,7 +218,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                     break;
                 case '\'':
                 case '"':
-                    result = JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(source, buf, fromIndex, beginChar, null, parseContext);
+                    result = stringDeserializer.deserializeString(source, buf, fromIndex, beginChar, null, parseContext);
                     break;
                 default:
                     try {
@@ -256,7 +273,7 @@ public final class JSONDefaultParser extends JSONGeneral {
         }
     }
 
-    static Collection parseJSONArray(CharSource source, char[] buf, int fromIndex, Collection list, JSONParseContext parseContext) throws Exception {
+    Collection parseJSONArray(CharSource source, char[] buf, int fromIndex, Collection list, JSONParseContext parseContext) throws Exception {
         char ch;
         int i = fromIndex;
         for (; ; ) {
@@ -290,7 +307,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                 }
                 case '\'':
                 case '"': {
-                    value = JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(source, buf, i, ch, null, parseContext);
+                    value = stringDeserializer.deserializeString(source, buf, i, ch, null, parseContext);
                     list.add(value);
                     i = parseContext.endIndex;
                     break;
@@ -342,7 +359,7 @@ public final class JSONDefaultParser extends JSONGeneral {
         }
     }
 
-    static Map parseJSONObject(CharSource source, char[] buf, int fromIndex, Map instance, JSONParseContext parseContext) throws Exception {
+    Map parseJSONObject(CharSource source, char[] buf, int fromIndex, Map instance, JSONParseContext parseContext) throws Exception {
         int i = fromIndex;
         char ch;
         boolean empty = true;
@@ -357,7 +374,7 @@ public final class JSONDefaultParser extends JSONGeneral {
             Serializable key;
             int fieldKeyFrom = i;
             if (ch == '"') {
-                key = disableCacheMapKey ? (String) JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(source, buf, i, '"', null, parseContext) : parseMapKeyByCache(buf, i, '"', parseContext);
+                key = disableCacheMapKey ? (String) stringDeserializer.deserializeString(source, buf, i, '"', null, parseContext) : parseMapKeyByCache(buf, i, '"', parseContext);
                 i = parseContext.endIndex + 1;
                 empty = false;
             } else {
@@ -429,7 +446,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                     }
                     case '"':
                     case '\'': {
-                        value = JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(source, buf, i, ch, null, parseContext);
+                        value = stringDeserializer.deserializeString(source, buf, i, ch, null, parseContext);
                         i = parseContext.endIndex;
                         instance.put(key, value);
                         break;
@@ -527,11 +544,11 @@ public final class JSONDefaultParser extends JSONGeneral {
     }
 
     // bytes #####################################################################################################
-    static Object parseInternal(CharSource source, byte[] bytes, int fromIndex, int toIndex, Object defaultValue, ReadOption... readOptions) {
+    Object parseInternal(CharSource source, byte[] bytes, int fromIndex, int toIndex, Object defaultValue, ReadOption... readOptions) {
         return parseInternal(source, bytes, fromIndex, toIndex, defaultValue, JSONParseContext.of(readOptions));
     }
 
-    static Object parseInternal(CharSource source, byte[] bytes, int fromIndex, int toIndex, Object defaultValue, JSONParseContext parseContext) {
+    Object parseInternal(CharSource source, byte[] bytes, int fromIndex, int toIndex, Object defaultValue, JSONParseContext parseContext) {
         byte beginByte;
         try {
             while ((beginByte = bytes[fromIndex]) <= ' ') {
@@ -560,7 +577,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                     break;
                 case '\'':
                 case '"':
-                    result = JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(source, bytes, fromIndex, beginByte, GenericParameterizedType.StringType, parseContext);
+                    result = stringDeserializer.deserializeString(source, bytes, fromIndex, beginByte, GenericParameterizedType.StringType, parseContext);
                     break;
                 default:
                     try {
@@ -614,7 +631,7 @@ public final class JSONDefaultParser extends JSONGeneral {
         }
     }
 
-    static Collection parseJSONArray(CharSource source, byte[] bytes, int fromIndex, Collection list, JSONParseContext parseContext) throws Exception {
+    Collection parseJSONArray(CharSource source, byte[] bytes, int fromIndex, Collection list, JSONParseContext parseContext) throws Exception {
         byte b;
         int i = fromIndex;
         for (; ; ) {
@@ -650,7 +667,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                 }
                 case '\'':
                 case '"': {
-                    value = JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(source, bytes, i, b, GenericParameterizedType.StringType, parseContext);
+                    value = stringDeserializer.deserializeString(source, bytes, i, b, GenericParameterizedType.StringType, parseContext);
                     list.add(value);
                     i = parseContext.endIndex;
                     break;
@@ -683,7 +700,6 @@ public final class JSONDefaultParser extends JSONGeneral {
                     }
                 }
             }
-//            while ((b = bytes[++i]) <= ' ') ;
             if ((b = bytes[++i]) <= ' ') {
                 b = bytes[i = skipWhiteSpaces(bytes, i + 1)];
             }
@@ -704,12 +720,11 @@ public final class JSONDefaultParser extends JSONGeneral {
         }
     }
 
-    static Map parseJSONObject(CharSource source, byte[] bytes, int fromIndex, Map instance, JSONParseContext parseContext) throws Exception {
+    Map parseJSONObject(CharSource source, byte[] bytes, int fromIndex, Map instance, JSONParseContext parseContext) throws Exception {
         byte b;
         boolean empty = true, allowomment = parseContext.allowComment, disableCacheMapKey = parseContext.disableCacheMapKey;
         int i = fromIndex;
         for (; ; ) {
-//            while ((b = bytes[++i]) <= ' ') ;
             if ((b = bytes[++i]) <= ' ') {
                 b = bytes[i = skipWhiteSpaces(bytes, i + 1)];
             }
@@ -762,9 +777,6 @@ public final class JSONDefaultParser extends JSONGeneral {
                     }
                 }
             }
-//            while ((b = bytes[i]) <= ' ') {
-//                ++i;
-//            }
             if ((b = bytes[i]) <= ' ') {
                 b = bytes[i = skipWhiteSpaces(bytes, i + 1)];
             }
@@ -774,7 +786,6 @@ public final class JSONDefaultParser extends JSONGeneral {
                 }
             }
             if (b == ':') {
-//                while ((b = bytes[++i]) <= ' ') ;
                 if ((b = bytes[++i]) <= ' ') {
                     b = bytes[i = skipWhiteSpaces(bytes, i + 1)];
                 }
@@ -799,7 +810,7 @@ public final class JSONDefaultParser extends JSONGeneral {
                     }
                     case '"':
                     case '\'': {
-                        value = JSONTypeDeserializer.CHAR_SEQUENCE_STRING.deserializeString(source, bytes, i, b, GenericParameterizedType.StringType, parseContext);
+                        value = stringDeserializer.deserializeString(source, bytes, i, b, GenericParameterizedType.StringType, parseContext);
                         i = parseContext.endIndex;
                         instance.put(key, value);
                         break;
@@ -832,7 +843,6 @@ public final class JSONDefaultParser extends JSONGeneral {
                         }
                     }
                 }
-//                while ((b = bytes[++i]) <= ' ') ;
                 if ((b = bytes[++i]) <= ' ') {
                     b = bytes[i = skipWhiteSpaces(bytes, i + 1)];
                 }

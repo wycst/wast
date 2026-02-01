@@ -40,6 +40,20 @@ public enum WriteOption {
     FormatIndentUseSpace8,
 
     /**
+     * 快捷设置最大一级缩进
+     *
+     * @see io.github.wycst.wast.json.JSONConfig#setMaxIndentLevel(int)
+     */
+    FormatMaxIndentLevelOne,
+
+    /**
+     * 快捷设置最大二级缩进
+     *
+     * @see io.github.wycst.wast.json.JSONConfig#setMaxIndentLevel(int)
+     */
+    FormatMaxIndentLevelTwo,
+
+    /**
      * 输出全属性
      * Output all attributes
      */
@@ -71,7 +85,7 @@ public enum WriteOption {
      *
      * <p>By default, the date is formatted for output. If this item is configured, it can be serialized as a timestamp
      */
-    WriteDateAsTime,
+    DateAsTime,
 
     /**
      * <p> 默认按name序列化枚举类，配置此项将按Ordinal值输出，适合枚举类固定场景使用。
@@ -85,15 +99,10 @@ public enum WriteOption {
     WriteEnumAsName,
 
     /**
-     * <p> 将number按字符串输出
+     * <p> 将number按字符串输出:
+     * <p> 注: int,byte, short, double, float等不生效
      */
-    WriteNumberAsString,
-
-    /**
-     * <p> 后续删除 <p>
-     */
-    @Deprecated
-    WriteDecimalUseToString,
+    NumberAsString,
 
     /**
      * 默认情况下byte数组会输出为base64字符串，开启配置后将bytes数组输出为16进制字符串
@@ -135,7 +144,7 @@ public enum WriteOption {
     UseFields,
 
     /**
-     * 针对实体bean的驼峰字段名称序列化为下划线模式，eg: userName -> user_name
+     * 对象的属性按下划线模式输出，eg: userName -> user_name
      */
     CamelCaseToUnderline,
 

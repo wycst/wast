@@ -2,6 +2,7 @@ package io.github.wycst.wast.json;
 
 import io.github.wycst.wast.json.options.ReadOption;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -158,11 +159,11 @@ public class JSONParseContext {
         return escapeOffset;
     }
 
-    protected JSONKeyValueMap<String> getTable32() {
+    JSONKeyValueMap<String> getTable32() {
         return JSONGeneral.KEY_32_TABLE;
     }
 
-    protected JSONKeyValueMap<String> getTable8() {
+    JSONKeyValueMap<String> getTable8() {
         return JSONGeneral.KEY_8_TABLE;
     }
 
@@ -182,11 +183,11 @@ public class JSONParseContext {
         return JSONGeneral.getCacheKey(bytes, offset, len, hashValue, getTable32());
     }
 
-    public Map defaultMap() {
-        return new LinkedHashMap(10);
+    public Map<Serializable, Object> defaultMap() {
+        return new LinkedHashMap<Serializable, Object>(10);
     }
 
-    public List defaultList() {
-        return new ArrayList(10);
+    public List<?> defaultList() {
+        return new ArrayList<Object>(10);
     }
 }

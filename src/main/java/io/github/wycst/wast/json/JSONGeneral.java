@@ -1,5 +1,6 @@
 package io.github.wycst.wast.json;
 
+import io.github.wycst.wast.common.beans.ArrayQueueMap;
 import io.github.wycst.wast.common.beans.DateTemplate;
 import io.github.wycst.wast.common.beans.GregorianDate;
 import io.github.wycst.wast.common.compiler.MemoryClassLoader;
@@ -18,12 +19,12 @@ import java.io.Serializable;
 import java.lang.reflect.Constructor;
 import java.sql.Time;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @Author wangyunchao
  * @Date 2021/12/7 19:30
  */
+@SuppressWarnings({"all"})
 class JSONGeneral {
 
     // Format output character pool
@@ -40,6 +41,8 @@ class JSONGeneral {
         Arrays.fill(FORMAT_OUT_SYMBOL_SPACES, ' ');
     }
 
+    protected final static byte[] EMPTY_BYTES = new byte[0];
+    protected final static char[] EMPTY_CHARS = new char[0];
     protected final static char[] EMPTY_ARRAY = new char[]{'[', ']'};
     protected final static char[] EMPTY_OBJECT = new char[]{'{', '}'};
     protected final static int TRUE_INT = JSONMemoryHandle.getInt(new byte[]{'t', 'r', 'u', 'e'}, 0);
@@ -49,6 +52,11 @@ class JSONGeneral {
 
     protected final static int NULL_INT = JSONMemoryHandle.getInt(new byte[]{'n', 'u', 'l', 'l'}, 0);
     protected final static long NULL_LONG = JSONMemoryHandle.getLong(new char[]{'n', 'u', 'l', 'l'}, 0);
+
+    protected final static short DURATION_PT_SHORT = JSONMemoryHandle.getShort(new byte[]{'P', 'T'}, 0);
+    protected final static int DURATION_PT_INT = JSONMemoryHandle.getInt(new char[]{'P', 'T'}, 0);
+    protected final static int DURATION_ZERO_INT = JSONMemoryHandle.getInt(new byte[]{'P', 'T', '0', 'S'}, 0);
+    protected final static long DURATION_ZERO_LONG = JSONMemoryHandle.getLong(new char[]{'P', 'T', '0', 'S'}, 0);
 
     protected final static byte ZERO = 0;
     protected final static byte COMMA = ',';
@@ -99,7 +107,7 @@ class JSONGeneral {
     }
 
     protected final static int DIRECT_READ_BUFFER_SIZE = 8192;
-    final static Map<String, TimeZone> GMT_TIME_ZONE_MAP = new ConcurrentHashMap<String, TimeZone>();
+    final static Map<String, TimeZone> GMT_TIME_ZONE_MAP = new ArrayQueueMap<String, TimeZone>(512);
 
     // zero zone
     public final static TimeZone ZERO_TIME_ZONE = TimeZone.getTimeZone("GMT+00:00");
@@ -142,7 +150,7 @@ class JSONGeneral {
     final static double[] EMPTY_DOUBLES = new double[0];
     final static String[] EMPTY_STRINGS = new String[0];
     // Default interface or abstract class implementation class configuration
-    static final Map<Class<?>, JSONImplInstCreator> DEFAULT_IMPL_INST_CREATOR_MAP = new ConcurrentHashMap<Class<?>, JSONImplInstCreator>();
+    static final Map<Class<?>, JSONImplInstCreator> DEFAULT_IMPL_INST_CREATOR_MAP = new ArrayQueueMap<Class<?>, JSONImplInstCreator>(512);
     protected final static JSONSecureTrustedAccess JSON_SECURE_TRUSTED_ACCESS = new JSONSecureTrustedAccess();
     protected final static int[] TWO_DIGITS_VALUES = new int[256];
     protected final static int[] THREE_DIGITS_MUL10 = new int[10 << 8];  // 2560
@@ -1577,7 +1585,23 @@ class JSONGeneral {
         }
     }
 
+    /**
+     * 格式化缩进,默认使用\t来进行缩进(明确标识结束)
+     *
+     * @param content
+     * @param level
+     * @param formatOut
+     * @throws IOException
+     */
+    protected final static void writeEndFormatOutSymbols(JSONWriter content, int level, boolean formatOut, JSONConfig jsonConfig) throws IOException {
+        if (formatOut && level > -1) {
+            if (level >= jsonConfig.maxIndentLevel) return;
+            writeFormatOutSymbols(content, level, jsonConfig);
+        }
+    }
+
     protected final static void writeFormatOutSymbols(JSONWriter content, int level, JSONConfig jsonConfig) throws IOException {
+        if (level > jsonConfig.maxIndentLevel) return;
         boolean formatIndentUseSpace = jsonConfig.isFormatIndentUseSpace();
         if (formatIndentUseSpace) {
             content.writeJSONToken('\n');
@@ -1733,7 +1757,7 @@ class JSONGeneral {
             }
             if (numberFlag && pointFlag <= 1) {
                 if (pointFlag == 1) {
-                    return parseDouble(buf, from, from + count);
+                    return parseFloats(buf, from, from + count, true);
                 } else {
                     long val = Long.parseLong(new String(buf, from, count));
                     if (val <= Integer.MAX_VALUE && val >= Integer.MIN_VALUE) {
@@ -1787,7 +1811,7 @@ class JSONGeneral {
             }
             if (numberFlag && pointFlag <= 1) {
                 if (pointFlag == 1) {
-                    return parseDouble(buf, from, from + count);
+                    return parseFloats(buf, from, from + count, true);
                 } else {
                     long val = Long.parseLong(new String(buf, from, count));
                     if (val <= Integer.MAX_VALUE && val >= Integer.MIN_VALUE) {
@@ -2136,98 +2160,10 @@ class JSONGeneral {
         if (JSONVmOptions.isIntrinsicCandidateDisabled()) {
             return false;
         }
-//        int c1 = 0, c2 = 0;
-//        // test 100 times
-//        for (int k = 0; k < 1000; ++k) {
-//            final int cnt = 10, len = 256;
-//            byte[] buf = new byte[len];
-//            Arrays.fill(buf, (byte) 97);
-//            buf[len - 1] = '\\';
-//            final String text = new String(buf);
-//            int index = 0;
-//            long t0 = System.nanoTime();
-//            for (int i = 0; i < cnt; i++) {
-//                index = text.indexOf('\\');
-//            }
-//            long t1 = System.nanoTime();
-//            long indexOfUse = t1 - t0;
-//            buf[index] = '\\';
-//            t0 = System.nanoTime();
-//            for (int i = 0; i < cnt; i++) {
-//                index = indexOfCharCode(buf, '\\', 0, 256);
-//            }
-//            t1 = System.nanoTime();
-//            long localUse = t1 - t0;
-//            buf[index] = '\\';
-//            if (localUse < indexOfUse << 1) {
-//                ++c1;
-//            } else {
-//                ++c2;
-//            }
-//        }
-//        return c2 > c1 << 2;
         return true;
     }
 
-//    private static int indexOfCharCode(byte[] value, int ch, int fromIndex, int max) {
-//        byte c = (byte) ch;
-//        for (int i = fromIndex; i < max; i++) {
-//            if (value[i] == c) {
-//                return i;
-//            }
-//        }
-//        return -1;
-//    }
-
-    /**
-     * json -> double
-     * <p>
-     * 读取byte[]数组解析为double值，支持+-开头及D,d,F,f,L,l结尾及科学计数法+-e(E),并对特殊字符串做了兼容处理包括前后置的空格和0字符等比如
-     * <li color=green>"00000002.3456000000d "</li>
-     * <li color=green>" 00.000000000000002345678988765432345876544d"</li>
-     * <li color=green>"1.0000000000000002345678988765432345876544d"</li>
-     * <li color=green>"123e+12f"</li>
-     * <li color=green>"-123e-12d"</li>
-     * <p>
-     * 如果输入不合法会抛出一个异常，例如:
-     * <li color=red>"123.5g"</li>
-     * <li color=red>"123.5p123"</li>
-     * <p>
-     * double输入解析例如: JSON.parseDouble("123e10"), 类似Double.parseDouble("123e10")
-     * 和常规JSON中的double字段解析区别是没有预期的结束token(',', '}', ']')，所以需要考虑数据越界的问题
-     *
-     * @param json
-     * @return
-     */
-    public static double parseDouble(String json) {
-        if (EnvUtils.JDK_9_PLUS) {
-            return parseDouble((byte[]) getStringValue(json));
-        } else {
-            return parseDouble((char[]) getStringValue(json));
-        }
-    }
-
-    /**
-     * bytes -> double
-     *
-     * @param buf
-     * @return
-     * @throws JSONException
-     */
-    public final static double parseDouble(byte[] buf) {
-        return parseDouble(buf, 0, buf.length);
-    }
-
-    /**
-     * bytes -> double
-     *
-     * @param buf
-     * @param offset
-     * @param endIndex
-     * @return
-     * @throws JSONException
-     */
-    public final static double parseDouble(byte[] buf, final int offset, final int endIndex) {
+    final static double parseFloats(byte[] buf, final int offset, final int endIndex, boolean doubleFlag) {
         try {
             int i = offset, zeroIndex = 0, decimalPointIndex = endIndex, cnt = 0, decimalCount = 0, zeroDecimalCount = 0, c, v, e10 = 0;
             long value = 0L;
@@ -2320,10 +2256,10 @@ class JSONGeneral {
                         // 清除后置的空白
                         while (++i < endIndex && (c = buf[i]) <= ' ') ;
                         if (i == endIndex) break label_double_al;
-                        throw new JSONException("For input string: \"" + new String(buf) + "\"");
+                        throw new JSONException("error floats input: \"" + new String(buf) + "\"");
                     }
                     default: {
-                        throw new JSONException("For input string: \"" + new String(buf) + "\"");
+                        throw new JSONException("error floats input: \"" + new String(buf) + "\"");
                     }
                 }
             }
@@ -2355,42 +2291,19 @@ class JSONGeneral {
                 }
                 decimalCount -= cnt - 18;
             }
-            double dv = NumberUtils.scientificToIEEEDouble(value, expNegative ? e10 + decimalCount : decimalCount - e10);
-            return negative ? -dv : dv;
+            if (doubleFlag) {
+                double dv = NumberUtils.scientificToIEEEDouble(value, expNegative ? e10 + decimalCount : decimalCount - e10);
+                return negative ? -dv : dv;
+            } else {
+                float fv = NumberUtils.scientificToIEEEFloat(value, expNegative ? e10 + decimalCount : decimalCount - e10);
+                return negative ? -fv : fv;
+            }
         } catch (Throwable throwable) {
             throw throwable instanceof JSONException ? (JSONException) throwable : new JSONException("For input string: \"" + new String(buf) + "\"");
         }
     }
 
-    /**
-     * ‘
-     * 读取char[]数组解析为double值，支持+-开头及D,d,F,f,L,l结尾及科学计数法+-e(E),并对特殊字符串做了兼容处理包括前后置的空格和0字符等，比如00000002.3456000000
-     * <p>
-     * double输入解析例如: JSON.parseDouble("123e10"), 类似Double.parseDouble("123e10")
-     * 和常规JSON中的double字段解析区别是没有预期的结束token(',', '}', ']')，所以需要考虑数据越界的问题
-     * bytes -> double
-     *
-     * @param buf
-     * @return
-     */
-    public final static double parseDouble(char[] buf) {
-        return parseDouble(buf, 0, buf.length);
-    }
-
-    /**
-     * ‘
-     * 读取char[]数组解析为double值，支持+-开头及D,d,F,f,L,l结尾及科学计数法+-e(E),并对特殊字符串做了兼容处理包括前后置的空格和0字符等，比如00000002.3456000000
-     * <p>
-     * double输入解析例如: JSON.parseDouble("123e10"), 类似Double.parseDouble("123e10")
-     * 和常规JSON中的double字段解析区别是没有预期的结束token(',', '}', ']')，所以需要考虑数据越界的问题
-     * bytes -> double
-     *
-     * @param buf
-     * @param offset
-     * @param endIndex
-     * @return
-     */
-    public final static double parseDouble(char[] buf, final int offset, final int endIndex) {
+    final static double parseFloats(char[] buf, final int offset, final int endIndex, boolean doubleFlag) {
         try {
             int i = offset, zeroIndex = 0, decimalPointIndex = endIndex, cnt = 0, decimalCount = 0, zeroDecimalCount = 0, c, v, e10 = 0;
             long value = 0L;
@@ -2483,10 +2396,10 @@ class JSONGeneral {
                         // 清除后置的空白
                         while (++i < endIndex && (c = buf[i]) <= ' ') ;
                         if (i == endIndex) break label_double_al;
-                        throw new JSONException("For input string: \"" + new String(buf) + "\"");
+                        throw new JSONException("error floats input: \"" + new String(buf) + "\"");
                     }
                     default: {
-                        throw new JSONException("For input string: \"" + new String(buf) + "\"");
+                        throw new JSONException("error floats input: \"" + new String(buf) + "\"");
                     }
                 }
             }
@@ -2518,8 +2431,13 @@ class JSONGeneral {
                 }
                 decimalCount -= cnt - 18;
             }
-            double dv = NumberUtils.scientificToIEEEDouble(value, expNegative ? e10 + decimalCount : decimalCount - e10);
-            return negative ? -dv : dv;
+            if (doubleFlag) {
+                double dv = NumberUtils.scientificToIEEEDouble(value, expNegative ? e10 + decimalCount : decimalCount - e10);
+                return negative ? -dv : dv;
+            } else {
+                float fv = NumberUtils.scientificToIEEEFloat(value, expNegative ? e10 + decimalCount : decimalCount - e10);
+                return negative ? -fv : fv;
+            }
         } catch (Throwable throwable) {
             throw throwable instanceof JSONException ? (JSONException) throwable : new JSONException("For input string: \"" + new String(buf) + "\"");
         }

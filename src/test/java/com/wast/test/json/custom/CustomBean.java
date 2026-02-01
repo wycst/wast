@@ -3,8 +3,7 @@ package com.wast.test.json.custom;
 import io.github.wycst.wast.common.reflect.ClassStrucWrap;
 import io.github.wycst.wast.common.reflect.SetterInfo;
 import io.github.wycst.wast.json.JSON;
-import io.github.wycst.wast.json.annotations.JsonDeserialize;
-import io.github.wycst.wast.json.annotations.JsonSerialize;
+import io.github.wycst.wast.json.annotations.JsonProperty;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -18,8 +17,7 @@ public class CustomBean {
 
     private String name;
 
-    @JsonSerialize(CustomDetailSerializer.class)
-    @JsonDeserialize(CustomDetailDeserializer.class)
+    @JsonProperty(mapper = DetailMapper.class)
     private Map detail;
 
     public String getName() {

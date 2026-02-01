@@ -20,8 +20,8 @@ final class JSONReaderHookExact extends JSONReaderHook {
     }
 
     @Override
-    protected Collection createdCollection(String path) {
-        return path.equals(exactPath) ? new ArrayList() : null;
+    protected Collection<?> createdCollection(String path) {
+        return path.equals(exactPath) ? new ArrayList<Object>() : null;
     }
 
     @Override

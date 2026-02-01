@@ -56,11 +56,11 @@ public enum ReadOption {
      */
     UseBigDecimalAsDefault,
 
-    /**
-     * <p> 使用JDK内置的double进行parser <p>
-     */
-    @Deprecated
-    UseJDKDoubleParser,
+//    /**
+//     * <p> 使用JDK内置的double进行parser <p>
+//     */
+//    @Deprecated
+//    UseJDKDoubleParser,
 
     /**
      * <p> 未匹配到类型的空字符串时返回null（空字符串是指: ""）

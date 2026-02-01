@@ -9,9 +9,9 @@ import io.github.wycst.wast.common.reflect.GenericParameterizedType;
 final class JSONReaderHookExactComplex extends JSONReaderHook {
 
     private final String exactPath;
-    private final GenericParameterizedType parameterizedType;
+    private final GenericParameterizedType<?> parameterizedType;
 
-    public JSONReaderHookExactComplex(String exactPath, GenericParameterizedType parameterizedType) {
+    public JSONReaderHookExactComplex(String exactPath, GenericParameterizedType<?> parameterizedType) {
         this.exactPath = exactPath;
         this.parameterizedType = parameterizedType;
         parameterizedType.getClass();
@@ -22,7 +22,7 @@ final class JSONReaderHookExactComplex extends JSONReaderHook {
     }
 
     @Override
-    protected GenericParameterizedType getParameterizedType(String path) {
+    protected GenericParameterizedType<?> getParameterizedType(String path) {
         return path.equals(exactPath) ? parameterizedType : null;
     }
 

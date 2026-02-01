@@ -6,7 +6,7 @@ package io.github.wycst.wast.json;
  */
 public abstract class JSONNodeCollector<T> {
 
-    public final JSONNodeCollector self() {
+    public final JSONNodeCollector<T> self() {
         return this;
     }
 
@@ -42,8 +42,6 @@ public abstract class JSONNodeCollector<T> {
 
     /**
      * 是否只收集叶子节点（对象和数组类型忽略）
-     *
-     * @return
      */
     public JSONNodeCollector onlyCollectLeaf() {
         return this instanceof LeafWrapImpl ? this : new LeafWrapImpl(this);
