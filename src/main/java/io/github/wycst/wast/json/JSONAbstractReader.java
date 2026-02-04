@@ -196,7 +196,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
         }
     }
 
-    private void executeReadStream(GenericParameterizedType genericType) {
+    private void executeReadStream(GenericParameterizedType<?> genericType) {
         try {
             this.readBuffer();
             this.beginReadWithType(genericType);
@@ -579,12 +579,12 @@ abstract class JSONAbstractReader extends JSONGeneral {
      *
      * @throws Exception
      */
-    Object readObject(String path, GenericParameterizedType genericType) throws Exception {
+    Object readObject(String path, GenericParameterizedType<?> genericType) throws Exception {
         Object instance;
         Map map = null;
         ClassStrucWrap classStrucWrap = null;
         final boolean useHook = readerHook != null;
-        GenericParameterizedType valueType = null;
+        GenericParameterizedType<?> valueType = null;
         boolean useHookValueParse = useHook && genericType == null;
         do {
             if (genericType == null) {
@@ -730,13 +730,13 @@ abstract class JSONAbstractReader extends JSONGeneral {
         return instance;
     }
 
-    final Object readArray(String path, GenericParameterizedType genericType) throws Exception {
+    final Object readArray(String path, GenericParameterizedType<?> genericType) throws Exception {
 
-        Object instance = null;
-        Collection collection = null;
+        Object instance;
+        Collection<?> collection;
         Class<?> collectionCls = null;
-        GenericParameterizedType valueType = null;
-        Class actualType = null;
+        GenericParameterizedType<?> valueType = null;
+        Class<?> actualType = null;
         boolean isArrayCls = false, elementPrimitive = false;
         boolean useHook = readerHook != null;
         boolean useHookValueParse = useHook && genericType == null;
@@ -784,7 +784,7 @@ abstract class JSONAbstractReader extends JSONGeneral {
             actualType = valueType.getActualType();
             elementPrimitive = actualType.isPrimitive();
 
-            instance = collection = isArrayCls ? new ArrayList() : createCollectionInstance(collectionCls);
+            instance = collection = isArrayCls ? new ArrayList<Object>() : createCollectionInstance(collectionCls);
         } while (false);
 
         int elementIndex = 0;
@@ -870,12 +870,11 @@ abstract class JSONAbstractReader extends JSONGeneral {
         return isArrayCls ? CollectionUtils.toArray(collection, actualType == null ? Object.class : actualType) : collection;
     }
 
-    private Object toBoolType(boolean b, GenericParameterizedType valueType) {
-        if (valueType == null) return b;
-        if (valueType.getActualClassCategory() == ReflectConsts.ClassCategory.BoolCategory) {
+    private Object toBoolType(boolean b, GenericParameterizedType<?> valueType) {
+        if (valueType == null || valueType == GenericParameterizedType.AnyType || valueType.getActualClassCategory() == ReflectConsts.ClassCategory.BoolCategory) {
             return b;
         }
-        Class actualType = valueType.getActualType();
+        Class<?> actualType = valueType.getActualType();
         if (actualType == AtomicBoolean.class) {
             return new AtomicBoolean(b);
         }
